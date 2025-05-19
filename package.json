@@ -2,12 +2,13 @@
   "name": "socket-mcp",
   "version": "0.0.1",
   "type": "module",
-  "main": "index.js",
+  "main": "./build/index.js",
   "bin": {
     "depscore": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && chmod 755 ./build/index.js"
+    "build": "tsc && chmod 755 ./build/index.js",
+    "postinstall": "npm run build"
   },
   "files": [
     "build"

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -23,7 +24,7 @@ const server = new McpServer({
         tools: {},
     },
 });
-server.tool("debscore", "Get the dependency score of a package with the `debscore` tool from Socket. Use 'unknown' for version if not known.", {
+server.tool("depscore", "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known.", {
     ecosystem: z.string().describe("The package ecosystem (e.g., npm, pypi)").default("npm"),
     depname: z.string().describe("The name of the dependency"),
     version: z.string().describe("The version of the dependency, use 'unknown' if not known").default("unknown"),
