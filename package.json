@@ -1,0 +1,32 @@
+{
+  "name": "socket-mcp",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "depscore": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod 755 ./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "keywords": [],
+  "author": "Alexandros Kapravelos",
+  "description": "Socket MCP server for scanning dependencies",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.3",
+    "@types/node-fetch": "^2.6.12",
+    "node-fetch": "^3.3.2",
+    "semver": "^7.7.2",
+    "winston": "^3.17.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.19",
+    "@types/semver": "^7.7.0",
+    "@types/triple-beam": "^1.3.5",
+    "typescript": "^5.8.3"
+  }
+}
