@@ -14,12 +14,6 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
 - `depname`: The name of the dependency.
 - `version`: The version of the dependency. Defaults to "unknown".
 
-**Example usage:**
-
-```text
-depscore("npm", "express", "4.18.2")
-```
-
 ## Configuration
 
 ### Getting an API key
@@ -28,6 +22,9 @@ To use the Socket MCP Server, you need to create an API key. You can do this by 
 
 
 ### Usage with Claude Desktop
+
+> [!NOTE]
+> Custom integrations are not available to all paid versions of Claude. Check [here](https://support.anthropic.com/en/articles/11175166-about-custom-integrations-using-remote-mcp) for more information.
 
 To use this MCP server with Claude Desktop:
 
@@ -43,11 +40,11 @@ To use this MCP server with Claude Desktop:
    export SOCKET_API_KEY=your_api_key_here
    ```
 
-3. In Claude Desktop, go to Settings > Assistants > Add Custom Tool.
+3. In Claude Desktop, go to Settings > Integrations > Add Custom Integration.
 
 4. Enter the following:
    - Name: Socket
-   - Command: `depscore`
+   - Command: `socket-mcp`
    - Save the configuration.
 
 5. Now you can ask Claude questions like "Check the security score for express version 4.18.2".
@@ -57,7 +54,7 @@ To use this MCP server with Claude Desktop:
 For quick installation, you can use the following link to install the Socket MCP server in VS Code:
 
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22socket-mcp%22%2C%22inputs%22%3A%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22socket_api_key%22%2C%22description%22%3A%22Socket%20API%20Key%22%2C%22password%22%3Atrue%7D%5D%2C%22command%22%3A%22depscore%22%2C%22type%22%3A%22stdio%22%2C%22env%22%3A%7B%22SOCKET_API_KEY%22%3A%22%24%7Binput%3Asocket_api_key%7D%22%7D%7D)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22socket-mcp%22%2C%22inputs%22%3A%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22socket_api_key%22%2C%22description%22%3A%22Socket%20API%20Key%22%2C%22password%22%3Atrue%7D%5D%2C%22command%22%3A%22socket-mcp%22%2C%22type%22%3A%22stdio%22%2C%22env%22%3A%7B%22SOCKET_API_KEY%22%3A%22%24%7Binput%3Asocket_api_key%7D%22%7D%7D)
 
 
 To use this MCP server in VS Code:
@@ -83,7 +80,7 @@ To use this MCP server in VS Code:
         "servers": {
             "socket-mcp": {
                 "type": "stdio",
-                "command": "depscore",
+                "command": "socket-mcp",
                 "args": [],
                     "env": {
                         "SOCKET_API_KEY": "${input:socket_api_key}"
@@ -128,7 +125,7 @@ To build the project:
 npm run build
 ```
 
-This compiles the TypeScript files and makes the binary executable called `depscore`.
+This compiles the TypeScript files and makes the binary executable called `socket-mcp`.
 
 ## Run
 
@@ -143,20 +140,20 @@ After installing globally, you can run the executable directly:
 
 ```bash
 export SOCKET_API_KEY=your_api_key_here
-depscore
+socket-mcp
 ```
 
 ### Global Installation
 
-To install the tool globally and make the `depscore` command available system-wide:
+To install the tool globally and make the `socket-mcp` command available system-wide:
 
 ```bash
 npm install -g .
 ```
 
-After global installation, you can use the `depscore` command from anywhere:
+After global installation, you can use the `socket-mcp` command from anywhere:
 
 ```bash
 export SOCKET_API_KEY=your_api_key_here
-depscore
+socket-mcp
 ```
