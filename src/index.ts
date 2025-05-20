@@ -60,11 +60,19 @@ server.tool(
 
             const responseText = await response.text();
 
-            if (response.status !== 200 || !responseText.trim()) {
-                const errorMsg = `Error processing ${purl}`;
+            if (response.status !== 200) {
+                const errorMsg = `Error processing ${purl}: [${response.status}] ${responseText}`;
+                console.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
-                    isError: true
+                    isError: false
+                };
+            } else if (!responseText.trim()) {
+                const errorMsg = `${purl} was not found.`;
+                console.error(errorMsg);
+                return {
+                    content: [{ type: "text", text: errorMsg }],
+                    isError: false
                 };
             }
 
