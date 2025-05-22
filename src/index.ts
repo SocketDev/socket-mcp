@@ -3,12 +3,27 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import fetch from 'node-fetch';
+import winston from 'winston';
+
+// Configure winston logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'socket-mcp-error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'socket-mcp.log' })
+  ]
+});
 
 const SOCKET_API_URL = "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
 
 const SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
 if (!SOCKET_API_KEY) {
-  console.error("Error: SOCKET_API_KEY environment variable is not set");
+  logger.error("SOCKET_API_KEY environment variable is not set");
   process.exit(1);
 }
 
@@ -31,14 +46,14 @@ const server = new McpServer({
 
 server.tool(
     "depscore",
-    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known.",
+    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated.",
     {
         ecosystem: z.string().describe("The package ecosystem (e.g., npm, pypi)").default("npm"),
         depname: z.string().describe("The name of the dependency"),
         version: z.string().describe("The version of the dependency, use 'unknown' if not known").default("unknown"),
     },
     async ({ ecosystem, depname, version }) => {
-        console.log(`Received request for ${depname} (${version}) in ${ecosystem} ecosystem`);
+        logger.info(`Received request for ${depname} (${version}) in ${ecosystem} ecosystem`);
         
         // cleanup version
         let purl: string;
@@ -46,7 +61,7 @@ server.tool(
         if (cleanedVersion === "1.0.0" || cleanedVersion === "unknown" || !cleanedVersion) {
             purl = `pkg:${ecosystem}/${depname}`;
         } else {
-            console.log(`Using version ${cleanedVersion} for ${depname}`);
+            logger.info(`Using version ${cleanedVersion} for ${depname}`);
             purl = `pkg:${ecosystem}/${depname}@${cleanedVersion}`;
         }
 
@@ -62,14 +77,14 @@ server.tool(
 
             if (response.status !== 200) {
                 const errorMsg = `Error processing ${purl}: [${response.status}] ${responseText}`;
-                console.error(errorMsg);
+                logger.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
                     isError: false
                 };
             } else if (!responseText.trim()) {
                 const errorMsg = `${purl} was not found.`;
-                console.error(errorMsg);
+                logger.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
                     isError: false
@@ -126,7 +141,7 @@ server.tool(
             } catch (e) {
                 const error = e as Error;
                 const errorMsg = `JSON parsing error for ${purl}: ${error.message} -- Response: ${responseText}`;
-                console.error(errorMsg);
+                logger.error(errorMsg);
                 const llmResponse = `Package ${purl} not found.`;
                 return {    
                     content: [{ type: "text", text: llmResponse }],
@@ -136,7 +151,7 @@ server.tool(
         } catch (e) {
             const error = e as Error;
             const errorMsg = `Error processing ${purl}: ${error.message}`;
-            console.error(errorMsg);
+            logger.error(errorMsg);
             const llmResponse = `Package ${purl} not found.`;
             return {
                 content: [{ type: "text", text: llmResponse }],
@@ -151,9 +166,9 @@ server.tool(
 const transport = new StdioServerTransport();
 server.connect(transport)
   .then(() => {
-    console.log("Socket MCP server started successfully");
+    logger.info("Socket MCP server started successfully");
   })
   .catch((error: Error) => {
-    console.error(`Failed to start Socket MCP server: ${error.message}`);
+    logger.error(`Failed to start Socket MCP server: ${error.message}`);
     process.exit(1);
   });
