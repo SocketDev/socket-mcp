@@ -40,7 +40,22 @@ To use this MCP server with Claude Desktop:
    export SOCKET_API_KEY=your_api_key_here
    ```
 
-3. In Claude Desktop, go to Settings > Integrations > Add Custom Integration.
+3. In Claude Desktop, go to Settings > Developer > Edit Config.
+
+
+```js
+{
+  "mcpServers": {
+    "socket-mcp": {
+        "command": "socket-mcp",
+        "args": [],
+      "env": {
+        "SOCKET_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
 
 4. Enter the following:
    - Name: Socket
