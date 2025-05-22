@@ -46,7 +46,7 @@ const server = new McpServer({
 
 server.tool(
     "depscore",
-    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated.",
+    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low.",
     {
         ecosystem: z.string().describe("The package ecosystem (e.g., npm, pypi)").default("npm"),
         depname: z.string().describe("The name of the dependency"),
@@ -116,7 +116,7 @@ server.tool(
                 if (jsonData.score && jsonData.score.overall !== undefined) {
                     // Unroll the jsonData.score object into key-value pairs
                     const scoreEntries = Object.entries(jsonData.score)
-                        .filter(([key]) => key !== "overall")
+                        .filter(([key]) => key !== "overall" && key !== "uuid")
                         .map(([key, value]) => `${key}: ${value}`)
                         .join(', ');
 
