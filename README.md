@@ -64,6 +64,8 @@ To use this MCP server with Claude Desktop:
 
 5. Now you can ask Claude questions like "Check the security score for express version 4.18.2".
 
+The process is similar for Claude Code. See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp) for more details.
+
 ### Usage with VS Code
 
 For quick installation, you can use the following link to install the Socket MCP server in VS Code:
