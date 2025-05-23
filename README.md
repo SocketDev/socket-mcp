@@ -69,7 +69,7 @@ To use this MCP server with Claude Desktop:
 For quick installation, you can use the following link to install the Socket MCP server in VS Code:
 
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22socket-mcp%22%2C%22inputs%22%3A%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22socket_api_key%22%2C%22description%22%3A%22Socket%20API%20Key%22%2C%22password%22%3Atrue%7D%5D%2C%22command%22%3A%22socket-mcp%22%2C%22type%22%3A%22stdio%22%2C%22env%22%3A%7B%22SOCKET_API_KEY%22%3A%22%24%7Binput%3Asocket_api_key%7D%22%7D%7D)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=socket-mcp&inputs=[{"type":"promptString","id":"socket_api_key","password":true}]&config={"command":"depscore","type":"stdio","env":{"SOCKET_API_KEY":"${input:socket_api_key}"}})
 
 
 To use this MCP server in VS Code:
