@@ -172,3 +172,22 @@ After global installation, you can use the `socket-mcp` command from anywhere:
 export SOCKET_API_KEY=your_api_key_here
 socket-mcp
 ```
+
+## Adjust tool usage with custom rules
+
+You can further customize how the Socket MCP server interacts with your AI assistant by modifying your client rules. The rules are usually a markdown file and its location depends on the AI assistant you are using. 
+
+| MCP Client | Rules File Location |
+|---|---|
+| Claude Desktop/Code | `CLAUDE.md`  |
+| VSCode Copilot | `.github/copilot-instructions.md`  |
+| Cursor | `.cursor/rules` |
+
+
+Rules that can be added to the client rules file include the following:
+
+```md
+Always check dependency scores with the debscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you are unsure about the score, ask for a review from someone with more experience. When checking dependencies, make sure to also check the imports not just the pyproject.toml file.
+```
+
+You can adjust the rules to fit your needs. For example, you can add rules to include specific manifest files, or guide the AI assistant on how to handle low scores. The rules are flexible and can be tailored to your workflow.

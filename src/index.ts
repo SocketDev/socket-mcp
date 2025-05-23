@@ -46,7 +46,7 @@ const server = new McpServer({
 
 server.tool(
     "depscore",
-    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low.",
+    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
     {
         ecosystem: z.string().describe("The package ecosystem (e.g., npm, pypi)").default("npm"),
         depname: z.string().describe("The name of the dependency"),
