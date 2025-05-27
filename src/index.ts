@@ -5,6 +5,8 @@ import { z } from "zod";
 import fetch from 'node-fetch';
 import winston from 'winston';
 
+const VERSION = "0.0.1"; // Version of the MCP server
+
 // Configure winston logger
 const logger = winston.createLogger({
   level: 'info',
@@ -28,6 +30,7 @@ if (!SOCKET_API_KEY) {
 }
 
 const SOCKET_HEADERS = {
+  "user-agent": `socket-mcp/${VERSION}`,  
   "accept": "application/x-ndjson",
   "content-type": "application/json",
   "authorization": `Bearer ${SOCKET_API_KEY}`
@@ -36,7 +39,7 @@ const SOCKET_HEADERS = {
 // Create server instance
 const server = new McpServer({
   name: "socket",
-  version: "0.0.1",
+  version: VERSION,
   description: "Socket MCP server",
   capabilities: {
     resources: {},
