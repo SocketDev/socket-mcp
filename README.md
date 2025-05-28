@@ -1,6 +1,8 @@
 # Socket MCP Server
 
-A Model Context Protocol (MCP) server for Socket integration, allowing AI assistants to efficiently check dependency vulnerability scores and security information.
+A Model Context Protocol (MCP) server for Socket integration, allowing AI assistants to efficiently check dependency vulnerability scores and security information. 
+
+🛠️ This project is in early development and rapidly evolving.
 
 ## Tools
 
