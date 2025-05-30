@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { pino } from 'pino';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readFileSync } from 'fs';
+import { createServer } from 'http';
+import { randomUUID } from 'crypto';
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -66,6 +70,9 @@ const SOCKET_HEADERS = {
   "authorization": `Bearer ${SOCKET_API_KEY}`
 };
 
+// Transport management
+const transports: Record<string, StreamableHTTPServerTransport> = {};
+
 // Create server instance
 const server = new McpServer({
   name: "socket",
@@ -74,6 +81,7 @@ const server = new McpServer({
   capabilities: {
     resources: {},
     tools: {},
+    streaming: {}
   },
 });
 
@@ -209,13 +217,139 @@ server.tool(
 );
   
 
-// Create a stdio transport and start the server
-const transport = new StdioServerTransport();
-server.connect(transport)
-  .then(() => {
-    logger.info(`Socket MCP server version ${VERSION} started successfully`);
-  })
-  .catch((error: Error) => {
-    logger.error(`Failed to start Socket MCP server: ${error.message}`);
-    process.exit(1);
+// Determine transport mode from environment or arguments
+const useHttp = process.env.MCP_HTTP_MODE === 'true' || process.argv.includes('--http');
+const port = parseInt(process.env.MCP_PORT || '3000', 10);
+
+if (useHttp) {
+  // HTTP mode with Server-Sent Events
+  logger.info(`Starting HTTP server on port ${port}`);
+  
+  const httpServer = createServer(async (req, res) => {
+    // Enable CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
+    
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+
+    const url = new URL(req.url!, `http://localhost:${port}`);
+    
+    if (url.pathname === '/mcp') {
+      if (req.method === 'POST') {
+        // Handle JSON-RPC messages
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+          try {
+            const jsonData = JSON.parse(body);
+            const sessionId = req.headers['mcp-session-id'] as string;
+            
+            let transport: StreamableHTTPServerTransport;
+            
+            if (sessionId && transports[sessionId]) {
+              // Reuse existing transport
+              transport = transports[sessionId];
+            } else if (!sessionId && isInitializeRequest(jsonData)) {
+              // New initialization request
+              transport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: () => randomUUID(),
+                onsessioninitialized: (id) => {
+                  transports[id] = transport;
+                  logger.info(`Session initialized: ${id}`);
+                }
+              });
+              
+              transport.onclose = () => {
+                const sid = transport.sessionId;
+                if (sid && transports[sid]) {
+                  delete transports[sid];
+                  logger.info(`Session closed: ${sid}`);
+                }
+              };
+              
+              await server.connect(transport);
+              await transport.handleRequest(req, res, jsonData);
+              return;
+            } else {
+              // Invalid request
+              res.writeHead(400);
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                error: { code: -32000, message: 'Bad Request: No valid session ID' },
+                id: null
+              }));
+              return;
+            }
+            
+            // Handle request with existing transport
+            await transport.handleRequest(req, res, jsonData);
+          } catch (error) {
+            logger.error(`Error processing POST request: ${error}`);
+            if (!res.headersSent) {
+              res.writeHead(500);
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                error: { code: -32603, message: 'Internal server error' },
+                id: null
+              }));
+            }
+          }
+        });
+        
+      } else if (req.method === 'GET') {
+        // Handle SSE streams
+        const sessionId = req.headers['mcp-session-id'] as string;
+        if (!sessionId || !transports[sessionId]) {
+          res.writeHead(400);
+          res.end('Invalid or missing session ID');
+          return;
+        }
+        
+        const transport = transports[sessionId];
+        await transport.handleRequest(req, res);
+        
+      } else if (req.method === 'DELETE') {
+        // Handle session termination
+        const sessionId = req.headers['mcp-session-id'] as string;
+        if (!sessionId || !transports[sessionId]) {
+          res.writeHead(400);
+          res.end('Invalid or missing session ID');
+          return;
+        }
+        
+        const transport = transports[sessionId];
+        await transport.handleRequest(req, res);
+        
+      } else {
+        res.writeHead(405);
+        res.end('Method not allowed');
+      }
+    } else {
+      res.writeHead(404);
+      res.end('Not found');
+    }
   });
+
+  httpServer.listen(port, () => {
+    logger.info(`Socket MCP HTTP server started successfully on port ${port}`);
+    logger.info(`Connect to: http://localhost:${port}/mcp`);
+  });
+
+} else {
+  // Stdio mode (default)
+  logger.info("Starting in stdio mode");
+  const transport = new StdioServerTransport();
+  server.connect(transport)
+    .then(() => {
+      logger.info(`Socket MCP server version ${VERSION} started successfully`);
+    })
+    .catch((error: Error) => {
+      logger.error(`Failed to start Socket MCP server: ${error.message}`);
+      process.exit(1);
+    });
+}
