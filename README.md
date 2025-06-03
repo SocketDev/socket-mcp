@@ -1,6 +1,6 @@
 # Socket MCP Server
 
-A Model Context Protocol (MCP) server for Socket integration, allowing AI assistants to efficiently check dependency vulnerability scores and security information. 
+A Model Context Protocol (MCP) server for Socket integration, allowing AI assistants to efficiently check dependency vulnerability scores and security information.
 
 🛠️ This project is in early development and rapidly evolving.
 
@@ -33,7 +33,7 @@ To use this MCP server with Claude Desktop:
 1. Install the Socket MCP server:
 
    ```bash
-   npm install -g socket-mcp
+   npm install -g @socketsecurity/mcp
    ```
 
 2. Set the API key in your environment:
@@ -110,7 +110,7 @@ To use this MCP server in VS Code:
    ```
 
 3. Now you can ask questions about dependency security within your VS Code environment.
-4. Feel free to add the following to your `.github/copilot-instructions.md` file to control better how the tools is used by your agent: 
+4. Feel free to add the following to your `.github/copilot-instructions.md` file to control better how the tools is used by your agent:
 
    ```markdown
    ## Socket MCP Server
@@ -179,7 +179,7 @@ socket-mcp
 
 ## Adjust tool usage with custom rules
 
-You can further customize how the Socket MCP server interacts with your AI assistant by modifying your client rules. The rules are usually a markdown file and its location depends on the AI assistant you are using. 
+You can further customize how the Socket MCP server interacts with your AI assistant by modifying your client rules. The rules are usually a markdown file and its location depends on the AI assistant you are using.
 
 | MCP Client | Rules File Location |
 |---|---|
