@@ -20,8 +20,9 @@
     "@modelcontextprotocol/sdk": "^1.11.3",
     "@types/node-fetch": "^2.6.12",
     "node-fetch": "^3.3.2",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.0.0",
     "semver": "^7.7.2",
-    "winston": "^3.17.0",
     "zod": "^3.24.4"
   },
   "devDependencies": {

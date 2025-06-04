@@ -2,7 +2,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import winston from 'winston';
+import { pino } from 'pino';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -12,16 +12,24 @@ const __dirname = dirname(__filename);
 // Extract version from package.json
 const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
 const VERSION = packageJson.version || "0.0.1";
-// Configure winston logger
-const logger = winston.createLogger({
+// Configure pino logger
+const logger = pino({
     level: 'info',
-    format: winston.format.combine(winston.format.timestamp(), winston.format.errors({ stack: true }), winston.format.json()),
-    transports: [
-        new winston.transports.File({ filename: 'socket-mcp-error.log', level: 'error' }),
-        new winston.transports.File({ filename: 'socket-mcp.log' })
-    ]
+    transport: {
+        targets: [
+            {
+                target: 'pino/file',
+                options: { destination: '/tmp/socket-mcp-error.log' },
+                level: 'error'
+            },
+            {
+                target: 'pino/file',
+                options: { destination: '/tmp/socket-mcp.log' },
+                level: 'info'
+            }
+        ]
+    }
 });
-logger.info(`Starting Socket MCP server version ${VERSION}`);
 const SOCKET_API_URL = "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
 let SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
 if (!SOCKET_API_KEY) {
@@ -181,7 +189,7 @@ server.tool("depscore", "Get the dependency score of packages with the `depscore
 const transport = new StdioServerTransport();
 server.connect(transport)
     .then(() => {
-    logger.info("Socket MCP server started successfully");
+    logger.info(`Socket MCP server version ${VERSION} started successfully`);
 })
     .catch((error) => {
     logger.error(`Failed to start Socket MCP server: ${error.message}`);
