@@ -112,29 +112,31 @@ server.tool("depscore", "Get the dependency score of packages with the `depscore
                 }
                 // Process each result
                 for (const jsonData of jsonLines) {
+                    let purl = `pkg:${jsonData.type || 'unknown'}/${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`;
                     if (jsonData.score && jsonData.score.overall !== undefined) {
                         const scoreEntries = Object.entries(jsonData.score)
                             .filter(([key]) => key !== "overall" && key !== "uuid")
                             .map(([key, value]) => `${key}: ${value}`)
                             .join(', ');
                         const packageName = jsonData.name || 'unknown';
-                        results.push(`${packageName}: ${scoreEntries}`);
+                        results.push(`${purl}: ${scoreEntries}`);
                     }
                     else {
                         const packageName = jsonData.name || 'unknown';
-                        results.push(`${packageName}: No score found`);
+                        results.push(`${purl}: No score found`);
                     }
                 }
             }
             else {
                 const jsonData = JSON.parse(responseText);
+                let purl = `pkg:${jsonData.type || 'unknown'}/${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`;
                 if (jsonData.score && jsonData.score.overall !== undefined) {
                     const scoreEntries = Object.entries(jsonData.score)
                         .filter(([key]) => key !== "overall" && key !== "uuid")
                         .map(([key, value]) => `${key}: ${value}`)
                         .join(', ');
                     const packageName = jsonData.package?.name || 'unknown';
-                    results.push(`${packageName}: ${scoreEntries}`);
+                    results.push(`${purl}: ${scoreEntries}`);
                 }
             }
             return {
