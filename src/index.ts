@@ -336,7 +336,7 @@ if (useHttp) {
   });
 
   httpServer.listen(port, () => {
-    logger.info(`Socket MCP HTTP server started successfully on port ${port}`);
+    logger.info(`Socket MCP HTTP server version ${VERSION} started successfully on port ${port}`);
     logger.info(`Connect to: http://localhost:${port}/mcp`);
   });
 
