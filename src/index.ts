@@ -5,6 +5,7 @@ import { z } from "zod";
 import fetch from 'node-fetch';
 import winston from 'winston';
 import readline from 'readline';
+import readline from 'readline';
 
 const VERSION = "0.0.1"; // Version of the MCP server
 
