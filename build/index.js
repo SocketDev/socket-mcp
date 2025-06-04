@@ -5,7 +5,14 @@ import { z } from "zod";
 import fetch from 'node-fetch';
 import winston from 'winston';
 import readline from 'readline';
-const VERSION = "0.0.1"; // Version of the MCP server
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Extract version from package.json
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
+const VERSION = packageJson.version || "0.0.1";
 // Configure winston logger
 const logger = winston.createLogger({
     level: 'info',
@@ -15,6 +22,7 @@ const logger = winston.createLogger({
         new winston.transports.File({ filename: 'socket-mcp.log' })
     ]
 });
+logger.info(`Starting Socket MCP server version ${VERSION}`);
 const SOCKET_API_URL = "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
 let SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
 if (!SOCKET_API_KEY) {
