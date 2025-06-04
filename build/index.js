@@ -66,7 +66,7 @@ const transports = {};
 const server = new McpServer({
     name: "socket",
     version: VERSION,
-    description: "Socket MCP server with streamable HTTP support",
+    description: "Socket MCP server",
     capabilities: {
         resources: {},
         tools: {},
