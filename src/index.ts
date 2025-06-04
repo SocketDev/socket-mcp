@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import fetch from 'node-fetch';
 import winston from 'winston';
+import readline from 'readline';
 
 const VERSION = "0.0.1"; // Version of the MCP server
 
@@ -23,10 +24,27 @@ const logger = winston.createLogger({
 
 const SOCKET_API_URL = "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
 
-const SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
+let SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
 if (!SOCKET_API_KEY) {
-  logger.error("SOCKET_API_KEY environment variable is not set");
-  process.exit(1);
+    logger.error("SOCKET_API_KEY environment variable is not set");
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stderr
+    });
+    
+    const apiKey = await new Promise<string>((resolve) => {
+        rl.question('Please enter your Socket API key: ', (answer: string | PromiseLike<string>) => {
+            rl.close();
+            resolve(answer);
+        });
+    });
+    
+    if (!apiKey) {
+        logger.error("No API key provided");
+        process.exit(1);
+    }
+    
+    SOCKET_API_KEY = apiKey;
 }
 
 const SOCKET_HEADERS = {
@@ -49,44 +67,49 @@ const server = new McpServer({
 
 server.tool(
     "depscore",
-    "Get the dependency score of a package with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+    "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
     {
-        ecosystem: z.string().describe("The package ecosystem (e.g., npm, pypi)").default("npm"),
-        depname: z.string().describe("The name of the dependency"),
-        version: z.string().describe("The version of the dependency, use 'unknown' if not known").default("unknown"),
+        packages: z.array(z.object({
+            ecosystem: z.string().describe("The package ecosystem (e.g., npm, pypi)").default("npm"),
+            depname: z.string().describe("The name of the dependency"),
+            version: z.string().describe("The version of the dependency, use 'unknown' if not known").default("unknown"),
+        })).describe("Array of packages to check"),
     },
-    async ({ ecosystem, depname, version }) => {
-        logger.info(`Received request for ${depname} (${version}) in ${ecosystem} ecosystem`);
+    async ({ packages }) => {
+        logger.info(`Received request for ${packages.length} packages`);
         
-        // cleanup version
-        let purl: string;
-        const cleanedVersion = version.replace(/[\^~]/g, ''); // Remove ^ and ~ from version
-        if (cleanedVersion === "1.0.0" || cleanedVersion === "unknown" || !cleanedVersion) {
-            purl = `pkg:${ecosystem}/${depname}`;
-        } else {
-            logger.info(`Using version ${cleanedVersion} for ${depname}`);
-            purl = `pkg:${ecosystem}/${depname}@${cleanedVersion}`;
-        }
+        // Build components array for the API request
+        const components = packages.map(pkg => {
+            const cleanedVersion = pkg.version.replace(/[\^~]/g, ''); // Remove ^ and ~ from version
+            let purl: string;
+            if (cleanedVersion === "1.0.0" || cleanedVersion === "unknown" || !cleanedVersion) {
+                purl = `pkg:${pkg.ecosystem}/${pkg.depname}`;
+            } else {
+                logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`);
+                purl = `pkg:${pkg.ecosystem}/${pkg.depname}@${cleanedVersion}`;
+            }
+            return { purl };
+        });
 
         try {
-            // Make a POST request to the Socket API
+            // Make a POST request to the Socket API with all packages
             const response = await fetch(SOCKET_API_URL, {
                 method: 'POST',
                 headers: SOCKET_HEADERS,
-                body: JSON.stringify({ components: [{ purl }] })
+                body: JSON.stringify({ components })
             });
 
             const responseText = await response.text();
 
             if (response.status !== 200) {
-                const errorMsg = `Error processing ${purl}: [${response.status}] ${responseText}`;
+                const errorMsg = `Error processing packages: [${response.status}] ${responseText}`;
                 logger.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
                     isError: false
                 };
             } else if (!responseText.trim()) {
-                const errorMsg = `${purl} was not found.`;
+                const errorMsg = `No packages were found.`;
                 logger.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
@@ -96,7 +119,7 @@ server.tool(
 
             try {
                 // Handle NDJSON (multiple JSON objects, one per line)
-                let jsonData: any;
+                let results: string[] = [];
 
                 if ((response.headers.get('content-type') || '').includes('x-ndjson')) {
                     const jsonLines = responseText.split('\n')
@@ -104,60 +127,66 @@ server.tool(
                         .map(line => JSON.parse(line));
 
                     if (!jsonLines.length) {
-                        const errorMsg = `No valid JSON objects found in NDJSON response for ${purl}`;
+                        const errorMsg = `No valid JSON objects found in NDJSON response`;
                         return {
                             content: [{ type: "text", text: errorMsg }],
                             isError: true
                         };
                     }
 
-                    jsonData = jsonLines[0];
+                    // Process each result
+                    for (const jsonData of jsonLines) {
+                        if (jsonData.score && jsonData.score.overall !== undefined) {
+                            const scoreEntries = Object.entries(jsonData.score)
+                                .filter(([key]) => key !== "overall" && key !== "uuid")
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join(', ');
+                            
+                            const packageName = jsonData.name || 'unknown';
+                            results.push(`${packageName}: ${scoreEntries}`);
+                        } else {
+                            const packageName = jsonData.name || 'unknown';
+                            results.push(`${packageName}: No score found`);
+                        }
+                    }
                 } else {
-                    jsonData = JSON.parse(responseText);
+                    const jsonData = JSON.parse(responseText);
+                    if (jsonData.score && jsonData.score.overall !== undefined) {
+                        const scoreEntries = Object.entries(jsonData.score)
+                            .filter(([key]) => key !== "overall" && key !== "uuid")
+                            .map(([key, value]) => `${key}: ${value}`)
+                            .join(', ');
+                        
+                        const packageName = jsonData.package?.name || 'unknown';
+                        results.push(`${packageName}: ${scoreEntries}`);
+                    }
                 }
 
-                if (jsonData.score && jsonData.score.overall !== undefined) {
-                    // Unroll the jsonData.score object into key-value pairs
-                    const scoreEntries = Object.entries(jsonData.score)
-                        .filter(([key]) => key !== "overall" && key !== "uuid")
-                        .map(([key, value]) => `${key}: ${value}`)
-                        .join(', ');
-
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Dependency scores for ${purl}: ${scoreEntries}`
-                            }
-                        ]
-                    };
-                } else {
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `No score found for ${purl}`
-                            }
-                        ]
-                    };
-                }
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: results.length > 0 
+                                ? `Dependency scores:\n${results.join('\n')}`
+                                : "No scores found for the provided packages"
+                        }
+                    ]
+                };
             } catch (e) {
                 const error = e as Error;
-                const errorMsg = `JSON parsing error for ${purl}: ${error.message} -- Response: ${responseText}`;
+                const errorMsg = `JSON parsing error: ${error.message} -- Response: ${responseText}`;
                 logger.error(errorMsg);
-                const llmResponse = `Package ${purl} not found.`;
                 return {    
-                    content: [{ type: "text", text: llmResponse }],
+                    content: [{ type: "text", text: "Error parsing response from Socket API" }],
                     isError: true
                 };
             }
         } catch (e) {
             const error = e as Error;
-            const errorMsg = `Error processing ${purl}: ${error.message}`;
+            const errorMsg = `Error processing packages: ${error.message}`;
             logger.error(errorMsg);
-            const llmResponse = `Package ${purl} not found.`;
             return {
-                content: [{ type: "text", text: llmResponse }],
+                content: [{ type: "text", text: "Error connecting to Socket API" }],
                 isError: true
             };
         }
