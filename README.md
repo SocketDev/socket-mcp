@@ -20,7 +20,7 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
 
 ### Getting an API key
 
-To use the Socket MCP Server, you need to create an API key. You can do this by following [these steps](https://docs.socket.dev/reference/creating-and-managing-api-tokens).
+To use the Socket MCP Server, you need to create an API key. You can do this by following [these steps](https://docs.socket.dev/reference/creating-and-managing-api-tokens). The only required permission scope is `packages:list`, which allows the MCP server to query package metadata for dependency scores.
 
 
 ### Usage with Claude Desktop
