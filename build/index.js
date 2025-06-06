@@ -35,9 +35,8 @@ const logger = pino({
     }
 });
 const SOCKET_API_URL = "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
-let SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
-if (!SOCKET_API_KEY) {
-    logger.error("SOCKET_API_KEY environment variable is not set");
+// Function to get API key interactively (only for HTTP mode)
+async function getApiKeyInteractively() {
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stderr
@@ -52,14 +51,10 @@ if (!SOCKET_API_KEY) {
         logger.error("No API key provided");
         process.exit(1);
     }
-    SOCKET_API_KEY = apiKey;
+    return apiKey;
 }
-const SOCKET_HEADERS = {
-    "user-agent": `socket-mcp/${VERSION}`,
-    "accept": "application/x-ndjson",
-    "content-type": "application/json",
-    "authorization": `Bearer ${SOCKET_API_KEY}`
-};
+// Initialize API key
+let SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
 // Transport management
 const transports = {};
 // Create server instance
@@ -140,11 +135,9 @@ server.tool("depscore", "Get the dependency score of packages with the `depscore
                             .filter(([key]) => key !== "overall" && key !== "uuid")
                             .map(([key, value]) => `${key}: ${value}`)
                             .join(', ');
-                        const packageName = jsonData.name || 'unknown';
                         results.push(`${purl}: ${scoreEntries}`);
                     }
                     else {
-                        const packageName = jsonData.name || 'unknown';
                         results.push(`${purl}: No score found`);
                     }
                 }
@@ -157,7 +150,6 @@ server.tool("depscore", "Get the dependency score of packages with the `depscore
                         .filter(([key]) => key !== "overall" && key !== "uuid")
                         .map(([key, value]) => `${key}: ${value}`)
                         .join(', ');
-                    const packageName = jsonData.package?.name || 'unknown';
                     results.push(`${purl}: ${scoreEntries}`);
                 }
             }
@@ -195,6 +187,27 @@ server.tool("depscore", "Get the dependency score of packages with the `depscore
 // Determine transport mode from environment or arguments
 const useHttp = process.env.MCP_HTTP_MODE === 'true' || process.argv.includes('--http');
 const port = parseInt(process.env.MCP_PORT || '3000', 10);
+// Validate API key - in stdio mode, we can't prompt interactively
+if (!SOCKET_API_KEY) {
+    if (useHttp) {
+        // In HTTP mode, we can prompt for the API key
+        logger.error("SOCKET_API_KEY environment variable is not set");
+        SOCKET_API_KEY = await getApiKeyInteractively();
+    }
+    else {
+        // In stdio mode, we must have the API key as an environment variable
+        logger.error("SOCKET_API_KEY environment variable is required in stdio mode");
+        logger.error("Please set the SOCKET_API_KEY environment variable and try again");
+        process.exit(1);
+    }
+}
+// Now that we have the API key, set up the headers
+const SOCKET_HEADERS = {
+    "user-agent": `socket-mcp/${VERSION}`,
+    "accept": "application/x-ndjson",
+    "content-type": "application/json",
+    "authorization": `Bearer ${SOCKET_API_KEY}`
+};
 if (useHttp) {
     // HTTP mode with Server-Sent Events
     logger.info(`Starting HTTP server on port ${port}`);
@@ -302,7 +315,7 @@ if (useHttp) {
         }
     });
     httpServer.listen(port, () => {
-        logger.info(`Socket MCP HTTP server started successfully on port ${port}`);
+        logger.info(`Socket MCP HTTP server version ${VERSION} started successfully on port ${port}`);
         logger.info(`Connect to: http://localhost:${port}/mcp`);
     });
 }
@@ -319,3 +332,4 @@ else {
         process.exit(1);
     });
 }
+//# sourceMappingURL=index.js.map
