@@ -34,7 +34,10 @@ const logger = pino({
         ]
     }
 });
-const SOCKET_API_URL = "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
+// Socket API URL - use localhost when debugging is enabled, otherwise use production
+const SOCKET_API_URL = process.env.SOCKET_DEBUG === 'true'
+    ? "http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false"
+    : "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
 // Function to get API key interactively (only for HTTP mode)
 async function getApiKeyInteractively() {
     const rl = readline.createInterface({

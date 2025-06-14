@@ -7,8 +7,13 @@
     "socket-mcp": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && chmod 755 ./build/index.js",
-    "postinstall": "npm run build"
+    "build": "tsc && chmod 755 ./build/index.js && (chmod 755 ./build/mock-client/*.js 2>/dev/null || true)",
+    "postinstall": "npm run build",
+    "debug:stdio": "node ./build/mock-client/debug-client.js",
+    "debug:sdk": "node ./build/mock-client/stdio-client.js",
+    "debug:http": "node ./build/mock-client/http-client.js",
+    "server:stdio": "SOCKET_API_KEY=${SOCKET_API_KEY} ./build/index.js",
+    "server:http": "MCP_HTTP_MODE=true SOCKET_API_KEY=${SOCKET_API_KEY} ./build/index.js"
   },
   "files": [
     "build"
