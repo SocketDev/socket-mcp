@@ -20,6 +20,10 @@
   "keywords": [],
   "author": "Alexandros Kapravelos",
   "description": "Socket MCP server for scanning dependencies",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SocketDev/socket-mcp"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.3",
     "@types/node-fetch": "^2.6.12",
