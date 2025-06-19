@@ -1,13 +1,13 @@
 {
   "name": "@socketsecurity/mcp",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "main": "./build/index.js",
   "bin": {
     "socket-mcp": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && chmod 755 ./build/index.js && (chmod 755 ./build/mock-client/*.js 2>/dev/null || true)",
+    "build": "tsc && tsc -p tsconfig.mock-client.json && chmod 755 ./build/index.js && (chmod 755 ./build/mock-client/*.js 2>/dev/null || true)",
     "debug:stdio": "node ./build/mock-client/debug-client.js",
     "debug:sdk": "node ./build/mock-client/stdio-client.js",
     "debug:http": "node ./build/mock-client/http-client.js",

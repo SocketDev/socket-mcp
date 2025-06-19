@@ -225,6 +225,17 @@ if (useHttp) {
             return;
         }
         const url = new URL(req.url, `http://localhost:${port}`);
+        // Health check endpoint for K8s/Docker
+        if (url.pathname === '/health') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                status: 'healthy',
+                service: 'socket-mcp',
+                version: VERSION,
+                timestamp: new Date().toISOString()
+            }));
+            return;
+        }
         if (url.pathname === '/mcp') {
             if (req.method === 'POST') {
                 // Handle JSON-RPC messages
