@@ -1,9 +1,26 @@
 #!/usr/bin/env node
 import fetch from 'node-fetch';
 
+// Helper function to parse SSE or JSON response
+async function parseResponse(response: any) {
+  const contentType = response.headers.get('content-type');
+  const text = await response.text();
+  
+  if (contentType?.includes('text/event-stream')) {
+    // Parse SSE format: "event: message\ndata: {json}\n"
+    const dataMatch = text.match(/data: (.+)/);
+    if (dataMatch) {
+      return JSON.parse(dataMatch[1]);
+    }
+    return null;
+  } else {
+    return JSON.parse(text);
+  }
+}
+
 // Simple HTTP client for testing MCP server in HTTP mode
 async function testHTTPMode() {
-  const baseUrl = process.env.MCP_URL || 'http://localhost:3000';
+  const baseUrl = (process.env.MCP_URL || 'http://localhost:3000').replace(/\/$/, ''); // Remove trailing slash
   const sessionId = `test-session-${Date.now()}`;
   
   console.log('Testing Socket MCP in HTTP mode...');
@@ -31,13 +48,19 @@ async function testHTTPMode() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-session-id': sessionId
+        'Accept': 'application/json, text/event-stream',
+        'User-Agent': 'socket-mcp-debug-client/1.0.0'
       },
       body: JSON.stringify(initRequest)
     });
 
-    const initResult = await initResponse.json();
+    const initResult = await parseResponse(initResponse);
     console.log('Initialize response:', JSON.stringify(initResult, null, 2));
+
+    // Extract session ID from response headers
+    const serverSessionId = initResponse.headers.get('mcp-session-id');
+    const actualSessionId = serverSessionId || sessionId;
+    console.log('Session ID:', actualSessionId);
 
     // 2. List tools
     console.log('\n2. Listing available tools...');
@@ -52,12 +75,13 @@ async function testHTTPMode() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-session-id': sessionId
+        'Accept': 'application/json, text/event-stream',
+        'mcp-session-id': actualSessionId
       },
       body: JSON.stringify(toolsRequest)
     });
 
-    const toolsResult = await toolsResponse.json();
+    const toolsResult = await parseResponse(toolsResponse);
     console.log('Available tools:', JSON.stringify(toolsResult, null, 2));
 
     // 3. Call depscore
@@ -82,12 +106,13 @@ async function testHTTPMode() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-session-id': sessionId
+        'Accept': 'application/json, text/event-stream',
+        'mcp-session-id': actualSessionId
       },
       body: JSON.stringify(depscoreRequest)
     });
 
-    const depscoreResult = await depscoreResponse.json();
+    const depscoreResult = await parseResponse(depscoreResponse);
     console.log('Depscore result:', JSON.stringify(depscoreResult, null, 2));
 
     // 4. Test SSE stream (optional)
@@ -95,7 +120,7 @@ async function testHTTPMode() {
     const sseResponse = await fetch(`${baseUrl}/mcp`, {
       method: 'GET',
       headers: {
-        'x-session-id': sessionId,
+        'mcp-session-id': actualSessionId,
         'Accept': 'text/event-stream'
       }
     });
@@ -110,7 +135,7 @@ async function testHTTPMode() {
     const cleanupResponse = await fetch(`${baseUrl}/mcp`, {
       method: 'DELETE',
       headers: {
-        'x-session-id': sessionId
+        'mcp-session-id': actualSessionId
       }
     });
 
