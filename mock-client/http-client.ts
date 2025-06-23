@@ -44,7 +44,7 @@ async function testHTTPMode() {
       }
     };
 
-    const initResponse = await fetch(`${baseUrl}/mcp`, {
+    const initResponse = await fetch(`${baseUrl}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ async function testHTTPMode() {
       params: {}
     };
 
-    const toolsResponse = await fetch(`${baseUrl}/mcp`, {
+    const toolsResponse = await fetch(`${baseUrl}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ async function testHTTPMode() {
       }
     };
 
-    const depscoreResponse = await fetch(`${baseUrl}/mcp`, {
+    const depscoreResponse = await fetch(`${baseUrl}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ async function testHTTPMode() {
 
     // 4. Test SSE stream (optional)
     console.log('\n4. Testing SSE stream connection...');
-    const sseResponse = await fetch(`${baseUrl}/mcp`, {
+    const sseResponse = await fetch(`${baseUrl}/`, {
       method: 'GET',
       headers: {
         'mcp-session-id': actualSessionId,
@@ -132,7 +132,7 @@ async function testHTTPMode() {
 
     // 5. Clean up session
     console.log('\n5. Cleaning up session...');
-    const cleanupResponse = await fetch(`${baseUrl}/mcp`, {
+    const cleanupResponse = await fetch(`${baseUrl}/`, {
       method: 'DELETE',
       headers: {
         'mcp-session-id': actualSessionId

@@ -96,6 +96,13 @@ server.tool(
     async ({ packages }) => {
         logger.info(`Received request for ${packages.length} packages`);
         
+        const SOCKET_HEADERS = {
+          "user-agent": `socket-mcp/${VERSION}`,  
+          "accept": "application/x-ndjson",
+          "content-type": "application/json",
+          "authorization": `Bearer ${SOCKET_API_KEY}`
+        };
+
         // Build components array for the API request
         const components = packages.map(pkg => {
             const cleanedVersion = pkg.version.replace(/[\^~]/g, ''); // Remove ^ and ~ from version
@@ -124,14 +131,14 @@ server.tool(
                 logger.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
-                    isError: false
+                    isError: true
                 };
             } else if (!responseText.trim()) {
                 const errorMsg = `No packages were found.`;
                 logger.error(errorMsg);
                 return {
                     content: [{ type: "text", text: errorMsg }],
-                    isError: false
+                    isError: true
                 };
             }
 
@@ -230,14 +237,6 @@ if (!SOCKET_API_KEY) {
     }
 }
 
-// Now that we have the API key, set up the headers
-const SOCKET_HEADERS = {
-  "user-agent": `socket-mcp/${VERSION}`,  
-  "accept": "application/x-ndjson",
-  "content-type": "application/json",
-  "authorization": `Bearer ${SOCKET_API_KEY}`
-};
-
 if (useHttp) {
   // HTTP mode with Server-Sent Events
   logger.info(`Starting HTTP server on port ${port}`);
@@ -268,7 +267,7 @@ if (useHttp) {
       return;
     }
     
-    if (url.pathname === '/mcp') {
+    if (url.pathname === '/') {
       if (req.method === 'POST') {
         // Handle JSON-RPC messages
         let body = '';
@@ -366,7 +365,7 @@ if (useHttp) {
 
   httpServer.listen(port, () => {
     logger.info(`Socket MCP HTTP server version ${VERSION} started successfully on port ${port}`);
-    logger.info(`Connect to: http://localhost:${port}/mcp`);
+    logger.info(`Connect to: http://localhost:${port}/`);
   });
 
 } else {
