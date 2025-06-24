@@ -110,11 +110,11 @@ To use this MCP server in VS Code:
    ```
 
 3. Now you can ask questions about dependency security within your VS Code environment.
-4. Feel free to add the following to your `.github/copilot-instructions.md` file to control better how the tools is used by your agent:
+4. Feel free to add the following to your `.github/copilot-instructions.md` file to control better how the tool is used by your agent:
 
    ```markdown
    ## Socket MCP Server
-    Always check the dependencies scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you decide to use a library with a low score, make sure to document the reasons for your choice. If you are unsure about the score, ask for a review from someone with more experience.
+    Always check the dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you decide to use a library with a low score, make sure to document the reasons for your choice. If you are unsure about the score, ask for a review from someone with more experience.
 
     When checking dependencies, make sure to also check the imports not just the pyproject.toml/package.json/dependency file.
    ```
@@ -191,7 +191,7 @@ You can further customize how the Socket MCP server interacts with your AI assis
 Rules that can be added to the client rules file include the following:
 
 ```md
-Always check dependency scores with the debscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you are unsure about the score, ask for a review from someone with more experience. When checking dependencies, make sure to also check the imports not just the pyproject.toml file.
+Always check dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you are unsure about the score, ask for a review from someone with more experience. When checking dependencies, make sure to also check the imports not just the pyproject.toml/package.json/dependency file.
 ```
 
 You can adjust the rules to fit your needs. For example, you can add rules to include specific manifest files, or guide the AI assistant on how to handle low scores. The rules are flexible and can be tailored to your workflow.
