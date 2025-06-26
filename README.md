@@ -1,112 +1,230 @@
 # Socket MCP Server
 
+[![npm version](https://badge.fury.io/js/@socketsecurity%2Fmcp.svg)](https://badge.fury.io/js/@socketsecurity%2Fmcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Socket Badge](https://socket.dev/api/badge/npm/package/@socketsecurity/mcp)](https://socket.dev/npm/package/@socketsecurity/mcp)
+
 A Model Context Protocol (MCP) server for Socket integration, allowing AI assistants to efficiently check dependency vulnerability scores and security information.
+
+## ✨ Features
+
+- 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, and other package ecosystems
+- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/` with no setup required
+- 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
+- 🤖 **AI Assistant Integration** - Works seamlessly with Claude, VS Code Copilot, Cursor, and other MCP clients
+- 📊 **Batch Processing** - Check multiple dependencies in a single request
+- 🔒 **No Authentication Required** - Public server requires no API keys or registration
 
 🛠️ This project is in early development and rapidly evolving.
 
-## Tools
+## 🚀 Quick Start
 
-### depscore
+### Option 1: Use the Public Socket MCP Server (Recommended)
 
-The `depscore` tool allows AI assistants to query the Socket API for dependency scoring information. It provides security and quality metrics for packages across different ecosystems.
-
-**Parameters:**
-
-- `ecosystem`: The package ecosystem (e.g., npm, PyPI). Defaults to "npm".
-- `depname`: The name of the dependency.
-- `version`: The version of the dependency. Defaults to "unknown".
-
-## Configuration
-
-### Getting an API key
-
-To use the Socket MCP Server, you need to create an API key. You can do this by following [these steps](https://docs.socket.dev/reference/creating-and-managing-api-tokens). The only required permission scope is `packages:list`, which allows the MCP server to query package metadata for dependency scores.
+The easiest way to get started is to use our public Socket MCP server. **No API key or authentication required!** Click a button below to install the public server in your favorite AI assistant.
 
 
-### Usage with Claude Desktop
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"url":"https://mcp.socket.dev/","type":"http"})
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYifQ%3D%3D)
+
+
+<details><summary><b>Manual Installation Instructions & more MCP Clients</b></summary>
+
+<details><summary><b>Install in Claude Desktop or Claude Code</b></summary>
 
 > [!NOTE]
 > Custom integrations are not available to all paid versions of Claude. Check [here](https://support.anthropic.com/en/articles/11175166-about-custom-integrations-using-remote-mcp) for more information.
 
-To use this MCP server with Claude Desktop:
+To use the public Socket MCP server with Claude Desktop:
 
-1. Install the Socket MCP server:
+1. In Claude Desktop, go to Settings > Developer > Edit Config.
 
-   ```bash
-   npm install -g @socketsecurity/mcp
-   ```
+2. Add the Socket MCP server configuration:
 
-2. Set the API key in your environment:
-
-   ```bash
-   export SOCKET_API_KEY=your_api_key_here
-   ```
-
-3. In Claude Desktop, go to Settings > Developer > Edit Config.
-
-
-```js
+```json
 {
   "mcpServers": {
     "socket-mcp": {
-        "command": "socket-mcp",
-        "args": [],
+      "type": "http",
+      "url": "https://mcp.socket.dev/"
+    }
+  }
+}
+```
+
+3. Save the configuration and restart Claude Desktop.
+
+4. Now you can ask Claude questions like "Check the security score for express version 4.18.2".
+
+The process is similar for Claude Code. See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code/mcp) for more details. Here's an example command to add the Socket MCP server:
+
+```bash
+claude mcp add --transport http socket-mcp https://mcp.socket.dev/
+```
+
+</details>
+
+<details><summary><b>Install in VS Code</b></summary>
+
+You can install the Socket MCP server using the VS Code CLI:
+
+```bash
+# For VS Code with GitHub Copilot
+code --add-mcp '{"name":"socket-mcp","type":"http","url":"https://mcp.socket.dev/}'
+```
+
+After installation, the Socket MCP server will be available for use with your GitHub Copilot agent in VS Code.
+
+Alternatively, you can manually add it to your VS Code MCP configuration in `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "socket-mcp": {
+      "type": "http", 
+      "url": "https://mcp.socket.dev/"
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary><b>Install in Cursor</b></summary>
+
+Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name it "socket-mcp", use `http` type with URL `https://mcp.socket.dev/`.
+
+```json
+{
+  "mcpServers": {
+    "socket-mcp": {
+      "type": "http",
+      "url": "https://mcp.socket.dev/"
+    }
+  }
+}
+```
+
+</details>
+
+<details><summary><b>Install in Windsurf</b></summary>
+
+> [!WARNING]
+> Windsurf does not support `http` type MCP servers yet. Use the `stdio` configuration [below](#option-2a-stdio-mode-default).
+
+To use the Socket MCP server in Windsurf:
+
+1. Open Windsurf Settings
+2. Navigate to MCP Servers section
+3. Add a new server with the following configuration:
+
+```json
+{
+    "mcpServers": {
+        "socket-mcp": {
+            "serverUrl": "https://mcp.socket.dev/mcp"
+        }
+    }
+}
+```
+
+4. Save the configuration and restart Windsurf if needed.
+
+</details>
+
+</details>
+
+### Option 2: Deploy Socket MCP Server on your machine
+
+If you prefer to run your own instance, you can deploy the Socket MCP server locally using either stdio or HTTP modes.
+
+### Getting an API key
+
+To use a local Socket MCP Server, you need to create an API key. You can do this by following [these steps](https://docs.socket.dev/reference/creating-and-managing-api-tokens). The only required permission scope is `packages:list`, which allows the MCP server to query package metadata for dependency scores.
+
+For local deployment, you have two options:
+
+##### Option 2a: Stdio Mode (Default)
+
+Click a button below to install the self-hosted stdio server in your favorite AI assistant.
+
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"command":"npx","args":["@socketsecurity/mcp@latest"],"type":"stdio"}) 
+[![Install in Cursor (stdio)](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=socket-mcp-stdio&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAc29ja2V0c2VjdXJpdHkvbWNwQGxhdGVzdCJdLCJlbnYiOnsiU09DS0VUX0FQSV9LRVkiOiJ5b3VyLWFwaS1rZXktaGVyZSJ9fQ==)
+
+Claude Code (stdio mode) can be set up with the following command:
+
+```bash
+claude mcp add socket-mcp -e SOCKET_API_KEY="your-api-key-here" -- npx -y @socketsecurity/mcp@latest
+```
+This is how the configuration looks like on most MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "socket-mcp": {
+      "command": "npx",
+      "args": ["@socketsecurity/mcp@latest"],
       "env": {
-        "SOCKET_API_KEY": "your-api-key"
+        "SOCKET_API_KEY": "your-api-key-here"
       }
     }
   }
 }
 ```
 
-4. Enter the following:
-   - Name: Socket
-   - Command: `socket-mcp`
-   - Save the configuration.
-
-5. Now you can ask Claude questions like "Check the security score for express version 4.18.2".
-
-The process is similar for Claude Code. See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp) for more details.
-
-### Usage with VS Code
-
-For quick installation, you can use the following link to install the Socket MCP server in VS Code:
+This approach automatically uses the latest version without requiring global installation.
 
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&inputs=[{"type":"promptString","id":"socket_api_key","description":"Socket%20API%20key","password":true}]&config={"command":"depscore","type":"stdio","env":{"SOCKET_API_KEY":"${input:socket_api_key}"}})
+##### Option 2b: HTTP Mode
 
-
-To use this MCP server in VS Code:
-
-1. Set the API key in your environment:
-
+1. Run the server in HTTP mode using npx:
    ```bash
-   export SOCKET_API_KEY=your_api_key_here
+   MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key npx @socketsecurity/mcp@latest --http
    ```
 
-2. In VS Code settings, add the Socket MCP server to your configuration `.vscode/mcp.json` file:
-
+2. Configure your MCP client to connect to the HTTP server:
    ```json
+   {
+     "mcpServers": {
+       "socket-mcp": {
+         "type": "http",
+         "url": "http://localhost:3000"
+       }
+     }
+   }
+   ```
+
+## Tools exposed by the Socket MCP Server
+
+### depscore
+
+The `depscore` tool allows AI assistants to query the Socket API for dependency scoring information. It provides comprehensive security and quality metrics for packages across different ecosystems.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `packages` | Array | ✅ Yes | - | Array of package objects to analyze |
+| `packages[].ecosystem` | String | No | `"npm"` | Package ecosystem (`npm`, `pypi`, `cargo`, etc.) |
+| `packages[].depname` | String | ✅ Yes | - | Name of the dependency/package |
+| `packages[].version` | String | No | `"unknown"` | Version of the dependency |
+
+**Example Usage:**
+
+```json
+{
+  "packages": [
     {
-        "inputs": [
-            {
-                "type": "promptString",
-                "id": "socket_api_key",
-                "description": "Socket API Key",
-                "password": true
-            }
-        ],
-        "servers": {
-            "socket-mcp": {
-                "type": "stdio",
-                "command": "socket-mcp",
-                "args": [],
-                    "env": {
-                        "SOCKET_API_KEY": "${input:socket_api_key}"
-                    },
-            }
-        }
+      "ecosystem": "npm",
+      "depname": "express",
+      "version": "4.18.2"
+    },
+    {
+      "ecosystem": "pypi", 
+      "depname": "fastapi",
+      "version": "0.100.0"
     }
+<<<<<<< Updated upstream
    ```
 
 3. Now you can ask questions about dependency security within your VS Code environment.
@@ -134,50 +252,28 @@ Clone the repository and install dependencies:
 git clone https://github.com/SocketDev/socket-mcp.git
 cd socket-mcp
 npm install
+=======
+  ]
+}
+>>>>>>> Stashed changes
 ```
 
-## Build
-
-To build the project:
-
-```bash
-npm run build
+**Sample Response:**
+```
+pkg:npm/express@4.18.2: supply_chain: 1.0, quality: 0.9, maintenance: 1.0, vulnerability: 1.0, license: 1.0
+pkg:pypi/fastapi@0.100.0: supply_chain: 1.0, quality: 0.95, maintenance: 0.98, vulnerability: 1.0, license: 1.0
 ```
 
-This compiles the TypeScript files and makes the binary executable called `socket-mcp`.
+### How to Use the Socket MCP Server
 
-## Run
+1. **Ask your AI assistant** to check dependencies:
+   - "Check the security score for express version 4.18.2"
+   - "Analyze the security of my package.json dependencies"
+   - "What are the vulnerability scores for react, lodash, and axios?"
 
-To run the Socket MCP server locally:
+2. **Get comprehensive security insights** including supply chain, quality, maintenance, vulnerability, and license scores.   
 
-```bash
-export SOCKET_API_KEY=your_api_key_here
-node build/index.js
-```
-
-After installing globally, you can run the executable directly:
-
-```bash
-export SOCKET_API_KEY=your_api_key_here
-socket-mcp
-```
-
-### Global Installation
-
-To install the tool globally and make the `socket-mcp` command available system-wide:
-
-```bash
-npm install -g .
-```
-
-After global installation, you can use the `socket-mcp` command from anywhere:
-
-```bash
-export SOCKET_API_KEY=your_api_key_here
-socket-mcp
-```
-
-## Adjust tool usage with custom rules
+### Adjust tool usage with custom rules
 
 You can further customize how the Socket MCP server interacts with your AI assistant by modifying your client rules. The rules are usually a markdown file and its location depends on the AI assistant you are using.
 
@@ -195,3 +291,110 @@ Always check dependency scores with the depscore tool when you add a new depende
 ```
 
 You can adjust the rules to fit your needs. For example, you can add rules to include specific manifest files, or guide the AI assistant on how to handle low scores. The rules are flexible and can be tailored to your workflow.
+
+
+## Development
+
+### For End Users
+
+For most users, we recommend using either:
+1. **Public server**: `https://mcp.socket.dev/` (no setup required)
+2. **NPX command**: `npx @socketsecurity/mcp@latest` (always latest version)
+
+### For Contributors
+
+If you want to contribute to the Socket MCP server development:
+
+### Health Check Endpoint
+
+When running in HTTP mode, the server provides a health check endpoint for Kubernetes and Docker deployments:
+
+```bash
+GET /health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "socket-mcp",
+  "version": "0.0.3",
+  "timestamp": "2025-06-17T20:45:22.059Z"
+}
+```
+
+This endpoint can be used for:
+- Kubernetes liveness and readiness probes
+- Docker health checks
+- Load balancer health monitoring
+- General service monitoring
+
+
+#### Prerequisites
+
+- Node.js v16 or higher
+- npm or yarn
+
+#### Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/SocketDev/socket-mcp.git
+cd socket-mcp
+npm install
+```
+
+#### Build
+
+To build the project:
+
+```bash
+npm run build
+```
+
+#### Run from Source
+
+To run the Socket MCP server from source:
+
+```bash
+export SOCKET_API_KEY=your_api_key_here
+node build/index.js
+```
+
+Or in HTTP mode:
+
+```bash
+MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node build/index.js --http
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Q: The public server isn't responding**
+- Check that you're using the correct URL: `https://mcp.socket.dev/`
+- Verify your MCP client configuration is correct
+- Try restarting your MCP client
+
+**Q: Local server fails to start**
+- Ensure you have Node.js v16+ installed
+- Check that your `SOCKET_API_KEY` environment variable is set
+- Verify the API key has `packages:list` permission
+
+**Q: Getting authentication errors with local server**
+- Double-check your Socket API key is valid
+- Ensure the key has the required `packages:list` scope
+- Try regenerating your API key from the Socket dashboard
+
+**Q: AI assistant can't find the depscore tool**
+- Restart your MCP client after configuration changes  
+- Verify the server configuration is saved correctly
+- Check that the MCP server is running (for local deployments)
+
+### Getting Help
+
+- 📖 [Socket Documentation](https://docs.socket.dev)
+- 🐛 [Report Issues](https://github.com/SocketDev/socket-mcp/issues)
+- 💬 [Community Support](https://github.com/SocketDev/socket-mcp/discussions)
+
