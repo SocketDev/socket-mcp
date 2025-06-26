@@ -224,38 +224,8 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
       "depname": "fastapi",
       "version": "0.100.0"
     }
-<<<<<<< Updated upstream
-   ```
-
-3. Now you can ask questions about dependency security within your VS Code environment.
-4. Feel free to add the following to your `.github/copilot-instructions.md` file to control better how the tool is used by your agent:
-
-   ```markdown
-   ## Socket MCP Server
-    Always check the dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you decide to use a library with a low score, make sure to document the reasons for your choice. If you are unsure about the score, ask for a review from someone with more experience.
-
-    When checking dependencies, make sure to also check the imports not just the pyproject.toml/package.json/dependency file.
-   ```
-
-## Development
-
-### Prerequisites
-
-- Node.js v16 or higher
-- npm or yarn
-
-### Installation
-
-Clone the repository and install dependencies:
-
-```bash
-git clone https://github.com/SocketDev/socket-mcp.git
-cd socket-mcp
-npm install
-=======
   ]
 }
->>>>>>> Stashed changes
 ```
 
 **Sample Response:**
