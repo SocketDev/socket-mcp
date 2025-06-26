@@ -30,6 +30,8 @@ jobs:
           scope: '@socketregistry'
       - run: npm install -g npm@latest
       - run: npm ci
+      - name: Build package
+        run: npm run build
       - name: Get package version
         id: package-version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
