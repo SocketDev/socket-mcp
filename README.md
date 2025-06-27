@@ -81,7 +81,7 @@ Alternatively, you can manually add it to your VS Code MCP configuration in `.vs
 {
   "servers": {
     "socket-mcp": {
-      "type": "http", 
+      "type": "http",
       "url": "https://mcp.socket.dev/"
     }
   }
@@ -148,7 +148,7 @@ For local deployment, you have two options:
 
 Click a button below to install the self-hosted stdio server in your favorite AI assistant.
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"command":"npx","args":["@socketsecurity/mcp@latest"],"type":"stdio"}) 
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"command":"npx","args":["@socketsecurity/mcp@latest"],"type":"stdio"})
 [![Install in Cursor (stdio)](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=socket-mcp-stdio&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAc29ja2V0c2VjdXJpdHkvbWNwQGxhdGVzdCJdLCJlbnYiOnsiU09DS0VUX0FQSV9LRVkiOiJ5b3VyLWFwaS1rZXktaGVyZSJ9fQ==)
 
 Claude Code (stdio mode) can be set up with the following command:
@@ -220,7 +220,7 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
       "version": "4.18.2"
     },
     {
-      "ecosystem": "pypi", 
+      "ecosystem": "pypi",
       "depname": "fastapi",
       "version": "0.100.0"
     }
@@ -241,7 +241,7 @@ pkg:pypi/fastapi@0.100.0: supply_chain: 1.0, quality: 0.95, maintenance: 0.98, v
    - "Analyze the security of my package.json dependencies"
    - "What are the vulnerability scores for react, lodash, and axios?"
 
-2. **Get comprehensive security insights** including supply chain, quality, maintenance, vulnerability, and license scores.   
+2. **Get comprehensive security insights** including supply chain, quality, maintenance, vulnerability, and license scores.
 
 ### Adjust tool usage with custom rules
 
@@ -317,7 +317,14 @@ npm install
 
 #### Build
 
-To build the project:
+This project is a directly runnable Node.js project using [Type stripping](https://nodejs.org/docs/latest/api/typescript.html).
+If you are on Node.js 22, run with `node --experimental-strip-types index.ts`.
+On any later versions of Node.js, you can simply run `node index.ts`.
+In either version you can also run the npm run scripts which include the correct flags.
+
+The js files will automatically be build when running `npm publish`, and cleaned up afterwards with `npm run clean`.
+
+If you want to preview the build you can run:
 
 ```bash
 npm run build
@@ -329,13 +336,13 @@ To run the Socket MCP server from source:
 
 ```bash
 export SOCKET_API_KEY=your_api_key_here
-node build/index.js
+node --experimental-strip-types index.ts
 ```
 
 Or in HTTP mode:
 
 ```bash
-MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node build/index.js --http
+MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node --experimental-strip-types index.ts --http
 ```
 
 ## 🔧 Troubleshooting
@@ -358,7 +365,7 @@ MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node build/index.js --http
 - Try regenerating your API key from the Socket dashboard
 
 **Q: AI assistant can't find the depscore tool**
-- Restart your MCP client after configuration changes  
+- Restart your MCP client after configuration changes
 - Verify the server configuration is saved correctly
 - Check that the MCP server is running (for local deployments)
 
@@ -367,4 +374,3 @@ MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node build/index.js --http
 - 📖 [Socket Documentation](https://docs.socket.dev)
 - 🐛 [Report Issues](https://github.com/SocketDev/socket-mcp/issues)
 - 💬 [Community Support](https://github.com/SocketDev/socket-mcp/discussions)
-

@@ -4,10 +4,11 @@ The `mock-client` directory contains debug clients for testing the Socket MCP se
 
 ## Prerequisites
 
-1. Build the project:
+1. Ensure you are running Node 22 or later:
 
    ```bash
-   npm run build
+   node --version
+   v22.17.0
    ```
 
 2. Set your Socket API key:
@@ -23,7 +24,7 @@ The `mock-client` directory contains debug clients for testing the Socket MCP se
 Direct stdio communication using JSON-RPC protocol:
 
 ```bash
-npm run debug:stdio
+npm run debug-stdio
 ```
 
 This client:
@@ -37,7 +38,7 @@ This client:
 Uses the official MCP SDK client library:
 
 ```bash
-npm run debug:sdk
+npm run debug-sdk
 ```
 
 This client:
@@ -52,10 +53,10 @@ Tests the HTTP/SSE transport mode:
 
 ```bash
 # First, start the server in HTTP mode:
-npm run server:http
+npm run server-http
 
 # In another terminal:
-npm run debug:http
+npm run debug-http
 ```
 
 This client:
@@ -115,7 +116,7 @@ All clients test the following scenarios:
 To test against a local Socket API:
 
 ```bash
-# Edit src/index.ts and change SOCKET_API_URL
+# Edit index.ts and change SOCKET_API_URL
 # Then rebuild and test
 ```
 

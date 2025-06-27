@@ -12,11 +12,11 @@
   "documentation": "https://github.com/SocketDev/socket-mcp",
   "server": {
     "type": "node",
-    "entry_point": "./build/index.js",
+    "entry_point": "./index.js",
     "mcp_config": {
       "command": "node",
       "args": [
-        "${__dirname}/./build/index.js"
+        "${__dirname}/./index.js"
       ],
       "env": {
         "SOCKET_API_KEY": "${user_config.SOCKET_API_KEY}"

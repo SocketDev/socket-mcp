@@ -1,11 +1,11 @@
-#!/usr/bin/env node
-import fetch from 'node-fetch';
+#!/usr/bin/env node --experimental-strip-types
+import { join } from 'path';
 
 // Helper function to parse SSE or JSON response
 async function parseResponse(response: any) {
   const contentType = response.headers.get('content-type');
   const text = await response.text();
-  
+
   if (contentType?.includes('text/event-stream')) {
     // Parse SSE format: "event: message\ndata: {json}\n"
     const dataMatch = text.match(/data: (.+)/);
@@ -20,9 +20,9 @@ async function parseResponse(response: any) {
 
 // Simple HTTP client for testing MCP server in HTTP mode
 async function testHTTPMode() {
-  const baseUrl = (process.env.MCP_URL || 'http://localhost:3000').replace(/\/$/, ''); // Remove trailing slash
+  const baseUrl = (process.env['MCP_URL'] || 'http://localhost:3000').replace(/\/$/, ''); // Remove trailing slash
   const sessionId = `test-session-${Date.now()}`;
-  
+
   console.log('Testing Socket MCP in HTTP mode...');
   console.log(`Server URL: ${baseUrl}`);
   console.log(`Session ID: ${sessionId}`);
@@ -148,22 +148,22 @@ async function testHTTPMode() {
 
 // Usage instructions
 if (process.argv.includes('--help')) {
+  const serverScript = join(import.meta.dirname, '..', 'index.ts');
   console.log(`
 Socket MCP HTTP Client Debugger
 
 Usage:
   # Start the MCP server in HTTP mode first:
-  MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key ./build/index.js
+  MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key node --experimental-strip-types ${serverScript}
 
   # Then run this client:
-  npm run build
-  node ./build/http-client.js
+  node --experimental-strip-types ./mock-client/http-client.ts
 
 Environment variables:
   MCP_URL - Server URL (default: http://localhost:3000)
 
 Example:
-  MCP_URL=http://localhost:8080 node ./build/http-client.js
+  MCP_URL=http://localhost:8080 node --experimental-strip-types ./mock-client/http-client.ts
 `);
   process.exit(0);
 }

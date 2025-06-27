@@ -1,16 +1,16 @@
-#!/usr/bin/env node --experimental-strip-types
+#!/usr/bin/env node
+import { test } from 'node:test';
+import assert from 'node:assert';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { join } from 'path';
 
-async function main() {
-  const serverPath = join(import.meta.dirname, '..', 'index.ts');
-  console.log(`Using server script: ${serverPath}`);
+test('Socket MCP Server', async (t) => {
+  const serverPath = join(import.meta.dirname, 'index.ts');
 
   const transport = new StdioClientTransport({
     command: 'node',
     args: ['--experimental-strip-types', serverPath],
-
     env: {
       ...process.env,
       SOCKET_API_KEY: process.env['SOCKET_API_KEY'] || ''
@@ -24,15 +24,18 @@ async function main() {
     capabilities: {}
   });
 
-  try {
+  await t.test('connect to server', async () => {
     await client.connect(transport);
-    console.log('Connected to MCP server');
+    assert.ok(true, 'Connected to MCP server');
+  });
 
-    // List available tools
+  await t.test('list available tools', async () => {
     const tools = await client.listTools();
-    console.log('Available tools:', tools.tools.map(t => t.name));
+    assert.ok(tools.tools.length > 0, 'Server should have tools');
+    assert.ok(tools.tools.some(t => t.name === 'depscore'), 'Should have depscore tool');
+  });
 
-    // Test the depscore tool
+  await t.test('call depscore tool', async () => {
     const testPackages = [
       { depname: 'express', ecosystem: 'npm', version: '4.18.2' },
       { depname: 'lodash', ecosystem: 'npm', version: '4.17.21' },
@@ -41,8 +44,6 @@ async function main() {
       { depname: 'unknown-package', ecosystem: 'npm', version: 'unknown' }
     ];
 
-    console.log('\nTesting depscore with packages:', testPackages);
-
     const result = await client.callTool({
       name: 'depscore',
       arguments: {
@@ -50,17 +51,14 @@ async function main() {
       }
     });
 
-    console.log('\nDepscore results:');
-    console.log(JSON.stringify(result, null, 2));
+    assert.ok(result, 'Should get a result from depscore');
+    assert.ok(result.content, 'Result should have content');
+    assert.ok(Array.isArray(result.content), 'Content should be an array');
+    assert.ok(result.content.length > 0, 'Content should not be empty');
+  });
 
+  await t.test('close client', async () => {
     await client.close();
-    console.log('\nClient closed successfully');
-  } catch (error) {
-    console.error('Error:', error);
-    await client.close();
-    process.exit(1);
-  }
-}
-
-// Run the client
-main().catch(console.error);
+    assert.ok(true, 'Client closed successfully');
+  });
+});

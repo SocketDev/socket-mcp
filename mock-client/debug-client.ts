@@ -1,6 +1,7 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --experimental-strip-types
 import { spawn } from 'child_process';
 import readline from 'readline';
+import { join } from 'path';
 
 // Simple JSON-RPC client for testing MCP server
 class SimpleJSONRPCClient {
@@ -26,7 +27,7 @@ class SimpleJSONRPCClient {
         if (response.id && this.pendingRequests.has(response.id)) {
           const { resolve, reject } = this.pendingRequests.get(response.id);
           this.pendingRequests.delete(response.id);
-          
+
           if (response.error) {
             reject(response.error);
           } else {
@@ -66,16 +67,21 @@ class SimpleJSONRPCClient {
   }
 }
 
+
+
 async function main() {
-  const apiKey = process.env.SOCKET_API_KEY;
+  const apiKey = process.env['SOCKET_API_KEY'];
   if (!apiKey) {
     console.error('Error: SOCKET_API_KEY environment variable is required');
     process.exit(1);
   }
 
   console.log('Starting MCP server debug client...');
-  
-  const client = new SimpleJSONRPCClient('./build/index.js', [], {
+
+  const serverPath = join(import.meta.dirname, '..', 'index.ts');
+  console.log(`Using server script: ${serverPath}`);
+
+  const client = new SimpleJSONRPCClient('node', ['--experimental-strip-types', serverPath], {
     SOCKET_API_KEY: apiKey
   });
 

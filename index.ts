@@ -1,22 +1,20 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --experimental-strip-types
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { pino } from 'pino';
 import readline from 'readline';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { readFileSync } from 'fs';
 import { createServer } from 'http';
 import { randomUUID } from 'crypto';
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = import.meta.dirname;
 
 // Extract version from package.json
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
+const packageJson = JSON.parse(readFileSync(join(__dirname, './package.json'), 'utf8'));
 const VERSION = packageJson.version || "0.0.1";
 
 // Configure pino logger
@@ -30,7 +28,7 @@ const logger = pino({
         level: 'error'
       },
       {
-        target: 'pino/file', 
+        target: 'pino/file',
         options: { destination: '/tmp/socket-mcp.log' },
         level: 'info'
       }
@@ -39,7 +37,7 @@ const logger = pino({
 });
 
 // Socket API URL - use localhost when debugging is enabled, otherwise use production
-const SOCKET_API_URL = process.env.SOCKET_DEBUG === 'true' 
+const SOCKET_API_URL = process.env['SOCKET_DEBUG'] === 'true'
   ? "http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false"
   : "https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false";
 
@@ -49,24 +47,24 @@ async function getApiKeyInteractively(): Promise<string> {
         input: process.stdin,
         output: process.stderr
     });
-    
+
     const apiKey = await new Promise<string>((resolve) => {
         rl.question('Please enter your Socket API key: ', (answer: string | PromiseLike<string>) => {
             rl.close();
             resolve(answer);
         });
     });
-    
+
     if (!apiKey) {
         logger.error("No API key provided");
         process.exit(1);
     }
-    
+
     return apiKey;
 }
 
 // Initialize API key
-let SOCKET_API_KEY = process.env.SOCKET_API_KEY || "";
+let SOCKET_API_KEY = process.env['SOCKET_API_KEY'] || "";
 
 // Transport management
 const transports: Record<string, StreamableHTTPServerTransport> = {};
@@ -95,9 +93,9 @@ server.tool(
     },
     async ({ packages }) => {
         logger.info(`Received request for ${packages.length} packages`);
-        
+
         const SOCKET_HEADERS = {
-          "user-agent": `socket-mcp/${VERSION}`,  
+          "user-agent": `socket-mcp/${VERSION}`,
           "accept": "application/x-ndjson",
           "content-type": "application/json",
           "authorization": `Bearer ${SOCKET_API_KEY}`
@@ -168,7 +166,7 @@ server.tool(
                                 .filter(([key]) => key !== "overall" && key !== "uuid")
                                 .map(([key, value]) => `${key}: ${value}`)
                                 .join(', ');
-                            
+
                             results.push(`${purl}: ${scoreEntries}`);
                         } else {
                             results.push(`${purl}: No score found`);
@@ -182,7 +180,7 @@ server.tool(
                             .filter(([key]) => key !== "overall" && key !== "uuid")
                             .map(([key, value]) => `${key}: ${value}`)
                             .join(', ');
-                        
+
                         results.push(`${purl}: ${scoreEntries}`);
                     }
                 }
@@ -191,7 +189,7 @@ server.tool(
                     content: [
                         {
                             type: "text",
-                            text: results.length > 0 
+                            text: results.length > 0
                                 ? `Dependency scores:\n${results.join('\n')}`
                                 : "No scores found for the provided packages"
                         }
@@ -201,7 +199,7 @@ server.tool(
                 const error = e as Error;
                 const errorMsg = `JSON parsing error: ${error.message} -- Response: ${responseText}`;
                 logger.error(errorMsg);
-                return {    
+                return {
                     content: [{ type: "text", text: "Error parsing response from Socket API" }],
                     isError: true
                 };
@@ -217,11 +215,11 @@ server.tool(
         }
     }
 );
-  
+
 
 // Determine transport mode from environment or arguments
-const useHttp = process.env.MCP_HTTP_MODE === 'true' || process.argv.includes('--http');
-const port = parseInt(process.env.MCP_PORT || '3000', 10);
+const useHttp = process.env['MCP_HTTP_MODE'] === 'true' || process.argv.includes('--http');
+const port = parseInt(process.env['MCP_PORT'] || '3000', 10);
 
 // Validate API key - in stdio mode, we can't prompt interactively
 if (!SOCKET_API_KEY) {
@@ -240,19 +238,19 @@ if (!SOCKET_API_KEY) {
 if (useHttp) {
   // HTTP mode with Server-Sent Events
   logger.info(`Starting HTTP server on port ${port}`);
-  
+
   const httpServer = createServer(async (req, res) => {
     // Validate Origin header as required by MCP spec
     const origin = req.headers.origin;
     const allowedOrigins = [
-      'http://localhost:3000', 
+      'http://localhost:3000',
       'http://127.0.0.1:3000',
       'https://mcp.socket.dev',
       'https://mcp.socket-staging.dev'
     ];
-    
+
     const isValidOrigin = !origin || allowedOrigins.includes(origin);
-    
+
     if (origin && !isValidOrigin) {
       logger.warn(`Rejected request from invalid origin: ${origin}`);
       res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -263,7 +261,7 @@ if (useHttp) {
       }));
       return;
     }
-    
+
     // Set CORS headers for valid origins
     if (origin && isValidOrigin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -273,7 +271,7 @@ if (useHttp) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id, Accept, Last-Event-ID');
     res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
-    
+
     if (req.method === 'OPTIONS') {
       res.writeHead(200);
       res.end();
@@ -281,7 +279,7 @@ if (useHttp) {
     }
 
     const url = new URL(req.url!, `http://localhost:${port}`);
-    
+
     // Health check endpoint for K8s/Docker
     if (url.pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -293,7 +291,7 @@ if (useHttp) {
       }));
       return;
     }
-    
+
     if (url.pathname === '/') {
       if (req.method === 'POST') {
         // Validate Accept header as required by MCP spec
@@ -308,7 +306,7 @@ if (useHttp) {
           }));
           return;
         }
-        
+
         // Handle JSON-RPC messages
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -316,7 +314,7 @@ if (useHttp) {
           try {
             const jsonData = JSON.parse(body);
             const sessionId = req.headers['mcp-session-id'] as string;
-            
+
             // Validate session ID format if provided (must contain only visible ASCII characters)
             if (sessionId && !/^[\x21-\x7E]+$/.test(sessionId)) {
               logger.warn(`Invalid session ID format: ${sessionId}`);
@@ -328,9 +326,9 @@ if (useHttp) {
               }));
               return;
             }
-            
+
             let transport: StreamableHTTPServerTransport;
-            
+
             if (sessionId && transports[sessionId]) {
               // Reuse existing transport
               transport = transports[sessionId];
@@ -338,13 +336,13 @@ if (useHttp) {
               // Create new session (either for initialize request or fallback)
               const newSessionId = randomUUID();
               const isInit = isInitializeRequest(jsonData);
-              
+
               if (isInit) {
                 logger.info(`Creating new session for initialize request: ${newSessionId}`);
               } else {
                 logger.warn(`Creating fallback session for non-initialize request: ${newSessionId}`);
               }
-              
+
               transport = new StreamableHTTPServerTransport({
                 sessionIdGenerator: () => newSessionId,
                 onsessioninitialized: (id) => {
@@ -354,7 +352,7 @@ if (useHttp) {
                   res.setHeader('mcp-session-id', id);
                 }
               });
-              
+
               transport.onclose = () => {
                 const sid = transport.sessionId;
                 if (sid && transports[sid]) {
@@ -362,7 +360,7 @@ if (useHttp) {
                   logger.info(`Session closed: ${sid}`);
                 }
               };
-              
+
               await server.connect(transport);
               await transport.handleRequest(req, res, jsonData);
               return;
@@ -372,15 +370,15 @@ if (useHttp) {
               res.writeHead(400);
               res.end(JSON.stringify({
                 jsonrpc: '2.0',
-                error: { 
-                  code: -32000, 
+                error: {
+                  code: -32000,
                   message: `Bad Request: Invalid session ID. Please initialize a new session first.`
                 },
                 id: jsonData.id || null
               }));
               return;
             }
-            
+
             // Handle request with existing transport
             await transport.handleRequest(req, res, jsonData);
           } catch (error) {
@@ -395,7 +393,7 @@ if (useHttp) {
             }
           }
         });
-        
+
       } else if (req.method === 'GET') {
         // Validate Accept header for SSE as required by MCP spec
         const acceptHeader = req.headers.accept;
@@ -409,10 +407,10 @@ if (useHttp) {
           }));
           return;
         }
-        
+
         // Handle SSE streams
         const sessionId = req.headers['mcp-session-id'] as string;
-        
+
         // Validate session ID format
         if (sessionId && !/^[\x21-\x7E]+$/.test(sessionId)) {
           logger.warn(`Invalid session ID format in GET request: ${sessionId}`);
@@ -424,7 +422,7 @@ if (useHttp) {
           }));
           return;
         }
-        
+
         if (!sessionId || !transports[sessionId]) {
           logger.warn(`SSE request with invalid session ID: ${sessionId}`);
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -435,7 +433,7 @@ if (useHttp) {
           }));
           return;
         }
-        
+
         // Check for Last-Event-ID header for resumability (optional MCP feature)
         const lastEventId = req.headers['last-event-id'] as string;
         if (lastEventId) {
@@ -443,44 +441,44 @@ if (useHttp) {
           // Note: Actual resumability implementation would require message storage
           // For now, we log the request but don't implement full resumability
         }
-        
+
         logger.info(`Opening SSE stream for session: ${sessionId}`);
-        
+
         // Prevent connection timeout and keep it alive
         req.socket?.setTimeout(0);
         req.socket?.setKeepAlive(true, 30000);
-        
+
         let streamClosed = false;
-        
+
         // Handle client disconnection gracefully
         req.on('close', () => {
           streamClosed = true;
           logger.info(`Client disconnected SSE stream for session: ${sessionId}`);
         });
-        
+
         req.on('aborted', () => {
           streamClosed = true;
           logger.info(`Client aborted SSE stream for session: ${sessionId}`);
         });
-        
+
         // Let the MCP transport handle the SSE stream completely
         const transport = transports[sessionId];
-        
+
         try {
           await transport.handleRequest(req, res);
-          
+
           // If the transport completes without the client disconnecting,
           // it might have closed the stream prematurely. Keep it open with heartbeat.
           if (!streamClosed && !res.destroyed) {
             logger.info(`Transport completed, maintaining SSE stream for session: ${sessionId}`);
-            
+
             // Send periodic heartbeat to keep connection alive
             const heartbeat = setInterval(() => {
               if (streamClosed || res.destroyed) {
                 clearInterval(heartbeat);
                 return;
               }
-              
+
               try {
                 res.write(': heartbeat\n\n');
               } catch (error) {
@@ -488,7 +486,7 @@ if (useHttp) {
                 clearInterval(heartbeat);
               }
             }, 30000);
-            
+
             // Clean up heartbeat when connection closes
             req.on('close', () => clearInterval(heartbeat));
             res.on('close', () => clearInterval(heartbeat));
@@ -496,7 +494,7 @@ if (useHttp) {
         } catch (error) {
           logger.error(`SSE transport error for session ${sessionId}:`, error);
         }
-        
+
       } else if (req.method === 'DELETE') {
         // Handle session termination
         const sessionId = req.headers['mcp-session-id'] as string;
@@ -505,10 +503,10 @@ if (useHttp) {
           res.end('Invalid or missing session ID');
           return;
         }
-        
+
         const transport = transports[sessionId];
         await transport.handleRequest(req, res);
-        
+
       } else {
         res.writeHead(405);
         res.end('Method not allowed');

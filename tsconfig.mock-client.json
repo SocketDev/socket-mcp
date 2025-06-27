@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./build/mock-client",
-    "rootDir": "./mock-client"
-  },
-  "include": ["mock-client/**/*"]
-}

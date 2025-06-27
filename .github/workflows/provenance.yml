@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Publish Packages to npm
 
 on:
@@ -50,7 +51,7 @@ jobs:
           release_name: Release v${{ steps.package-version.outputs.version }}
           body: |
             Release of @socketsecurity/mcp v${{ steps.package-version.outputs.version }}
-            
+
             This release has been published to npm with provenance.
           draft: false
           prerelease: false

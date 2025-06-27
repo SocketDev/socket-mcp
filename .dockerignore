@@ -1,0 +1,16 @@
+**/.env*
+**/.git
+**/.idea
+**/.config
+**/.npm
+**/.github
+**/.DS_Store
+**/.gitignore
+**/.scannerwork
+**/.editorconfig
+**/certs
+**/nodemon.json
+**/node_modules
+**/npm-debug.log
+**/public
+**/.dtx
