@@ -1,0 +1,52 @@
+{
+  "dxt_version": "0.1",
+  "name": "Socket MCP Server",
+  "version": "0.0.8",
+  "description": "Socket MCP server for scanning dependencies",
+  "author": {
+    "name": "Alexandros Kapravelos",
+    "email": "alexandros@socket.dev",
+    "url": "https://github.com/kapravel/"
+  },
+  "homepage": "https://github.com/SocketDev/socket-mcp",
+  "documentation": "https://github.com/SocketDev/socket-mcp",
+  "server": {
+    "type": "node",
+    "entry_point": "./build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/./build/index.js"
+      ],
+      "env": {
+        "SOCKET_API_KEY": "${user_config.SOCKET_API_KEY}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "depscore",
+      "description": "The depscore tool allows AI assistants to query the Socket API for dependency scoring information. It provides comprehensive security and quality metrics for packages across different ecosystems."
+    }
+  ],
+  "user_config": {
+    "SOCKET_API_KEY": {
+      "type": "string",
+      "title": "Socket API key",
+      "description": "API key for interacting with the Socket API",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "keywords": [
+    "socket",
+    "security",
+    "dependencies",
+    "vibecoding"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SocketDev/socket-mcp"
+  }
+}

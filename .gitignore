@@ -3,3 +3,5 @@ node_modules/
 .vscode/
 build/
 .claude/
+.DS_Store
+socket-mcp.dxt

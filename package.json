@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc && tsc -p tsconfig.mock-client.json && chmod 755 ./build/index.js && (chmod 755 ./build/mock-client/*.js 2>/dev/null || true)",
+    "build:dxt": "dxt pack",
     "debug:stdio": "node ./build/mock-client/debug-client.js",
     "debug:sdk": "node ./build/mock-client/stdio-client.js",
     "debug:http": "node ./build/mock-client/http-client.js",

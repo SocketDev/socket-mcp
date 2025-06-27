@@ -1,0 +1,5 @@
+*.log
+.vscode/
+.claude/
+*mock-client*
+Dockerfile
