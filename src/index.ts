@@ -282,10 +282,19 @@ if (useHttp) {
             if (sessionId && transports[sessionId]) {
               // Reuse existing transport
               transport = transports[sessionId];
-            } else if (!sessionId && isInitializeRequest(jsonData)) {
-              // New initialization request
+            } else if (!sessionId) {
+              // Create new session (either for initialize request or fallback)
+              const newSessionId = randomUUID();
+              const isInit = isInitializeRequest(jsonData);
+              
+              if (isInit) {
+                logger.info(`Creating new session for initialize request: ${newSessionId}`);
+              } else {
+                logger.warn(`Creating fallback session for non-initialize request: ${newSessionId}`);
+              }
+              
               transport = new StreamableHTTPServerTransport({
-                sessionIdGenerator: () => randomUUID(),
+                sessionIdGenerator: () => newSessionId,
                 onsessioninitialized: (id) => {
                   transports[id] = transport;
                   logger.info(`Session initialized: ${id}`);
@@ -304,12 +313,16 @@ if (useHttp) {
               await transport.handleRequest(req, res, jsonData);
               return;
             } else {
-              // Invalid request
+              // Invalid request - session ID provided but not found
+              logger.error(`Invalid session ID: ${sessionId}. Active sessions count: ${Object.keys(transports).length}`);
               res.writeHead(400);
               res.end(JSON.stringify({
                 jsonrpc: '2.0',
-                error: { code: -32000, message: 'Bad Request: No valid session ID' },
-                id: null
+                error: { 
+                  code: -32000, 
+                  message: `Bad Request: Invalid session ID. Please initialize a new session first.`
+                },
+                id: jsonData.id || null
               }));
               return;
             }
