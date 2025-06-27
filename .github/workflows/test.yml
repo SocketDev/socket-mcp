@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: tests
+
+on: [pull_request, push]
+
+env:
+  FORCE_COLOR: 1
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: ['lts/*']
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js ${{ matrix.node }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node }}
+    - run: npm i
+    - run: npm test --color=always
+      env:
+        SOCKET_API_KEY: ${{ secrets.SOCKET_API_KEY }}
