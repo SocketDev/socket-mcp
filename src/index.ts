@@ -242,10 +242,37 @@ if (useHttp) {
   logger.info(`Starting HTTP server on port ${port}`);
   
   const httpServer = createServer(async (req, res) => {
-    // Enable CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Validate Origin header as required by MCP spec
+    const origin = req.headers.origin;
+    const allowedOrigins = [
+      'http://localhost:3000', 
+      'http://127.0.0.1:3000',
+      'https://mcp.socket.dev',
+      'https://mcp.socket-staging.dev'
+    ];
+    
+    const isValidOrigin = !origin || allowedOrigins.includes(origin);
+    
+    if (origin && !isValidOrigin) {
+      logger.warn(`Rejected request from invalid origin: ${origin}`);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Forbidden: Invalid origin' },
+        id: null
+      }));
+      return;
+    }
+    
+    // Set CORS headers for valid origins
+    if (origin && isValidOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id, Accept, Last-Event-ID');
+    res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
     
     if (req.method === 'OPTIONS') {
       res.writeHead(200);
@@ -269,6 +296,19 @@ if (useHttp) {
     
     if (url.pathname === '/') {
       if (req.method === 'POST') {
+        // Validate Accept header as required by MCP spec
+        const acceptHeader = req.headers.accept;
+        if (!acceptHeader || (!acceptHeader.includes('application/json') && !acceptHeader.includes('text/event-stream'))) {
+          logger.warn(`Invalid Accept header: ${acceptHeader}`);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Bad Request: Accept header must include application/json or text/event-stream' },
+            id: null
+          }));
+          return;
+        }
+        
         // Handle JSON-RPC messages
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -276,6 +316,18 @@ if (useHttp) {
           try {
             const jsonData = JSON.parse(body);
             const sessionId = req.headers['mcp-session-id'] as string;
+            
+            // Validate session ID format if provided (must contain only visible ASCII characters)
+            if (sessionId && !/^[\x21-\x7E]+$/.test(sessionId)) {
+              logger.warn(`Invalid session ID format: ${sessionId}`);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                error: { code: -32000, message: 'Bad Request: Session ID must contain only visible ASCII characters' },
+                id: jsonData.id || null
+              }));
+              return;
+            }
             
             let transport: StreamableHTTPServerTransport;
             
@@ -298,6 +350,8 @@ if (useHttp) {
                 onsessioninitialized: (id) => {
                   transports[id] = transport;
                   logger.info(`Session initialized: ${id}`);
+                  // Set session ID in response headers as required by MCP spec
+                  res.setHeader('mcp-session-id', id);
                 }
               });
               
@@ -343,14 +397,54 @@ if (useHttp) {
         });
         
       } else if (req.method === 'GET') {
-        // Handle SSE streams
-        const sessionId = req.headers['mcp-session-id'] as string;
-        if (!sessionId || !transports[sessionId]) {
-          res.writeHead(400);
-          res.end('Invalid or missing session ID');
+        // Validate Accept header for SSE as required by MCP spec
+        const acceptHeader = req.headers.accept;
+        if (!acceptHeader || !acceptHeader.includes('text/event-stream')) {
+          logger.warn(`GET request without text/event-stream Accept header: ${acceptHeader}`);
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Method Not Allowed: GET requires Accept: text/event-stream' },
+            id: null
+          }));
           return;
         }
         
+        // Handle SSE streams
+        const sessionId = req.headers['mcp-session-id'] as string;
+        
+        // Validate session ID format
+        if (sessionId && !/^[\x21-\x7E]+$/.test(sessionId)) {
+          logger.warn(`Invalid session ID format in GET request: ${sessionId}`);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Bad Request: Session ID must contain only visible ASCII characters' },
+            id: null
+          }));
+          return;
+        }
+        
+        if (!sessionId || !transports[sessionId]) {
+          logger.warn(`SSE request with invalid session ID: ${sessionId}`);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Bad Request: Invalid or missing session ID for SSE stream' },
+            id: null
+          }));
+          return;
+        }
+        
+        // Check for Last-Event-ID header for resumability (optional MCP feature)
+        const lastEventId = req.headers['last-event-id'] as string;
+        if (lastEventId) {
+          logger.info(`SSE resumability requested with Last-Event-ID: ${lastEventId}`);
+          // Note: Actual resumability implementation would require message storage
+          // For now, we log the request but don't implement full resumability
+        }
+        
+        // Let the transport handle SSE headers and response
         const transport = transports[sessionId];
         await transport.handleRequest(req, res);
         
