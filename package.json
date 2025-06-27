@@ -14,6 +14,7 @@
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "test": "run-s test:*",
+    "test:lint": "eslint .",
     "test:tsc": "tsc",
     "test:node-test": "c8 node --experimental-strip-types --test --test-reporter spec",
     "build": "npm run clean && run-s build:*",
@@ -50,6 +51,7 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
+    "neostandard": "^0.12.0",
     "@anthropic-ai/dxt": "^0.1.0",
     "@types/node": "^22.15.19",
     "@types/semver": "^7.7.0",
