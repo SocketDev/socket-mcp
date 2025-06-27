@@ -444,9 +444,58 @@ if (useHttp) {
           // For now, we log the request but don't implement full resumability
         }
         
-        // Let the transport handle SSE headers and response
+        logger.info(`Opening SSE stream for session: ${sessionId}`);
+        
+        // Prevent connection timeout and keep it alive
+        req.socket?.setTimeout(0);
+        req.socket?.setKeepAlive(true, 30000);
+        
+        let streamClosed = false;
+        
+        // Handle client disconnection gracefully
+        req.on('close', () => {
+          streamClosed = true;
+          logger.info(`Client disconnected SSE stream for session: ${sessionId}`);
+        });
+        
+        req.on('aborted', () => {
+          streamClosed = true;
+          logger.info(`Client aborted SSE stream for session: ${sessionId}`);
+        });
+        
+        // Let the MCP transport handle the SSE stream completely
         const transport = transports[sessionId];
-        await transport.handleRequest(req, res);
+        
+        try {
+          await transport.handleRequest(req, res);
+          
+          // If the transport completes without the client disconnecting,
+          // it might have closed the stream prematurely. Keep it open with heartbeat.
+          if (!streamClosed && !res.destroyed) {
+            logger.info(`Transport completed, maintaining SSE stream for session: ${sessionId}`);
+            
+            // Send periodic heartbeat to keep connection alive
+            const heartbeat = setInterval(() => {
+              if (streamClosed || res.destroyed) {
+                clearInterval(heartbeat);
+                return;
+              }
+              
+              try {
+                res.write(': heartbeat\n\n');
+              } catch (error) {
+                logger.error(`Heartbeat error for session ${sessionId}:`, error);
+                clearInterval(heartbeat);
+              }
+            }, 30000);
+            
+            // Clean up heartbeat when connection closes
+            req.on('close', () => clearInterval(heartbeat));
+            res.on('close', () => clearInterval(heartbeat));
+          }
+        } catch (error) {
+          logger.error(`SSE transport error for session ${sessionId}:`, error);
+        }
         
       } else if (req.method === 'DELETE') {
         // Handle session termination
