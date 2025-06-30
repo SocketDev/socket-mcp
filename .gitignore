@@ -5,3 +5,15 @@ build/
 .claude/
 .DS_Store
 socket-mcp.dxt
+coverage
+*.tgz
+
+# Generated types
+
+*.d.ts
+*.d.ts.map
+
+# Generated js
+
+*.js
+!*.config.js

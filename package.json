@@ -2,23 +2,40 @@
   "name": "@socketsecurity/mcp",
   "version": "0.0.8",
   "type": "module",
-  "main": "./build/index.js",
+  "main": "./index.js",
   "bin": {
-    "socket-mcp": "./build/index.js"
+    "socket-mcp": "./index.js"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">= 10"
   },
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.mock-client.json && chmod 755 ./build/index.js && (chmod 755 ./build/mock-client/*.js 2>/dev/null || true)",
-    "build:dxt": "dxt pack",
-    "debug:stdio": "node ./build/mock-client/debug-client.js",
-    "debug:sdk": "node ./build/mock-client/stdio-client.js",
-    "debug:http": "node ./build/mock-client/http-client.js",
-    "server:stdio": "SOCKET_API_KEY=${SOCKET_API_KEY} ./build/index.js",
-    "server:http": "MCP_HTTP_MODE=true SOCKET_API_KEY=${SOCKET_API_KEY} ./build/index.js"
+    "prepublishOnly": "npm run build",
+    "postpublish": "npm run clean",
+    "test": "run-s test:*",
+    "test:tsc": "tsc",
+    "test:node-test": "c8 node --experimental-strip-types --test --test-reporter spec",
+    "build": "npm run clean && run-s build:*",
+    "build:types": "tsc -p tsconfig.declaration.json",
+    "build:permissions": "chmod +x ./index.js && (chmod +x ./mock-client/*.js 2>/dev/null || true)",
+    "build-dtx": "run-s build build-dtx:*",
+    "build-dtx:dtx-pack": "dtx-pack ./build/index.js",
+    "clean": "./scripts/clean.sh",
+    "debug-stdio": "node --experimental-strip-types ./mock-client/debug-client.ts",
+    "debug-sdk": "node --experimental-strip-types ./mock-client/stdio-client.ts",
+    "debug-http": "node --experimental-strip-types ./mock-client/http-client.ts",
+    "server-stdio": "SOCKET_API_KEY=${SOCKET_API_KEY} --experimental-strip-types ./index.ts",
+    "server-http": "MCP_HTTP_MODE=true SOCKET_API_KEY=${SOCKET_API_KEY} ./build/index.js"
   },
-  "files": [
-    "build"
-  ],
   "keywords": [],
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "index.d.ts.map",
+    "mock-client/**/*.js",
+    "mock-client/**/*.d.ts*"
+  ],
   "author": "Alexandros Kapravelos",
   "description": "Socket MCP server for scanning dependencies",
   "repository": {
@@ -27,17 +44,18 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.3",
-    "@types/node-fetch": "^2.6.12",
-    "node-fetch": "^3.3.2",
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
     "semver": "^7.7.2",
     "zod": "^3.24.4"
   },
   "devDependencies": {
+    "@anthropic-ai/dxt": "^0.1.0",
     "@types/node": "^22.15.19",
     "@types/semver": "^7.7.0",
     "@types/triple-beam": "^1.3.5",
-    "typescript": "^5.8.3"
+    "c8": "^10.0.0",
+    "npm-run-all2": "^8.0.1",
+    "typescript": "~5.8.2"
   }
 }
