@@ -7,6 +7,7 @@ import { pino } from 'pino'
 import readline from 'readline'
 import { join } from 'path'
 import { readFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { createServer } from 'http'
 import { randomUUID } from 'crypto'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
@@ -17,19 +18,19 @@ const __dirname = import.meta.dirname
 const packageJson = JSON.parse(readFileSync(join(__dirname, './package.json'), 'utf8'))
 const VERSION = packageJson.version || '0.0.1'
 
-// Configure pino logger
+// Configure pino logger with cross-platform temp directory
 const logger = pino({
   level: 'info',
   transport: {
     targets: [
       {
         target: 'pino/file',
-        options: { destination: '/tmp/socket-mcp-error.log' },
+        options: { destination: join(tmpdir(), 'socket-mcp-error.log') },
         level: 'error'
       },
       {
         target: 'pino/file',
-        options: { destination: '/tmp/socket-mcp.log' },
+        options: { destination: join(tmpdir(), 'socket-mcp.log') },
         level: 'info'
       }
     ]
