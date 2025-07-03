@@ -164,7 +164,11 @@ server.tool(
             if (jsonData.score && jsonData.score.overall !== undefined) {
               const scoreEntries = Object.entries(jsonData.score)
                 .filter(([key]) => key !== 'overall' && key !== 'uuid')
-                .map(([key, value]) => `${key}: ${value}`)
+                .map(([key, value]) => {
+                  const numValue = Number(value)
+                  const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
+                  return `${key}: ${displayValue}`
+                })
                 .join(', ')
 
               results.push(`${purl}: ${scoreEntries}`)
@@ -178,7 +182,11 @@ server.tool(
           if (jsonData.score && jsonData.score.overall !== undefined) {
             const scoreEntries = Object.entries(jsonData.score)
               .filter(([key]) => key !== 'overall' && key !== 'uuid')
-              .map(([key, value]) => `${key}: ${value}`)
+              .map(([key, value]) => {
+                const numValue = Number(value)
+                const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
+                return `${key}: ${displayValue}`
+              })
               .join(', ')
 
             results.push(`${purl}: ${scoreEntries}`)
