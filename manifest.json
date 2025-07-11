@@ -1,6 +1,6 @@
 {
   "dxt_version": "0.1",
-  "name": "Socket MCP Server",
+  "name": "Socket",
   "version": "0.0.8",
   "description": "Socket MCP server for scanning dependencies",
   "author": {
