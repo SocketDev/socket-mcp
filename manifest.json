@@ -10,6 +10,7 @@
   },
   "homepage": "https://github.com/SocketDev/socket-mcp",
   "documentation": "https://github.com/SocketDev/socket-mcp",
+  "icon": "icon.png",
   "server": {
     "type": "node",
     "entry_point": "./index.js",
