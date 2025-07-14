@@ -21,7 +21,7 @@
     "build:types": "tsc -p tsconfig.declaration.json",
     "build:permissions": "chmod +x ./index.js && (chmod +x ./mock-client/*.js 2>/dev/null || true)",
     "build-dtx": "run-s build build-dtx:*",
-    "build-dtx:dtx-pack": "dtx-pack ./build/index.js",
+    "build-dtx:dtx-pack": "npx dxt pack ./",
     "clean": "./scripts/clean.sh",
     "debug-stdio": "node --experimental-strip-types ./mock-client/debug-client.ts",
     "debug-sdk": "node --experimental-strip-types ./mock-client/stdio-client.ts",

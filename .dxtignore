@@ -2,4 +2,9 @@
 .vscode/
 .claude/
 *mock-client*
+.claude/
 Dockerfile
+coverage/*
+test*
+scripts/*
+.github/*
