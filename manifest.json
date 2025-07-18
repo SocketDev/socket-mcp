@@ -1,7 +1,7 @@
 {
   "dxt_version": "0.1",
   "name": "Socket",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Socket MCP server for scanning dependencies",
   "author": {
     "name": "Alexandros Kapravelos",

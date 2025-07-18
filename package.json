@@ -21,6 +21,7 @@
     "build:types": "tsc -p tsconfig.declaration.json",
     "build:permissions": "chmod +x ./index.js && (chmod +x ./mock-client/*.js 2>/dev/null || true)",
     "build-dtx": "run-s build build-dtx:*",
+    "build-dtx:versions_match": "node scripts/check-versions.js",
     "build-dtx:validate": "npx dxt validate ./",
     "build-dtx:dtx-pack": "npx dxt pack ./",
     "clean": "./scripts/clean.sh",
