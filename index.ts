@@ -285,7 +285,19 @@ if (useHttp) {
       return
     }
 
-    const url = new URL(req.url!, `http://localhost:${port}`)
+    let url: URL
+    try {
+      url = new URL(req.url!, `http://localhost:${port}`)
+    } catch (error) {
+      logger.warn(`Invalid URL in request: ${req.url} - ${error}`)
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Bad Request: Invalid URL' },
+        id: null
+      }))
+      return
+    }
 
     // Health check endpoint for K8s/Docker
     if (url.pathname === '/health') {
