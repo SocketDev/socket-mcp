@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
-import { pino } from 'pino'
+import pino from 'pino'
 import readline from 'readline'
 import { join } from 'path'
 import { readFileSync } from 'fs'
@@ -488,7 +488,7 @@ if (useHttp) {
               try {
                 res.write(': heartbeat\n\n')
               } catch (error) {
-                logger.error(`Heartbeat error for session ${sessionId}:`, error)
+                logger.error(error, `Heartbeat error for session ${sessionId}:`)
                 clearInterval(heartbeat)
               }
             }, 30000)
@@ -498,7 +498,7 @@ if (useHttp) {
             res.on('close', () => clearInterval(heartbeat))
           }
         } catch (error) {
-          logger.error(`SSE transport error for session ${sessionId}:`, error)
+          logger.error(error, `SSE transport error for session ${sessionId}:`)
         }
       } else if (req.method === 'DELETE') {
         // Handle session termination
