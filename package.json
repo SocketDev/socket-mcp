@@ -60,6 +60,6 @@
     "@types/triple-beam": "^1.3.5",
     "c8": "^10.0.0",
     "npm-run-all2": "^8.0.1",
-    "typescript": "~5.8.2"
+    "typescript": "~5.9.2"
   }
 }
