@@ -1,4 +1,4 @@
-#!/usr/bin/env node --experimental-strip-types
+#!/usr/bin/env -S node --experimental-strip-types
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
