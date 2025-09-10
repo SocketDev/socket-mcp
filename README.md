@@ -374,3 +374,8 @@ MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node --experimental-strip-ty
 - 📖 [Socket Documentation](https://docs.socket.dev)
 - 🐛 [Report Issues](https://github.com/SocketDev/socket-mcp/issues)
 - 💬 [Community Support](https://github.com/SocketDev/socket-mcp/discussions)
+
+<br/>
+<div align="center">
+  <img width="324" height="108" alt="socket-logo-smallest2" src="https://github.com/user-attachments/assets/490ff7fb-015e-48c6-9ba2-56139c851719" />
+</div>
