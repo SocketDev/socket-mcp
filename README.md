@@ -149,7 +149,7 @@ For local deployment, you have two options:
 Click a button below to install the self-hosted stdio server in your favorite AI assistant.
 
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"command":"npx","args":["@socketsecurity/mcp@latest"],"type":"stdio"})
-[![Install in Cursor (stdio)](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=socket-mcp-stdio&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAc29ja2V0c2VjdXJpdHkvbWNwQGxhdGVzdCJdLCJlbnYiOnsiU09DS0VUX0FQSV9LRVkiOiJ5b3VyLWFwaS1rZXktaGVyZSJ9fQ==)
+[![Install in Cursor (stdio)](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJjb21tYW5kIjoibnB4IEBzb2NrZXRzZWN1cml0eS9tY3BAbGF0ZXN0IiwiZW52Ijp7IlNPQ0tFVF9BUElfS0VZIjoieW91ci1hcGkta2V5LWhlcmUifX0%3D)
 
 Claude Code (stdio mode) can be set up with the following command:
 
