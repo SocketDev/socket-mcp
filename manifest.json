@@ -1,13 +1,13 @@
 {
   "dxt_version": "0.1",
   "name": "Socket",
-  "version": "0.0.9",
+  "version": "0.0.12",
   "description": "Socket MCP server for scanning dependencies",
   "long_description": "__Secure your code by default.__\n\nThe Socket MCP server brings powerful, real-time dependency scanning directly into Claude. Instantly audit packages from npm, PyPI, Cargo, and more—right inside your chats—with zero setup.\n\nBuilt on the Model Context Protocol (MCP), this extension automatically evaluates packages for:\n\n-  Vulnerabilities and malware\n\n-  Supply chain risks\n\n- Code quality and maintenance\n\n-  License compliance\n\n\n\nWith a single command, Claude will return detailed security scores (0–100) across five critical dimensions—helping you make informed decisions and avoid risky dependencies before they hit production.",
   "author": {
-    "name": "Alexandros Kapravelos",
-    "email": "alexandros@socket.dev",
-    "url": "https://github.com/kapravel/"
+    "name": "Socket",
+    "email": "eng@socket.dev",
+    "url": "https://github.com/SocketDev/"
   },
   "homepage": "https://github.com/SocketDev/socket-mcp",
   "documentation": "https://github.com/SocketDev/socket-mcp",

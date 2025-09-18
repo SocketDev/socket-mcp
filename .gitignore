@@ -5,6 +5,8 @@ build/
 .claude/
 .DS_Store
 socket-mcp.dxt
+socket-mcp.mcpb
+
 coverage
 *.tgz
 
