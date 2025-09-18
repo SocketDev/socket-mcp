@@ -9,8 +9,6 @@ import { join } from 'path'
 import { readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { createServer } from 'http'
-import { randomUUID } from 'crypto'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 
 const __dirname = import.meta.dirname
 
@@ -67,8 +65,7 @@ async function getApiKeyInteractively (): Promise<string> {
 // Initialize API key
 let SOCKET_API_KEY = process.env['SOCKET_API_KEY'] || ''
 
-// Transport management
-const transports: Record<string, StreamableHTTPServerTransport> = {}
+// No session management: each HTTP request is handled statelessly
 
 // Create server instance
 const server = new McpServer({
@@ -246,6 +243,9 @@ if (useHttp) {
   // HTTP mode with Server-Sent Events
   logger.info(`Starting HTTP server on port ${port}`)
 
+  // Singleton transport to preserve initialization state without explicit sessions
+  let httpTransport: StreamableHTTPServerTransport | null = null
+
   const httpServer = createServer(async (req, res) => {
     // Validate Origin header as required by MCP spec
     const origin = req.headers.origin
@@ -275,9 +275,8 @@ if (useHttp) {
     } else {
       res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000')
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id, Accept, Last-Event-ID')
-    res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id')
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
 
     if (req.method === 'OPTIONS') {
       res.writeHead(200)
@@ -313,93 +312,38 @@ if (useHttp) {
 
     if (url.pathname === '/') {
       if (req.method === 'POST') {
-        // Validate Accept header as required by MCP spec
-        const acceptHeader = req.headers.accept
-        if (!acceptHeader || (!acceptHeader.includes('application/json') && !acceptHeader.includes('text/event-stream'))) {
-          logger.warn(`Invalid Accept header: ${acceptHeader}`)
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32000, message: 'Bad Request: Accept header must include application/json or text/event-stream' },
-            id: null
-          }))
-          return
-        }
-
-        // Handle JSON-RPC messages
+        // Handle JSON-RPC messages statelessly
         let body = ''
         req.on('data', chunk => (body += chunk))
         req.on('end', async () => {
           try {
             const jsonData = JSON.parse(body)
-            const sessionId = req.headers['mcp-session-id'] as string
 
-            // Validate session ID format if provided (must contain only visible ASCII characters)
-            if (sessionId && !/^[\x21-\x7E]+$/.test(sessionId)) {
-              logger.warn(`Invalid session ID format: ${sessionId}`)
-              res.writeHead(400, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({
-                jsonrpc: '2.0',
-                error: { code: -32000, message: 'Bad Request: Session ID must contain only visible ASCII characters' },
-                id: jsonData.id || null
-              }))
-              return
-            }
-
-            let transport: StreamableHTTPServerTransport
-
-            if (sessionId && transports[sessionId]) {
-              // Reuse existing transport
-              transport = transports[sessionId]
-            } else if (!sessionId) {
-              // Create new session (either for initialize request or fallback)
-              const newSessionId = randomUUID()
-              const isInit = isInitializeRequest(jsonData)
-
-              if (isInit) {
-                logger.info(`Creating new session for initialize request: ${newSessionId}`)
-              } else {
-                logger.warn(`Creating fallback session for non-initialize request: ${newSessionId}`)
+            // If this is an initialize, reset the singleton transport so clients can (re)initialize cleanly
+            if (jsonData && jsonData.method === 'initialize') {
+              if (httpTransport) {
+                try { httpTransport.close() } catch {}
               }
-
-              transport = new StreamableHTTPServerTransport({
-                sessionIdGenerator: () => newSessionId,
-                onsessioninitialized: (id) => {
-                  transports[id] = transport
-                  logger.info(`Session initialized: ${id}`)
-                  // Set session ID in response headers as required by MCP spec
-                  res.setHeader('mcp-session-id', id)
-                }
+              httpTransport = new StreamableHTTPServerTransport({
+                // Stateless mode: no session management required
+                sessionIdGenerator: undefined,
+                // Return JSON responses to avoid SSE streaming
+                enableJsonResponse: true
               })
-
-              transport.onclose = () => {
-                const sid = transport.sessionId
-                if (sid && transports[sid]) {
-                  delete transports[sid]
-                  logger.info(`Session closed: ${sid}`)
-                }
-              }
-
-              await server.connect(transport)
-              await transport.handleRequest(req, res, jsonData)
-              return
-            } else {
-              // Invalid request - session ID provided but not found
-              logger.error(`Invalid session ID: ${sessionId}. Active sessions count: ${Object.keys(transports).length}`)
-              res.writeHead(400)
-              res.end(JSON.stringify({
-                jsonrpc: '2.0',
-                error: {
-                  code: -32000,
-                  message: 'Bad Request: Invalid session ID. Please initialize a new session first.'
-                },
-                id: jsonData.id || null
-              }))
+              await server.connect(httpTransport)
+              await httpTransport.handleRequest(req, res, jsonData)
               return
             }
 
-            // Handle request with existing transport
-            await transport.handleRequest(req, res, jsonData)
+            // For non-initialize requests, ensure transport exists (client should have initialized already)
+            if (!httpTransport) {
+              httpTransport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: undefined,
+                enableJsonResponse: true
+              })
+              await server.connect(httpTransport)
+            }
+            await httpTransport.handleRequest(req, res, jsonData)
           } catch (error) {
             logger.error(`Error processing POST request: ${error}`)
             if (!res.headersSent) {
@@ -412,117 +356,6 @@ if (useHttp) {
             }
           }
         })
-      } else if (req.method === 'GET') {
-        // Validate Accept header for SSE as required by MCP spec
-        const acceptHeader = req.headers.accept
-        if (!acceptHeader || !acceptHeader.includes('text/event-stream')) {
-          logger.warn(`GET request without text/event-stream Accept header: ${acceptHeader}`)
-          res.writeHead(405, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32000, message: 'Method Not Allowed: GET requires Accept: text/event-stream' },
-            id: null
-          }))
-          return
-        }
-
-        // Handle SSE streams
-        const sessionId = req.headers['mcp-session-id'] as string
-
-        // Validate session ID format
-        if (sessionId && !/^[\x21-\x7E]+$/.test(sessionId)) {
-          logger.warn(`Invalid session ID format in GET request: ${sessionId}`)
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32000, message: 'Bad Request: Session ID must contain only visible ASCII characters' },
-            id: null
-          }))
-          return
-        }
-
-        if (!sessionId || !transports[sessionId]) {
-          logger.warn(`SSE request with invalid session ID: ${sessionId}`)
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32000, message: 'Bad Request: Invalid or missing session ID for SSE stream' },
-            id: null
-          }))
-          return
-        }
-
-        // Check for Last-Event-ID header for resumability (optional MCP feature)
-        const lastEventId = req.headers['last-event-id'] as string
-        if (lastEventId) {
-          logger.info(`SSE resumability requested with Last-Event-ID: ${lastEventId}`)
-          // Note: Actual resumability implementation would require message storage
-          // For now, we log the request but don't implement full resumability
-        }
-
-        logger.info(`Opening SSE stream for session: ${sessionId}`)
-
-        // Prevent connection timeout and keep it alive
-        req.socket?.setTimeout(0)
-        req.socket?.setKeepAlive(true, 30000)
-
-        let streamClosed = false
-
-        // Handle client disconnection gracefully
-        req.on('close', () => {
-          streamClosed = true
-          logger.info(`Client disconnected SSE stream for session: ${sessionId}`)
-        })
-
-        req.on('aborted', () => {
-          streamClosed = true
-          logger.info(`Client aborted SSE stream for session: ${sessionId}`)
-        })
-
-        // Let the MCP transport handle the SSE stream completely
-        const transport = transports[sessionId]
-
-        try {
-          await transport.handleRequest(req, res)
-
-          // If the transport completes without the client disconnecting,
-          // it might have closed the stream prematurely. Keep it open with heartbeat.
-          if (!streamClosed && !res.destroyed) {
-            logger.info(`Transport completed, maintaining SSE stream for session: ${sessionId}`)
-
-            // Send periodic heartbeat to keep connection alive
-            const heartbeat = setInterval(() => {
-              if (streamClosed || res.destroyed) {
-                clearInterval(heartbeat)
-                return
-              }
-
-              try {
-                res.write(': heartbeat\n\n')
-              } catch (error) {
-                logger.error(error, `Heartbeat error for session ${sessionId}:`)
-                clearInterval(heartbeat)
-              }
-            }, 30000)
-
-            // Clean up heartbeat when connection closes
-            req.on('close', () => clearInterval(heartbeat))
-            res.on('close', () => clearInterval(heartbeat))
-          }
-        } catch (error) {
-          logger.error(error, `SSE transport error for session ${sessionId}:`)
-        }
-      } else if (req.method === 'DELETE') {
-        // Handle session termination
-        const sessionId = req.headers['mcp-session-id'] as string
-        if (!sessionId || !transports[sessionId]) {
-          res.writeHead(400)
-          res.end('Invalid or missing session ID')
-          return
-        }
-
-        const transport = transports[sessionId]
-        await transport.handleRequest(req, res)
       } else {
         res.writeHead(405)
         res.end('Method not allowed')
