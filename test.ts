@@ -7,7 +7,7 @@ import { join } from 'path'
 
 test('Socket MCP Server', async (t) => {
   const apiKey = process.env['SOCKET_API_KEY']
-  assert.ok(apiKey, 'We have an API key. Tests will not pass without it')
+  assert.ok(apiKey, 'We need an API key. Tests will not pass without it')
   const serverPath = join(import.meta.dirname, 'index.ts')
 
   const transport = new StdioClientTransport({

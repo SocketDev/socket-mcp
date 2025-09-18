@@ -21,14 +21,12 @@ async function parseResponse (response: any) {
 // Simple HTTP client for testing MCP server in HTTP mode
 async function testHTTPMode () {
   const baseUrl = (process.env['MCP_URL'] || 'http://localhost:3000').replace(/\/$/, '') // Remove trailing slash
-  const sessionId = `test-session-${Date.now()}`
 
   console.log('Testing Socket MCP in HTTP mode...')
   console.log(`Server URL: ${baseUrl}`)
-  console.log(`Session ID: ${sessionId}`)
 
   try {
-    // 1. Initialize connection
+    // 1. Initialize connection (stateless)
     console.log('\n1. Initializing connection...')
     const initRequest = {
       jsonrpc: '2.0',
@@ -48,6 +46,7 @@ async function testHTTPMode () {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // SDK requires Accept to include both types even if server returns JSON
         Accept: 'application/json, text/event-stream',
         'User-Agent': 'socket-mcp-debug-client/1.0.0'
       },
@@ -57,10 +56,7 @@ async function testHTTPMode () {
     const initResult = await parseResponse(initResponse)
     console.log('Initialize response:', JSON.stringify(initResult, null, 2))
 
-    // Extract session ID from response headers
-    const serverSessionId = initResponse.headers.get('mcp-session-id')
-    const actualSessionId = serverSessionId || sessionId
-    console.log('Session ID:', actualSessionId)
+    console.log('Initialized (stateless)')
 
     // 2. List tools
     console.log('\n2. Listing available tools...')
@@ -75,14 +71,22 @@ async function testHTTPMode () {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        'mcp-session-id': actualSessionId
+        Accept: 'application/json, text/event-stream'
       },
       body: JSON.stringify(toolsRequest)
     })
 
     const toolsResult = await parseResponse(toolsResponse)
     console.log('Available tools:', JSON.stringify(toolsResult, null, 2))
+    // Assert that the 'depscore' tool exists in the toolsResult
+    if (
+      !toolsResult ||
+      !toolsResult.result ||
+      !Array.isArray(toolsResult.result.tools) ||
+      !toolsResult.result.tools.some((tool: any) => tool.name === 'depscore')
+    ) {
+      throw new Error('depscore tool not found in available tools')
+    }
 
     // 3. Call depscore
     console.log('\n3. Calling depscore tool...')
@@ -106,8 +110,7 @@ async function testHTTPMode () {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        'mcp-session-id': actualSessionId
+        Accept: 'application/json, text/event-stream'
       },
       body: JSON.stringify(depscoreRequest)
     })
@@ -115,31 +118,7 @@ async function testHTTPMode () {
     const depscoreResult = await parseResponse(depscoreResponse)
     console.log('Depscore result:', JSON.stringify(depscoreResult, null, 2))
 
-    // 4. Test SSE stream (optional)
-    console.log('\n4. Testing SSE stream connection...')
-    const sseResponse = await fetch(`${baseUrl}/`, {
-      method: 'GET',
-      headers: {
-        'mcp-session-id': actualSessionId,
-        Accept: 'text/event-stream'
-      }
-    })
-
-    if (sseResponse.ok) {
-      console.log('SSE stream connected successfully')
-      // Note: In a real implementation, you'd parse the SSE stream
-    }
-
-    // 5. Clean up session
-    console.log('\n5. Cleaning up session...')
-    const cleanupResponse = await fetch(`${baseUrl}/`, {
-      method: 'DELETE',
-      headers: {
-        'mcp-session-id': actualSessionId
-      }
-    })
-
-    console.log('Session cleanup:', cleanupResponse.status === 200 ? 'Success' : 'Failed')
+    console.log('\n4. HTTP mode test complete (no sessions)')
   } catch (error) {
     console.error('Error:', error)
   }
