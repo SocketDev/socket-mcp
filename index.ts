@@ -256,9 +256,9 @@ if (useHttp) {
       'https://mcp.socket-staging.dev'
     ]
 
-    const isValidOrigin = !origin || allowedOrigins.includes(origin)
+    const isValidOrigin = origin && allowedOrigins.includes(origin)
 
-    if (origin && !isValidOrigin) {
+    if (!isValidOrigin) {
       logger.warn(`Rejected request from invalid origin: ${origin}`)
       res.writeHead(403, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({
