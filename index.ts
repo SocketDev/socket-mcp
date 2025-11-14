@@ -65,49 +65,49 @@ async function getApiKeyInteractively (): Promise<string> {
 // Initialize API key
 let SOCKET_API_KEY = process.env['SOCKET_API_KEY'] || ''
 
+// Build headers dynamically to reflect current API key
+function buildSocketHeaders (): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${SOCKET_API_KEY}`
+  }
+}
+
 // No session management: each HTTP request is handled statelessly
 
 // Create server instance
 const server = new McpServer({
   name: 'socket',
   version: VERSION,
-  description: 'Socket MCP server',
-  capabilities: {
-    resources: {},
-    tools: {},
-    streaming: {}
-  },
 })
 
-server.tool(
+server.registerTool(
   'depscore',
-  "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
   {
-    packages: z.array(z.object({
-      ecosystem: z.string().describe('The package ecosystem (e.g., npm, pypi)').default('npm'),
-      depname: z.string().describe('The name of the dependency'),
-      version: z.string().describe("The version of the dependency, use 'unknown' if not known").default('unknown'),
-    })).describe('Array of packages to check'),
+    title: 'Dependency Score Tool',
+    description: "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+    inputSchema: z.object({
+      packages: z.array(z.object({
+        ecosystem: z.string().describe('The package ecosystem (e.g., npm, pypi)').default('npm'),
+        depname: z.string().describe('The name of the dependency'),
+        version: z.string().describe("The version of the dependency, use 'unknown' if not known").default('unknown'),
+      })).describe('Array of packages to check'),
+    }),
+    outputSchema: z.object({}),
   },
   async ({ packages }) => {
     logger.info(`Received request for ${packages.length} packages`)
 
-    const SOCKET_HEADERS = {
-      'user-agent': `socket-mcp/${VERSION}`,
-      accept: 'application/x-ndjson',
-      'content-type': 'application/json',
-      authorization: `Bearer ${SOCKET_API_KEY}`
-    }
-
     // Build components array for the API request
     const components = packages.map(pkg => {
-      const cleanedVersion = pkg.version.replace(/[\^~]/g, '') // Remove ^ and ~ from version
+      const cleanedVersion = (pkg.version ?? 'unknown').replace(/[\^~]/g, '') // Remove ^ and ~ from version
+      const ecosystem = pkg.ecosystem ?? 'npm'
       let purl: string
       if (cleanedVersion === '1.0.0' || cleanedVersion === 'unknown' || !cleanedVersion) {
-        purl = `pkg:${pkg.ecosystem}/${pkg.depname}`
+        purl = `pkg:${ecosystem}/${pkg.depname}`
       } else {
         logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`)
-        purl = `pkg:${pkg.ecosystem}/${pkg.depname}@${cleanedVersion}`
+        purl = `pkg:${ecosystem}/${pkg.depname}@${cleanedVersion}`
       }
       return { purl }
     })
@@ -116,7 +116,7 @@ server.tool(
       // Make a POST request to the Socket API with all packages
       const response = await fetch(SOCKET_API_URL, {
         method: 'POST',
-        headers: SOCKET_HEADERS,
+        headers: buildSocketHeaders(),
         body: JSON.stringify({ components })
       })
 
