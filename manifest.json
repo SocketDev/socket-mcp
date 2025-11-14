@@ -47,6 +47,7 @@
     "vibecoding"
   ],
   "license": "MIT",
+  "privacy_policies": ["https://socket.dev/privacy"],
   "repository": {
     "type": "git",
     "url": "https://github.com/SocketDev/socket-mcp"
