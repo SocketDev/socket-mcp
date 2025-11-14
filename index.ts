@@ -69,7 +69,7 @@ let SOCKET_API_KEY = process.env['SOCKET_API_KEY'] || ''
 function buildSocketHeaders (): Record<string, string> {
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${SOCKET_API_KEY}`
+    Authorization: `Bearer ${SOCKET_API_KEY}`
   }
 }
 
