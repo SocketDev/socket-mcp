@@ -1,5 +1,5 @@
 {
-  "manifest_version": "0.1",
+  "manifest_version": "0.2",
   "name": "Socket",
   "version": "0.0.12",
   "description": "Socket MCP server for scanning dependencies",
