@@ -23,6 +23,7 @@
     "build-mcpb": "run-s build build-mcpb:*",
     "build-mcpb:versions_match": "node --experimental-strip-types scripts/check-versions.ts",
     "build-mcpb:validate": "npx mcpb validate ./",
+    "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
     "build-mcpb:mcpb-pack": "npx mcpb pack ./",
     "clean": "./scripts/clean.sh",
     "debug-stdio": "node --experimental-strip-types ./mock-client/debug-client.ts",
@@ -33,6 +34,8 @@
   },
   "keywords": [],
   "files": [
+    "package.json",
+    "package-lock.json",
     "index.js",
     "index.d.ts",
     "index.d.ts.map",
