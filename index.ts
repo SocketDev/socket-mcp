@@ -68,8 +68,10 @@ let SOCKET_API_KEY = process.env['SOCKET_API_KEY'] || ''
 // Build headers dynamically to reflect current API key
 function buildSocketHeaders (): Record<string, string> {
   return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${SOCKET_API_KEY}`
+    'user-agent': `socket-mcp/${VERSION}`,
+    accept: 'application/x-ndjson',
+    'content-type': 'application/json',
+    authorization: `Bearer ${SOCKET_API_KEY}`
   }
 }
 
