@@ -93,6 +93,9 @@ server.registerTool(
         version: z.string().describe("The version of the dependency, use 'unknown' if not known").default('unknown'),
       })).describe('Array of packages to check'),
     }),
+    annotations: {
+      readOnlyHint: true,
+    },
   },
   async ({ packages }) => {
     logger.info(`Received request for ${packages.length} packages`)
