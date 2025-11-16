@@ -189,6 +189,8 @@ server.registerTool(
               .join(', ')
 
             results.push(`${purl}: ${scoreEntries}`)
+          } else {
+            results.push(`${purl}: No score found`)
           }
         }
 
