@@ -14,7 +14,9 @@ test('Socket MCP Server', async (t) => {
     command: 'node',
     args: ['--experimental-strip-types', serverPath],
     env: {
-      ...process.env,
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(([, value]) => value !== undefined)
+      ) as Record<string, string>,
       SOCKET_API_KEY: apiKey
     }
   })
