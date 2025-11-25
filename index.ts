@@ -303,11 +303,8 @@ if (useHttp) {
     }
 
     // Set CORS headers for valid origins
-    if (origin && isValidOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', origin)
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000')
-    }
+    // Note: origin is guaranteed to be truthy here because isValidOrigin === true
+    res.setHeader('Access-Control-Allow-Origin', origin!)
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
 
