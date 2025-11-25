@@ -253,7 +253,34 @@ if (useHttp) {
   let httpTransport: StreamableHTTPServerTransport | null = null
 
   const httpServer = createServer(async (req, res) => {
-    // Validate Origin header as required by MCP spec
+    // Parse URL first to check for health endpoint
+    let url: URL
+    try {
+      url = new URL(req.url!, `http://localhost:${port}`)
+    } catch (error) {
+      logger.warn(`Invalid URL in request: ${req.url} - ${error}`)
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Bad Request: Invalid URL' },
+        id: null
+      }))
+      return
+    }
+
+    // Health check endpoint for K8s/Docker - bypass origin validation
+    if (url.pathname === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        status: 'healthy',
+        service: 'socket-mcp',
+        version: VERSION,
+        timestamp: new Date().toISOString()
+      }))
+      return
+    }
+
+    // Validate Origin header as required by MCP spec (for non-health endpoints)
     const origin = req.headers.origin
     const allowedOrigins = [
       'http://localhost:3000',
@@ -276,43 +303,14 @@ if (useHttp) {
     }
 
     // Set CORS headers for valid origins
-    if (origin && isValidOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', origin)
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000')
-    }
+    // Note: origin is guaranteed to be truthy here because isValidOrigin === true
+    res.setHeader('Access-Control-Allow-Origin', origin!)
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
 
     if (req.method === 'OPTIONS') {
       res.writeHead(200)
       res.end()
-      return
-    }
-
-    let url: URL
-    try {
-      url = new URL(req.url!, `http://localhost:${port}`)
-    } catch (error) {
-      logger.warn(`Invalid URL in request: ${req.url} - ${error}`)
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({
-        jsonrpc: '2.0',
-        error: { code: -32000, message: 'Bad Request: Invalid URL' },
-        id: null
-      }))
-      return
-    }
-
-    // Health check endpoint for K8s/Docker
-    if (url.pathname === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({
-        status: 'healthy',
-        service: 'socket-mcp',
-        version: VERSION,
-        timestamp: new Date().toISOString()
-      }))
       return
     }
 
