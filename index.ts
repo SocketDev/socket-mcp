@@ -282,17 +282,39 @@ if (useHttp) {
 
     // Validate Origin header as required by MCP spec (for non-health endpoints)
     const origin = req.headers.origin
+
+    // Check if origin is from localhost (any port) - safe for local development
+    const isLocalhostOrigin = (originUrl: string): boolean => {
+      try {
+        const url = new URL(originUrl)
+        return url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+      } catch {
+        return false
+      }
+    }
+
     const allowedOrigins = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
       'https://mcp.socket.dev',
       'https://mcp.socket-staging.dev'
     ]
 
-    const isValidOrigin = origin && allowedOrigins.includes(origin)
+    // Check if request is from localhost (for same-origin requests that don't send Origin header)
+    // Use strict matching to prevent spoofing via subdomains like "malicious-localhost.evil.com"
+    const host = req.headers.host || ''
+    const isLocalhostHost = host === `localhost:${port}` ||
+                            host === `127.0.0.1:${port}` ||
+                            host === 'localhost' ||
+                            host === '127.0.0.1'
+
+    // Allow requests:
+    // 1. With Origin header from localhost (any port) or production domains
+    // 2. Without Origin header if they're from localhost (same-origin requests)
+    const isValidOrigin = origin
+      ? (isLocalhostOrigin(origin) || allowedOrigins.includes(origin))
+      : isLocalhostHost
 
     if (!isValidOrigin) {
-      logger.warn(`Rejected request from invalid origin: ${origin}`)
+      logger.warn(`Rejected request from invalid origin: ${origin || 'missing'} (host: ${host})`)
       res.writeHead(403, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({
         jsonrpc: '2.0',
@@ -302,11 +324,13 @@ if (useHttp) {
       return
     }
 
-    // Set CORS headers for valid origins
-    // Note: origin is guaranteed to be truthy here because isValidOrigin === true
-    res.setHeader('Access-Control-Allow-Origin', origin!)
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
+    // Set CORS headers for valid origins (only needed for cross-origin requests)
+    // Same-origin requests don't send Origin header and don't need CORS headers
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
+    }
 
     if (req.method === 'OPTIONS') {
       res.writeHead(200)
@@ -325,6 +349,9 @@ if (useHttp) {
 
             // If this is an initialize, reset the singleton transport so clients can (re)initialize cleanly
             if (jsonData && jsonData.method === 'initialize') {
+              const clientInfo = jsonData.params?.clientInfo
+              logger.info(`Client connected: ${clientInfo?.name || 'unknown'} v${clientInfo?.version || 'unknown'} from ${origin || host}`)
+
               if (httpTransport) {
                 try { httpTransport.close() } catch {}
               }
