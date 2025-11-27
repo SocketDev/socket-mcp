@@ -301,17 +301,22 @@ if (useHttp) {
     // Check if request is from localhost (for same-origin requests that don't send Origin header)
     // Use strict matching to prevent spoofing via subdomains like "malicious-localhost.evil.com"
     const host = req.headers.host || ''
-    const isLocalhostHost = host === `localhost:${port}` ||
+
+    // Extract hostnames from allowedOrigins for Host header validation
+    const allowedHosts = allowedOrigins.map(o => new URL(o).hostname)
+
+    const isAllowedHost = host === `localhost:${port}` ||
                             host === `127.0.0.1:${port}` ||
                             host === 'localhost' ||
-                            host === '127.0.0.1'
+                            host === '127.0.0.1' ||
+                            allowedHosts.includes(host)
 
     // Allow requests:
     // 1. With Origin header from localhost (any port) or production domains
-    // 2. Without Origin header if they're from localhost (same-origin requests)
+    // 2. Without Origin header if they're from localhost or allowed domains (same-origin requests)
     const isValidOrigin = origin
       ? (isLocalhostOrigin(origin) || allowedOrigins.includes(origin))
-      : isLocalhostHost
+      : isAllowedHost
 
     if (!isValidOrigin) {
       logger.warn(`Rejected request from invalid origin: ${origin || 'missing'} (host: ${host})`)
