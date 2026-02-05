@@ -1,0 +1,1 @@
+{"type":"npm","name":"colors","version":"1.4.0","score":{"supply_chain":0.30,"quality":0.65,"vulnerability":1,"maintenance":0.30,"license":1},"alerts":[{"type":"protestware","severity":"HIGH"},{"type":"unmaintained","severity":"MEDIUM"}]}

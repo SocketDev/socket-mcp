@@ -4,7 +4,8 @@
   "type": "module",
   "main": "./index.js",
   "bin": {
-    "socket-mcp": "./index.js"
+    "socket-mcp": "./index.js",
+    "socket-gate": "./hooks/socket-gate.sh"
   },
   "engines": {
     "node": ">=22.0.0",
@@ -14,12 +15,13 @@
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "test": "run-s test:*",
+    "test:hooks": "bash ./hooks/test/socket-gate-test.sh",
     "test:lint": "eslint .",
     "test:tsc": "tsc",
     "test:node-test": "c8 node --experimental-strip-types --test --test-reporter spec",
     "build": "npm run clean && run-s build:*",
     "build:types": "tsc -p tsconfig.declaration.json",
-    "build:permissions": "chmod +x ./index.js && (chmod +x ./mock-client/*.js 2>/dev/null || true)",
+    "build:permissions": "chmod +x ./index.js && (chmod +x ./hooks/socket-gate.sh 2>/dev/null || true) && (chmod +x ./mock-client/*.js 2>/dev/null || true)",
     "build-mcpb": "run-s build build-mcpb:*",
     "build-mcpb:versions_match": "node --experimental-strip-types scripts/check-versions.ts",
     "build-mcpb:validate": "npx mcpb validate ./",
@@ -39,6 +41,8 @@
     "index.js",
     "index.d.ts",
     "index.d.ts.map",
+    "hooks/**/*.sh",
+    "templates/**/*",
     "mock-client/**/*.js",
     "mock-client/**/*.d.ts*"
   ],

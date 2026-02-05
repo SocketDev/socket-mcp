@@ -9,6 +9,8 @@ A Model Context Protocol (MCP) server for Socket integration, allowing AI assist
 ## ✨ Features
 
 - 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, and other package ecosystems
+- 🛡️ **Verdicts + Alerts** - PASS/WARN/FAIL verdicts with Socket alerts for actionable context
+- 🚧 **Claude Code Install Gate (Optional)** - PreToolUse hook to warn/block risky package installs before execution
 - 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/` with no setup required
 - 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
 - 🤖 **AI Assistant Integration** - Works seamlessly with Claude, VS Code Copilot, Cursor, and other MCP clients
@@ -138,6 +140,18 @@ To use the Socket MCP server in Windsurf:
 
 If you prefer to run your own instance, you can deploy the Socket MCP server locally using either stdio or HTTP modes.
 
+### (Optional) Claude Code Socket Security Gate
+
+If you use Claude Code, you can install a PreToolUse hook that intercepts package install commands (npm/pip/cargo/etc.), checks them with Socket, and blocks known malware by default.
+
+One-liner setup:
+
+```bash
+npx @socketsecurity/mcp@latest --setup-claude-code
+```
+
+This will update `~/.claude/settings.json`, install `~/.claude/hooks/socket-gate.sh`, and print a recommended `.claude/CLAUDE.md` snippet.
+
 ### Getting an API key
 
 To use a local Socket MCP Server, you need to create an API key. You can do this by following [these steps](https://docs.socket.dev/reference/creating-and-managing-api-tokens). The only required permission scope is `packages:list`, which allows the MCP server to query package metadata for dependency scores.
@@ -196,9 +210,21 @@ This approach automatically uses the latest version without requiring global ins
 
 ## Tools exposed by the Socket MCP Server
 
-### depscore
+### check_package
 
-The `depscore` tool allows AI assistants to query the Socket API for dependency scoring information. It provides comprehensive security and quality metrics for packages across different ecosystems.
+Check a single package and return a PASS/WARN/FAIL verdict, category scores, and any Socket alerts.
+
+### batch_check
+
+Check multiple packages at once and return per-package verdicts, scores, alerts, and a summary.
+
+### explain_alert
+
+Explain a Socket alert type in plain language (static knowledge base; no API call).
+
+### depscore (deprecated)
+
+The `depscore` tool is kept for backward compatibility. Prefer `batch_check`.
 
 **Parameters:**
 
@@ -257,7 +283,7 @@ You can further customize how the Socket MCP server interacts with your AI assis
 Rules that can be added to the client rules file include the following:
 
 ```md
-Always check dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself. If you are unsure about the score, ask for a review from someone with more experience. When checking dependencies, make sure to also check the imports not just the pyproject.toml/package.json/dependency file.
+Before installing or importing a new dependency, check it with the check_package tool (or batch_check for multiple). If the verdict is FAIL, do not proceed. If the verdict is WARN, explain the risks and ask the user how to proceed. When checking dependencies, make sure to also check the imports not just the pyproject.toml/package.json/dependency file.
 ```
 
 You can adjust the rules to fit your needs. For example, you can add rules to include specific manifest files, or guide the AI assistant on how to handle low scores. The rules are flexible and can be tailored to your workflow.

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "socket": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@socketsecurity/mcp@latest"
+      ],
+      "env": {
+        "SOCKET_API_KEY": "YOUR_SOCKET_API_KEY"
+      }
+    }
+  }
+}

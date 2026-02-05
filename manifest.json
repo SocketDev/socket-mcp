@@ -1,9 +1,9 @@
 {
   "manifest_version": "0.2",
   "name": "Socket",
-  "version": "0.0.13",
-  "description": "Socket MCP server for scanning dependencies",
-  "long_description": "__Secure your code by default.__\nThe Socket MCP server brings powerful, real-time dependency scanning directly into Claude. Instantly audit packages from npm, PyPI, Cargo, and more—right inside your chats—with zero setup. Built on the Model Context Protocol (MCP), this extension automatically evaluates packages for:\n - Vulnerabilities and malware\n - Supply chain risks\n - Code quality and maintenance\n - License compliance\n\n With a single command, Claude will return detailed security scores (0–100) across five critical dimensions—helping you make informed decisions and avoid risky dependencies before they hit production.",
+  "version": "0.0.16",
+  "description": "Socket MCP server for dependency security checks",
+  "long_description": "__Secure your code by default.__\nThe Socket MCP server brings real-time dependency security checks directly into MCP-capable AI tools. Audit packages from npm, PyPI, Cargo, and more with rich verdicts (PASS/WARN/FAIL), category scores, and alert context.\n\nTools included:\n - check_package (single package verdict + alerts)\n - batch_check (multiple packages verdicts + alerts)\n - explain_alert (plain-language explanation of alert types)\n - depscore (deprecated alias for batch_check)",
   "author": {
     "name": "Socket",
     "email": "eng@socket.dev",
@@ -27,8 +27,20 @@
   },
   "tools": [
     {
+      "name": "check_package",
+      "description": "Check a single package with a PASS/WARN/FAIL verdict, scores, and alerts."
+    },
+    {
+      "name": "batch_check",
+      "description": "Check multiple packages at once with verdicts, scores, alerts, and a summary."
+    },
+    {
+      "name": "explain_alert",
+      "description": "Explain a Socket alert type in plain language (static knowledge base, no API call)."
+    },
+    {
       "name": "depscore",
-      "description": "The depscore tool allows AI assistants to query the Socket API for dependency scoring information. It provides comprehensive security and quality metrics for packages across different ecosystems."
+      "description": "Deprecated: alias for batch_check (kept for backward compatibility)."
     }
   ],
   "user_config": {

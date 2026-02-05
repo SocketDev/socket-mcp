@@ -1,0 +1,2 @@
+{"type":"pypi","name":"requests","version":"2.31.0","score":{"supply_chain":0.9,"quality":0.9,"vulnerability":1,"maintenance":0.9,"license":1},"alerts":[]}
+{"type":"pypi","name":"flask","version":"2.0.0","score":{"supply_chain":0.9,"quality":0.8,"vulnerability":1,"maintenance":0.7,"license":1},"alerts":[]}

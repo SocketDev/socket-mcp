@@ -1,0 +1,1 @@
+{"type":"npm","name":"malicious-pkg","version":"2.0.0","score":{"supply_chain":0,"quality":0,"vulnerability":0,"maintenance":0,"license":0},"alerts":[{"type":"obfuscatedCode","severity":"CRITICAL"}]}
