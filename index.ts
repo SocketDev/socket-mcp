@@ -249,9 +249,10 @@ if (useHttp) {
   // HTTP mode with Server-Sent Events
   logger.info(`Starting HTTP server on port ${port}`)
 
-  // Per-session transports: each client gets its own transport, avoiding 409 Conflict
-  // when Cursor reconnects or opens multiple GET requests (only one SSE stream per session)
-  const transports: Record<string, StreamableHTTPServerTransport> = {}
+  // Per-session transports and servers: each client gets its own transport+server pair.
+  // Both must persist for the session lifetime; storing the server prevents GC from
+  // reclaiming it before subsequent RPC calls.
+  const sessions: Record<string, { transport: StreamableHTTPServerTransport; server: McpServer }> = {}
 
   const httpServer = createServer(async (req, res) => {
     // Parse URL first to check for health endpoint
@@ -369,22 +370,30 @@ if (useHttp) {
           try {
             const jsonData = JSON.parse(body)
             const sessionId = (req.headers['mcp-session-id'] as string) || undefined
-            let transport: StreamableHTTPServerTransport | undefined = sessionId ? transports[sessionId] : undefined
+            const session = sessionId ? sessions[sessionId] : undefined
+            let transport = session?.transport
 
             if (!transport && isInitializeRequest(jsonData)) {
               const clientInfo = jsonData.params?.clientInfo
               logger.info(`Client connected: ${clientInfo?.name || 'unknown'} v${clientInfo?.version || 'unknown'} from ${origin || host}`)
 
+              const server = createConfiguredServer()
               transport = new StreamableHTTPServerTransport({
                 enableJsonResponse: true,
                 sessionIdGenerator: () => randomUUID(),
-                onsessioninitialized: (id) => { transports[id] = transport! },
-                onsessionclosed: (id) => { delete transports[id] }
+                onsessioninitialized: (id) => { sessions[id] = { transport: transport!, server } },
+                onsessionclosed: (id) => {
+                  const s = sessions[id]
+                  if (s) { s.server.close().catch(() => {}); delete sessions[id] }
+                }
               })
               transport.onclose = () => {
-                if (transport?.sessionId) delete transports[transport.sessionId]
+                const id = transport?.sessionId
+                if (id) {
+                  const s = sessions[id]
+                  if (s) { s.server.close().catch(() => {}); delete sessions[id] }
+                }
               }
-              const server = createConfiguredServer()
               await server.connect(transport as Transport)
             }
 
@@ -413,7 +422,7 @@ if (useHttp) {
         })
       } else if (req.method === 'GET') {
         const sessionId = (req.headers['mcp-session-id'] as string) || undefined
-        const transport = sessionId ? transports[sessionId] : undefined
+        const transport = sessionId ? sessions[sessionId]?.transport : undefined
         if (!transport) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({
@@ -426,7 +435,7 @@ if (useHttp) {
         await transport.handleRequest(req, res)
       } else if (req.method === 'DELETE') {
         const sessionId = (req.headers['mcp-session-id'] as string) || undefined
-        const transport = sessionId ? transports[sessionId] : undefined
+        const transport = sessionId ? sessions[sessionId]?.transport : undefined
         if (!transport) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({
