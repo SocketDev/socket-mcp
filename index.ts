@@ -252,7 +252,31 @@ if (useHttp) {
   // Per-session transports and servers: each client gets its own transport+server pair.
   // Both must persist for the session lifetime; storing the server prevents GC from
   // reclaiming it before subsequent RPC calls.
-  const sessions: Record<string, { transport: StreamableHTTPServerTransport; server: McpServer }> = {}
+  interface Session { transport: StreamableHTTPServerTransport; server: McpServer; lastActivity: number }
+  const sessions = new Map<string, Session>()
+
+  /** Tear down a session by id, closing transport and server. Safe to call multiple times. */
+  function destroySession (id: string): void {
+    const s = sessions.get(id)
+    if (!s) return
+    sessions.delete(id)
+    try { s.transport.close() } catch {}
+    s.server.close().catch(() => {})
+    logger.info(`Session ${id} destroyed`)
+  }
+
+  // Reap idle sessions every 60 s. Sessions unused for 30 min are removed.
+  const SESSION_TTL_MS = 30 * 60 * 1000
+  const reapInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [id, session] of sessions.entries()) {
+      if (now - session.lastActivity > SESSION_TTL_MS) {
+        logger.info(`Reaping idle session ${id}`)
+        destroySession(id)
+      }
+    }
+  }, 60_000)
+  reapInterval.unref() // don't keep the process alive just for the reaper
 
   const httpServer = createServer(async (req, res) => {
     // Parse URL first to check for health endpoint
@@ -370,7 +394,7 @@ if (useHttp) {
           try {
             const jsonData = JSON.parse(body)
             const sessionId = (req.headers['mcp-session-id'] as string) || undefined
-            const session = sessionId ? sessions[sessionId] : undefined
+            const session = sessionId ? sessions.get(sessionId) : undefined
             let transport = session?.transport
 
             if (!transport && isInitializeRequest(jsonData)) {
@@ -378,22 +402,19 @@ if (useHttp) {
               logger.info(`Client connected: ${clientInfo?.name || 'unknown'} v${clientInfo?.version || 'unknown'} from ${origin || host}`)
 
               const server = createConfiguredServer()
-              transport = new StreamableHTTPServerTransport({
+              const newTransport = new StreamableHTTPServerTransport({
                 enableJsonResponse: true,
                 sessionIdGenerator: () => randomUUID(),
-                onsessioninitialized: (id) => { sessions[id] = { transport: transport!, server } },
-                onsessionclosed: (id) => {
-                  const s = sessions[id]
-                  if (s) { s.server.close().catch(() => {}); delete sessions[id] }
-                }
+                onsessioninitialized: (id) => {
+                  sessions.set(id, { transport: newTransport, server, lastActivity: Date.now() })
+                },
+                onsessionclosed: (id) => { destroySession(id) }
               })
-              transport.onclose = () => {
-                const id = transport?.sessionId
-                if (id) {
-                  const s = sessions[id]
-                  if (s) { s.server.close().catch(() => {}); delete sessions[id] }
-                }
+              newTransport.onclose = () => {
+                const id = newTransport.sessionId
+                if (id) destroySession(id)
               }
+              transport = newTransport
               await server.connect(transport as Transport)
             }
 
@@ -405,6 +426,12 @@ if (useHttp) {
                 id: null
               }))
               return
+            }
+
+            // Touch session activity for TTL tracking
+            if (sessionId) {
+              const activeSession = sessions.get(sessionId)
+              if (activeSession) activeSession.lastActivity = Date.now()
             }
 
             await transport.handleRequest(req, res, jsonData)
@@ -422,8 +449,8 @@ if (useHttp) {
         })
       } else if (req.method === 'GET') {
         const sessionId = (req.headers['mcp-session-id'] as string) || undefined
-        const transport = sessionId ? sessions[sessionId]?.transport : undefined
-        if (!transport) {
+        const session = sessionId ? sessions.get(sessionId) : undefined
+        if (!session) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({
             jsonrpc: '2.0',
@@ -432,10 +459,23 @@ if (useHttp) {
           }))
           return
         }
-        await transport.handleRequest(req, res)
+        try {
+          session.lastActivity = Date.now()
+          await session.transport.handleRequest(req, res)
+        } catch (error) {
+          logger.error(`Error processing GET request: ${error}`)
+          if (!res.headersSent) {
+            res.writeHead(500)
+            res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32603, message: 'Internal server error' },
+              id: null
+            }))
+          }
+        }
       } else if (req.method === 'DELETE') {
         const sessionId = (req.headers['mcp-session-id'] as string) || undefined
-        const transport = sessionId ? sessions[sessionId]?.transport : undefined
+        const transport = sessionId ? sessions.get(sessionId)?.transport : undefined
         if (!transport) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({
@@ -445,7 +485,19 @@ if (useHttp) {
           }))
           return
         }
-        await transport.handleRequest(req, res)
+        try {
+          await transport.handleRequest(req, res)
+        } catch (error) {
+          logger.error(`Error processing DELETE request: ${error}`)
+          if (!res.headersSent) {
+            res.writeHead(500)
+            res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32603, message: 'Internal server error' },
+              id: null
+            }))
+          }
+        }
       } else {
         res.writeHead(405)
         res.end('Method not allowed')
