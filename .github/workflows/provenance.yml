@@ -39,7 +39,6 @@ jobs:
       - run: npm pack
       - run: npm publish --provenance --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           SOCKET_CLI_DEBUG: ${{ inputs.debug }}
       - name: Create GitHub Release
         id: create_release
