@@ -132,6 +132,39 @@ To use the Socket MCP server in Windsurf:
 
 </details>
 
+<details><summary><b>Install in Factory</b></summary>
+
+[Factory](https://factory.ai) is an AI-powered software engineering platform. You can install the Socket MCP server using the Factory CLI or interactive UI.
+
+**Using the Public Server (Recommended)**
+
+Add the Socket MCP server using Factory's CLI:
+
+```bash
+droid mcp add socket https://mcp.socket.dev/ --type http
+```
+
+**Using Self-Hosted Mode (with API Key)**
+
+If you prefer to run your own instance with an API key:
+
+```bash
+droid mcp add socket "npx @socketsecurity/mcp@latest" --env SOCKET_API_KEY=your-api-key-here
+```
+
+**Using the Interactive UI**
+
+Alternatively, type `/mcp` within the Factory droid to open an interactive UI for managing MCP servers. From there you can:
+- Browse and add new servers
+- View all configured servers with status
+- Enable/disable servers
+
+After installation, the Socket MCP server will be available in your Factory droid sessions. You can now ask questions like "Check the security score for express version 4.18.2".
+
+Learn more about Factory's MCP configuration in the [Factory documentation](https://docs.factory.ai/cli/configuration/mcp).
+
+</details>
+
 </details>
 
 ### Option 2: Deploy Socket MCP Server on your machine
