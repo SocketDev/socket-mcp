@@ -88,7 +88,7 @@ function createConfiguredServer (): McpServer {
       description: "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
       inputSchema: {
         packages: z.array(z.object({
-          ecosystem: z.string().describe('The package ecosystem (e.g., npm, pypi)').default('npm'),
+          ecosystem: z.string().describe('The package ecosystem (e.g., npm, pypi, gem, golang, maven, nuget, cargo)').default('npm'),
           depname: z.string().describe('The name of the dependency'),
           version: z.string().describe("The version of the dependency, use 'unknown' if not known").default('unknown'),
         })).describe('Array of packages to check'),
