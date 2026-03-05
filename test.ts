@@ -45,6 +45,7 @@ test('Socket MCP Server', async (t) => {
       { depname: 'lodash', ecosystem: 'npm', version: '4.17.21' },
       { depname: 'react', ecosystem: 'npm', version: '18.2.0' },
       { depname: 'requests', ecosystem: 'pypi', version: '2.31.0' },
+      { depname: 'puma', ecosystem: 'gem', version: '6.4.0' },
       { depname: 'unknown-package', ecosystem: 'npm', version: 'unknown' }
     ]
 
@@ -59,6 +60,30 @@ test('Socket MCP Server', async (t) => {
     assert.ok(result.content, 'Result should have content')
     assert.ok(Array.isArray(result.content), 'Content should be an array')
     assert.ok(result.content.length > 0, 'Content should not be empty')
+  })
+
+  await t.test('call depscore tool with gem ecosystem', async () => {
+    const gemPackages = [
+      { depname: 'puma', ecosystem: 'gem', version: '6.4.0' },
+      { depname: 'rails', ecosystem: 'gem', version: '7.1.0' },
+      { depname: 'nokogiri', ecosystem: 'gem', version: '1.16.0' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: {
+        packages: gemPackages
+      }
+    })
+
+    assert.ok(result, 'Should get a result from depscore for gem packages')
+    assert.ok(result.content, 'Result should have content')
+    assert.ok(Array.isArray(result.content), 'Content should be an array')
+    assert.ok(result.content.length > 0, 'Content should not be empty')
+
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(textContent.text.includes('pkg:gem/'), 'Result should contain gem purl format')
+    assert.ok(!textContent.text.includes('No score found'), 'Gem packages should have scores')
   })
 
   await t.test('close client', async () => {
