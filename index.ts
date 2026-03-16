@@ -7,6 +7,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { randomUUID } from 'node:crypto'
 import { buildPurl } from './lib/purl.ts'
+import { deduplicateArtifacts } from './lib/artifacts.ts'
 import { z } from 'zod'
 import pino from 'pino'
 import readline from 'readline'
@@ -395,12 +396,13 @@ function createConfiguredServer (): McpServer {
           depname: z.string().describe('The name of the dependency'),
           version: z.string().describe("The version of the dependency, use 'unknown' if not known").default('unknown'),
         })).describe('Array of packages to check'),
+        platform: z.string().optional().describe("Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds."),
       },
       annotations: {
         readOnlyHint: true,
       },
     },
-    async ({ packages }, extra) => {
+    async ({ packages, platform }, extra) => {
       logger.info(`Received request for ${packages.length} packages`)
       const accessToken = extra.authInfo?.token || SOCKET_API_KEY
       if (!accessToken) {
@@ -476,6 +478,7 @@ function createConfiguredServer (): McpServer {
             const jsonLines = responseText.split('\n')
               .filter(line => line.trim())
               .map(line => JSON.parse(line))
+              .filter((obj: Record<string, unknown>) => !obj['_type'])
 
             if (!jsonLines.length) {
               const errorMsg = 'No valid JSON objects found in NDJSON response'
@@ -485,11 +488,11 @@ function createConfiguredServer (): McpServer {
               }
             }
 
-            // Process each result
-            for (const jsonData of jsonLines) {
+            const deduplicated = deduplicateArtifacts(jsonLines, platform)
+            for (const jsonData of deduplicated) {
               const ns = jsonData.namespace ? `${jsonData.namespace}/` : ''
               const purl: string = `pkg:${jsonData.type || 'unknown'}/${ns}${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
-              if (jsonData.score && jsonData.score.overall !== undefined) {
+              if (jsonData.score && jsonData.score['overall'] !== undefined) {
                 const scoreEntries = Object.entries(jsonData.score)
                   .filter(([key]) => key !== 'overall' && key !== 'uuid')
                   .map(([key, value]) => {
