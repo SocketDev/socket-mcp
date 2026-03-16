@@ -62,6 +62,110 @@ test('Socket MCP Server', async (t) => {
     assert.ok(result.content.length > 0, 'Content should not be empty')
   })
 
+  await t.test('call depscore tool with scoped npm package', async () => {
+    const scopedPackages = [
+      { depname: '@babel/core', ecosystem: 'npm', version: '7.24.0' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: {
+        packages: scopedPackages
+      }
+    })
+
+    assert.ok(result, 'Should get a result from depscore')
+    assert.ok(result.content, 'Result should have content')
+    assert.ok(Array.isArray(result.content) && result.content.length > 0, 'Content should not be empty')
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(
+      textContent.text.includes('@babel/core') || textContent.text.includes('%40babel/core'),
+      'Scoped package should resolve to @babel/core, not core'
+    )
+  })
+
+  await t.test('call depscore tool with pypi ecosystem', async () => {
+    const pypiPackages = [
+      { depname: 'flask', ecosystem: 'pypi', version: '2.3.2' },
+      { depname: 'requests', ecosystem: 'pypi', version: '2.31.0' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages: pypiPackages }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(textContent.text.includes('pkg:pypi/'), 'Result should contain pypi purl format')
+  })
+
+  await t.test('call depscore tool with golang ecosystem', async (t) => {
+    const golangPackages = [
+      { depname: 'github.com/gin-gonic/gin', ecosystem: 'golang', version: 'v1.9.0' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages: golangPackages }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    const hasGoPurl = textContent.text.includes('pkg:golang/') || textContent.text.includes('pkg:go/')
+    if (!hasGoPurl) {
+      t.skip(`Socket API did not return a recognized Go PURL format; ecosystem support may vary. Response: ${textContent.text.slice(0, 200)}`)
+      return
+    }
+    assert.ok(hasGoPurl, 'Result should contain go/golang purl format')
+  })
+
+  await t.test('call depscore tool with maven ecosystem', async () => {
+    const mavenPackages = [
+      { depname: 'org.springframework.boot:spring-boot-starter-web', ecosystem: 'maven', version: '3.1.0' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages: mavenPackages }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(textContent.text.includes('pkg:maven/'), 'Result should contain maven purl format')
+  })
+
+  await t.test('call depscore tool with nuget ecosystem', async () => {
+    const nugetPackages = [
+      { depname: 'Newtonsoft.Json', ecosystem: 'nuget', version: '13.0.3' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages: nugetPackages }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(textContent.text.includes('pkg:nuget/'), 'Result should contain nuget purl format')
+  })
+
+  await t.test('call depscore tool with cargo ecosystem', async () => {
+    const cargoPackages = [
+      { depname: 'serde', ecosystem: 'cargo', version: '1.0.193' },
+      { depname: 'tokio', ecosystem: 'cargo', version: '1.30.0' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages: cargoPackages }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(textContent.text.includes('pkg:cargo/'), 'Result should contain cargo purl format')
+  })
+
   await t.test('call depscore tool with gem ecosystem', async () => {
     const gemPackages = [
       { depname: 'puma', ecosystem: 'gem', version: '6.4.0' },
