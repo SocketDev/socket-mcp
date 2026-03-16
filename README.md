@@ -182,6 +182,35 @@ This approach automatically uses the latest version without requiring global ins
    MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key npx @socketsecurity/mcp@latest --http
    ```
 
+   HTTP mode supports these environment variables:
+
+   | Variable | Required | Default | Description |
+   |---|---|---|---|
+   | `SOCKET_API_KEY` | Required unless OAuth is enabled | None | Socket API key used for outbound API calls. If unset in OAuth-enabled HTTP mode, the validated incoming bearer token is forwarded upstream instead. |
+   | `SOCKET_OAUTH_ISSUER` | Set together with the two introspection vars to enable OAuth | None | OAuth issuer URL used for metadata discovery and incoming bearer-token validation. |
+   | `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID` | With OAuth | None | Client ID used for token introspection. |
+   | `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth | None | Client secret used for token introspection. |
+   | `SOCKET_OAUTH_REQUIRED_SCOPES` | No | `packages:list` | Space-delimited scopes required on incoming access tokens. |
+   | `SOCKET_API_URL` | No | Production Socket API URL, or localhost when `SOCKET_DEBUG=true` | Override the upstream Socket API endpoint. Useful for local development and testing. |
+   | `SOCKET_DEBUG` | No | `false` | Switches the default upstream Socket API endpoint to localhost when `SOCKET_API_URL` is unset. |
+   | `TRUST_PROXY` | No | `false` | When `true`, trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a trusted reverse proxy that rewrites these headers. |
+   | `MCP_PORT` | HTTP mode only | `3000` | Port to bind the HTTP server to. |
+
+   `SOCKET_API_URL` and `SOCKET_DEBUG` also apply in stdio mode.
+   In OAuth-enabled HTTP mode, if `SOCKET_API_KEY` is unset, the authenticated client's bearer token is forwarded to the Socket API. That token therefore must also be accepted by the configured upstream Socket API.
+
+   To enable OAuth-backed auth for incoming MCP requests:
+
+   ```bash
+   MCP_HTTP_MODE=true \
+   SOCKET_OAUTH_ISSUER=https://issuer.example.com \
+   SOCKET_OAUTH_INTROSPECTION_CLIENT_ID=your-client-id \
+   SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret \
+   npx @socketsecurity/mcp@latest --http
+   ```
+
+   Add `TRUST_PROXY=true` only when the server is deployed behind a trusted reverse proxy or load balancer that normalizes the forwarded host and protocol headers.
+
 2. Configure your MCP client to connect to the HTTP server:
    ```json
    {
