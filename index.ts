@@ -8,6 +8,7 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { randomUUID } from 'node:crypto'
 import { buildPurl } from './lib/purl.ts'
 import { deduplicateArtifacts } from './lib/artifacts.ts'
+import { buildSocketReportUrl } from './lib/socket-url.ts'
 import { z } from 'zod'
 import pino from 'pino'
 import readline from 'readline'
@@ -493,6 +494,7 @@ function createConfiguredServer (): McpServer {
               const ns = jsonData.namespace ? `${jsonData.namespace}/` : ''
               const purl: string = `pkg:${jsonData.type || 'unknown'}/${ns}${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
               if (jsonData.score && jsonData.score['overall'] !== undefined) {
+                const reportUrl = buildSocketReportUrl(jsonData)
                 const scoreEntries = Object.entries(jsonData.score)
                   .filter(([key]) => key !== 'overall' && key !== 'uuid')
                   .map(([key, value]) => {
@@ -502,7 +504,7 @@ function createConfiguredServer (): McpServer {
                   })
                   .join(', ')
 
-                results.push(`${purl}: ${scoreEntries}`)
+                results.push(`${purl}: ${scoreEntries}\n  Report: ${reportUrl}`)
               } else {
                 results.push(`${purl}: No score found`)
               }
@@ -512,6 +514,7 @@ function createConfiguredServer (): McpServer {
             const ns = jsonData.namespace ? `${jsonData.namespace}/` : ''
             const purl: string = `pkg:${jsonData.type || 'unknown'}/${ns}${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
             if (jsonData.score && jsonData.score.overall !== undefined) {
+              const reportUrl = buildSocketReportUrl(jsonData)
               const scoreEntries = Object.entries(jsonData.score)
                 .filter(([key]) => key !== 'overall' && key !== 'uuid')
                 .map(([key, value]) => {
@@ -521,7 +524,7 @@ function createConfiguredServer (): McpServer {
                 })
                 .join(', ')
 
-              results.push(`${purl}: ${scoreEntries}`)
+              results.push(`${purl}: ${scoreEntries}\n  Report: ${reportUrl}`)
             } else {
               results.push(`${purl}: No score found`)
             }
