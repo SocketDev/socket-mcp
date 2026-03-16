@@ -3,7 +3,7 @@
   "name": "Socket",
   "version": "0.0.13",
   "description": "Socket MCP server for scanning dependencies",
-  "long_description": "__Secure your code by default.__\nThe Socket MCP server brings powerful, real-time dependency scanning directly into Claude. Instantly audit packages from npm, PyPI, Cargo, and more—right inside your chats—with zero setup. Built on the Model Context Protocol (MCP), this extension automatically evaluates packages for:\n - Vulnerabilities and malware\n - Supply chain risks\n - Code quality and maintenance\n - License compliance\n\n With a single command, Claude will return detailed security scores (0–100) across five critical dimensions—helping you make informed decisions and avoid risky dependencies before they hit production.",
+  "long_description": "__Secure your code by default.__\nThe Socket MCP server brings powerful, real-time dependency scanning directly into Claude. Instantly audit packages from npm, PyPI, Cargo, Maven, NuGet, RubyGems, Go Modules, and more—right inside your chats—with zero setup. Built on the Model Context Protocol (MCP), this extension automatically evaluates packages for:\n - Vulnerabilities and malware\n - Supply chain risks\n - Code quality and maintenance\n - License compliance\n\n With a single command, Claude will return detailed security scores (0–100) across five critical dimensions—helping you make informed decisions and avoid risky dependencies before they hit production.",
   "author": {
     "name": "Socket",
     "email": "eng@socket.dev",
@@ -28,7 +28,7 @@
   "tools": [
     {
       "name": "depscore",
-      "description": "The depscore tool allows AI assistants to query the Socket API for dependency scoring information. It provides comprehensive security and quality metrics for packages across different ecosystems."
+      "description": "The depscore tool allows AI assistants to query the Socket API for dependency scoring information. It provides comprehensive security and quality metrics for packages across supported ecosystems: npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP). See https://docs.socket.dev/docs/language-support"
     }
   ],
   "user_config": {

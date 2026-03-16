@@ -8,7 +8,7 @@ A Model Context Protocol (MCP) server for Socket integration, allowing AI assist
 
 ## ✨ Features
 
-- 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, and other package ecosystems
+- 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, cargo, Maven, NuGet, RubyGems, Go Modules, and more ([supported ecosystems](https://docs.socket.dev/docs/language-support))
 - 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/` with no setup required
 - 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
 - 🤖 **AI Assistant Integration** - Works seamlessly with Claude, VS Code Copilot, Cursor, and other MCP clients
@@ -234,9 +234,27 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `packages` | Array | ✅ Yes | - | Array of package objects to analyze |
-| `packages[].ecosystem` | String | No | `"npm"` | Package ecosystem (`npm`, `pypi`, `cargo`, etc.) |
+| `packages[].ecosystem` | String | No | `"npm"` | Package ecosystem. See [Supported Ecosystems](#supported-ecosystems) below. |
 | `packages[].depname` | String | ✅ Yes | - | Name of the dependency/package |
 | `packages[].version` | String | No | `"unknown"` | Version of the dependency |
+
+**Supported Ecosystems**
+
+Ecosystem support is based on [Socket's language support documentation](https://docs.socket.dev/docs/language-support). The `ecosystem` parameter maps to PURL types as follows:
+
+| Ecosystem | PURL type | Package managers | Maturity |
+|-----------|-----------|------------------|----------|
+| JavaScript & TypeScript | `npm` | npm, yarn, pnpm, Bun, VLT | GA |
+| Python | `pypi` | uv, pip, Poetry, Anaconda | GA |
+| Go | `golang` | Go Modules | GA |
+| Java | `maven` | Maven, Gradle | GA |
+| Ruby | `gem` | Bundler | GA |
+| .NET (C#, F#, VB) | `nuget` | NuGet | GA |
+| Scala | `maven` | sbt, Maven, Gradle | GA |
+| Kotlin | `maven` | Maven, Gradle | GA |
+| Rust | `cargo` | cargo | GA |
+| PHP | `composer` | Composer | Experimental |
+| GitHub Actions | `actions` | GitHub Actions workflows | Experimental (workflow scanning, not package-level) |
 
 **Example Usage:**
 
