@@ -6,6 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { randomUUID } from 'node:crypto'
+import { buildPurl } from './lib/purl.ts'
 import { z } from 'zod'
 import pino from 'pino'
 import readline from 'readline'
@@ -411,16 +412,14 @@ function createConfiguredServer (): McpServer {
         }
       }
 
-      // Build components array for the API request
+      // Build components array for the API request. Use packageurl-js for correct PURL encoding
+      // across ecosystems (e.g. @ in npm scoped packages, maven groupId:artifactId).
       const components = packages.map((pkg: { ecosystem?: string; depname: string; version?: string }) => {
         const cleanedVersion = (pkg.version ?? 'unknown').replace(/[\^~]/g, '') // Remove ^ and ~ from version
         const ecosystem = pkg.ecosystem ?? 'npm'
-        let purl: string
-        if (cleanedVersion === '1.0.0' || cleanedVersion === 'unknown' || !cleanedVersion) {
-          purl = `pkg:${ecosystem}/${pkg.depname}`
-        } else {
+        const purl = buildPurl(ecosystem, pkg.depname, cleanedVersion)
+        if (cleanedVersion !== '1.0.0' && cleanedVersion !== 'unknown' && cleanedVersion) {
           logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`)
-          purl = `pkg:${ecosystem}/${pkg.depname}@${cleanedVersion}`
         }
         return { purl }
       })
@@ -488,7 +487,8 @@ function createConfiguredServer (): McpServer {
 
             // Process each result
             for (const jsonData of jsonLines) {
-              const purl: string = `pkg:${jsonData.type || 'unknown'}/${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
+              const ns = jsonData.namespace ? `${jsonData.namespace}/` : ''
+              const purl: string = `pkg:${jsonData.type || 'unknown'}/${ns}${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
               if (jsonData.score && jsonData.score.overall !== undefined) {
                 const scoreEntries = Object.entries(jsonData.score)
                   .filter(([key]) => key !== 'overall' && key !== 'uuid')
@@ -506,7 +506,8 @@ function createConfiguredServer (): McpServer {
             }
           } else {
             const jsonData = JSON.parse(responseText)
-            const purl: string = `pkg:${jsonData.type || 'unknown'}/${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
+            const ns = jsonData.namespace ? `${jsonData.namespace}/` : ''
+            const purl: string = `pkg:${jsonData.type || 'unknown'}/${ns}${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
             if (jsonData.score && jsonData.score.overall !== undefined) {
               const scoreEntries = Object.entries(jsonData.score)
                 .filter(([key]) => key !== 'overall' && key !== 'uuid')

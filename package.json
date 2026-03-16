@@ -39,6 +39,8 @@
     "index.js",
     "index.d.ts",
     "index.d.ts.map",
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
     "mock-client/**/*.js",
     "mock-client/**/*.d.ts*"
   ],
@@ -51,6 +53,7 @@
   "dependencies": {
     "@anthropic-ai/mcpb": "^1.1.0",
     "@modelcontextprotocol/sdk": "1.26.0",
+    "packageurl-js": "^2.0.1",
     "pino": "^10.0.0",
     "pino-pretty": "^13.0.0",
     "semver": "^7.7.2",
