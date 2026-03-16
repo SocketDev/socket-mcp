@@ -100,6 +100,39 @@ test('Socket MCP Server', async (t) => {
     assert.ok(textContent.text.includes('pkg:pypi/'), 'Result should contain pypi purl format')
   })
 
+  await t.test('pypi multi-artifact package is deduplicated to one result', async () => {
+    const packages = [
+      { depname: 'numpy', ecosystem: 'pypi', version: '1.26.4' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    const numpyLines = textContent.text.split('\n').filter(line => line.includes('pkg:pypi/numpy'))
+    assert.strictEqual(numpyLines.length, 1, `Expected 1 deduplicated result for numpy, got ${numpyLines.length}:\n${numpyLines.join('\n')}`)
+  })
+
+  await t.test('depscore accepts optional platform parameter', async () => {
+    const packages = [
+      { depname: 'numpy', ecosystem: 'pypi', version: '1.26.4' }
+    ]
+
+    const result = await client.callTool({
+      name: 'depscore',
+      arguments: { packages, platform: 'darwin-arm64' }
+    })
+
+    assert.ok(result?.content && Array.isArray(result.content) && result.content.length > 0)
+    const textContent = result.content[0] as { type: string; text: string }
+    assert.ok(textContent.text.includes('pkg:pypi/numpy'), 'Result should contain numpy')
+    const numpyLines = textContent.text.split('\n').filter(line => line.includes('pkg:pypi/numpy'))
+    assert.strictEqual(numpyLines.length, 1, 'Platform hint should still produce one deduplicated result')
+  })
+
   await t.test('call depscore tool with golang ecosystem', async (t) => {
     const golangPackages = [
       { depname: 'github.com/gin-gonic/gin', ecosystem: 'golang', version: 'v1.9.0' }
