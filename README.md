@@ -70,7 +70,7 @@ You can install the Socket MCP server using the VS Code CLI:
 
 ```bash
 # For VS Code with GitHub Copilot
-code --add-mcp '{"name":"socket-mcp","type":"http","url":"https://mcp.socket.dev/}'
+code --add-mcp '{"name":"socket-mcp","type":"http","url":"https://mcp.socket.dev/"}'
 ```
 
 After installation, the Socket MCP server will be available for use with your GitHub Copilot agent in VS Code.
