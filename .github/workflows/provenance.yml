@@ -30,6 +30,7 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           scope: '@socketregistry'
+          package-manager-cache: false
       - run: npm install -g npm@latest
       - run: npm ci
       - name: Build package
@@ -42,25 +43,13 @@ jobs:
         env:
           SOCKET_CLI_DEBUG: ${{ inputs.debug }}
       - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.package-version.outputs.version }}
-          release_name: Release v${{ steps.package-version.outputs.version }}
-          body: |
-            Release of @socketsecurity/mcp v${{ steps.package-version.outputs.version }}
-
-            This release has been published to npm with provenance.
-          draft: false
-          prerelease: false
-      - name: Upload Package to Release
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./socketsecurity-mcp-${{ steps.package-version.outputs.version }}.tgz
-          asset_name: socketsecurity-mcp-${{ steps.package-version.outputs.version }}.tgz
-          asset_content_type: application/gzip
+          VERSION: ${{ steps.package-version.outputs.version }}
+        run: |
+          notes=$(printf '%s\n\n%s' \
+            "Release of @socketsecurity/mcp v${VERSION}" \
+            "This release has been published to npm with provenance.")
+          gh release create "v${VERSION}" "socketsecurity-mcp-${VERSION}.tgz" \
+            --title "Release v${VERSION}" \
+            --notes "$notes"
