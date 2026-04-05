@@ -3,19 +3,23 @@
  * socket-gate.ts — Claude Code PreToolUse hook
  *
  * Intercepts npm/yarn/bun/pnpm install commands and checks packages against
- * the Socket API. Blocks packages with critical alerts (malware, typosquats)
- * and warns on high severity supply chain risks.
+ * Socket. Blocks packages with critical alerts (malware, typosquats)
+ * and high severity supply chain risks.
+ *
+ * Uses the Socket CLI (`socket package score`) which handles its own auth
+ * via `socket login`. No API key env var needed.
  *
  * Setup:
- *   1. Copy this file to ~/.claude/hooks/socket-gate.ts
- *   2. Add to ~/.claude/settings.json (see README)
- *   3. Set SOCKET_API_KEY env var
+ *   1. Install Socket CLI: npm install -g @socketsecurity/cli && socket login
+ *   2. Copy this file to ~/.claude/hooks/socket-gate.ts
+ *   3. Add to ~/.claude/settings.json (see README)
  *
- * Fails open on all errors (network, auth, parse) so it never blocks
- * legitimate work.
+ * Fails open on all errors (CLI missing, network timeout, parse failures)
+ * so it never blocks legitimate work.
  */
 
 import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 
 // ========================================
 // Types
@@ -28,21 +32,18 @@ interface HookInput {
 }
 
 interface SocketAlert {
-  type: string
+  name: string
   severity: string
   category?: string
-  props?: Record<string, unknown>
 }
 
-interface PurlResponseLine {
-  _type?: string
-  score?: Record<string, unknown>
-  alerts?: SocketAlert[]
-  name?: string
-  namespace?: string
-  type?: string
-  version?: string
-  [key: string]: unknown
+interface SocketScoreResult {
+  ok?: boolean
+  data?: {
+    self?: {
+      alerts?: SocketAlert[]
+    }
+  }
 }
 
 // ========================================
@@ -104,75 +105,34 @@ export function extractPackageName (command: string): string | null {
 }
 
 // ========================================
-// PURL construction (npm only, inline)
+// Socket CLI
 // ========================================
 
-export function buildNpmPurl (packageName: string): string {
-  if (packageName.startsWith('@') && packageName.includes('/')) {
-    const slash = packageName.indexOf('/')
-    const scope = encodeURIComponent(packageName.slice(0, slash))
-    const name = packageName.slice(slash + 1)
-    return `pkg:npm/${scope}/${name}`
+function isSocketInstalled (): boolean {
+  try {
+    execFileSync('which', ['socket'], { encoding: 'utf-8', timeout: 5_000 })
+    return true
+  } catch {
+    return false
   }
-  return `pkg:npm/${packageName}`
 }
 
-// ========================================
-// Socket API
-// ========================================
+export function checkPackage (packageName: string): { decision: 'allow' | 'deny', reason: string } {
+  const result = execFileSync(
+    'socket',
+    ['package', 'score', 'npm', packageName, '--json', '--no-banner'],
+    { encoding: 'utf-8', timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
+  )
 
-const DEFAULT_SOCKET_API_URL = 'https://api.socket.dev/v0/purl'
-
-function getSocketApiUrl (): string {
-  if (process.env['SOCKET_API_URL']) {
-    return process.env['SOCKET_API_URL']
-  }
-  return `${DEFAULT_SOCKET_API_URL}?alerts=true&compact=false&fixable=false&licenseattrib=false&licensedetails=false`
-}
-
-export async function checkPackage (packageName: string, apiKey: string): Promise<{ decision: 'allow' | 'deny', reason: string }> {
-  const purl = buildNpmPurl(packageName)
-
-  const response = await fetch(getSocketApiUrl(), {
-    method: 'POST',
-    headers: {
-      'user-agent': 'socket-mcp-hook/1.0',
-      accept: 'application/x-ndjson',
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({ components: [{ purl }] }),
-    signal: AbortSignal.timeout(15_000)
-  })
-
-  if (!response.ok) {
-    return { decision: 'allow', reason: '' }
-  }
-
-  const text = await response.text()
-  if (!text.trim()) {
-    return { decision: 'allow', reason: '' }
-  }
-
-  const lines: PurlResponseLine[] = text
-    .split('\n')
-    .filter(line => line.trim())
-    .map(line => JSON.parse(line) as PurlResponseLine)
-    .filter(obj => !obj._type)
-
-  if (lines.length === 0) {
-    return { decision: 'allow', reason: '' }
-  }
-
-  const pkg = lines[0]
-  const alerts = pkg.alerts || []
+  const parsed: SocketScoreResult = JSON.parse(result)
+  const alerts = parsed.data?.self?.alerts || []
 
   const critical = alerts.filter(a => a.severity === 'critical')
   const high = alerts.filter(a => a.severity === 'high')
 
   if (critical.length > 0) {
     const details = critical
-      .map(a => `  - ${a.type}: ${a.category || 'detected'}`)
+      .map(a => `  - ${a.name}: ${a.category || 'detected'}`)
       .join('\n')
 
     return {
@@ -183,7 +143,7 @@ export async function checkPackage (packageName: string, apiKey: string): Promis
 
   if (high.length > 0) {
     const details = high
-      .map(a => `  - ${a.type}: ${a.category || 'detected'}`)
+      .map(a => `  - ${a.name}: ${a.category || 'detected'}`)
       .join('\n')
 
     return {
@@ -241,20 +201,21 @@ async function main (): Promise<void> {
     return
   }
 
-  const apiKey = process.env['SOCKET_API_KEY']
-  if (!apiKey) {
+  if (!isSocketInstalled()) {
+    // CLI not installed, fail open
     outputAllow()
     return
   }
 
   try {
-    const result = await checkPackage(packageName, apiKey)
+    const result = checkPackage(packageName)
     if (result.decision === 'deny') {
       outputDeny(result.reason)
     } else {
       outputAllow()
     }
   } catch {
+    // Fail open on any error
     outputAllow()
   }
 }

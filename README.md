@@ -231,7 +231,10 @@ The hook fails open on all errors, so it never blocks legitimate work.
 
 ### Hook Setup
 
-**Prerequisites:** Node.js 22+ and a [Socket API key](https://docs.socket.dev/reference/creating-and-managing-api-tokens) (`packages:list` scope).
+**Prerequisites:**
+- Node.js 22+
+- [Socket CLI](https://www.npmjs.com/package/@socketsecurity/cli): `npm install -g @socketsecurity/cli`
+- Run `socket login` to authenticate (one-time setup, no env vars needed)
 
 1. Copy the hook script:
 
@@ -251,7 +254,7 @@ cp hooks/socket-gate.ts ~/.claude/hooks/
         "hooks": [
           {
             "type": "command",
-            "command": "SOCKET_API_KEY=your-api-key-here node --experimental-strip-types ~/.claude/hooks/socket-gate.ts"
+            "command": "node --experimental-strip-types ~/.claude/hooks/socket-gate.ts"
           }
         ]
       }
@@ -259,8 +262,6 @@ cp hooks/socket-gate.ts ~/.claude/hooks/
   }
 }
 ```
-
-If `SOCKET_API_KEY` is already in your shell environment, you can omit it from the command.
 
 ### How it works
 
@@ -275,11 +276,11 @@ If `SOCKET_API_KEY` is already in your shell environment, you can omit it from t
 ```bash
 # Should block (typosquat)
 echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"npm install browserlist"}}' \
-  | SOCKET_API_KEY=your-key node --experimental-strip-types hooks/socket-gate.ts
+  | node --experimental-strip-types hooks/socket-gate.ts
 
 # Should allow (safe package)
 echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"npm install express"}}' \
-  | SOCKET_API_KEY=your-key node --experimental-strip-types hooks/socket-gate.ts
+  | node --experimental-strip-types hooks/socket-gate.ts
 ```
 
 Inspired by [Jimmy Vo's dependency hook](https://blog.jimmyvo.com/posts/claudes-dependency-hook/).
