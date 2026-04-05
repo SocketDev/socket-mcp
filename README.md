@@ -223,6 +223,67 @@ This approach automatically uses the latest version without requiring global ins
    }
    ```
 
+## Claude Code Hook (Optional)
+
+The repo includes an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that automatically blocks malicious packages before installation. When Claude Code runs `npm install`, `yarn add`, `bun add`, or `pnpm add`, the hook checks the package against Socket and blocks it if critical or high severity alerts are found (typosquats, malware, supply chain attacks).
+
+The hook fails open on all errors, so it never blocks legitimate work.
+
+### Hook Setup
+
+**Prerequisites:** Node.js 22+ and a [Socket API key](https://docs.socket.dev/reference/creating-and-managing-api-tokens) (`packages:list` scope).
+
+1. Copy the hook script:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp hooks/socket-gate.ts ~/.claude/hooks/
+```
+
+2. Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SOCKET_API_KEY=your-api-key-here node --experimental-strip-types ~/.claude/hooks/socket-gate.ts"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+If `SOCKET_API_KEY` is already in your shell environment, you can omit it from the command.
+
+### How it works
+
+| Alert Severity | Decision | Example |
+|----------------|----------|---------|
+| **Critical** | Block installation | `browserlist` (typosquat of `browserslist`) |
+| **High** | Block installation | Packages with known supply chain risks |
+| **Low/None** | Allow | `express`, `lodash`, `react` |
+
+### Testing the hook
+
+```bash
+# Should block (typosquat)
+echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"npm install browserlist"}}' \
+  | SOCKET_API_KEY=your-key node --experimental-strip-types hooks/socket-gate.ts
+
+# Should allow (safe package)
+echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"npm install express"}}' \
+  | SOCKET_API_KEY=your-key node --experimental-strip-types hooks/socket-gate.ts
+```
+
+Inspired by [Jimmy Vo's dependency hook](https://blog.jimmyvo.com/posts/claudes-dependency-hook/).
+
 ## Tools exposed by the Socket MCP Server
 
 ### depscore
