@@ -110,7 +110,7 @@ export async function checkPackage (
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const commonHeaders = {
     'Content-Type': 'application/json',
-    'Accept': 'application/json, text/event-stream'
+    Accept: 'application/json, text/event-stream'
   }
 
   const initRes = await fetchImpl(MCP_URL, {
