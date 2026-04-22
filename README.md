@@ -225,16 +225,17 @@ This approach automatically uses the latest version without requiring global ins
 
 ## Claude Code Hook (Optional)
 
-The repo includes an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that automatically blocks malicious packages before installation. When Claude Code runs `npm install`, `yarn add`, `bun add`, or `pnpm add`, the hook checks the package against Socket and blocks it if critical or high severity alerts are found (typosquats, malware, supply chain attacks).
-
-The hook fails open on all errors, so it never blocks legitimate work.
+The repo includes an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs `npm install`, `yarn add`, `bun add`, or `pnpm add`, the hook calls the Socket `/v0/purl` API and denies the install when the package's supply chain score is below `0.2` (known malware, typosquats, high-risk supply chain signals).
 
 ### Hook Setup
 
 **Prerequisites:**
 - Node.js 22+
-- [Socket CLI](https://www.npmjs.com/package/@socketsecurity/cli): `npm install -g @socketsecurity/cli`
-- Run `socket login` to authenticate (one-time setup, no env vars needed)
+- A Socket API key with `packages:list` scope. See [creating API tokens](https://docs.socket.dev/reference/creating-and-managing-api-tokens). Export it in your shell:
+  ```bash
+  export SOCKET_API_KEY=your-api-key-here
+  ```
+  This is the same key used by the Socket MCP server.
 
 1. Copy the hook script:
 
@@ -265,11 +266,29 @@ cp hooks/socket-gate.ts ~/.claude/hooks/
 
 ### How it works
 
-| Alert Severity | Decision | Example |
-|----------------|----------|---------|
-| **Critical** | Block installation | `browserlist` (typosquat of `browserslist`) |
-| **High** | Block installation | Packages with known supply chain risks |
-| **Low/None** | Allow | `express`, `lodash`, `react` |
+The hook denies installation when `score.supplyChain < 0.2`, allows it otherwise. Examples:
+
+| Package | `supplyChain` | Decision |
+|---------|--------------|----------|
+| `express`, `lodash`, `react` | ~0.97+ | Allow |
+| `browserlist` (typosquat of `browserslist`) | 0.15 | Block |
+| Confirmed malware | 0 | Block |
+
+### Behavior on errors
+
+- **`SOCKET_API_KEY` not set** — **deny**, with a setup message. The hook will not silently leave you unprotected.
+- **Network, timeout, or parse errors** — **allow**. A Socket API outage will not block legitimate work.
+
+### Limitations
+
+This hook is a best-effort guardrail, not a complete defense. Known gaps:
+
+- **Manifest edits + lockfile installs.** If Claude edits `package.json` directly and then runs bare `npm install` / `npm ci` / `yarn` / `pnpm install`, there is no package name on the command line for the hook to extract, so no check is performed.
+- **JavaScript ecosystems only.** `pip`, `cargo`, `gem`, `go get`, etc. are not intercepted.
+- **Package-manager invocations only.** Direct downloads (`curl | sh`, `wget`), post-install scripts of already-accepted packages, and transitive dependencies pulled in by an allowed package are not re-checked.
+- **Indirect Claude paths.** Sub-agents, MCP tools that shell out, or non-`Bash` tool calls are not covered unless the `matcher` is broadened.
+
+For defense in depth, pair this hook with the Socket MCP server (for AI-assisted review), [Socket CLI](https://docs.socket.dev/docs/socket-cli) scans in CI, and [Socket Firewall](https://docs.socket.dev/docs/socket-firewall-enterprise) at the registry boundary.
 
 ### Testing the hook
 

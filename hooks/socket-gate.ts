@@ -3,27 +3,24 @@
  * socket-gate.ts — Claude Code PreToolUse hook
  *
  * Intercepts npm/yarn/bun/pnpm install commands and checks packages against
- * Socket. Blocks packages with critical alerts (malware, typosquats)
- * and high severity supply chain risks.
- *
- * Uses the Socket CLI (`socket package score`) which handles its own auth
- * via `socket login`. No API key env var needed.
+ * the Socket API. Blocks packages with a supply chain score below 0.2
+ * (known malware, typosquats, high-risk supply chain signals).
  *
  * Setup:
- *   1. Install Socket CLI: npm install -g @socketsecurity/cli && socket login
+ *   1. export SOCKET_API_KEY=... (same key used by the MCP server)
  *   2. Copy this file to ~/.claude/hooks/socket-gate.ts
  *   3. Add to ~/.claude/settings.json (see README)
  *
- * Fails open on all errors (CLI missing, network timeout, parse failures)
- * so it never blocks legitimate work.
+ * Denies when SOCKET_API_KEY is missing so users are not silently
+ * unprotected. Fails open on network, parse, or timeout errors so a
+ * Socket outage does not block legitimate work.
  */
 
 import { readFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
 
-// ========================================
-// Types
-// ========================================
+const SOCKET_API_URL = 'https://api.socket.dev/v0/purl'
+const SUPPLY_CHAIN_THRESHOLD = 0.2
+const REQUEST_TIMEOUT_MS = 10_000
 
 interface HookInput {
   session_id: string
@@ -31,24 +28,11 @@ interface HookInput {
   tool_input: Record<string, unknown> | string
 }
 
-interface SocketAlert {
-  name: string
-  severity: string
-  category?: string
-}
-
-interface SocketScoreResult {
-  ok?: boolean
-  data?: {
-    self?: {
-      alerts?: SocketAlert[]
-    }
+interface PurlResponse {
+  score?: {
+    supplyChain?: number
   }
 }
-
-// ========================================
-// Hook output helpers (Claude Code PreToolUse format)
-// ========================================
 
 function outputAllow (): void {
   process.stdout.write(JSON.stringify({
@@ -68,10 +52,6 @@ function outputDeny (reason: string): void {
     }
   }))
 }
-
-// ========================================
-// Package extraction
-// ========================================
 
 const INSTALL_PATTERNS = [
   /npm\s+(?:install|i|add)\s+([^\s-][^\s]*)/i,
@@ -96,7 +76,6 @@ export function extractPackageName (command: string): string | null {
     const match = command.match(pattern)
     if (match) {
       const pkg = match[1]
-      // Strip version specifiers: @scope/pkg@1.2.3 -> @scope/pkg
       return pkg.replace(/@[\d^~].*/u, '').replace(/@latest$/u, '')
     }
   }
@@ -104,60 +83,51 @@ export function extractPackageName (command: string): string | null {
   return null
 }
 
-// ========================================
-// Socket CLI
-// ========================================
+export async function checkPackage (
+  packageName: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<{ decision: 'allow' | 'deny', reason: string }> {
+  const auth = Buffer.from(`${apiKey}:`).toString('base64')
 
-function isSocketInstalled (): boolean {
-  try {
-    execFileSync('which', ['socket'], { encoding: 'utf-8', timeout: 5_000 })
-    return true
-  } catch {
-    return false
-  }
-}
+  const res = await fetchImpl(SOCKET_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      components: [{ purl: `pkg:npm/${packageName}` }]
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  })
 
-export function checkPackage (packageName: string): { decision: 'allow' | 'deny', reason: string } {
-  const result = execFileSync(
-    'socket',
-    ['package', 'score', 'npm', packageName, '--json', '--no-banner'],
-    { encoding: 'utf-8', timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
-  )
-
-  const parsed: SocketScoreResult = JSON.parse(result)
-  const alerts = parsed.data?.self?.alerts || []
-
-  const critical = alerts.filter(a => a.severity === 'critical')
-  const high = alerts.filter(a => a.severity === 'high')
-
-  if (critical.length > 0) {
-    const details = critical
-      .map(a => `  - ${a.name}: ${a.category || 'detected'}`)
-      .join('\n')
-
-    return {
-      decision: 'deny',
-      reason: `Socket blocked "${packageName}" (${critical.length} critical alert${critical.length > 1 ? 's' : ''}):\n\n${details}\n\nReview: https://socket.dev/npm/package/${packageName}`
-    }
+  if (!res.ok) {
+    throw new Error(`Socket API returned ${res.status}`)
   }
 
-  if (high.length > 0) {
-    const details = high
-      .map(a => `  - ${a.name}: ${a.category || 'detected'}`)
-      .join('\n')
+  const text = await res.text()
+  const line = text.split('\n').find(l => l.trim().length > 0)
+  if (!line) {
+    throw new Error('Empty response from Socket API')
+  }
 
+  const parsed: PurlResponse = JSON.parse(line)
+  const score = parsed.score?.supplyChain
+
+  if (typeof score !== 'number') {
+    throw new Error('Missing supplyChain score in response')
+  }
+
+  if (score < SUPPLY_CHAIN_THRESHOLD) {
     return {
       decision: 'deny',
-      reason: `Socket blocked "${packageName}" (${high.length} high severity alert${high.length > 1 ? 's' : ''}):\n\n${details}\n\nReview: https://socket.dev/npm/package/${packageName}`
+      reason: `Socket blocked "${packageName}": supply chain score is ${score.toFixed(2)} (threshold ${SUPPLY_CHAIN_THRESHOLD}).\n\nReview: https://socket.dev/npm/package/${packageName}`
     }
   }
 
   return { decision: 'allow', reason: '' }
 }
-
-// ========================================
-// Main
-// ========================================
 
 async function main (): Promise<void> {
   let raw: string
@@ -201,21 +171,20 @@ async function main (): Promise<void> {
     return
   }
 
-  if (!isSocketInstalled()) {
-    // CLI not installed, fail open
-    outputAllow()
+  const apiKey = process.env.SOCKET_API_KEY
+  if (!apiKey) {
+    outputDeny('SOCKET_API_KEY is not set. Export it in your shell (same key used by the Socket MCP server) or remove the hook from ~/.claude/settings.json.')
     return
   }
 
   try {
-    const result = checkPackage(packageName)
+    const result = await checkPackage(packageName, apiKey)
     if (result.decision === 'deny') {
       outputDeny(result.reason)
     } else {
       outputAllow()
     }
   } catch {
-    // Fail open on any error
     outputAllow()
   }
 }
