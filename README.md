@@ -223,6 +223,99 @@ This approach automatically uses the latest version without requiring global ins
    }
    ```
 
+## Claude Code Hook (Optional)
+
+The repo includes an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals).
+
+Supported ecosystems and package managers:
+
+| Ecosystem | Commands |
+|-----------|----------|
+| npm | `npm install`, `npm i`, `npm add`, `yarn add`, `pnpm add`, `bun add` |
+| PyPI | `pip install`, `pip3 install`, `uv add`, `uv pip install`, `poetry add`, `pipenv install` |
+| Cargo | `cargo add`, `cargo install` |
+| RubyGems | `gem install`, `bundle add` |
+| Go | `go get`, `go install` |
+| NuGet | `dotnet add package`, `nuget install` |
+
+No API key, no CLI, no registration. Just copy the file and wire it up.
+
+### Hook Setup
+
+**Prerequisites:** Node.js 22+.
+
+1. Copy the hook script:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp hooks/socket-gate.ts ~/.claude/hooks/
+```
+
+2. Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types ~/.claude/hooks/socket-gate.ts"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### How it works
+
+The hook denies installation when `supplyChain < 20`, allows it otherwise. Examples:
+
+| Package | `supplyChain` | Decision |
+|---------|--------------|----------|
+| `express`, `lodash`, `react` | 75–97 | Allow |
+| `browserlist` (typosquat of `browserslist`) | 15 | Block |
+| `electrn` (typosquat of `electron`) | 9 | Block |
+| Confirmed malware | 0 | Block |
+
+Network, timeout, or parse errors all fail open so a Socket outage will not block legitimate work.
+
+### Limitations
+
+This hook is a best-effort guardrail, not a complete defense. Known gaps:
+
+- **Manifest edits + lockfile installs.** If Claude edits a manifest file directly (`package.json`, `requirements.txt`, `Cargo.toml`, `Gemfile`, `go.mod`, `*.csproj`) and then runs a bare install command (`npm install`, `pip install -r requirements.txt`, `cargo build`, `bundle install`, `go mod tidy`, `dotnet restore`), there is no package name on the command line for the hook to extract, so no check is performed.
+- **Package-manager invocations only.** Direct downloads (`curl | sh`, `wget`), post-install scripts of already-accepted packages, and transitive dependencies pulled in by an allowed package are not re-checked.
+- **Indirect Claude paths.** Sub-agents, MCP tools that shell out, or non-`Bash` tool calls are not covered unless the `matcher` is broadened.
+
+For defense in depth, pair this hook with the Socket MCP server (for AI-assisted review), [Socket CLI](https://docs.socket.dev/docs/socket-cli) scans in CI, and [Socket Firewall](https://docs.socket.dev/docs/socket-firewall-enterprise) at the registry boundary.
+
+### Testing the hook
+
+```bash
+# Should block (npm typosquat)
+echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"npm install browserlist"}}' \
+  | node --experimental-strip-types hooks/socket-gate.ts
+
+# Should allow (safe npm package)
+echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"npm install express"}}' \
+  | node --experimental-strip-types hooks/socket-gate.ts
+
+# Should allow (safe PyPI package)
+echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"pip install requests"}}' \
+  | node --experimental-strip-types hooks/socket-gate.ts
+
+# Should allow (safe cargo crate)
+echo '{"session_id":"test","tool_name":"Bash","tool_input":{"command":"cargo add serde"}}' \
+  | node --experimental-strip-types hooks/socket-gate.ts
+```
+
+Inspired by [Jimmy Vo's dependency hook](https://blog.jimmyvo.com/posts/claudes-dependency-hook/).
+
 ## Tools exposed by the Socket MCP Server
 
 ### depscore
