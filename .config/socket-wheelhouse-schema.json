@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SocketDev/socket-wheelhouse-schema.json",
+  "title": "socket-wheelhouse per-repo config",
+  "description": "Per-repo socket-wheelhouse config. Two valid locations: `.config/socket-wheelhouse.json` (primary) or `.socket-wheelhouse.json` at the repo root (alternative). Both are first-class — pick the location that fits your repo's convention.",
+  "type": "object",
+  "required": ["schemaVersion", "repoName", "layout", "native"],
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema reference for editor autocompletion. Conventionally `./socket-wheelhouse-schema.json` — both the config and its schema live side-by-side in `.config/`.",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "description": "Schema version. Bump on breaking changes; readers gate on it.",
+      "const": 1,
+      "type": "number"
+    },
+    "repoName": {
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Canonical repo basename (e.g. `socket-lib`, `ultrathink`). Used for layout / native-independent exemptions like the oxlint `socket-lib` carve-out.",
+      "type": "string"
+    },
+    "layout": {
+      "description": "Package layout. `single-package` = one `package.json` at root, no `packages/`. `monorepo` = pnpm workspaces under `packages/`.",
+      "anyOf": [
+        {
+          "const": "single-package",
+          "type": "string"
+        },
+        {
+          "const": "monorepo",
+          "type": "string"
+        }
+      ]
+    },
+    "native": {
+      "description": "Native-binary supply-chain role. `none` = pure-npm publish path. `consumer` = pulls prebuilt binaries from a sibling producer. `producer` = ships native artifacts via GH releases. `both` = consumes one set, produces another. (Per-language ports live in `lockstep.json` `lang-parity` rows, not here.)",
+      "anyOf": [
+        {
+          "const": "none",
+          "type": "string"
+        },
+        {
+          "const": "consumer",
+          "type": "string"
+        },
+        {
+          "const": "producer",
+          "type": "string"
+        },
+        {
+          "const": "both",
+          "type": "string"
+        }
+      ]
+    },
+    "hooks": {
+      "description": "Git-hook opt-ins.",
+      "type": "object",
+      "properties": {
+        "enablePrePush": {
+          "description": "Wire `.husky/pre-push` → `.git-hooks/pre-push.mts`. Mandatory security gate; default true.",
+          "type": "boolean"
+        },
+        "enableCommitMsg": {
+          "description": "Wire `.husky/commit-msg` → `.git-hooks/commit-msg.mts`. Strips AI attribution; default true.",
+          "type": "boolean"
+        },
+        "enablePreCommit": {
+          "description": "Wire `.husky/pre-commit` → `.git-hooks/pre-commit.mts`. Lint + secret scan on staged files; default true.",
+          "type": "boolean"
+        },
+        "preCommitVariant": {
+          "description": "`lint-only` runs format + secret scan; `lint-test` adds vitest on touched packages. Default `lint-test`.",
+          "anyOf": [
+            {
+              "const": "lint-only",
+              "type": "string"
+            },
+            {
+              "const": "lint-test",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "scripts": {
+      "description": "package.json script tracking overrides.",
+      "type": "object",
+      "properties": {
+        "required": {
+          "description": "Override REQUIRED_SCRIPTS from manifest.mts. Usually omitted — the fleet default applies.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "optional": {
+          "description": "Per-script opt-in map keyed by script name. `true` = repo ships this RECOMMENDED script; `false` = explicit opt-out.",
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "type": "boolean"
+            }
+          }
+        },
+        "bodyExempt": {
+          "description": "Script names whose body is allowed to drift from the canonical form (e.g. socket-lib runs a richer test runner than the standard `node scripts/test.mts`). Each entry is the script name only.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lint": {
+      "description": "oxlint profile.",
+      "type": "object",
+      "properties": {
+        "profile": {
+          "description": "`standard` requires the fleet plugin set (import + typescript + unicorn). `rich` opts into a wider set; check the runner for the exact basenames currently exempted.",
+          "anyOf": [
+            {
+              "const": "standard",
+              "type": "string"
+            },
+            {
+              "const": "rich",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "workflows": {
+      "description": "CI workflow opt-ins.",
+      "type": "object",
+      "properties": {
+        "ci": {
+          "description": "Ship `.github/workflows/ci.yml`.",
+          "type": "boolean"
+        },
+        "weeklyUpdate": {
+          "description": "Ship `.github/workflows/weekly-update.yml`.",
+          "type": "boolean"
+        },
+        "provenance": {
+          "description": "Repo publishes with npm provenance (OIDC). Hint for setup helpers; not enforced by the checker today.",
+          "type": "boolean"
+        },
+        "requirePinnedFullSha": {
+          "description": "Enforce 40-char SHA pins on every `uses:` ref. Defaults to true; an opt-out is reserved for special cases (e.g. workflow-dispatch test rigs) and currently has no consumer.",
+          "type": "boolean"
+        }
+      }
+    },
+    "claude": {
+      "description": "Claude Code opt-ins.",
+      "type": "object",
+      "properties": {
+        "includeSecurityScanSkill": {
+          "description": "Ship `.claude/skills/scanning-security/SKILL.md`.",
+          "type": "boolean"
+        },
+        "includeSharedSkills": {
+          "description": "Ship `.claude/skills/_shared/*` — env-check, path-guard-rule, report-format, security-tools, verify-build.",
+          "type": "boolean"
+        },
+        "includeUpdatingSkill": {
+          "description": "Ship the dependency-update skill. Reserved — no consumer wired today.",
+          "type": "boolean"
+        }
+      }
+    },
+    "workspace": {
+      "description": "pnpm-workspace.yaml setting hints. The runner reads from the YAML; this block exists for repos that prefer to declare intent in JSON.",
+      "type": "object",
+      "properties": {
+        "allowBuilds": {
+          "description": "pnpm `onlyBuiltDependencies` allowlist. Map a package name to true/false to grant/deny build scripts.",
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "type": "boolean"
+            }
+          }
+        },
+        "blockExoticSubdeps": {
+          "description": "Refuse transitive git/tarball subdeps (direct git deps still allowed). Required true; the field exists so a repo can document the intent locally.",
+          "type": "boolean"
+        },
+        "minimumReleaseAge": {
+          "minimum": 0,
+          "description": "Soak window in minutes before installing freshly-published packages. Fleet default 10080 (= 7 days).",
+          "type": "integer"
+        },
+        "minimumReleaseAgeExclude": {
+          "description": "Scopes / package patterns exempt from the soak window. Socket-owned scopes typically listed here.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resolutionMode": {
+          "description": "pnpm `resolutionMode`. Fleet default `highest`.",
+          "anyOf": [
+            {
+              "const": "highest",
+              "type": "string"
+            },
+            {
+              "const": "lowest-direct",
+              "type": "string"
+            }
+          ]
+        },
+        "trustPolicy": {
+          "description": "pnpm `trustPolicy`. Fleet default `no-downgrade`.",
+          "anyOf": [
+            {
+              "const": "no-downgrade",
+              "type": "string"
+            },
+            {
+              "const": "match-spec",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
