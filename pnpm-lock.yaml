@@ -22,6 +22,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(zod@3.25.76)
+      '@socketsecurity/lib':
+        specifier: 5.28.0
+        version: 5.28.0(typescript@5.9.3)
       packageurl-js:
         specifier: ^2.0.1
         version: 2.0.1
@@ -38,9 +41,6 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
     devDependencies:
-      '@socketsecurity/lib':
-        specifier: 5.28.0
-        version: 5.28.0(typescript@5.9.3)
       '@types/node':
         specifier: ^24.0.7
         version: 24.12.0
