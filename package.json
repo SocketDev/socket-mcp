@@ -35,7 +35,6 @@
   "keywords": [],
   "files": [
     "package.json",
-    "package-lock.json",
     "index.js",
     "index.d.ts",
     "index.d.ts.map",
