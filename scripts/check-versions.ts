@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'fs'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
+
+const logger = getDefaultLogger()
 
 const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const projectRoot = join(__dirname, '..')
+const __dirname = path.dirname(__filename)
+const projectRoot = path.join(__dirname, '..')
 
 interface PackageJson {
   version: string
@@ -18,21 +21,23 @@ interface ManifestJson {
   [key: string]: any
 }
 
-function readJsonFile<T> (filePath: string): T {
+function readJsonFile<T>(filePath: string): T {
   try {
     const content = readFileSync(filePath, 'utf8')
     return JSON.parse(content) as T
   } catch (error) {
-    console.error(`Error reading ${filePath}:`, (error as Error).message)
+    logger.fail(`Error reading ${filePath}:`, (error as Error).message)
     process.exit(1)
   }
 }
 
-function main (): void {
-  console.log('Checking version consistency between package.json and manifest.json...')
+function main(): void {
+  console.log(
+    'Checking version consistency between package.json and manifest.json...',
+  )
 
-  const packageJsonPath = join(projectRoot, 'package.json')
-  const manifestJsonPath = join(projectRoot, 'manifest.json')
+  const packageJsonPath = path.join(projectRoot, 'package.json')
+  const manifestJsonPath = path.join(projectRoot, 'manifest.json')
 
   const packageJson = readJsonFile<PackageJson>(packageJsonPath)
   const manifestJson = readJsonFile<ManifestJson>(manifestJsonPath)

@@ -4,7 +4,11 @@ import { PackageURL } from 'packageurl-js'
  * Build a PURL using packageurl-js for correct encoding across all ecosystems.
  * Handles namespace/name splitting per ecosystem (e.g. npm scoped @scope/name, maven groupId:artifactId).
  */
-export function buildPurl (ecosystem: string, depname: string, version: string): string {
+export function buildPurl(
+  ecosystem: string,
+  depname: string,
+  version: string,
+): string {
   const type = ecosystem.toLowerCase()
   let namespace: string | undefined
   let name: string
@@ -13,7 +17,10 @@ export function buildPurl (ecosystem: string, depname: string, version: string):
     const slash = depname.indexOf('/')
     namespace = depname.slice(0, slash)
     name = depname.slice(slash + 1)
-  } else if (type === 'maven' && (depname.includes(':') || depname.includes('/'))) {
+  } else if (
+    type === 'maven' &&
+    (depname.includes(':') || depname.includes('/'))
+  ) {
     const sep = depname.includes(':') ? ':' : '/'
     const idx = depname.indexOf(sep)
     namespace = depname.slice(0, idx)
@@ -26,7 +33,15 @@ export function buildPurl (ecosystem: string, depname: string, version: string):
     name = depname
   }
 
-  const purlVersion = (version === 'unknown' || version === '1.0.0' || !version) ? undefined : version
-  const purl = new PackageURL(type, namespace ?? undefined, name, purlVersion ?? undefined)
+  const purlVersion =
+    version === 'unknown' || version === '1.0.0' || !version
+      ? undefined
+      : version
+  const purl = new PackageURL(
+    type,
+    namespace ?? undefined,
+    name,
+    purlVersion ?? undefined,
+  )
   return purl.toString()
 }

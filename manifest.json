@@ -17,9 +17,7 @@
     "entry_point": "./index.js",
     "mcp_config": {
       "command": "node",
-      "args": [
-        "${__dirname}/./index.js"
-      ],
+      "args": ["${__dirname}/./index.js"],
       "env": {
         "SOCKET_API_KEY": "${user_config.SOCKET_API_KEY}"
       }
@@ -40,12 +38,7 @@
       "sensitive": true
     }
   },
-  "keywords": [
-    "socket",
-    "security",
-    "dependencies",
-    "vibecoding"
-  ],
+  "keywords": ["socket", "security", "dependencies", "vibecoding"],
   "license": "MIT",
   "privacy_policies": ["https://socket.dev/privacy"],
   "repository": {

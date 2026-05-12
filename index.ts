@@ -1,25 +1,30 @@
 #!/usr/bin/env -S node --experimental-strip-types
+/* max-file-lines: legitimate — monolithic MCP server entrypoint pending refactor into oauth/transport/mcp modules. */
+/* oxlint-disable socket/sort-source-methods, socket/no-fetch-prefer-http-request, socket/prefer-cached-for-loop, unicorn/prefer-add-event-listener -- pre-existing technical debt; tracked separately. Refactor will split index.ts into oauth/, transport/, mcp/ modules and migrate fetch() to @socketsecurity/lib/http-request. */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
-import { randomUUID } from 'node:crypto'
-import { buildPurl } from './lib/purl.ts'
-import { deduplicateArtifacts } from './lib/artifacts.ts'
-import { z } from 'zod'
+import crypto from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
+import readline from 'node:readline'
 import pino from 'pino'
-import readline from 'readline'
-import { join } from 'path'
-import { readFileSync } from 'fs'
-import { tmpdir } from 'os'
-import { createServer, type IncomingMessage, type ServerResponse } from 'http'
+import { z } from 'zod'
+import { deduplicateArtifacts } from './lib/artifacts.ts'
+import { buildPurl } from './lib/purl.ts'
 
 const __dirname = import.meta.dirname
 
 // Extract version from package.json
-const packageJson = JSON.parse(readFileSync(join(__dirname, './package.json'), 'utf8'))
+const packageJson = JSON.parse(
+  readFileSync(path.join(__dirname, './package.json'), 'utf8'),
+)
 const VERSION = packageJson.version || '0.0.1'
 
 // Configure pino logger with cross-platform temp directory
@@ -29,16 +34,18 @@ const logger = pino({
     targets: [
       {
         target: 'pino/file',
-        options: { destination: join(tmpdir(), 'socket-mcp-error.log') },
-        level: 'error'
+        options: {
+          destination: path.join(os.tmpdir(), 'socket-mcp-error.log'),
+        },
+        level: 'error',
       },
       {
         target: 'pino/file',
-        options: { destination: join(tmpdir(), 'socket-mcp.log') },
-        level: 'info'
-      }
-    ]
-  }
+        options: { destination: path.join(os.tmpdir(), 'socket-mcp.log') },
+        level: 'info',
+      },
+    ],
+  },
 })
 
 interface OAuthAuthorizationServerMetadata {
@@ -52,9 +59,10 @@ interface OAuthAuthorizationServerMetadata {
 type AuthenticatedRequest = IncomingMessage & { auth?: AuthInfo }
 
 // Socket API URL - use localhost when debugging is enabled, otherwise use production
-const DEFAULT_SOCKET_API_URL = process.env['SOCKET_DEBUG'] === 'true'
-  ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
-  : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
+const DEFAULT_SOCKET_API_URL =
+  process.env['SOCKET_DEBUG'] === 'true'
+    ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
+    : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
 const SOCKET_API_URL = process.env['SOCKET_API_URL'] || DEFAULT_SOCKET_API_URL
 const SOCKET_OAUTH_ISSUER = process.env['SOCKET_OAUTH_ISSUER'] || ''
 const SOCKET_OAUTH_INTROSPECTION_CLIENT_ID =
@@ -73,17 +81,20 @@ const OAUTH_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource'
 
 // Function to get API key interactively (only for HTTP mode)
-async function getApiKeyInteractively (): Promise<string> {
+export async function getApiKeyInteractively(): Promise<string> {
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stderr
+    output: process.stderr,
   })
 
-  const apiKey = await new Promise<string>((resolve) => {
-    rl.question('Please enter your Socket API key: ', (answer: string | PromiseLike<string>) => {
-      rl.close()
-      resolve(answer)
-    })
+  const apiKey = await new Promise<string>(resolve => {
+    rl.question(
+      'Please enter your Socket API key: ',
+      (answer: string | PromiseLike<string>) => {
+        rl.close()
+        resolve(answer)
+      },
+    )
   })
 
   if (!apiKey) {
@@ -95,19 +106,21 @@ async function getApiKeyInteractively (): Promise<string> {
 }
 
 // Initialize API key
-let SOCKET_API_KEY = process.env['SOCKET_API_KEY'] || ''
+let SOCKET_API_KEY = process.env['SOCKET_API_TOKEN'] || ''
 
 // Build Socket API request headers with the provided access token.
-function buildSocketHeaders (accessToken?: string): Record<string, string> {
+export function buildSocketHeaders(
+  accessToken?: string,
+): Record<string, string> {
   return {
     'user-agent': `socket-mcp/${VERSION}`,
     accept: 'application/x-ndjson',
     'content-type': 'application/json',
-    ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {})
+    ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
   }
 }
 
-function splitScopes (scope: unknown): string[] {
+export function splitScopes(scope: unknown): string[] {
   if (typeof scope !== 'string') {
     return []
   }
@@ -118,7 +131,9 @@ function splitScopes (scope: unknown): string[] {
     .filter(Boolean)
 }
 
-function getRequestHeaderValue (header: string | string[] | undefined): string {
+export function getRequestHeaderValue(
+  header: string | string[] | undefined,
+): string {
   if (Array.isArray(header)) {
     return header[0] || ''
   }
@@ -126,31 +141,40 @@ function getRequestHeaderValue (header: string | string[] | undefined): string {
   return header || ''
 }
 
-function getForwardedHeaderValue (header: string | string[] | undefined): string {
-  return getRequestHeaderValue(header)
-    .split(',', 1)[0]
-    ?.trim() || ''
+export function getForwardedHeaderValue(
+  header: string | string[] | undefined,
+): string {
+  return getRequestHeaderValue(header).split(',', 1)[0]?.trim() || ''
 }
 
-function getRequestBaseUrl (req: IncomingMessage, fallbackPort: number): URL {
+export function getRequestBaseUrl(
+  req: IncomingMessage,
+  fallbackPort: number,
+): URL {
   const forwardedProto = TRUST_PROXY
     ? getForwardedHeaderValue(req.headers['x-forwarded-proto']).toLowerCase()
     : ''
   const forwardedHost = TRUST_PROXY
     ? getForwardedHeaderValue(req.headers['x-forwarded-host'])
     : ''
-  const host = forwardedHost || getRequestHeaderValue(req.headers.host).trim() || `localhost:${fallbackPort}`
+  const host =
+    forwardedHost ||
+    getRequestHeaderValue(req.headers.host).trim() ||
+    `localhost:${fallbackPort}`
   const socketWithTls = req.socket as { encrypted?: boolean }
-  const protocol = forwardedProto === 'https' || forwardedProto === 'http'
-    ? forwardedProto
-    : (socketWithTls.encrypted ? 'https' : 'http')
+  const protocol =
+    forwardedProto === 'http' || forwardedProto === 'https'
+      ? forwardedProto
+      : socketWithTls.encrypted
+        ? 'https'
+        : 'http'
 
   return new URL(`${protocol}://${host}/`)
 }
 
-function parseJsonObject (
+export function parseJsonObject(
   responseText: string,
-  context: string
+  context: string,
 ): Record<string, unknown> {
   try {
     const parsed = JSON.parse(responseText)
@@ -166,41 +190,41 @@ function parseJsonObject (
   }
 }
 
-function getProtectedResourceMetadataUrl (baseUrl: URL): string {
+export function getProtectedResourceMetadataUrl(baseUrl: URL): string {
   return new URL(OAUTH_PROTECTED_RESOURCE_METADATA_PATH, baseUrl).href
 }
 
-function buildProtectedResourceMetadata (
+export function buildProtectedResourceMetadata(
   baseUrl: URL,
-  oauthMetadata: OAuthAuthorizationServerMetadata
+  oauthMetadata: OAuthAuthorizationServerMetadata,
 ): Record<string, unknown> {
   return {
     resource: new URL('/', baseUrl).href,
     authorization_servers: [oauthMetadata.issuer],
     scopes_supported: SOCKET_OAUTH_REQUIRED_SCOPES,
-    resource_name: 'Socket MCP Server'
+    resource_name: 'Socket MCP Server',
   }
 }
 
-function writeJson (
+export function writeJson(
   res: ServerResponse,
   statusCode: number,
   body: unknown,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): void {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
-    ...headers
+    ...headers,
   })
   res.end(JSON.stringify(body))
 }
 
-function writeOAuthError (
+export function writeOAuthError(
   res: ServerResponse,
   statusCode: number,
   errorCode: string,
   message: string,
-  resourceMetadataUrl?: string
+  resourceMetadataUrl?: string,
 ): void {
   const authenticateValue = resourceMetadataUrl
     ? `Bearer error="${errorCode}", error_description="${message}", resource_metadata="${resourceMetadataUrl}"`
@@ -211,30 +235,35 @@ function writeOAuthError (
     statusCode,
     {
       error: errorCode,
-      error_description: message
+      error_description: message,
     },
-    { 'WWW-Authenticate': authenticateValue }
+    { 'WWW-Authenticate': authenticateValue },
   )
 }
 
-const useHttp = process.env['MCP_HTTP_MODE'] === 'true' || process.argv.includes('--http')
+const useHttp =
+  process.env['MCP_HTTP_MODE'] === 'true' || process.argv.includes('--http')
 const port = parseInt(process.env['MCP_PORT'] || '3000', 10)
 const hasAnyOAuthConfig = Boolean(
   SOCKET_OAUTH_ISSUER ||
   SOCKET_OAUTH_INTROSPECTION_CLIENT_ID ||
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET
+  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET,
 )
-const oauthEnabled = useHttp && Boolean(
-  SOCKET_OAUTH_ISSUER &&
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_ID &&
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET
-)
+const oauthEnabled =
+  useHttp &&
+  Boolean(
+    SOCKET_OAUTH_ISSUER &&
+    SOCKET_OAUTH_INTROSPECTION_CLIENT_ID &&
+    SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET,
+  )
 
 let oauthMetadataPromise: Promise<OAuthAuthorizationServerMetadata> | undefined
 
-async function loadOAuthMetadata (): Promise<OAuthAuthorizationServerMetadata | null> {
+export async function loadOAuthMetadata(): Promise<
+  OAuthAuthorizationServerMetadata | undefined
+> {
   if (!oauthEnabled) {
-    return null
+    return undefined
   }
 
   if (!oauthMetadataPromise) {
@@ -244,7 +273,9 @@ async function loadOAuthMetadata (): Promise<OAuthAuthorizationServerMetadata | 
       const responseText = await response.text()
 
       if (!response.ok) {
-        throw new Error(`OAuth metadata discovery failed with status ${response.status}: ${responseText}`)
+        throw new Error(
+          `OAuth metadata discovery failed with status ${response.status}: ${responseText}`,
+        )
       }
 
       const metadata = parseJsonObject(responseText, 'OAuth metadata discovery')
@@ -253,7 +284,7 @@ async function loadOAuthMetadata (): Promise<OAuthAuthorizationServerMetadata | 
         'issuer',
         'authorization_endpoint',
         'token_endpoint',
-        'introspection_endpoint'
+        'introspection_endpoint',
       ] as const) {
         if (typeof metadata[field] !== 'string' || !metadata[field]) {
           throw new Error(`OAuth metadata missing required field: ${field}`)
@@ -263,7 +294,7 @@ async function loadOAuthMetadata (): Promise<OAuthAuthorizationServerMetadata | 
       return metadata as OAuthAuthorizationServerMetadata
     })()
 
-    const retryableMetadataPromise = metadataPromise.catch((error) => {
+    const retryableMetadataPromise = metadataPromise.catch(error => {
       if (oauthMetadataPromise === retryableMetadataPromise) {
         oauthMetadataPromise = undefined
       }
@@ -277,7 +308,9 @@ async function loadOAuthMetadata (): Promise<OAuthAuthorizationServerMetadata | 
   return await oauthMetadataPromise
 }
 
-async function verifyAccessToken (token: string): Promise<AuthInfo | null> {
+export async function verifyAccessToken(
+  token: string,
+): Promise<AuthInfo | undefined> {
   const oauthMetadata = await loadOAuthMetadata()
   if (!oauthMetadata) {
     throw new Error('OAuth is not configured for this server')
@@ -287,44 +320,54 @@ async function verifyAccessToken (token: string): Promise<AuthInfo | null> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      authorization: `Basic ${Buffer.from(`${SOCKET_OAUTH_INTROSPECTION_CLIENT_ID}:${SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET}`).toString('base64')}`
+      authorization: `Basic ${Buffer.from(`${SOCKET_OAUTH_INTROSPECTION_CLIENT_ID}:${SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET}`).toString('base64')}`,
     },
-    body: new URLSearchParams({ token }).toString()
+    body: new URLSearchParams({ token }).toString(),
   })
   const responseText = await response.text()
 
   if (!response.ok) {
-    throw new Error(`Token introspection failed with status ${response.status}: ${responseText}`)
+    throw new Error(
+      `Token introspection failed with status ${response.status}: ${responseText}`,
+    )
   }
 
   const introspection = parseJsonObject(responseText, 'Token introspection')
   if (!introspection['active']) {
-    return null
+    return undefined
   }
 
-  const expiresAt = typeof introspection['exp'] === 'number'
-    ? introspection['exp']
-    : Number(introspection['exp'])
+  const expiresAt =
+    typeof introspection['exp'] === 'number'
+      ? introspection['exp']
+      : Number(introspection['exp'])
 
   return {
     token,
-    clientId: typeof introspection['client_id'] === 'string'
-      ? introspection['client_id']
-      : 'unknown',
+    clientId:
+      typeof introspection['client_id'] === 'string'
+        ? introspection['client_id']
+        : 'unknown',
     scopes: splitScopes(introspection['scope']),
     ...(Number.isFinite(expiresAt) ? { expiresAt } : {}),
-    extra: introspection
+    extra: introspection,
   }
 }
 
-async function authenticateRequest (
+export async function authenticateRequest(
   req: AuthenticatedRequest,
   res: ServerResponse,
-  resourceMetadataUrl: string
-): Promise<{ ok: false } | { ok: true, authInfo: AuthInfo }> {
+  resourceMetadataUrl: string,
+): Promise<{ ok: false } | { ok: true; authInfo: AuthInfo }> {
   const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
   if (!authHeader) {
-    writeOAuthError(res, 401, 'invalid_request', 'Missing Authorization header', resourceMetadataUrl)
+    writeOAuthError(
+      res,
+      401,
+      'invalid_request',
+      'Missing Authorization header',
+      resourceMetadataUrl,
+    )
     return { ok: false }
   }
 
@@ -335,42 +378,60 @@ async function authenticateRequest (
       401,
       'invalid_request',
       "Invalid Authorization header format, expected 'Bearer TOKEN'",
-      resourceMetadataUrl
+      resourceMetadataUrl,
     )
     return { ok: false }
   }
 
-  let authInfo: AuthInfo | null
+  let authInfo: AuthInfo | undefined
   try {
     authInfo = await verifyAccessToken(token)
   } catch (error) {
-    logger.error(`Token verification failed: ${error instanceof Error ? error.message : String(error)}`)
+    logger.error(
+      `Token verification failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
     writeJson(res, 500, {
       error: 'server_error',
-      error_description: 'Token verification failed'
+      error_description: 'Token verification failed',
     })
     return { ok: false }
   }
 
   if (!authInfo) {
-    writeOAuthError(res, 401, 'invalid_token', 'Invalid or expired token', resourceMetadataUrl)
+    writeOAuthError(
+      res,
+      401,
+      'invalid_token',
+      'Invalid or expired token',
+      resourceMetadataUrl,
+    )
     return { ok: false }
   }
 
-  if (typeof authInfo.expiresAt === 'number' &&
-    authInfo.expiresAt < Date.now() / 1000) {
-    writeOAuthError(res, 401, 'invalid_token', 'Token has expired', resourceMetadataUrl)
+  if (
+    typeof authInfo.expiresAt === 'number' &&
+    authInfo.expiresAt < Date.now() / 1000
+  ) {
+    writeOAuthError(
+      res,
+      401,
+      'invalid_token',
+      'Token has expired',
+      resourceMetadataUrl,
+    )
     return { ok: false }
   }
 
-  const missingScopes = SOCKET_OAUTH_REQUIRED_SCOPES.filter(scope => !authInfo.scopes.includes(scope))
+  const missingScopes = SOCKET_OAUTH_REQUIRED_SCOPES.filter(
+    scope => !authInfo.scopes.includes(scope),
+  )
   if (missingScopes.length > 0) {
     writeOAuthError(
       res,
       403,
       'insufficient_scope',
       `Missing required scopes: ${missingScopes.join(', ')}`,
-      resourceMetadataUrl
+      resourceMetadataUrl,
     )
     return { ok: false }
   }
@@ -378,25 +439,45 @@ async function authenticateRequest (
   req.auth = authInfo
   return {
     ok: true,
-    authInfo
+    authInfo,
   }
 }
 
 /** Creates a configured McpServer with tools. Used for stdio (single instance) and HTTP (one per session). */
-function createConfiguredServer (): McpServer {
+export function createConfiguredServer(): McpServer {
   const srv = new McpServer({ name: 'socket', version: VERSION })
   srv.registerTool(
     'depscore',
     {
       title: 'Dependency Score Tool',
-      description: "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+      description:
+        "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
       inputSchema: {
-        packages: z.array(z.object({
-          ecosystem: z.string().describe('The package ecosystem (e.g., npm, pypi, gem, golang, maven, nuget, cargo)').default('npm'),
-          depname: z.string().describe('The name of the dependency'),
-          version: z.string().describe("The version of the dependency, use 'unknown' if not known").default('unknown'),
-        })).describe('Array of packages to check'),
-        platform: z.string().optional().describe("Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds."),
+        packages: z
+          .array(
+            z.object({
+              ecosystem: z
+                .string()
+                .describe(
+                  'The package ecosystem (e.g., npm, pypi, gem, golang, maven, nuget, cargo)',
+                )
+                .default('npm'),
+              depname: z.string().describe('The name of the dependency'),
+              version: z
+                .string()
+                .describe(
+                  "The version of the dependency, use 'unknown' if not known",
+                )
+                .default('unknown'),
+            }),
+          )
+          .describe('Array of packages to check'),
+        platform: z
+          .string()
+          .optional()
+          .describe(
+            "Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds.",
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -406,32 +487,42 @@ function createConfiguredServer (): McpServer {
       logger.info(`Received request for ${packages.length} packages`)
       const accessToken = extra.authInfo?.token || SOCKET_API_KEY
       if (!accessToken) {
-        const errorMsg = 'Authentication is required. Configure SOCKET_API_KEY for stdio mode or connect through OAuth-enabled HTTP mode.'
+        const errorMsg =
+          'Authentication is required. Configure SOCKET_API_KEY for stdio mode or connect through OAuth-enabled HTTP mode.'
         logger.error(errorMsg)
         return {
           content: [{ type: 'text', text: errorMsg }],
-          isError: true
+          isError: true,
         }
       }
 
       // Build components array for the API request. Use packageurl-js for correct PURL encoding
       // across ecosystems (e.g. @ in npm scoped packages, maven groupId:artifactId).
-      const components = packages.map((pkg: { ecosystem?: string; depname: string; version?: string }) => {
-        const cleanedVersion = (pkg.version ?? 'unknown').replace(/[\^~]/g, '') // Remove ^ and ~ from version
-        const ecosystem = pkg.ecosystem ?? 'npm'
-        const purl = buildPurl(ecosystem, pkg.depname, cleanedVersion)
-        if (cleanedVersion !== '1.0.0' && cleanedVersion !== 'unknown' && cleanedVersion) {
-          logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`)
-        }
-        return { purl }
-      })
+      const components = packages.map(
+        (pkg: { ecosystem?: string; depname: string; version?: string }) => {
+          const cleanedVersion = (pkg.version ?? 'unknown').replace(
+            /[\^~]/g,
+            '',
+          ) // Remove ^ and ~ from version
+          const ecosystem = pkg.ecosystem ?? 'npm'
+          const purl = buildPurl(ecosystem, pkg.depname, cleanedVersion)
+          if (
+            cleanedVersion !== '1.0.0' &&
+            cleanedVersion !== 'unknown' &&
+            cleanedVersion
+          ) {
+            logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`)
+          }
+          return { purl }
+        },
+      )
 
       try {
-      // Make a POST request to the Socket API with all packages
+        // Make a POST request to the Socket API with all packages
         const response = await fetch(SOCKET_API_URL, {
           method: 'POST',
           headers: buildSocketHeaders(accessToken),
-          body: JSON.stringify({ components })
+          body: JSON.stringify({ components }),
         })
 
         const responseText = await response.text()
@@ -441,7 +532,7 @@ function createConfiguredServer (): McpServer {
           logger.error(errorMsg)
           return {
             content: [{ type: 'text', text: errorMsg }],
-            isError: true
+            isError: true,
           }
         }
 
@@ -450,7 +541,7 @@ function createConfiguredServer (): McpServer {
           logger.error(errorMsg)
           return {
             content: [{ type: 'text', text: errorMsg }],
-            isError: true
+            isError: true,
           }
         }
 
@@ -459,23 +550,26 @@ function createConfiguredServer (): McpServer {
           logger.error(errorMsg)
           return {
             content: [{ type: 'text', text: errorMsg }],
-            isError: true
+            isError: true,
           }
         } else if (!responseText.trim()) {
           const errorMsg = 'No packages were found.'
           logger.error(errorMsg)
           return {
             content: [{ type: 'text', text: errorMsg }],
-            isError: true
+            isError: true,
           }
         }
 
         try {
-        // Handle NDJSON (multiple JSON objects, one per line)
+          // Handle NDJSON (multiple JSON objects, one per line)
           const results: string[] = []
 
-          if ((response.headers.get('content-type') || '').includes('x-ndjson')) {
-            const jsonLines = responseText.split('\n')
+          if (
+            (response.headers.get('content-type') || '').includes('x-ndjson')
+          ) {
+            const jsonLines = responseText
+              .split('\n')
               .filter(line => line.trim())
               .map(line => JSON.parse(line))
               .filter((obj: Record<string, unknown>) => !obj['_type'])
@@ -484,12 +578,13 @@ function createConfiguredServer (): McpServer {
               const errorMsg = 'No valid JSON objects found in NDJSON response'
               return {
                 content: [{ type: 'text', text: errorMsg }],
-                isError: true
+                isError: true,
               }
             }
 
             const deduplicated = deduplicateArtifacts(jsonLines, platform)
-            for (const jsonData of deduplicated) {
+            for (let i = 0, { length } = deduplicated; i < length; i += 1) {
+              const jsonData = deduplicated[i]!
               const ns = jsonData.namespace ? `${jsonData.namespace}/` : ''
               const purl: string = `pkg:${jsonData.type || 'unknown'}/${ns}${jsonData.name || 'unknown'}@${jsonData.version || 'unknown'}`
               if (jsonData.score && jsonData.score['overall'] !== undefined) {
@@ -497,7 +592,8 @@ function createConfiguredServer (): McpServer {
                   .filter(([key]) => key !== 'overall' && key !== 'uuid')
                   .map(([key, value]) => {
                     const numValue = Number(value)
-                    const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
+                    const displayValue =
+                      numValue <= 1 ? Math.round(numValue * 100) : numValue
                     return `${key}: ${displayValue}`
                   })
                   .join(', ')
@@ -516,7 +612,8 @@ function createConfiguredServer (): McpServer {
                 .filter(([key]) => key !== 'overall' && key !== 'uuid')
                 .map(([key, value]) => {
                   const numValue = Number(value)
-                  const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
+                  const displayValue =
+                    numValue <= 1 ? Math.round(numValue * 100) : numValue
                   return `${key}: ${displayValue}`
                 })
                 .join(', ')
@@ -531,19 +628,22 @@ function createConfiguredServer (): McpServer {
             content: [
               {
                 type: 'text',
-                text: results.length > 0
-                  ? `Dependency scores:\n${results.join('\n')}`
-                  : 'No scores found for the provided packages'
-              }
-            ]
+                text:
+                  results.length > 0
+                    ? `Dependency scores:\n${results.join('\n')}`
+                    : 'No scores found for the provided packages',
+              },
+            ],
           }
         } catch (e) {
           const error = e as Error
           const errorMsg = `JSON parsing error: ${error.message} -- Response: ${responseText}`
           logger.error(errorMsg)
           return {
-            content: [{ type: 'text', text: 'Error parsing response from Socket API' }],
-            isError: true
+            content: [
+              { type: 'text', text: 'Error parsing response from Socket API' },
+            ],
+            isError: true,
           }
         }
       } catch (e) {
@@ -552,16 +652,18 @@ function createConfiguredServer (): McpServer {
         logger.error(errorMsg)
         return {
           content: [{ type: 'text', text: 'Error connecting to Socket API' }],
-          isError: true
+          isError: true,
         }
       }
-    }
+    },
   )
   return srv
 }
 
 if (useHttp && hasAnyOAuthConfig && !oauthEnabled) {
-  logger.error('Incomplete OAuth configuration for HTTP mode. Set SOCKET_OAUTH_ISSUER, SOCKET_OAUTH_INTROSPECTION_CLIENT_ID, and SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET together.')
+  logger.error(
+    'Incomplete OAuth configuration for HTTP mode. Set SOCKET_OAUTH_ISSUER, SOCKET_OAUTH_INTROSPECTION_CLIENT_ID, and SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET together.',
+  )
   process.exit(1)
 }
 
@@ -573,8 +675,12 @@ if (!SOCKET_API_KEY && !(useHttp && oauthEnabled)) {
     SOCKET_API_KEY = await getApiKeyInteractively()
   } else {
     // In stdio mode, we must have the API key as an environment variable
-    logger.error('SOCKET_API_KEY environment variable is required in stdio mode')
-    logger.error('Please set the SOCKET_API_KEY environment variable and try again')
+    logger.error(
+      'SOCKET_API_KEY environment variable is required in stdio mode',
+    )
+    logger.error(
+      'Please set the SOCKET_API_KEY environment variable and try again',
+    )
     process.exit(1)
   }
 }
@@ -582,9 +688,13 @@ if (!SOCKET_API_KEY && !(useHttp && oauthEnabled)) {
 if (oauthEnabled) {
   try {
     await loadOAuthMetadata()
-    logger.info(`Enabled OAuth-backed MCP auth with issuer ${SOCKET_OAUTH_ISSUER}`)
+    logger.info(
+      `Enabled OAuth-backed MCP auth with issuer ${SOCKET_OAUTH_ISSUER}`,
+    )
   } catch (error) {
-    logger.error(`Failed to initialize OAuth metadata: ${error instanceof Error ? error.message : String(error)}`)
+    logger.error(
+      `Failed to initialize OAuth metadata: ${error instanceof Error ? error.message : String(error)}`,
+    )
     process.exit(1)
   }
 }
@@ -596,15 +706,21 @@ if (useHttp) {
   // Per-session transports and servers: each client gets its own transport+server pair.
   // Both must persist for the session lifetime; storing the server prevents GC from
   // reclaiming it before subsequent RPC calls.
-  interface Session { transport: StreamableHTTPServerTransport; server: McpServer; lastActivity: number }
+  interface Session {
+    transport: StreamableHTTPServerTransport
+    server: McpServer
+    lastActivity: number
+  }
   const sessions = new Map<string, Session>()
 
   /** Tear down a session by id, closing transport and server. Safe to call multiple times. */
-  function destroySession (id: string): void {
+  function destroySession(id: string): void {
     const s = sessions.get(id)
     if (!s) return
     sessions.delete(id)
-    try { s.transport.close() } catch {}
+    try {
+      s.transport.close()
+    } catch {}
     s.server.close().catch(() => {})
     logger.info(`Session ${id} destroyed`)
   }
@@ -634,7 +750,7 @@ if (useHttp) {
       writeJson(res, 400, {
         jsonrpc: '2.0',
         error: { code: -32000, message: 'Bad Request: Invalid URL' },
-        id: null
+        id: undefined,
       })
       return
     }
@@ -645,7 +761,7 @@ if (useHttp) {
         status: 'healthy',
         service: 'socket-mcp',
         version: VERSION,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
       return
     }
@@ -657,7 +773,10 @@ if (useHttp) {
     const isLocalhostOrigin = (originUrl: string): boolean => {
       try {
         const originValue = new URL(originUrl)
-        return originValue.hostname === 'localhost' || originValue.hostname === '127.0.0.1'
+        return (
+          originValue.hostname === '127.0.0.1' ||
+          originValue.hostname === 'localhost'
+        )
       } catch {
         return false
       }
@@ -665,7 +784,7 @@ if (useHttp) {
 
     const allowedOrigins = [
       'https://mcp.socket.dev',
-      'https://mcp.socket-staging.dev'
+      'https://mcp.socket-staging.dev',
     ]
 
     // Check if request is from localhost (for same-origin requests that don't send Origin header)
@@ -675,25 +794,28 @@ if (useHttp) {
     // Extract hostnames from allowedOrigins for Host header validation
     const allowedHosts = allowedOrigins.map(o => new URL(o).hostname)
 
-    const isAllowedHost = host === `localhost:${port}` ||
-                            host === `127.0.0.1:${port}` ||
-                            host === 'localhost' ||
-                            host === '127.0.0.1' ||
-                            allowedHosts.includes(host)
+    const isAllowedHost =
+      host === `localhost:${port}` ||
+      host === `127.0.0.1:${port}` ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      allowedHosts.includes(host)
 
     // Allow requests:
     // 1. With Origin header from localhost (any port) or production domains
     // 2. Without Origin header if they're from localhost or allowed domains (same-origin requests)
     const isValidOrigin = origin
-      ? (isLocalhostOrigin(origin) || allowedOrigins.includes(origin))
+      ? isLocalhostOrigin(origin) || allowedOrigins.includes(origin)
       : isAllowedHost
 
     if (!isValidOrigin) {
-      logger.warn(`Rejected request from invalid origin: ${origin || 'missing'} (host: ${host})`)
+      logger.warn(
+        `Rejected request from invalid origin: ${origin || 'missing'} (host: ${host})`,
+      )
       writeJson(res, 403, {
         jsonrpc: '2.0',
         error: { code: -32000, message: 'Forbidden: Invalid origin' },
-        id: null
+        id: undefined,
       })
       return
     }
@@ -702,9 +824,18 @@ if (useHttp) {
     // Mcp-Session-Id must be exposed for browser-based MCP clients
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin)
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept, Mcp-Session-Id')
-      res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id, WWW-Authenticate')
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET, POST, DELETE, OPTIONS',
+      )
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, Accept, Mcp-Session-Id',
+      )
+      res.setHeader(
+        'Access-Control-Expose-Headers',
+        'Mcp-Session-Id, WWW-Authenticate',
+      )
     }
 
     if (req.method === 'OPTIONS') {
@@ -714,17 +845,24 @@ if (useHttp) {
     }
 
     const baseUrl = getRequestBaseUrl(req, port)
-    if (oauthEnabled && url.pathname === OAUTH_PROTECTED_RESOURCE_METADATA_PATH) {
+    if (
+      oauthEnabled &&
+      url.pathname === OAUTH_PROTECTED_RESOURCE_METADATA_PATH
+    ) {
       const oauthMetadata = await loadOAuthMetadata()
       if (!oauthMetadata) {
         writeJson(res, 500, {
           error: 'server_error',
-          error_description: 'OAuth metadata is unavailable'
+          error_description: 'OAuth metadata is unavailable',
         })
         return
       }
 
-      writeJson(res, 200, buildProtectedResourceMetadata(baseUrl, oauthMetadata))
+      writeJson(
+        res,
+        200,
+        buildProtectedResourceMetadata(baseUrl, oauthMetadata),
+      )
       return
     }
 
@@ -733,7 +871,10 @@ if (useHttp) {
       // Some clients (e.g. Cursor) may not send these, causing the SDK to reject with 406.
       // We patch both req.headers and rawHeaders because @hono/node-server reads rawHeaders.
       const accept = req.headers.accept || ''
-      if (!accept.includes('application/json') || !accept.includes('text/event-stream')) {
+      if (
+        !accept.includes('application/json') ||
+        !accept.includes('text/event-stream')
+      ) {
         const requiredAccept = 'application/json, text/event-stream'
         req.headers.accept = requiredAccept
         const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept')
@@ -748,7 +889,7 @@ if (useHttp) {
         const authResult = await authenticateRequest(
           authenticatedReq,
           res,
-          getProtectedResourceMetadataUrl(baseUrl)
+          getProtectedResourceMetadataUrl(baseUrl),
         )
 
         if (!authResult.ok) {
@@ -759,26 +900,37 @@ if (useHttp) {
       if (req.method === 'POST') {
         // Buffer the body, then pass it as parsedBody so hono doesn't re-read the consumed stream.
         let body = ''
-        req.on('data', (chunk: string) => { body += chunk })
+        req.on('data', (chunk: string) => {
+          body += chunk
+        })
         req.on('end', async () => {
           try {
             const jsonData = JSON.parse(body)
-            const sessionId = getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
+            const sessionId =
+              getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
             const session = sessionId ? sessions.get(sessionId) : undefined
             let transport = session?.transport
 
             if (!transport && isInitializeRequest(jsonData)) {
               const clientInfo = jsonData.params?.clientInfo
-              logger.info(`Client connected: ${clientInfo?.name || 'unknown'} v${clientInfo?.version || 'unknown'} from ${origin || host}`)
+              logger.info(
+                `Client connected: ${clientInfo?.name || 'unknown'} v${clientInfo?.version || 'unknown'} from ${origin || host}`,
+              )
 
               const server = createConfiguredServer()
               const newTransport = new StreamableHTTPServerTransport({
                 enableJsonResponse: true,
-                sessionIdGenerator: () => randomUUID(),
-                onsessioninitialized: (id) => {
-                  sessions.set(id, { transport: newTransport, server, lastActivity: Date.now() })
+                sessionIdGenerator: () => crypto.randomUUID(),
+                onsessioninitialized: id => {
+                  sessions.set(id, {
+                    transport: newTransport,
+                    server,
+                    lastActivity: Date.now(),
+                  })
                 },
-                onsessionclosed: (id) => { destroySession(id) }
+                onsessionclosed: id => {
+                  destroySession(id)
+                },
               })
               newTransport.onclose = () => {
                 const id = newTransport.sessionId
@@ -791,8 +943,12 @@ if (useHttp) {
             if (!transport) {
               writeJson(res, 400, {
                 jsonrpc: '2.0',
-                error: { code: -32000, message: 'Bad Request: No valid session. Send initialize first.' },
-                id: null
+                error: {
+                  code: -32000,
+                  message:
+                    'Bad Request: No valid session. Send initialize first.',
+                },
+                id: undefined,
               })
               return
             }
@@ -810,19 +966,23 @@ if (useHttp) {
               writeJson(res, 500, {
                 jsonrpc: '2.0',
                 error: { code: -32603, message: 'Internal server error' },
-                id: null
+                id: undefined,
               })
             }
           }
         })
       } else if (req.method === 'GET') {
-        const sessionId = getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
+        const sessionId =
+          getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
         const session = sessionId ? sessions.get(sessionId) : undefined
         if (!session) {
           writeJson(res, 404, {
             jsonrpc: '2.0',
-            error: { code: -32000, message: 'Not Found: Invalid or expired session. Re-initialize.' },
-            id: null
+            error: {
+              code: -32000,
+              message: 'Not Found: Invalid or expired session. Re-initialize.',
+            },
+            id: undefined,
           })
           return
         }
@@ -835,18 +995,24 @@ if (useHttp) {
             writeJson(res, 500, {
               jsonrpc: '2.0',
               error: { code: -32603, message: 'Internal server error' },
-              id: null
+              id: undefined,
             })
           }
         }
       } else if (req.method === 'DELETE') {
-        const sessionId = getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
-        const transport = sessionId ? sessions.get(sessionId)?.transport : undefined
+        const sessionId =
+          getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
+        const transport = sessionId
+          ? sessions.get(sessionId)?.transport
+          : undefined
         if (!transport) {
           writeJson(res, 404, {
             jsonrpc: '2.0',
-            error: { code: -32000, message: 'Not Found: Invalid or expired session.' },
-            id: null
+            error: {
+              code: -32000,
+              message: 'Not Found: Invalid or expired session.',
+            },
+            id: undefined,
           })
           return
         }
@@ -858,7 +1024,7 @@ if (useHttp) {
             writeJson(res, 500, {
               jsonrpc: '2.0',
               error: { code: -32603, message: 'Internal server error' },
-              id: null
+              id: undefined,
             })
           }
         }
@@ -873,7 +1039,9 @@ if (useHttp) {
   })
 
   httpServer.listen(port, () => {
-    logger.info(`Socket MCP HTTP server version ${VERSION} started successfully on port ${port}`)
+    logger.info(
+      `Socket MCP HTTP server version ${VERSION} started successfully on port ${port}`,
+    )
     logger.info(`Connect to: http://localhost:${port}/`)
   })
 } else {
@@ -881,7 +1049,8 @@ if (useHttp) {
   logger.info('Starting in stdio mode')
   const server = createConfiguredServer()
   const transport = new StdioServerTransport()
-  server.connect(transport)
+  server
+    .connect(transport)
     .then(() => {
       logger.info(`Socket MCP server version ${VERSION} started successfully`)
     })

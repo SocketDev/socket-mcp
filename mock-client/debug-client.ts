@@ -1,7 +1,10 @@
 #!/usr/bin/env node --experimental-strip-types
-import { spawn } from 'child_process'
-import readline from 'readline'
-import { join } from 'path'
+import { spawn } from 'node:child_process'
+import path from 'node:path'
+import readline from 'node:readline'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
+
+const logger = getDefaultLogger()
 
 // Simple JSON-RPC client for testing MCP server
 class SimpleJSONRPCClient {
@@ -10,18 +13,18 @@ class SimpleJSONRPCClient {
   private requestId = 1
   private pendingRequests = new Map()
 
-  constructor (command: string, args: string[] = [], env: any = {}) {
+  constructor(command: string, args: string[] = [], env: any = {}) {
     this.process = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...env }
+      env: { ...process.env, ...env },
     })
 
     this.rl = readline.createInterface({
       input: this.process.stdout,
-      crlfDelay: Infinity
+      crlfDelay: Infinity,
     })
 
-    this.rl.on('line', (line) => {
+    this.rl.on('line', line => {
       try {
         const response = JSON.parse(line)
         if (response.id && this.pendingRequests.has(response.id)) {
@@ -34,25 +37,25 @@ class SimpleJSONRPCClient {
             resolve(response.result)
           }
         } else if (response.method) {
-          console.log('Notification:', response)
+          logger.log('Notification:', response)
         }
       } catch (e) {
-        console.error('Failed to parse response:', line)
+        logger.error('Failed to parse response:', line)
       }
     })
 
     this.process.stderr.on('data', (data: Buffer) => {
-      console.error('Server stderr:', data.toString())
+      logger.error('Server stderr:', data.toString())
     })
   }
 
-  async sendRequest (method: string, params: any = {}) {
+  async sendRequest(method: string, params: any = {}) {
     const id = this.requestId++
     const request = {
       jsonrpc: '2.0',
       id,
       method,
-      params
+      params,
     }
 
     return new Promise((resolve, reject) => {
@@ -61,48 +64,52 @@ class SimpleJSONRPCClient {
     })
   }
 
-  close () {
+  close() {
     this.rl.close()
     this.process.kill()
   }
 }
 
-async function main () {
-  const apiKey = process.env['SOCKET_API_KEY']
+async function main() {
+  const apiKey = process.env['SOCKET_API_TOKEN']
   if (!apiKey) {
-    console.error('Error: SOCKET_API_KEY environment variable is required')
+    logger.error('Error: SOCKET_API_KEY environment variable is required')
     process.exit(1)
   }
 
-  console.log('Starting MCP server debug client...')
+  logger.info('Starting MCP server debug client...')
 
-  const serverPath = join(import.meta.dirname, '..', 'index.ts')
-  console.log(`Using server script: ${serverPath}`)
+  const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
+  logger.info(`Using server script: ${serverPath}`)
 
-  const client = new SimpleJSONRPCClient('node', ['--experimental-strip-types', serverPath], {
-    SOCKET_API_KEY: apiKey
-  })
+  const client = new SimpleJSONRPCClient(
+    'node',
+    ['--experimental-strip-types', serverPath],
+    {
+      SOCKET_API_KEY: apiKey,
+    },
+  )
 
   try {
     // Initialize the connection
-    console.log('\n1. Initializing connection...')
+    logger.info('\n1. Initializing connection...')
     const initResult = await client.sendRequest('initialize', {
       protocolVersion: '0.1.0',
       capabilities: {},
       clientInfo: {
         name: 'debug-client',
-        version: '1.0.0'
-      }
+        version: '1.0.0',
+      },
     })
-    console.log('Initialize response:', JSON.stringify(initResult, null, 2))
+    logger.info('Initialize response:', JSON.stringify(initResult, null, 2))
 
     // List available tools
-    console.log('\n2. Listing available tools...')
+    logger.info('\n2. Listing available tools...')
     const toolsResult = await client.sendRequest('tools/list', {})
-    console.log('Available tools:', JSON.stringify(toolsResult, null, 2))
+    logger.info('Available tools:', JSON.stringify(toolsResult, null, 2))
 
     // Call the depscore tool
-    console.log('\n3. Calling depscore tool...')
+    logger.info('\n3. Calling depscore tool...')
     const depscoreResult = await client.sendRequest('tools/call', {
       name: 'depscore',
       arguments: {
@@ -111,44 +118,41 @@ async function main () {
           { depname: 'lodash', ecosystem: 'npm', version: '4.17.21' },
           { depname: 'react', ecosystem: 'npm', version: '18.2.0' },
           { depname: 'flask', ecosystem: 'pypi', version: '2.3.2' },
-          { depname: 'unknown-package', ecosystem: 'npm', version: 'unknown' }
-        ]
-      }
+          { depname: 'unknown-package', ecosystem: 'npm', version: 'unknown' },
+        ],
+      },
     })
-    console.log('Depscore result:', JSON.stringify(depscoreResult, null, 2))
+    logger.info('Depscore result:', JSON.stringify(depscoreResult, null, 2))
 
     // Test with minimal input
-    console.log('\n4. Testing with minimal input (default to npm)...')
+    logger.info('\n4. Testing with minimal input (default to npm)...')
     const minimalResult = await client.sendRequest('tools/call', {
       name: 'depscore',
       arguments: {
-        packages: [
-          { depname: 'axios' },
-          { depname: 'typescript' }
-        ]
-      }
+        packages: [{ depname: 'axios' }, { depname: 'typescript' }],
+      },
     })
-    console.log('Minimal input result:', JSON.stringify(minimalResult, null, 2))
+    logger.info('Minimal input result:', JSON.stringify(minimalResult, null, 2))
 
     // Test error handling
-    console.log('\n5. Testing error handling (empty packages)...')
+    logger.info('\n5. Testing error handling (empty packages)...')
     try {
       await client.sendRequest('tools/call', {
         name: 'depscore',
         arguments: {
-          packages: []
-        }
+          packages: [],
+        },
       })
     } catch (error) {
-      console.log('Expected error:', error)
+      logger.info('Expected error:', error)
     }
 
-    console.log('\nDebug session complete!')
+    logger.info('\nDebug session complete!')
   } catch (error) {
-    console.error('Client error:', error)
+    logger.error('Client error:', error)
   } finally {
     client.close()
   }
 }
 
-main().catch(console.error)
+main().catch(e => logger.error(e))

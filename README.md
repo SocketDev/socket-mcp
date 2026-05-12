@@ -23,10 +23,8 @@ A Model Context Protocol (MCP) server for Socket integration, allowing AI assist
 
 The easiest way to get started is to use our public Socket MCP server. **No API key or authentication required!** Click a button below to install the public server in your favorite AI assistant.
 
-
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"url":"https://mcp.socket.dev/","type":"http"})
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D)
-
 
 <details><summary><b>Manual Installation Instructions & more MCP Clients</b></summary>
 
@@ -120,11 +118,11 @@ To use the Socket MCP server in Windsurf:
 
 ```json
 {
-    "mcpServers": {
-        "socket-mcp": {
-            "serverUrl": "https://mcp.socket.dev/mcp"
-        }
+  "mcpServers": {
+    "socket-mcp": {
+      "serverUrl": "https://mcp.socket.dev/mcp"
     }
+  }
 }
 ```
 
@@ -148,21 +146,22 @@ For local deployment, you have two options:
 
 Click a button below to install the self-hosted stdio server in your favorite AI assistant.
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"command":"npx","args":["@socketsecurity/mcp@latest"],"type":"stdio"})
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"command":"npx","args":["@socketsecurity/mcp@latest"],"type":"stdio"}) <!-- # socket-hook: allow npx -->
 [![Install in Cursor (stdio)](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJjb21tYW5kIjoibnB4IEBzb2NrZXRzZWN1cml0eS9tY3BAbGF0ZXN0IiwiZW52Ijp7IlNPQ0tFVF9BUElfS0VZIjoieW91ci1hcGkta2V5LWhlcmUifX0%3D)
 
 Claude Code (stdio mode) can be set up with the following command:
 
 ```bash
-claude mcp add socket-mcp -e SOCKET_API_KEY="your-api-key-here" -- npx -y @socketsecurity/mcp@latest
+claude mcp add socket-mcp -e SOCKET_API_KEY="your-api-key-here" -- npx -y @socketsecurity/mcp@latest # socket-hook: allow npx
 ```
+
 This is how the configuration looks like on most MCP clients:
 
 ```json
 {
   "mcpServers": {
     "socket-mcp": {
-      "command": "npx",
+      "command": "npx", // socket-hook: allow npx
       "args": ["@socketsecurity/mcp@latest"],
       "env": {
         "SOCKET_API_KEY": "your-api-key-here"
@@ -174,27 +173,27 @@ This is how the configuration looks like on most MCP clients:
 
 This approach automatically uses the latest version without requiring global installation.
 
-
 ##### Option 2b: HTTP Mode
 
 1. Run the server in HTTP mode using npx:
+
    ```bash
-   MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key npx @socketsecurity/mcp@latest --http
+   MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
    ```
 
    HTTP mode supports these environment variables:
 
-   | Variable | Required | Default | Description |
-   |---|---|---|---|
-   | `SOCKET_API_KEY` | Required unless OAuth is enabled | None | Socket API key used for outbound API calls. If unset in OAuth-enabled HTTP mode, the validated incoming bearer token is forwarded upstream instead. |
-   | `SOCKET_OAUTH_ISSUER` | Set together with the two introspection vars to enable OAuth | None | OAuth issuer URL used for metadata discovery and incoming bearer-token validation. |
-   | `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID` | With OAuth | None | Client ID used for token introspection. |
-   | `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth | None | Client secret used for token introspection. |
-   | `SOCKET_OAUTH_REQUIRED_SCOPES` | No | `packages:list` | Space-delimited scopes required on incoming access tokens. |
-   | `SOCKET_API_URL` | No | Production Socket API URL, or localhost when `SOCKET_DEBUG=true` | Override the upstream Socket API endpoint. Useful for local development and testing. |
-   | `SOCKET_DEBUG` | No | `false` | Switches the default upstream Socket API endpoint to localhost when `SOCKET_API_URL` is unset. |
-   | `TRUST_PROXY` | No | `false` | When `true`, trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a trusted reverse proxy that rewrites these headers. |
-   | `MCP_PORT` | HTTP mode only | `3000` | Port to bind the HTTP server to. |
+   | Variable                                   | Required                                                     | Default                                                          | Description                                                                                                                                                              |
+   | ------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | `SOCKET_API_KEY`                           | Required unless OAuth is enabled                             | None                                                             | Socket API key used for outbound API calls. If unset in OAuth-enabled HTTP mode, the validated incoming bearer token is forwarded upstream instead.                      |
+   | `SOCKET_OAUTH_ISSUER`                      | Set together with the two introspection vars to enable OAuth | None                                                             | OAuth issuer URL used for metadata discovery and incoming bearer-token validation.                                                                                       |
+   | `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                                                   | None                                                             | Client ID used for token introspection.                                                                                                                                  |
+   | `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                                                   | None                                                             | Client secret used for token introspection.                                                                                                                              |
+   | `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                                                           | `packages:list`                                                  | Space-delimited scopes required on incoming access tokens.                                                                                                               |
+   | `SOCKET_API_URL`                           | No                                                           | Production Socket API URL, or localhost when `SOCKET_DEBUG=true` | Override the upstream Socket API endpoint. Useful for local development and testing.                                                                                     |
+   | `SOCKET_DEBUG`                             | No                                                           | `false`                                                          | Switches the default upstream Socket API endpoint to localhost when `SOCKET_API_URL` is unset.                                                                           |
+   | `TRUST_PROXY`                              | No                                                           | `false`                                                          | When `true`, trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a trusted reverse proxy that rewrites these headers. |
+   | `MCP_PORT`                                 | HTTP mode only                                               | `3000`                                                           | Port to bind the HTTP server to.                                                                                                                                         |
 
    `SOCKET_API_URL` and `SOCKET_DEBUG` also apply in stdio mode.
    In OAuth-enabled HTTP mode, if `SOCKET_API_KEY` is unset, the authenticated client's bearer token is forwarded to the Socket API. That token therefore must also be accepted by the configured upstream Socket API.
@@ -206,7 +205,7 @@ This approach automatically uses the latest version without requiring global ins
    SOCKET_OAUTH_ISSUER=https://issuer.example.com \
    SOCKET_OAUTH_INTROSPECTION_CLIENT_ID=your-client-id \
    SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret \
-   npx @socketsecurity/mcp@latest --http
+   npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
    ```
 
    Add `TRUST_PROXY=true` only when the server is deployed behind a trusted reverse proxy or load balancer that normalizes the forwarded host and protocol headers.
@@ -231,12 +230,12 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `packages` | Array | ✅ Yes | - | Array of package objects to analyze |
-| `packages[].ecosystem` | String | No | `"npm"` | Package ecosystem (`npm`, `pypi`, `cargo`, etc.) |
-| `packages[].depname` | String | ✅ Yes | - | Name of the dependency/package |
-| `packages[].version` | String | No | `"unknown"` | Version of the dependency |
+| Parameter              | Type   | Required | Default     | Description                                      |
+| ---------------------- | ------ | -------- | ----------- | ------------------------------------------------ |
+| `packages`             | Array  | ✅ Yes   | -           | Array of package objects to analyze              |
+| `packages[].ecosystem` | String | No       | `"npm"`     | Package ecosystem (`npm`, `pypi`, `cargo`, etc.) |
+| `packages[].depname`   | String | ✅ Yes   | -           | Name of the dependency/package                   |
+| `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                        |
 
 **Example Usage:**
 
@@ -258,6 +257,7 @@ The `depscore` tool allows AI assistants to query the Socket API for dependency 
 ```
 
 **Sample Response:**
+
 ```
 pkg:npm/express@4.18.2: supply_chain: 1.0, quality: 0.9, maintenance: 1.0, vulnerability: 1.0, license: 1.0
 pkg:pypi/fastapi@0.100.0: supply_chain: 1.0, quality: 0.95, maintenance: 0.98, vulnerability: 1.0, license: 1.0
@@ -276,12 +276,11 @@ pkg:pypi/fastapi@0.100.0: supply_chain: 1.0, quality: 0.95, maintenance: 0.98, v
 
 You can further customize how the Socket MCP server interacts with your AI assistant by modifying your client rules. The rules are usually a markdown file and its location depends on the AI assistant you are using.
 
-| MCP Client | Rules File Location |
-|---|---|
-| Claude Desktop/Code | `CLAUDE.md`  |
-| VSCode Copilot | `.github/copilot-instructions.md`  |
-| Cursor | `.cursor/rules` |
-
+| MCP Client          | Rules File Location               |
+| ------------------- | --------------------------------- |
+| Claude Desktop/Code | `CLAUDE.md`                       |
+| VSCode Copilot      | `.github/copilot-instructions.md` |
+| Cursor              | `.cursor/rules`                   |
 
 Rules that can be added to the client rules file include the following:
 
@@ -291,12 +290,12 @@ Always check dependency scores with the depscore tool when you add a new depende
 
 You can adjust the rules to fit your needs. For example, you can add rules to include specific manifest files, or guide the AI assistant on how to handle low scores. The rules are flexible and can be tailored to your workflow.
 
-
 ## Development
 
 ### For End Users
 
 For most users, we recommend using either:
+
 1. **Public server**: `https://mcp.socket.dev/` (no setup required)
 2. **NPX command**: `npx @socketsecurity/mcp@latest` (always latest version)
 
@@ -313,6 +312,7 @@ GET /health
 ```
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -323,11 +323,11 @@ GET /health
 ```
 
 This endpoint can be used for:
+
 - Kubernetes liveness and readiness probes
 - Docker health checks
 - Load balancer health monitoring
 - General service monitoring
-
 
 #### Prerequisites
 
@@ -379,21 +379,25 @@ MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node --experimental-strip-ty
 ### Common Issues
 
 **Q: The public server isn't responding**
+
 - Check that you're using the correct URL: `https://mcp.socket.dev/`
 - Verify your MCP client configuration is correct
 - Try restarting your MCP client
 
 **Q: Local server fails to start**
+
 - Ensure you have Node.js v16+ installed
 - Check that your `SOCKET_API_KEY` environment variable is set
 - Verify the API key has `packages:list` permission
 
 **Q: Getting authentication errors with local server**
+
 - Double-check your Socket API key is valid
 - Ensure the key has the required `packages:list` scope
 - Try regenerating your API key from the Socket dashboard
 
 **Q: AI assistant can't find the depscore tool**
+
 - Restart your MCP client after configuration changes
 - Verify the server configuration is saved correctly
 - Check that the MCP server is running (for local deployments)
