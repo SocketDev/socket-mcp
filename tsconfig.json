@@ -1,42 +1,29 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./.config/tsconfig.base.json",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "checkJs": true,
     "module": "nodenext",
     "moduleResolution": "NodeNext",
-    "strict": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "lib": ["es2024"],
-    "target": "es2024",
-    "removeComments": true,
-    "stripInternal": true,
-    "allowJs": true,
-    "checkJs": true,
     "noEmit": true,
-    "resolveJsonModule": true,
-    "exactOptionalPropertyTypes": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "noUncheckedIndexedAccess": true,
-    "noUncheckedSideEffectImports": true,
-    "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": false,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "skipLibCheck": true,
-    "erasableSyntaxOnly": true,
-    "allowImportingTsExtensions": true,
+    "removeComments": true,
     "rewriteRelativeImportExtensions": true,
-    "verbatimModuleSyntax": true
+    "stripInternal": true
   },
-  "include": [
-     "**/*"
-   ],
-   "exclude": [
-     "**/*.js",
-     "node_modules",
-     "coverage",
-     ".github"
-   ]
+  "include": ["**/*"],
+  "exclude": [
+    "**/*.js",
+    "node_modules",
+    "coverage",
+    ".github",
+    ".claude",
+    ".git-hooks",
+    ".husky",
+    "docs",
+    "scripts/**/*.mts"
+  ]
 }

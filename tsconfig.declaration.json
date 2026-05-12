@@ -11,6 +11,11 @@
     "**/*.test.ts",
     "node_modules",
     "coverage",
-    ".github"
+    ".github",
+    ".claude",
+    ".git-hooks",
+    ".husky",
+    "docs",
+    "scripts/**/*.mts"
   ]
 }
