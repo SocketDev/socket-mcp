@@ -9,7 +9,6 @@
     "module": "nodenext",
     "moduleResolution": "NodeNext",
     "noEmit": true,
-    "noImplicitReturns": false,
     "removeComments": true,
     "rewriteRelativeImportExtensions": true,
     "stripInternal": true
