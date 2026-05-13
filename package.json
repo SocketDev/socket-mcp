@@ -11,7 +11,7 @@
     "npm": ">= 10"
   },
   "scripts": {
-    "prepare": "husky",
+    "prepare": "node scripts/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "test": "node scripts/test.mts",

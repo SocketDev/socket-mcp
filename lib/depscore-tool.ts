@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { getSocketApiToken } from '@socketsecurity/lib/env/socket'
 import { httpRequest } from '@socketsecurity/lib/http-request'
 import { z } from 'zod'
 import { deduplicateArtifacts } from './artifacts.ts'
@@ -33,11 +34,10 @@ const DEFAULT_SOCKET_API_URL =
 
 const SOCKET_API_URL = process.env['SOCKET_API_URL'] || DEFAULT_SOCKET_API_URL
 
-// SOCKET_API_KEY is the legacy alias.
-let staticApiKey: string =
-  process.env['SOCKET_API_TOKEN'] ||
-  process.env[/* socket-api-token-env: bootstrap */ 'SOCKET_API_KEY'] ||
-  ''
+// Resolve via the fleet-canonical helper. Accepts SOCKET_API_TOKEN
+// (canonical) + 4 legacy aliases (SOCKET_CLI_API_TOKEN,
+// SOCKET_CLI_API_KEY, SOCKET_SECURITY_API_TOKEN, SOCKET_SECURITY_API_KEY).
+let staticApiKey: string = getSocketApiToken() || ''
 
 // Single shared schema reused by both stdio and HTTP modes; pulled out
 // so the server creator stays compact.
@@ -155,7 +155,7 @@ export async function handleDepscore(
   const accessToken = accessTokenFromAuth || staticApiKey
   if (!accessToken) {
     const errorMsg =
-      'Authentication is required. Configure SOCKET_API_KEY for stdio mode or connect through OAuth-enabled HTTP mode.'
+      'Authentication is required. Configure SOCKET_API_TOKEN (or a legacy alias) for stdio mode or connect through OAuth-enabled HTTP mode.'
     logger.error(errorMsg)
     return errorResult(errorMsg)
   }

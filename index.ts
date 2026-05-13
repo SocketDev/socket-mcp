@@ -1,5 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { getSocketApiToken } from '@socketsecurity/lib/env/socket'
+
 import { createConfiguredServer, setStaticApiKey } from './lib/depscore-tool.ts'
 import { getApiKeyInteractively } from './lib/http-helpers.ts'
 import { startHttpServer } from './lib/http-server.ts'
@@ -47,27 +49,27 @@ if (useHttp && hasAnyOAuthConfig && !oauthEnabled) {
   process.exit(1)
 }
 
-// Canonical fleet name is SOCKET_API_TOKEN; SOCKET_API_KEY is accepted
-// as a legacy alias per CLAUDE.md token-hygiene rule (one-cycle
-// deprecation grace).
-let apiKey =
-  process.env['SOCKET_API_TOKEN'] ||
-  process.env[/* socket-api-token-env: bootstrap */ 'SOCKET_API_KEY'] ||
-  ''
+// Resolve the API token via the fleet-canonical helper. Accepts (in
+// priority order) SOCKET_API_TOKEN → SOCKET_CLI_API_TOKEN →
+// SOCKET_CLI_API_KEY → SOCKET_SECURITY_API_TOKEN → SOCKET_SECURITY_API_KEY.
+// Centralizing the fallback chain in @socketsecurity/lib means every
+// fleet binary (cli, mcp, sdk consumers) accepts the same set of
+// names; adding/removing an alias is a one-line change upstream.
+let apiKey = getSocketApiToken() || ''
 
 // Stdio mode cannot prompt — stdin is the MCP protocol channel — so we
 // require the env var. HTTP mode can prompt on stderr or rely entirely
 // on OAuth.
 if (!apiKey && !(useHttp && oauthEnabled)) {
   if (useHttp) {
-    logger.error('SOCKET_API_KEY environment variable is not set')
+    logger.error('SOCKET_API_TOKEN environment variable is not set')
     apiKey = await getApiKeyInteractively()
   } else {
     logger.error(
-      'SOCKET_API_KEY environment variable is required in stdio mode',
+      'SOCKET_API_TOKEN environment variable is required in stdio mode',
     )
     logger.error(
-      'Please set the SOCKET_API_KEY environment variable and try again',
+      'Please set SOCKET_API_TOKEN (or one of the legacy aliases) and try again',
     )
     process.exit(1)
   }
