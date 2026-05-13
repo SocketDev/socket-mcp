@@ -7,12 +7,11 @@ Fleet-canonical files (anything tracked by `socket-wheelhouse/scripts/sync-scaff
 These directories and files cascade fleet-wide. They are **not** repo-local:
 
 - `.config/oxlint-plugin/` — plugin index + rules
-- `.git-hooks/` — commit-msg / pre-commit / pre-push hooks + helpers
+- `.git-hooks/` — commit-msg / pre-commit / pre-push entry shims + .mts helpers (git invokes the shims when `core.hooksPath` is set to this directory; wired by `scripts/install-git-hooks.mts` at `pnpm install` time)
 - `.claude/hooks/` — PreToolUse / PostToolUse hooks
 - `.claude/skills/_shared/` — shared skill helpers
 - `CLAUDE.md` fleet block (between `BEGIN/END FLEET-CANONICAL` markers)
 - `docs/claude.md/` — CLAUDE.md offshoot references (this file lives here)
-- `.husky/` — Husky entry shims
 - Anything else listed in the sync manifest
 
 If unsure, check `socket-wheelhouse/scripts/sync-scaffolding/manifest.mts`. Tracked = canonical.
@@ -23,7 +22,7 @@ If a downstream repo needs a behavior change in one of these files:
 
 1. Edit the file in `socket-wheelhouse/template/...`.
 2. Commit the template change.
-3. Run `node scripts/sync-scaffolding/main.mts --target <downstream-repo> --fix` to cascade.
+3. Run `node scripts/sync-scaffolding/cli.mts --target <downstream-repo> --fix` to cascade.
 
 Do NOT edit the local copy in the downstream repo and rely on cascades to "preserve" your edits via `git checkout HEAD --` workarounds. That creates drift the sync mechanism then has to dance around, blocking other improvements from reaching that file in that repo.
 
