@@ -1,3 +1,9 @@
+import {
+  getSocketOauthIntrospectionClientId,
+  getSocketOauthIntrospectionClientSecret,
+  getSocketOauthIssuer,
+  getSocketOauthRequiredScopes,
+} from '@socketsecurity/lib/env/socket'
 import { httpRequest } from '@socketsecurity/lib/http-request'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -23,17 +29,20 @@ export const OAUTH_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource'
 const OAUTH_WELL_KNOWN_PATH = '/.well-known/oauth-authorization-server'
 
-const SOCKET_OAUTH_ISSUER = process.env['SOCKET_OAUTH_ISSUER'] || ''
+// All four OAuth env vars resolved via the fleet-canonical helpers in
+// @socketsecurity/lib/env/socket. Centralizing the reads means an env-
+// var rename / alias-table change is a single-file edit upstream;
+// socket-mcp picks it up on the next dep bump.
+const SOCKET_OAUTH_ISSUER = getSocketOauthIssuer()
 const SOCKET_OAUTH_INTROSPECTION_CLIENT_ID =
-  process.env['SOCKET_OAUTH_INTROSPECTION_CLIENT_ID'] || ''
+  getSocketOauthIntrospectionClientId()
 const SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET =
-  process.env['SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET'] || ''
-export const SOCKET_OAUTH_REQUIRED_SCOPES: string[] = (
-  process.env['SOCKET_OAUTH_REQUIRED_SCOPES'] || 'packages:list'
-)
-  .split(/\s+/u)
-  .map(scope => scope.trim())
-  .filter(Boolean)
+  getSocketOauthIntrospectionClientSecret()
+export const SOCKET_OAUTH_REQUIRED_SCOPES: string[] =
+  getSocketOauthRequiredScopes()
+    .split(/\s+/u)
+    .map(scope => scope.trim())
+    .filter(Boolean)
 
 // True when ANY of the three introspection settings are configured —
 // caller uses this to detect partial / incomplete configs and refuse to

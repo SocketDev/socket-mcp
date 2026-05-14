@@ -1,5 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { getSocketApiToken } from '@socketsecurity/lib/env/socket'
+import {
+  getSocketApiToken,
+  getSocketApiUrl,
+  getSocketDebug,
+} from '@socketsecurity/lib/env/socket'
 import { httpRequest } from '@socketsecurity/lib/http-request'
 import { z } from 'zod'
 import { deduplicateArtifacts } from './artifacts.ts'
@@ -26,13 +30,14 @@ interface ToolOkResult {
 }
 
 // Default Socket API URL. SOCKET_DEBUG=true points at localhost for local
-// stack development; the default targets production.
+// stack development; the default targets production. Both env vars
+// resolved via fleet-canonical helpers.
 const DEFAULT_SOCKET_API_URL =
-  process.env['SOCKET_DEBUG'] === 'true'
+  getSocketDebug() === 'true'
     ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
     : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
 
-const SOCKET_API_URL = process.env['SOCKET_API_URL'] || DEFAULT_SOCKET_API_URL
+const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
 
 // Resolve via the fleet-canonical helper. Accepts SOCKET_API_TOKEN
 // (canonical) + 4 legacy aliases (SOCKET_CLI_API_TOKEN,

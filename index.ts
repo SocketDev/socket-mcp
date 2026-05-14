@@ -1,6 +1,10 @@
 #!/usr/bin/env -S node --experimental-strip-types
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { getSocketApiToken } from '@socketsecurity/lib/env/socket'
+import {
+  getMcpHttpMode,
+  getMcpPort,
+  getSocketApiToken,
+} from '@socketsecurity/lib/env/socket'
 
 import { createConfiguredServer, setStaticApiKey } from './lib/depscore-tool.ts'
 import { getApiKeyInteractively } from './lib/http-helpers.ts'
@@ -35,9 +39,11 @@ export {
   verifyAccessToken,
 } from './lib/oauth.ts'
 
-const useHttp =
-  process.env['MCP_HTTP_MODE'] === 'true' || process.argv.includes('--http')
-const port = parseInt(process.env['MCP_PORT'] || '3000', 10)
+// MCP_HTTP_MODE / MCP_PORT resolved via fleet-canonical helpers in
+// @socketsecurity/lib/env/socket. `--http` CLI flag still overrides
+// the env-driven default.
+const useHttp = getMcpHttpMode() || process.argv.includes('--http')
+const port = getMcpPort()
 
 const oauthEnabledResult = useHttp ? setOauthEnabled() : undefined
 const oauthEnabled = Boolean(oauthEnabledResult)

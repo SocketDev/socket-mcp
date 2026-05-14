@@ -1,12 +1,15 @@
 import readline from 'node:readline'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { getTrustProxy } from '@socketsecurity/lib/env/socket'
 import { logger } from './logger.ts'
 import { VERSION } from './version.ts'
 
 // Trust forwarded headers only when an operator has explicitly opted in by
 // setting TRUST_PROXY=true. Without this gate, any client could spoof
 // X-Forwarded-Host / X-Forwarded-Proto and influence OAuth metadata URLs.
-export const TRUST_PROXY: boolean = process.env['TRUST_PROXY'] === 'true'
+// Resolved via the fleet-canonical helper so the env-var name + parse
+// semantics stay in lockstep across the fleet.
+export const TRUST_PROXY: boolean = getTrustProxy()
 
 // Build the Socket API request headers carrying the optional bearer token.
 // The Accept header pins NDJSON so the depscore handler can stream rows
