@@ -19,7 +19,7 @@
       "command": "node",
       "args": ["${__dirname}/./index.js"],
       "env": {
-        "SOCKET_API_KEY": "${user_config.SOCKET_API_KEY}"
+        "SOCKET_API_TOKEN": "${user_config.SOCKET_API_TOKEN}"
       }
     }
   },
@@ -30,10 +30,10 @@
     }
   ],
   "user_config": {
-    "SOCKET_API_KEY": {
+    "SOCKET_API_TOKEN": {
       "type": "string",
-      "title": "Socket API key",
-      "description": "API key for interacting with the Socket API",
+      "title": "Socket API token",
+      "description": "API token for interacting with the Socket API. Legacy aliases (SOCKET_API_KEY, SOCKET_SECURITY_API_TOKEN, etc.) are also accepted via the fleet-canonical getSocketApiToken() helper.",
       "required": true,
       "sensitive": true
     }

@@ -6,8 +6,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'node:path'
 
 test('Socket MCP Server', async t => {
-  const apiKey = process.env['SOCKET_API_TOKEN']
-  assert.ok(apiKey, 'We need an API key. Tests will not pass without it')
+  const apiToken = process.env['SOCKET_API_TOKEN']
+  assert.ok(apiToken, 'We need an API token. Tests will not pass without it')
   const serverPath = path.join(import.meta.dirname, 'index.ts')
 
   const transport = new StdioClientTransport({
@@ -17,7 +17,7 @@ test('Socket MCP Server', async t => {
       ...(Object.fromEntries(
         Object.entries(process.env).filter(([, value]) => value !== undefined),
       ) as Record<string, string>),
-      SOCKET_API_KEY: apiKey,
+      SOCKET_API_TOKEN: apiToken,
     },
   })
 

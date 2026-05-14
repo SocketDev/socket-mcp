@@ -152,7 +152,7 @@ Click a button below to install the self-hosted stdio server in your favorite AI
 Claude Code (stdio mode) can be set up with the following command:
 
 ```bash
-claude mcp add socket-mcp -e SOCKET_API_KEY="your-api-key-here" -- npx -y @socketsecurity/mcp@latest # socket-hook: allow npx
+claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- npx -y @socketsecurity/mcp@latest # socket-hook: allow npx
 ```
 
 This is how the configuration looks like on most MCP clients:
@@ -164,7 +164,7 @@ This is how the configuration looks like on most MCP clients:
       "command": "npx", // socket-hook: allow npx
       "args": ["@socketsecurity/mcp@latest"],
       "env": {
-        "SOCKET_API_KEY": "your-api-key-here"
+        "SOCKET_API_TOKEN": "your-api-token-here"
       }
     }
   }
@@ -178,14 +178,14 @@ This approach automatically uses the latest version without requiring global ins
 1. Run the server in HTTP mode using npx:
 
    ```bash
-   MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
+   MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
    ```
 
    HTTP mode supports these environment variables:
 
    | Variable                                   | Required                                                     | Default                                                          | Description                                                                                                                                                              |
    | ------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-   | `SOCKET_API_KEY`                           | Required unless OAuth is enabled                             | None                                                             | Socket API key used for outbound API calls. If unset in OAuth-enabled HTTP mode, the validated incoming bearer token is forwarded upstream instead.                      |
+   | `SOCKET_API_TOKEN`                         | Required unless OAuth is enabled                             | None                                                             | Socket API token used for outbound API calls. Legacy aliases (`SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`, `SOCKET_SECURITY_API_TOKEN`, `SOCKET_SECURITY_API_KEY`) are accepted via the fleet's `getSocketApiToken()` helper. If unset in OAuth-enabled HTTP mode, the validated incoming bearer token is forwarded upstream instead. |
    | `SOCKET_OAUTH_ISSUER`                      | Set together with the two introspection vars to enable OAuth | None                                                             | OAuth issuer URL used for metadata discovery and incoming bearer-token validation.                                                                                       |
    | `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                                                   | None                                                             | Client ID used for token introspection.                                                                                                                                  |
    | `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                                                   | None                                                             | Client secret used for token introspection.                                                                                                                              |
@@ -196,7 +196,7 @@ This approach automatically uses the latest version without requiring global ins
    | `MCP_PORT`                                 | HTTP mode only                                               | `3000`                                                           | Port to bind the HTTP server to.                                                                                                                                         |
 
    `SOCKET_API_URL` and `SOCKET_DEBUG` also apply in stdio mode.
-   In OAuth-enabled HTTP mode, if `SOCKET_API_KEY` is unset, the authenticated client's bearer token is forwarded to the Socket API. That token therefore must also be accepted by the configured upstream Socket API.
+   In OAuth-enabled HTTP mode, if `SOCKET_API_TOKEN` is unset, the authenticated client's bearer token is forwarded to the Socket API. That token therefore must also be accepted by the configured upstream Socket API.
 
    To enable OAuth-backed auth for incoming MCP requests:
 
@@ -364,14 +364,14 @@ npm run build
 To run the Socket MCP server from source:
 
 ```bash
-export SOCKET_API_KEY=your_api_key_here
+export SOCKET_API_TOKEN=your_api_token_here
 node --experimental-strip-types index.ts
 ```
 
 Or in HTTP mode:
 
 ```bash
-MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node --experimental-strip-types index.ts --http
+MCP_HTTP_MODE=true SOCKET_API_TOKEN=your_api_token_here node --experimental-strip-types index.ts --http
 ```
 
 ## 🔧 Troubleshooting
@@ -387,8 +387,8 @@ MCP_HTTP_MODE=true SOCKET_API_KEY=your_api_key_here node --experimental-strip-ty
 **Q: Local server fails to start**
 
 - Ensure you have Node.js v16+ installed
-- Check that your `SOCKET_API_KEY` environment variable is set
-- Verify the API key has `packages:list` permission
+- Check that your `SOCKET_API_TOKEN` environment variable is set
+- Verify the API token has `packages:list` permission
 
 **Q: Getting authentication errors with local server**
 
