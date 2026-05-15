@@ -32,14 +32,15 @@ import { pushFinding } from './state.mts'
 // nesting depth (the previous regex-only approach silently missed any
 // argument containing 2+ levels of nested function calls).
 export const PATH_CALL_RE = /\bpath\.(?:join|resolve)\s*\(/g
-export const STRING_LITERAL_RE = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g
+export const STRING_LITERAL_RE = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g // socket-hook: allow regex-alternation-order — string-literal tokenizer: escape sequence must be tried before the non-quote-char alternative.
 
 // Template literal scanner. Captures backtick-delimited strings
 // (including those with `${...}` placeholders) so Rule A also catches
 // path construction via template literals — backtick variants of the
 // same stitch-stages-inline pattern path.join() guards against.
+// Template-literal tokenizer: escape, then `${...}` placeholder, then non-backtick char. Order matches the lexer precedence.
 export const TEMPLATE_LITERAL_RE =
-  /`((?:\\.|(?:\$\{(?:[^{}]|\{[^{}]*\})*\})|(?!`)[^\\])*)`/g
+  /`((?:\\.|(?:\$\{(?:[^{}]|\{[^{}]*\})*\})|(?!`)[^\\])*)`/g // socket-hook: allow regex-alternation-order
 
 /**
  * Convert a template-literal body into a synthetic forward-slash path

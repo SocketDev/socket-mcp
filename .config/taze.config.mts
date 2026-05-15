@@ -23,6 +23,7 @@ const SOCKET_SCOPES = [
   'sfw',
 ]
 
+// oxlint-disable-next-line socket/no-default-export -- taze contract: config module must `export default defineConfig(...)`.
 export default defineConfig({
   // Interactive mode disabled for automation.
   interactive: false,

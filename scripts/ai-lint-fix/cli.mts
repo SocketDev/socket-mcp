@@ -288,6 +288,7 @@ function renderRuleGuidance(findings: OxlintMessage[]): string {
  * is how this prompt has historically produced orphan imports.
  */
 function buildPrompt(filePath: string, findings: OxlintMessage[]): string {
+  // oxlint-disable-next-line socket/no-process-cwd-in-scripts-hooks -- relative path for prompt display; user invokes `pnpm run fix` from their cwd and expects paths relative to where they ran.
   const rel = path.relative(process.cwd(), filePath)
   const findingsBlock = renderFindings(findings, rel)
   const rulesBlock = renderRuleGuidance(findings)
@@ -426,6 +427,7 @@ async function main(): Promise<void> {
     return
   }
 
+  // oxlint-disable-next-line socket/no-process-cwd-in-scripts-hooks -- relative path for log output; user invokes `pnpm run fix` from their cwd and expects paths relative to where they ran.
   const cwd = process.cwd()
   let totalEdits = 0
   let totalErrors = 0

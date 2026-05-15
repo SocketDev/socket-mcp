@@ -3,7 +3,7 @@ import {
   getSocketOauthIntrospectionClientSecret,
   getSocketOauthIssuer,
   getSocketOauthRequiredScopes,
-} from '@socketsecurity/lib-stable/env/socket'
+} from './env.ts'
 import { httpRequest } from '@socketsecurity/lib-stable/http-request'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -23,9 +23,13 @@ export interface OAuthAuthorizationServerMetadata {
   [key: string]: unknown
 }
 
-export type AuthenticatedRequest = IncomingMessage & {
-  auth?: AuthInfo | undefined
-}
+// MCP SDK's `handleRequest` expects `{ auth?: AuthInfo }` (no
+// `| undefined`). Adding `| undefined` would satisfy our internal
+// `optional-explicit-undefined` lint rule but break the structural
+// match required by the SDK under `exactOptionalPropertyTypes: true`.
+// Third-party shape wins.
+// oxlint-disable-next-line socket/optional-explicit-undefined -- must match @modelcontextprotocol/sdk's AuthInfo container shape.
+export type AuthenticatedRequest = IncomingMessage & { auth?: AuthInfo }
 
 export const OAUTH_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource'
@@ -42,9 +46,6 @@ const SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET =
   getSocketOauthIntrospectionClientSecret()
 export const SOCKET_OAUTH_REQUIRED_SCOPES: string[] =
   getSocketOauthRequiredScopes()
-    .split(/\s+/u)
-    .map(scope => scope.trim())
-    .filter(Boolean)
 
 // True when ANY of the three introspection settings are configured —
 // caller uses this to detect partial / incomplete configs and refuse to
@@ -205,7 +206,11 @@ export async function loadOAuthMetadata(): Promise<
 
   if (!oauthMetadataPromise) {
     const metadataPromise = (async () => {
-      const issuerUrl = new URL(SOCKET_OAUTH_ISSUER)
+      // `oauthEnabledFlag` is only set when `allOAuthConfig` was true
+      // at module init (see hasAllOAuthConfig), which requires
+      // SOCKET_OAUTH_ISSUER to be a non-empty string. TS can't narrow
+      // through that Boolean(...) computation; assert here.
+      const issuerUrl = new URL(SOCKET_OAUTH_ISSUER!)
       const response = await httpRequest(
         new URL(OAUTH_WELL_KNOWN_PATH, issuerUrl).href,
       )
@@ -245,7 +250,8 @@ export function setOauthEnabled(): { issuer: string } | undefined {
     return undefined
   }
   oauthEnabledFlag = true
-  return { issuer: SOCKET_OAUTH_ISSUER }
+  // `allOAuthConfig` was checked above; SOCKET_OAUTH_ISSUER is defined here.
+  return { issuer: SOCKET_OAUTH_ISSUER! }
 }
 
 // Tokenize the introspection "scope" field per RFC 6749 §3.3: a

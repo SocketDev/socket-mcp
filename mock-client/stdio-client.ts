@@ -52,7 +52,8 @@ async function main() {
       { depname: 'unknown-package', ecosystem: 'npm', version: 'unknown' },
     ]
 
-    logger.info('\nTesting depscore with packages:', testPackages)
+    logger.error('')
+    logger.info('Testing depscore with packages:', testPackages)
 
     const result = await client.callTool({
       name: 'depscore',

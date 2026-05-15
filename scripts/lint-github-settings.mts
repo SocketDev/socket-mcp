@@ -2,6 +2,11 @@
  * @fileoverview Fleet lint: validate (and optionally fix) the GitHub
  * repository settings against the canonical fleet config.
  *
+ * max-file-lines: legitimate table — single-file config table mapping
+ * GitHub repo-settings flags to fleet-canonical values + the audit
+ * runner over the table. Splitting would scatter the auditor across
+ * peripheral files without making either piece smaller.
+ *
  * Why this exists: a half-dozen repo settings determine whether the
  * fleet enforces signed commits, restricts PRs to collaborators,
  * disables wikis/discussions/projects/forks, and forces squash-only

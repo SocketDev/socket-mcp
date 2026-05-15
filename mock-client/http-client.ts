@@ -137,6 +137,7 @@ async function testHTTPMode() {
 // Usage instructions
 if (process.argv.includes('--help')) {
   const serverScript = path.join(import.meta.dirname, '..', 'index.ts')
+  // oxlint-disable-next-line socket/no-logger-newline-literal -- multi-line help text; intentional newlines for readability.
   logger.info(`
 Socket MCP HTTP Client Debugger
 

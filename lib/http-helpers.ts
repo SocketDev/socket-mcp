@@ -1,6 +1,6 @@
 import readline from 'node:readline'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { getTrustProxy } from '@socketsecurity/lib-stable/env/socket'
+import { getTrustProxy } from './env.ts'
 import { logger } from './logger.ts'
 import { VERSION } from './version.ts'
 

@@ -1,10 +1,8 @@
 #!/usr/bin/env -S node --experimental-strip-types
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import {
-  getMcpHttpMode,
-  getMcpPort,
-  getSocketApiToken,
-} from '@socketsecurity/lib-stable/env/socket'
+import { getSocketApiToken } from '@socketsecurity/lib-stable/env/socket'
+
+import { getMcpHttpMode, getMcpPort } from './lib/env.ts'
 
 import { createConfiguredServer, setStaticApiKey } from './lib/depscore-tool.ts'
 import { getApiKeyInteractively } from './lib/http-helpers.ts'
