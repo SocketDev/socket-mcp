@@ -92,7 +92,8 @@ async function main() {
 
   try {
     // Initialize the connection
-    logger.info('\n1. Initializing connection...')
+    logger.error('')
+    logger.info('1. Initializing connection...')
     const initResult = await client.sendRequest('initialize', {
       protocolVersion: '0.1.0',
       capabilities: {},
@@ -104,12 +105,14 @@ async function main() {
     logger.info('Initialize response:', JSON.stringify(initResult, null, 2))
 
     // List available tools
-    logger.info('\n2. Listing available tools...')
+    logger.error('')
+    logger.info('2. Listing available tools...')
     const toolsResult = await client.sendRequest('tools/list', {})
     logger.info('Available tools:', JSON.stringify(toolsResult, null, 2))
 
     // Call the depscore tool
-    logger.info('\n3. Calling depscore tool...')
+    logger.error('')
+    logger.info('3. Calling depscore tool...')
     const depscoreResult = await client.sendRequest('tools/call', {
       name: 'depscore',
       arguments: {
@@ -125,7 +128,8 @@ async function main() {
     logger.info('Depscore result:', JSON.stringify(depscoreResult, null, 2))
 
     // Test with minimal input
-    logger.info('\n4. Testing with minimal input (default to npm)...')
+    logger.error('')
+    logger.info('4. Testing with minimal input (default to npm)...')
     const minimalResult = await client.sendRequest('tools/call', {
       name: 'depscore',
       arguments: {
@@ -135,7 +139,8 @@ async function main() {
     logger.info('Minimal input result:', JSON.stringify(minimalResult, null, 2))
 
     // Test error handling
-    logger.info('\n5. Testing error handling (empty packages)...')
+    logger.error('')
+    logger.info('5. Testing error handling (empty packages)...')
     try {
       await client.sendRequest('tools/call', {
         name: 'depscore',
@@ -147,7 +152,8 @@ async function main() {
       logger.info('Expected error:', error)
     }
 
-    logger.info('\nDebug session complete!')
+    logger.error('')
+    logger.info('Debug session complete!')
   } catch (error) {
     logger.error('Client error:', error)
   } finally {

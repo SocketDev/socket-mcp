@@ -67,9 +67,9 @@ const SFW_BIN_DIR = path.join(HOME, '.socket', 'sfw', 'bin')
 
 interface ToolEntry {
   version: string
-  repository?: string
-  release?: string
-  checksums?: Record<string, { asset: string; sha256: string }>
+  repository?: string | undefined
+  release?: string | undefined
+  checksums?: Record<string, { asset: string; sha256: string }> | undefined
 }
 
 interface ExternalToolsFile {

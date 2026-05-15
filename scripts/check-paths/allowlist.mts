@@ -16,7 +16,7 @@
  * matches via the hash.
  */
 
-import { createHash } from 'node:crypto'
+import crypto from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -46,7 +46,8 @@ const loadAllowlistFromJson = (
     path.join(repoRoot, '.socket-wheelhouse.json'),
   ]
   let configPath: string | undefined
-  for (const c of candidates) {
+  for (let i = 0, { length } = candidates; i < length; i += 1) {
+    const c = candidates[i]!
     if (existsSync(c)) {
       configPath = c
       break
@@ -59,7 +60,7 @@ const loadAllowlistFromJson = (
   } catch {
     return undefined
   }
-  let cfg: { pathsAllowlist?: unknown }
+  let cfg: { pathsAllowlist?: unknown | undefined }
   try {
     cfg = JSON.parse(raw)
   } catch {
@@ -189,7 +190,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
       if (current === null) {
         return
       }
-      if (trimmed === '|' || trimmed === '>') {
+      if (trimmed === '>' || trimmed === '|') {
         blockKey = key
         blockKind = trimmed as '|' | '>'
         blockIndent = indentOf(lines[i + 1] ?? '') || indentOf(line) + 2

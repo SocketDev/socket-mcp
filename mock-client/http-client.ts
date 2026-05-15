@@ -33,7 +33,8 @@ async function testHTTPMode() {
 
   try {
     // 1. Initialize connection (stateless)
-    logger.info('\n1. Initializing connection...')
+    logger.error('')
+    logger.info('1. Initializing connection...')
     const initRequest = {
       jsonrpc: '2.0',
       id: 1,
@@ -65,7 +66,8 @@ async function testHTTPMode() {
     logger.info('Initialized (stateless)')
 
     // 2. List tools
-    logger.info('\n2. Listing available tools...')
+    logger.error('')
+    logger.info('2. Listing available tools...')
     const toolsRequest = {
       jsonrpc: '2.0',
       id: 2,
@@ -95,7 +97,8 @@ async function testHTTPMode() {
     }
 
     // 3. Call depscore
-    logger.info('\n3. Calling depscore tool...')
+    logger.error('')
+    logger.info('3. Calling depscore tool...')
     const depscoreRequest = {
       jsonrpc: '2.0',
       id: 3,
@@ -124,7 +127,8 @@ async function testHTTPMode() {
     const depscoreResult = await parseResponse(depscoreResponse)
     logger.info('Depscore result:', JSON.stringify(depscoreResult, null, 2))
 
-    logger.info('\n4. HTTP mode test complete (no sessions)')
+    logger.error('')
+    logger.info('4. HTTP mode test complete (no sessions)')
   } catch (error) {
     logger.error('Error:', error)
   }

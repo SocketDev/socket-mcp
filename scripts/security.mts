@@ -62,7 +62,9 @@ async function runTool(command: string, args: string[]): Promise<number> {
 
 async function main(): Promise<void> {
   if (!(await hasExecutable('agentshield'))) {
-    logger.info('agentshield not installed; run "pnpm run setup-security-tools" to install')
+    logger.info(
+      'agentshield not installed; run "pnpm run setup-security-tools" to install',
+    )
   } else {
     const agentshieldCode = await runTool('agentshield', ['scan'])
     if (agentshieldCode !== 0) {
@@ -72,7 +74,9 @@ async function main(): Promise<void> {
   }
 
   if (!(await hasExecutable('zizmor'))) {
-    logger.info('zizmor not installed; run "pnpm run setup-security-tools" to install')
+    logger.info(
+      'zizmor not installed; run "pnpm run setup-security-tools" to install',
+    )
     return
   }
 

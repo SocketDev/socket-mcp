@@ -23,7 +23,9 @@ export interface OAuthAuthorizationServerMetadata {
   [key: string]: unknown
 }
 
-export type AuthenticatedRequest = IncomingMessage & { auth?: AuthInfo | undefined }
+export type AuthenticatedRequest = IncomingMessage & {
+  auth?: AuthInfo | undefined
+}
 
 export const OAUTH_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource'

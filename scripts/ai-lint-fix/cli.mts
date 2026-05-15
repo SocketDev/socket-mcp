@@ -53,13 +53,13 @@ import { AI_HANDLED_RULES, RULE_GUIDANCE } from './rule-guidance.mts'
 const logger = getDefaultLogger()
 
 interface OxlintMessage {
-  ruleId?: string
+  ruleId?: string | undefined
   message: string
   severity: number
   line: number
   column: number
-  endLine?: number
-  endColumn?: number
+  endLine?: number | undefined
+  endColumn?: number | undefined
 }
 
 interface OxlintFile {
@@ -140,7 +140,8 @@ function parseArgs(argv: readonly string[]): CliArgs {
   let noAi = false
   let staged = false
   let all = false
-  for (const arg of argv) {
+  for (let i = 0, { length } = argv; i < length; i += 1) {
+    const arg = argv[i]!
     if (arg === '--no-ai') {
       noAi = true
       continue
@@ -209,7 +210,8 @@ async function runLintJson(
 
 function bucketFindings(files: OxlintFile[]): Map<string, OxlintMessage[]> {
   const byFile = new Map<string, OxlintMessage[]>()
-  for (const f of files) {
+  for (let i = 0, { length } = files; i < length; i += 1) {
+    const f = files[i]!
     const handled = f.messages.filter(
       m => m.ruleId && AI_HANDLED_RULES.has(m.ruleId),
     )
@@ -237,7 +239,8 @@ function renderFindings(findings: OxlintMessage[], _rel: string): string {
 
 function renderRuleGuidance(findings: OxlintMessage[]): string {
   const seen = new Set<string>()
-  for (const f of findings) {
+  for (let i = 0, { length } = findings; i < length; i += 1) {
+    const f = findings[i]!
     if (f.ruleId) {
       seen.add(f.ruleId)
     }

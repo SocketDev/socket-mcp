@@ -61,11 +61,13 @@ async function main() {
       },
     })
 
-    logger.info('\nDepscore results:')
+    logger.error('')
+    logger.info('Depscore results:')
     logger.info(JSON.stringify(result, null, 2))
 
     await client.close()
-    logger.info('\nClient closed successfully')
+    logger.error('')
+    logger.info('Client closed successfully')
   } catch (error) {
     logger.error('Error:', error)
     await client.close()

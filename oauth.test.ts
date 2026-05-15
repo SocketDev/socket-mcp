@@ -307,7 +307,9 @@ test('HTTP OAuth metadata and auth semantics', async t => {
           },
         },
       )
-      const metadata = (await response.json()) as { resource?: string | undefined }
+      const metadata = (await response.json()) as {
+        resource?: string | undefined
+      }
 
       assert.equal(response.status, 200)
       assert.equal(metadata.resource, `${server.baseUrl}/`)
@@ -402,7 +404,9 @@ test('HTTP OAuth metadata and auth semantics', async t => {
       })
 
       const body = (await response.json()) as {
-        result?: { serverInfo?: { name?: string | undefined } | undefined } | undefined
+        result?:
+          | { serverInfo?: { name?: string | undefined } | undefined }
+          | undefined
       }
 
       assert.equal(response.status, 200)
