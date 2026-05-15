@@ -4,7 +4,7 @@ import {
   getMcpHttpMode,
   getMcpPort,
   getSocketApiToken,
-} from '@socketsecurity/lib/env/socket'
+} from '@socketsecurity/lib-stable/env/socket'
 
 import { createConfiguredServer, setStaticApiKey } from './lib/depscore-tool.ts'
 import { getApiKeyInteractively } from './lib/http-helpers.ts'

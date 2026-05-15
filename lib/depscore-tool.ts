@@ -3,8 +3,8 @@ import {
   getSocketApiToken,
   getSocketApiUrl,
   getSocketDebug,
-} from '@socketsecurity/lib/env/socket'
-import { httpRequest } from '@socketsecurity/lib/http-request'
+} from '@socketsecurity/lib-stable/env/socket'
+import { httpRequest } from '@socketsecurity/lib-stable/http-request'
 import { z } from 'zod'
 import { deduplicateArtifacts } from './artifacts.ts'
 import { buildSocketHeaders } from './http-helpers.ts'

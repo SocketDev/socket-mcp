@@ -3,8 +3,8 @@ import {
   getSocketOauthIntrospectionClientSecret,
   getSocketOauthIssuer,
   getSocketOauthRequiredScopes,
-} from '@socketsecurity/lib/env/socket'
-import { httpRequest } from '@socketsecurity/lib/http-request'
+} from '@socketsecurity/lib-stable/env/socket'
+import { httpRequest } from '@socketsecurity/lib-stable/http-request'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {

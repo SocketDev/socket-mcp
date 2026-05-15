@@ -1,0 +1,35 @@
+packages:
+  - .claude/hooks/*
+allowBuilds:
+  esbuild: true
+autoInstallPeers: true
+
+blockExoticSubdeps: true
+
+catalog:
+  '@sinclair/typebox': 0.34.49
+  '@socketregistry/packageurl-js': 1.4.2
+  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
+  '@socketsecurity/lib': 5.28.0
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@5.28.0
+  '@socketsecurity/registry': 2.0.2
+  '@socketsecurity/sdk': 4.0.1
+  '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
+  '@types/node': 24.9.2
+enablePrePostScripts: true
+
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@socketaddon/*'
+  - '@socketbin/*'
+  - '@socketregistry/*'
+  - '@socketsecurity/*'
+  - '@stuie/*'
+
+pmOnFail: error
+resolutionMode: highest
+saveExact: true
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - 'compromise@14.15.0'
+  - 'undici-types@6.21.0'

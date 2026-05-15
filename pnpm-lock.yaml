@@ -4,13 +4,17 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@hono/node-server': 1.19.13
-  fast-uri: 3.1.2
-  hono: 4.12.18
-  ip-address: 10.1.1
-  zod: 3.25.76
-  zod-to-json-schema: 3.25.1
+catalogs:
+  default:
+    '@sinclair/typebox':
+      specifier: 0.34.49
+      version: 0.34.49
+    '@socketsecurity/lib-stable':
+      specifier: npm:@socketsecurity/lib@5.28.0
+      version: 5.28.0
+    '@types/node':
+      specifier: 24.9.2
+      version: 24.9.2
 
 importers:
 
@@ -25,6 +29,9 @@ importers:
       '@socketsecurity/lib':
         specifier: 5.28.0
         version: 5.28.0(typescript@5.9.3)
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
       packageurl-js:
         specifier: ^2.0.1
         version: 2.0.1
@@ -66,6 +73,291 @@ importers:
         specifier: ~5.9.2
         version: 5.9.3
 
+  .claude/hooks/auth-rotation-reminder:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/check-new-deps:
+    dependencies:
+      '@socketregistry/packageurl-js-stable':
+        specifier: npm:@socketregistry/packageurl-js@1.4.2
+        version: '@socketregistry/packageurl-js@1.4.2'
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+      '@socketsecurity/sdk-stable':
+        specifier: npm:@socketsecurity/sdk@4.0.1
+        version: '@socketsecurity/sdk@4.0.1'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/claude-md-section-size-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/claude-md-size-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/comment-tone-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/commit-author-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/commit-pr-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/compound-lessons-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/cross-repo-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/default-branch-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/dont-stop-mid-queue-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/drift-check-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/error-message-quality-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/excuse-detector:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/file-size-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/gitmodules-comment-guard: {}
+
+  .claude/hooks/identifying-users-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/judgment-reminder:
+    dependencies:
+      compromise:
+        specifier: 14.15.0
+        version: 14.15.0
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/logger-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/markdown-filename-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/new-hook-claude-md-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-experimental-strip-types-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-external-issue-ref-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-fleet-fork-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-meta-comments-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-orphaned-staging:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-revert-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-token-in-dotenv-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/path-guard: {}
+
+  .claude/hooks/paths-mts-inherit-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/perfectionist-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/plan-location-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/plan-review-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/prefer-rebase-over-revert-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/pull-request-target-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/release-workflow-guard:
+    devDependencies:
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/setup-security-tools:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 'catalog:'
+        version: 0.34.49
+      '@socketregistry/packageurl-js-stable':
+        specifier: npm:@socketregistry/packageurl-js@1.4.2
+        version: '@socketregistry/packageurl-js@1.4.2'
+      '@socketsecurity/lib-stable':
+        specifier: npm:@socketsecurity/lib@5.28.0
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+
+  .claude/hooks/stale-process-sweeper: {}
+
+  .claude/hooks/token-guard: {}
+
+  .claude/hooks/variant-analysis-reminder:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/version-bump-order-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
 packages:
 
   '@anthropic-ai/mcpb@1.2.0':
@@ -76,7 +368,7 @@ packages:
     resolution: {integrity: sha512-TsQLe4i2gvoTtrHje625ngThGBySOgSK3Xo2XRYOdqGN1teR8+I7vchQC46uLJi8OF62YTYA3AhSpumtkhsaKQ==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: 4.12.18
+      hono: ^4
 
   '@inquirer/checkbox@3.0.1':
     resolution: {integrity: sha512-0hm2nrToWUdD6/UHnel/UKGdk1//ke5zGUpHIvk5ZWmaKezlGxZkOJXNSWsdxO/rEqTkbB3lNC2J6nBElV2aAQ==}
@@ -139,7 +431,7 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
-      zod: 3.25.76
+      zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
@@ -191,48 +483,56 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@oxfmt/binding-linux-arm64-musl@0.37.0':
     resolution: {integrity: sha512-EZj3TurW1iLbq+7tBr++wsxwFyD+pvjMrTNRuSynDrs8J7w46cu/ZIzU/lFw7OG1/tDRDZ9nrKXxwbvIKXo2zA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@oxfmt/binding-linux-ppc64-gnu@0.37.0':
     resolution: {integrity: sha512-ELXrDe1xRj+f7VpzJO2j54izMbi+Hov+kdqusXO3T1BwVEbA5sWgZrVMqkwEsj4k6Lw/obJK1SLUeNulR1D//g==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@oxfmt/binding-linux-riscv64-gnu@0.37.0':
     resolution: {integrity: sha512-79gMZgLD62dGmo5Xl4gaMc6NHRFj3GuxPrchHBlW54tcRSXTtb3gLh/J6Bl8nbbzSFRQGR7dkNQ8yYadXt6txQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@oxfmt/binding-linux-riscv64-musl@0.37.0':
     resolution: {integrity: sha512-QFdi9OhyWxnh975jeG490atcINXZwZb7epyNASPaT4wcodOTuDitrDgSPT8CFl8BcGOFTGZ6c3P/s8Afeg1Ngg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@oxfmt/binding-linux-s390x-gnu@0.37.0':
     resolution: {integrity: sha512-qweAj7+pLFQXfe3UU7EZiOmo+/2SWjzVZjyyTDcrZAT0E92zEKJBvYpHinUAOqipfo2Xlp8GIfq0FSb5Tmqd8g==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@oxfmt/binding-linux-x64-gnu@0.37.0':
     resolution: {integrity: sha512-Lqc/0vS20qzZLw1ThpWn1hQgRqj4rM+E7PuBzrqp+wLH5lYFqieAiontGpl2pMPvJ0QrmQYav9mslHlAB5kOSQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@oxfmt/binding-linux-x64-musl@0.37.0':
     resolution: {integrity: sha512-TnJm22+1cEcpYXzbcXS5Z9+9c+R0ronFdx5bG4OTdOL/wSpQQKzc2izgAXJ03QkP3tq7aAPhlhhxasvH3xgoUA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@oxfmt/binding-openharmony-arm64@0.37.0':
     resolution: {integrity: sha512-YLq27qMur3hPUponvV3Zr0oHxowox71j3+nc+/oCc1O+M0zFafhd6AoAoCiRrSYRW+asWhz3/UMPh0bYpimcMw==}
@@ -305,48 +605,56 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@oxlint/binding-linux-arm64-musl@1.52.0':
     resolution: {integrity: sha512-54wxvb1Pztz0GMgTLUG9HsH8uhZSL4UbG7n4PDxWIRT9TygTVYKfD6D7iasYdKg6ZpWB5Y86VMxgjSJpR/Y7bQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@oxlint/binding-linux-ppc64-gnu@1.52.0':
     resolution: {integrity: sha512-A82Zks1lJyLclrj8n2tJPHOw2ieZXCaBctnCarS1BRlPQMC1Y98vWCLqgvg9ssWy5ZAja0IjUHN1cYsp53mrqA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@oxlint/binding-linux-riscv64-gnu@1.52.0':
     resolution: {integrity: sha512-ci89Ou+u9vnA0r4eQqGm/KPEkpea+QEtZCLKkrOAD/K5ZBwjS8ToID6aMgsDbIOJUNBGufsmX0iCC7EWrNKQFA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@oxlint/binding-linux-riscv64-musl@1.52.0':
     resolution: {integrity: sha512-3/+DVDWajFSu69TaYnKkoUgMEcHR3puO8TcBu3fPCKRhbLjgwDiYIVRdvQX0QaSjkNPJARmpYq7vlPHWNo2cUA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@oxlint/binding-linux-s390x-gnu@1.52.0':
     resolution: {integrity: sha512-BU7CbceOh00NDmY1IYr72qZoj4sJVHB9DCL2tIq2vyNllNJIpZWTxqlzdqmC4FViXWMy8kZNkOa+SdauH+EcoQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@oxlint/binding-linux-x64-gnu@1.52.0':
     resolution: {integrity: sha512-JUVZ6TKYl1yArS3xGsNLQlZxgVpjNKtZFja6VxSTDy2ToN7H58PiDRcxWoN2XoIcWlHSvK7pkIPFNOyzdEJ23A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@oxlint/binding-linux-x64-musl@1.52.0':
     resolution: {integrity: sha512-IatLKG6UUbIbTBjBZ9SIAYp4SIvOpYIXPXn9cMLqWxh9HrHsu0fLNL+VQ67y4vdlIleYLeuIHkAp3M6saIN1RQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@oxlint/binding-openharmony-arm64@1.52.0':
     resolution: {integrity: sha512-CWgJ6FepHryuc/lgQWStFf3lcvEkbFLSa9zqO0D0QLVfrdg43I4XItKpL/bnfm4n7obzwgG8j8sBggdoxJQKfw==}
@@ -375,6 +683,13 @@ packages:
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
+  '@sinclair/typebox@0.34.49':
+    resolution: {integrity: sha512-brySQQs7Jtn0joV8Xh9ZV/hZb9Ozb0pmazDIASBkYKCjXrXU3mpcFahmK/z4YDhGkQvP9mWJbVyahdtU5wQA+A==}
+
+  '@socketregistry/packageurl-js@1.4.2':
+    resolution: {integrity: sha512-yt9UfUzD02wZ7kwb67oe4jxG2D9JtgPqjrK/ans2BovFyeie0w8hvRR0MuOWM4mUt2371oFPp7NB6O5ZjYJmlw==}
+    engines: {node: '>=18.20.8', pnpm: '>=11.0.0-rc.0'}
+
   '@socketsecurity/lib@5.28.0':
     resolution: {integrity: sha512-SVVq+ODU3H6KAQXwaANnnq2sNHj+JgHM67R0ww93V8J38upiSUlUR8Mxx3P5mo922B+gY6WNFU0zSJfEOjbKew==}
     engines: {node: '>=22', pnpm: '>=11.0.6'}
@@ -385,6 +700,10 @@ packages:
       typescript:
         optional: true
 
+  '@socketsecurity/sdk@4.0.1':
+    resolution: {integrity: sha512-fe3DQp2dFwhc0G6Za36GIMSV+QaPAP5L96K3ZOtywt9nhbwxc9IQwqzdOVztdn5Rbez3t9EHU9Esj24/hWdP0g==}
+    engines: {node: '>=18.20.8', pnpm: '>=11.0.0-rc.0'}
+
   '@types/mute-stream@0.0.4':
     resolution: {integrity: sha512-CPM9nzrCPPJHQNA9keH9CVkVI+WR5kMa+7XEs5jcGQ0VoAGnLv242w8lIVgwAEfmE4oufJRaTc9PNLQl0ioAow==}
 
@@ -393,6 +712,9 @@ packages:
 
   '@types/node@24.12.0':
     resolution: {integrity: sha512-GYDxsZi3ChgmckRT9HPU0WEhKLP08ev/Yfcq2AstjrDASOYCSXeyjDsHg4v5t4jOj7cyDX3vmprafKlWIG9MXQ==}
+
+  '@types/node@24.9.2':
+    resolution: {integrity: sha512-uWN8YqxXxqFMX2RqGOrumsKeti4LlmIMIyV0lgut4jx7KQBcBiW6vkDtIBvHnHIquwNfJhk8v2OtmO8zXWHfPA==}
 
   '@types/semver@7.7.1':
     resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
@@ -514,6 +836,10 @@ packages:
     resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
     engines: {node: '>=18'}
 
+  compromise@14.15.0:
+    resolution: {integrity: sha512-YEMv5JGWyqRJw5hdZqDVQF3MMlHA6TRiXreR8IYffk6xB7GA5p/8DeDzvg0Jy2tHNGpD+qJGl0+oJwA+5R/sVA==}
+    engines: {node: '>=12.0.0'}
+
   content-disposition@1.0.1:
     resolution: {integrity: sha512-oIXISMynqSqm241k6kcQ5UwttDILMK4BiurCfGEREw6+X9jkkpEe5T9FZaApyLGGOnFuyMWZpdolTXMtvEJ08Q==}
     engines: {node: '>=18'}
@@ -560,6 +886,10 @@ packages:
 
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
+
+  efrt@2.7.0:
+    resolution: {integrity: sha512-/RInbCy1d4P6Zdfa+TMVsf/ufZVotat5hCw3QXmWtjU+3pFEOvOQ7ibo3aIxyCJw2leIeAMjmPj+1SLJiCpdrQ==}
+    engines: {node: '>=12.0.0'}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -669,6 +999,10 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
+  grad-school@0.0.5:
+    resolution: {integrity: sha512-rXunEHF9M9EkMydTBux7+IryYXEZinRk6g8OBOGDBzo/qWJjhTxy86i5q7lQYpCLHN8Sqv1XX3OIOc7ka2gtvQ==}
+    engines: {node: '>=8.0.0'}
+
   has-symbols@1.1.0:
     resolution: {integrity: sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==}
     engines: {node: '>= 0.4'}
@@ -703,8 +1037,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  ip-address@10.1.1:
-    resolution: {integrity: sha512-1FMu8/N15Ck1BL551Jf42NYIoin2unWjLQ2Fze/DXryJRl5twqtwNHlO39qERGbIOcKYWHdgRryhOC+NG4eaLw==}
+  ip-address@10.1.0:
+    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -1001,6 +1335,9 @@ packages:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
 
+  suffix-thumb@5.0.2:
+    resolution: {integrity: sha512-I5PWXAFKx3FYnI9a+dQMWNqTxoRt6vdBdb0O+BJ1sxXCWtSoQCusc13E58f+9p4MYx/qCnEMkD5jac6K2j3dgA==}
+
   thread-stream@4.0.0:
     resolution: {integrity: sha512-4iMVL6HAINXWf1ZKZjIPcz5wYaOdPhtO8ATvZ+Xqp3BTdaqtAwQkNmKORqcIo5YkQqGXq5cwfswDwMqqQNrpJA==}
     engines: {node: '>=20'}
@@ -1072,7 +1409,7 @@ packages:
   zod-to-json-schema@3.25.1:
     resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
     peerDependencies:
-      zod: 3.25.76
+      zod: ^3.25 || ^4
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
@@ -1331,9 +1668,15 @@ snapshots:
 
   '@pinojs/redact@0.4.0': {}
 
+  '@sinclair/typebox@0.34.49': {}
+
+  '@socketregistry/packageurl-js@1.4.2': {}
+
   '@socketsecurity/lib@5.28.0(typescript@5.9.3)':
     optionalDependencies:
       typescript: 5.9.3
+
+  '@socketsecurity/sdk@4.0.1': {}
 
   '@types/mute-stream@0.0.4':
     dependencies:
@@ -1344,6 +1687,10 @@ snapshots:
       undici-types: 6.21.0
 
   '@types/node@24.12.0':
+    dependencies:
+      undici-types: 7.16.0
+
+  '@types/node@24.9.2':
     dependencies:
       undici-types: 7.16.0
 
@@ -1454,6 +1801,12 @@ snapshots:
 
   commander@13.1.0: {}
 
+  compromise@14.15.0:
+    dependencies:
+      efrt: 2.7.0
+      grad-school: 0.0.5
+      suffix-thumb: 5.0.2
+
   content-disposition@1.0.1: {}
 
   content-type@1.0.5: {}
@@ -1489,6 +1842,8 @@ snapshots:
 
   ee-first@1.1.1: {}
 
+  efrt@2.7.0: {}
+
   emoji-regex@8.0.0: {}
 
   encodeurl@2.0.0: {}
@@ -1518,7 +1873,7 @@ snapshots:
   express-rate-limit@8.3.1(express@5.2.1):
     dependencies:
       express: 5.2.1
-      ip-address: 10.1.1
+      ip-address: 10.1.0
 
   express@5.2.1:
     dependencies:
@@ -1629,6 +1984,8 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
+  grad-school@0.0.5: {}
+
   has-symbols@1.1.0: {}
 
   hasown@2.0.2:
@@ -1659,7 +2016,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ip-address@10.1.1: {}
+  ip-address@10.1.0: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -1976,6 +2333,8 @@ snapshots:
       ansi-regex: 5.0.1
 
   strip-json-comments@5.0.3: {}
+
+  suffix-thumb@5.0.2: {}
 
   thread-stream@4.0.0:
     dependencies:
