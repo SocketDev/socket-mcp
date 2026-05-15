@@ -11,10 +11,7 @@ describe('socket/personal-path-placeholders', () => {
   test('valid + invalid cases', () => {
     new RuleTester().run('personal-path-placeholders', rule, {
       valid: [
-        {
-          name: 'placeholder path',
-          code: 'const p = "/Users/<user>/projects/foo"\n',
-        },
+        { name: 'placeholder path', code: 'const p = "/Users/<user>/projects/foo"\n' },
         { name: 'no path mention', code: 'export const x = 1\n' },
       ],
       invalid: [

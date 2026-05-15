@@ -37,6 +37,9 @@
  */
 
 /** @type {import('eslint').Rule.RuleModule} */
+
+import type { AstNode, RuleContext } from '../lib/rule-types.mts'
+
 const rule = {
   meta: {
     type: 'problem',
@@ -49,12 +52,12 @@ const rule = {
     fixable: undefined,
     messages: {
       processCwd:
-        "`process.cwd()` is unstable in scripts/ and .claude/hooks/ — the user (or Claude Code) may invoke this from any directory. Anchor on the script's own location: `path.dirname(fileURLToPath(import.meta.url))` + walk-up, or read `$CLAUDE_PROJECT_DIR` inside hooks.",
+        '`process.cwd()` is unstable in scripts/ and .claude/hooks/ — the user (or Claude Code) may invoke this from any directory. Anchor on the script\'s own location: `path.dirname(fileURLToPath(import.meta.url))` + walk-up, or read `$CLAUDE_PROJECT_DIR` inside hooks.',
     },
     schema: [],
   },
 
-  create(context) {
+  create(context: RuleContext) {
     const filename = context.filename ?? context.getFilename?.() ?? ''
     // Only enforce on scripts/ + .claude/hooks/ paths.
     if (
@@ -67,7 +70,7 @@ const rule = {
     }
 
     return {
-      CallExpression(node) {
+      CallExpression(node: AstNode) {
         const callee = node.callee
         if (
           callee.type !== 'MemberExpression' ||

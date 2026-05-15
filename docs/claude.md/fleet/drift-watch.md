@@ -45,8 +45,8 @@ FLEET-CANONICAL` markers) — must be byte-identical across the
 3. **`socket-wheelhouse`'s `template/` tree** is the canonical
    source for `.claude/`, CLAUDE.md fleet block, and hook code.
    Diverging is drift.
-4. **`pnpm run sync-scaffolding`** (in repos that have it) surfaces
-   drift programmatically.
+4. **`node scripts/sync-scaffolding/cli.mts --all`** (in socket-wheelhouse)
+   surfaces drift programmatically.
 
 ## Never silently let drift sit
 
