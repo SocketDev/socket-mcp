@@ -61,7 +61,6 @@
   "dependencies": {
     "@anthropic-ai/mcpb": "^1.1.0",
     "@modelcontextprotocol/sdk": "1.26.0",
-    "@socketsecurity/lib": "5.28.0",
     "@socketsecurity/lib-stable": "npm:@socketsecurity/lib@5.28.0",
     "packageurl-js": "^2.0.1",
     "pino": "^10.0.0",

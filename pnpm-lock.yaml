@@ -26,9 +26,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(zod@3.25.76)
-      '@socketsecurity/lib':
-        specifier: 5.28.0
-        version: 5.28.0(typescript@5.9.3)
       '@socketsecurity/lib-stable':
         specifier: npm:@socketsecurity/lib@5.28.0
         version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
