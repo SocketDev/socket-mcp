@@ -12,6 +12,16 @@
  * insertion safely — only one survives.
  */
 
+import type { AstNode, RuleFixer } from '../lib/rule-types.mts'
+
+export interface ImportSummary {
+  hasImport: boolean
+  hasLocal: boolean
+  lastImport: AstNode | undefined
+}
+
+export type FixerOp = unknown
+
 /**
  * Walk a Program node body once and figure out:
  *   - the last top-level ImportDeclaration node (or undefined)
@@ -32,13 +42,13 @@
  * inject if the import were missing).
  */
 export function summarizeImportTarget(
-  program,
+  program: AstNode,
   // eslint-disable-next-line no-unused-vars
-  specifier,
-  importName,
-  localName,
-) {
-  let lastImport
+  _specifier: string,
+  importName: string,
+  localName?: string,
+): ImportSummary {
+  let lastImport: AstNode | undefined
   let hasImport = false
   let hasLocal = false
   for (const stmt of program.body) {
@@ -65,15 +75,36 @@ export function summarizeImportTarget(
       }
       continue
     }
-    if (localName && stmt.type === 'VariableDeclaration') {
-      for (const decl of stmt.declarations) {
-        if (
-          decl.id &&
-          decl.id.type === 'Identifier' &&
-          decl.id.name === localName
-        ) {
-          hasLocal = true
-        }
+    if (!localName) {
+      continue
+    }
+    // A top-level `const localName = ...` (with or without `export`).
+    // The legacy walk only looked at bare `VariableDeclaration`; an
+    // `export const logger = ...` is an `ExportNamedDeclaration`
+    // whose `.declaration` is the VariableDeclaration. Missing that
+    // branch caused the autofix to inject a duplicate
+    // `const logger = ...` hoist into files that already exported
+    // their own `logger` (see scripts/cascade-tooling/logger.mts
+    // pre-fix — `export const logger = {...}` got an extra
+    // `const logger = getDefaultLogger()` hoisted above it).
+    const varDecl =
+      stmt.type === 'VariableDeclaration'
+        ? stmt
+        : stmt.type === 'ExportNamedDeclaration' &&
+            stmt.declaration &&
+            stmt.declaration.type === 'VariableDeclaration'
+          ? stmt.declaration
+          : undefined
+    if (!varDecl) {
+      continue
+    }
+    for (const decl of varDecl.declarations) {
+      if (
+        decl.id &&
+        decl.id.type === 'Identifier' &&
+        decl.id.name === localName
+      ) {
+        hasLocal = true
       }
     }
   }
@@ -90,8 +121,13 @@ export function summarizeImportTarget(
  *   importLine    — the literal `import { ... } from '...'` text
  *   hoistLine     — optional; the literal `const x = ...()` text
  */
-export function appendImportFixes(summary, fixer, importLine, hoistLine) {
-  const ops = []
+export function appendImportFixes(
+  summary: ImportSummary,
+  fixer: RuleFixer,
+  importLine: string,
+  hoistLine?: string,
+): FixerOp[] {
+  const ops: FixerOp[] = []
   if (!summary.hasImport) {
     if (summary.lastImport) {
       ops.push(fixer.insertTextAfter(summary.lastImport, `\n${importLine}`))
