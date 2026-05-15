@@ -13,9 +13,9 @@ import { buildPurl } from './purl.ts'
 import { VERSION } from './version.ts'
 
 interface DepscorePackageInput {
-  ecosystem?: string
+  ecosystem?: string | undefined
   depname: string
-  version?: string
+  version?: string | undefined
 }
 
 interface ToolErrorResult {

@@ -45,7 +45,7 @@ const rule = {
       pathLiteral:
         'Cache path `{{value}}` should live under `node_modules/.cache/`, not repo-root `.cache/`. Fleet convention puts per-repo tool caches in `node_modules/.cache/<name>` (auto-gitignored, swept on `pnpm install`).',
       pathJoin:
-        '`path.join(..., \'.cache\', ...)` puts the cache at repo root. Use `path.join(<pkgRoot>, \'node_modules\', \'.cache\', <name>)` instead.',
+        "`path.join(..., '.cache', ...)` puts the cache at repo root. Use `path.join(<pkgRoot>, 'node_modules', '.cache', <name>)` instead.",
     },
     schema: [],
   },
@@ -75,7 +75,9 @@ const rule = {
       const raw =
         node.type === 'TemplateElement'
           ? (node.value?.cooked ?? '')
-          : (typeof node.value === 'string' ? node.value : '')
+          : typeof node.value === 'string'
+            ? node.value
+            : ''
       if (!raw) return false
       if (!REPO_CACHE_STRING_RE.test(raw)) return false
       if (isNodeModulesCache(raw)) return false
@@ -129,9 +131,7 @@ const rule = {
     function checkLiteral(node) {
       if (!isRepoRootCacheString(node)) return
       const value =
-        node.type === 'TemplateElement'
-          ? node.value?.cooked
-          : node.value
+        node.type === 'TemplateElement' ? node.value?.cooked : node.value
       context.report({
         node,
         messageId: 'pathLiteral',

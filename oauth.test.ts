@@ -73,8 +73,8 @@ async function assertOAuthErrorResponse(
   },
 ): Promise<void> {
   const body = (await response.json()) as {
-    error?: string
-    error_description?: string
+    error?: string | undefined
+    error_description?: string | undefined
   }
 
   assert.equal(response.status, expected.status)
@@ -285,8 +285,8 @@ test('HTTP OAuth metadata and auth semantics', async t => {
         `${server.baseUrl}${protectedResourceMetadataPath}`,
       )
       const metadata = (await response.json()) as {
-        authorization_servers?: string[]
-        resource?: string
+        authorization_servers?: string[] | undefined
+        resource?: string | undefined
       }
 
       assert.equal(response.status, 200)
@@ -307,7 +307,7 @@ test('HTTP OAuth metadata and auth semantics', async t => {
           },
         },
       )
-      const metadata = (await response.json()) as { resource?: string }
+      const metadata = (await response.json()) as { resource?: string | undefined }
 
       assert.equal(response.status, 200)
       assert.equal(metadata.resource, `${server.baseUrl}/`)
@@ -402,7 +402,7 @@ test('HTTP OAuth metadata and auth semantics', async t => {
       })
 
       const body = (await response.json()) as {
-        result?: { serverInfo?: { name?: string } }
+        result?: { serverInfo?: { name?: string | undefined } | undefined } | undefined
       }
 
       assert.equal(response.status, 200)
@@ -431,7 +431,7 @@ test('TRUST_PROXY enables forwarded host and proto for OAuth metadata URLs', asy
       },
     },
   )
-  const metadata = (await response.json()) as { resource?: string }
+  const metadata = (await response.json()) as { resource?: string | undefined }
 
   assert.equal(response.status, 200)
   assert.equal(metadata.resource, 'https://proxy.example.com/')

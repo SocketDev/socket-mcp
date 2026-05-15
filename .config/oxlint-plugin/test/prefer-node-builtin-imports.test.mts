@@ -11,8 +11,14 @@ describe('socket/prefer-node-builtin-imports', () => {
   test('valid + invalid cases', () => {
     new RuleTester().run('prefer-node-builtin-imports', rule, {
       valid: [
-        { name: 'node: prefix', code: 'import path from "node:path"\nconsole.log(path)\n' },
-        { name: 'node:fs', code: 'import { readFileSync } from "node:fs"\nreadFileSync("/x")\n' },
+        {
+          name: 'node: prefix',
+          code: 'import path from "node:path"\nconsole.log(path)\n',
+        },
+        {
+          name: 'node:fs',
+          code: 'import { readFileSync } from "node:fs"\nreadFileSync("/x")\n',
+        },
       ],
       invalid: [
         {

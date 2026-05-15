@@ -77,7 +77,7 @@ export function getRequestBaseUrl(
     forwardedHost ||
     getRequestHeaderValue(req.headers.host).trim() ||
     `localhost:${fallbackPort}`
-  const socketWithTls = req.socket as { encrypted?: boolean }
+  const socketWithTls = req.socket as { encrypted?: boolean | undefined }
   const protocol =
     forwardedProto === 'http' || forwardedProto === 'https'
       ? forwardedProto
