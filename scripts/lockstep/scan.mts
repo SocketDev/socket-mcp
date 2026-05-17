@@ -33,9 +33,8 @@ export function walkDirFiles(dir: string, extRe: RegExp): string[] {
     } catch {
       continue
     }
-    for (let i = 0, { length } = entries; i < length; i += 1) {
-      const entry = entries[i]!
-      if (entry === '.git' || entry === 'dist' || entry === 'node_modules') {
+    for (const entry of entries) {
+      if (entry === 'node_modules' || entry === '.git' || entry === 'dist') {
         continue
       }
       const full = path.join(current, entry)
@@ -63,8 +62,7 @@ export function countPatternHits(files: string[], patterns: string[]): number {
   // pattern and keep going rather than throwing a SyntaxError that
   // kills the whole run.
   const compiled: RegExp[] = []
-  for (let i = 0, { length } = patterns; i < length; i += 1) {
-    const p = patterns[i]!
+  for (const p of patterns) {
     try {
       compiled.push(new RegExp(p))
     } catch (e) {
@@ -74,10 +72,8 @@ export function countPatternHits(files: string[], patterns: string[]): number {
     }
   }
   let hits = 0
-  for (let i = 0, { length } = compiled; i < length; i += 1) {
-    const pat = compiled[i]!
-    for (let i = 0, { length } = files; i < length; i += 1) {
-      const file = files[i]!
+  for (const pat of compiled) {
+    for (const file of files) {
       let content: string
       try {
         content = readFileSync(file, 'utf8')

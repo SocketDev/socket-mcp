@@ -17,10 +17,10 @@ export type Finding = {
 }
 
 export type AllowlistEntry = {
-  file?: string | undefined
-  pattern?: string | undefined
-  rule?: string | undefined
-  line?: number | undefined
-  snippet_hash?: string | undefined
+  file?: string
+  pattern?: string
+  rule?: string
+  line?: number
+  snippet_hash?: string
   reason: string
 }

@@ -237,9 +237,7 @@ export class RuleTester {
       return
     }
 
-    const tmpdir = mkdtempSync(
-      path.join(os.tmpdir(), `oxlint-test-${ruleName}-`),
-    )
+    const tmpdir = mkdtempSync(path.join(os.tmpdir(), `oxlint-test-${ruleName}-`))
     try {
       const configPath = path.join(tmpdir, '.oxlintrc.json')
       writeFileSync(configPath, buildConfig(ruleName))

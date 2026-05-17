@@ -157,6 +157,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
       continue
     }
     passthrough.push(arg)
+  
   }
   return { all, noAi, passthrough, staged }
 }
@@ -219,6 +220,7 @@ function bucketFindings(files: OxlintFile[]): Map<string, OxlintMessage[]> {
       continue
     }
     byFile.set(f.filePath, handled)
+  
   }
   return byFile
 }
@@ -244,6 +246,7 @@ function renderRuleGuidance(findings: OxlintMessage[]): string {
     if (f.ruleId) {
       seen.add(f.ruleId)
     }
+  
   }
   const entries = [...seen]
     .sort()

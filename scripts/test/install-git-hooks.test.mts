@@ -14,7 +14,7 @@
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import os from 'node:os'
+import { tmpdir } from 'node:os'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
@@ -63,10 +63,7 @@ test('install-git-hooks: sets core.hooksPath when .git + .git-hooks both present
   try {
     gitInit(dir)
     mkdirSync(path.join(dir, '.git-hooks'), { recursive: true })
-    writeFileSync(
-      path.join(dir, '.git-hooks', 'pre-commit'),
-      '#!/bin/sh\nexit 0\n',
-    )
+    writeFileSync(path.join(dir, '.git-hooks', 'pre-commit'), '#!/bin/sh\nexit 0\n')
 
     const result = runInstaller(dir)
     assert.strictEqual(result.code, 0, `installer stderr: ${result.stderr}`)

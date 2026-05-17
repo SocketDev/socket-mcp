@@ -13,13 +13,13 @@ import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
 export const SKIP_DIRS = new Set([
-  '.cache',
   '.git',
+  'node_modules',
   'build',
   'dist',
-  'node_modules',
   'out',
   'target',
+  '.cache',
   'upstream',
 ])
 
@@ -34,8 +34,7 @@ export const walk = function* (
   } catch {
     return
   }
-  for (let i = 0, { length } = entries; i < length; i += 1) {
-    const e = entries[i]!
+  for (const e of entries) {
     if (SKIP_DIRS.has(e.name)) {
       continue
     }

@@ -31,10 +31,7 @@ const logger = getDefaultLogger()
 async function run(
   cmd: string,
   args: string[],
-  {
-    label,
-    required = true,
-  }: { label?: string | undefined; required?: boolean | undefined } = {},
+  { label, required = true }: { label?: string; required?: boolean } = {},
 ): Promise<number> {
   try {
     const result = await spawn(cmd, args, {
