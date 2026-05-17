@@ -19,7 +19,7 @@
  *
  * This is the minimal zero-dependency reference implementation. Larger repos
  * (socket-lib, socket-registry, socket-sdk-js, etc.) use a richer version
- * based on @socketsecurity/lib-stable helpers; this one keeps the same CLI
+ * based on @socketsecurity/lib helpers; this one keeps the same CLI
  * contract so pre-commit hooks and CI work identically across repos.
  */
 
@@ -28,7 +28,7 @@ import type { ExecSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
 
 const logger = getDefaultLogger()
 

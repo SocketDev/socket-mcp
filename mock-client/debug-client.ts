@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import readline from 'node:readline'
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
 
 const logger = getDefaultLogger()
 

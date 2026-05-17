@@ -8,10 +8,10 @@ blockExoticSubdeps: true
 
 catalog:
   '@sinclair/typebox': 0.34.49
-  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@5.28.0
-  '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
-  '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
+  '@socketregistry/packageurl-js': 1.4.2
+  '@socketsecurity/lib': 5.28.0
+  '@socketsecurity/registry': 2.0.2
+  '@socketsecurity/sdk': 4.0.1
   '@types/mdast': 4.0.4
   '@types/node': 24.9.2
   '@typescript/native-preview': 7.0.0-dev.20260415.1
@@ -25,6 +25,17 @@ catalog:
   'taze': 19.9.2
   'vitest': 4.1.6
 enablePrePostScripts: true
+
+# Force every consumer of Socket's own packages to resolve through the
+# catalog-pinned published versions. The `catalog:` form rewrites
+# `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
+# in the default `catalog:` block above. This defeats accidental
+# local-checkout resolution when a sibling repo is on disk.
+overrides:
+  '@socketregistry/packageurl-js': 'catalog:'
+  '@socketsecurity/lib': 'catalog:'
+  '@socketsecurity/registry': 'catalog:'
+  '@socketsecurity/sdk': 'catalog:'
 
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:

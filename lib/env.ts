@@ -2,9 +2,9 @@
  * @fileoverview mcp-local env getters.
  *
  * Functions that `lib/*.ts` previously imported from
- * `@socketsecurity/lib-stable/env/socket`, but which aren't exported
- * by `lib@5.28.0` (the version `lib-stable` pins to). The functions
- * fall into two groups:
+ * `@socketsecurity/lib/env/socket`, but which aren't exported
+ * by `lib@5.28.0` (the version pinned in the catalog). The
+ * functions fall into two groups:
  *
  *   1. mcp-specific (MCP_HTTP_MODE, MCP_PORT, TRUST_PROXY) — these
  *      will never live in the canonical socket-lib env surface; they
@@ -20,7 +20,7 @@
 
 import process from 'node:process'
 
-import { getSocketApiBaseUrl } from '@socketsecurity/lib-stable/env/socket'
+import { getSocketApiBaseUrl } from '@socketsecurity/lib/env/socket'
 
 export function envBool(key: string): boolean {
   const v = process.env[key]
@@ -62,7 +62,7 @@ export const getSocketApiUrl = getSocketApiBaseUrl
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with
-// a re-export from lib-stable.
+// a re-export from @socketsecurity/lib.
 
 export function getSocketOauthIntrospectionClientId(): string | undefined {
   return envString('SOCKET_OAUTH_INTROSPECTION_CLIENT_ID')
