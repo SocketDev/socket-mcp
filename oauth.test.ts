@@ -245,7 +245,7 @@ test('stdio mode ignores partial OAuth config', async t => {
     args: ['--experimental-strip-types', serverPath],
     env: {
       ...inheritedEnv,
-      SOCKET_API_KEY: 'test-api-key',
+      SOCKET_API_TOKEN: 'test-api-token',
       SOCKET_OAUTH_ISSUER: 'https://issuer.example.test',
     },
   })
