@@ -25,20 +25,26 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 (2026-05-15)
         with:
           persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0 (2026-05-18)
+        with:
+          run_install: false
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0 (2026-05-15)
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           scope: '@socketregistry'
-          package-manager-cache: false
-      - run: npm install -g npm@latest
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Build package
-        run: npm run build
+        run: pnpm run build
       - name: Get package version
         id: package-version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-      - run: npm pack
+      - run: pnpm pack
+      # `pnpm publish --provenance` forwards to `npm publish --provenance`
+      # for sigstore attestation; keep `npm publish` here for explicitness
+      # so the provenance path is obvious in the workflow.
       - run: npm publish --provenance --access public
         env:
           SOCKET_CLI_DEBUG: ${{ inputs.debug }}
