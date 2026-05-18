@@ -1,5 +1,5 @@
 /**
- * @fileoverview Unit tests for socket/inclusive-language.
+ * @file Unit tests for socket/inclusive-language.
  */
 
 import { describe, test } from 'node:test'
@@ -11,8 +11,14 @@ describe('socket/inclusive-language', () => {
   test('valid + invalid cases', () => {
     new RuleTester().run('inclusive-language', rule, {
       valid: [
-        { name: 'allowlist usage', code: 'const allowlist = ["a"]\nconsole.log(allowlist)\n' },
-        { name: 'main branch', code: 'const branch = "main"\nconsole.log(branch)\n' },
+        {
+          name: 'allowlist usage',
+          code: 'const allowlist = ["a"]\nconsole.log(allowlist)\n',
+        },
+        {
+          name: 'main branch',
+          code: 'const branch = "main"\nconsole.log(branch)\n',
+        },
       ],
       invalid: [
         {

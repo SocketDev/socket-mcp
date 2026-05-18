@@ -1,5 +1,5 @@
 /**
- * @fileoverview Unit tests for socket/no-placeholders.
+ * @file Unit tests for socket/no-placeholders.
  */
 
 import { describe, test } from 'node:test'
@@ -11,8 +11,14 @@ describe('socket/no-placeholders', () => {
   test('valid + invalid cases', () => {
     new RuleTester().run('no-placeholders', rule, {
       valid: [
-        { name: 'real implementation', code: 'export function foo() { return 1 }\n' },
-        { name: 'normal comment', code: '// explains the constraint\nexport const x = 1\n' },
+        {
+          name: 'real implementation',
+          code: 'export function foo() { return 1 }\n',
+        },
+        {
+          name: 'normal comment',
+          code: '// explains the constraint\nexport const x = 1\n',
+        },
       ],
       invalid: [
         {

@@ -178,7 +178,7 @@ function addTouchedFromBash(command: string, touched: Set<string>): void {
   }
 }
 
-function getRepoDir(payload: ToolInput): string {
+function getRepoDir(): string {
   return process.env['CLAUDE_PROJECT_DIR'] || process.cwd()
 }
 
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     process.exit(0)
   }
 
-  const repoDir = getRepoDir(payload)
+  const repoDir = getRepoDir()
   const transcriptPath = payload.transcript_path
 
   // ── Layer 1: block `git add -A` / `.` / `-u` ─────────────────────
@@ -219,7 +219,7 @@ async function main(): Promise<void> {
         `[overeager-staging-guard] Blocked: ${broad}`,
         '',
         '  This sweeps the entire working tree into the index.',
-        '  In a parallel-session repo, that pulls in another agent\'s',
+        "  In a parallel-session repo, that pulls in another agent's",
         '  unstaged edits and they get swept into your next commit.',
         '',
         '  Fix: stage by explicit path.',

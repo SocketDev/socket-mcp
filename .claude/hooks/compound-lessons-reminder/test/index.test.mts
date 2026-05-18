@@ -1,4 +1,3 @@
-// @ts-expect-error - node:test types via @types/node@catalog work at runtime
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -10,7 +9,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HOOK_PATH = path.join(__dirname, '..', 'index.mts')
 
-interface ToolUse { name: string; input: Record<string, unknown> }
+interface ToolUse {
+  name: string
+  input: Record<string, unknown>
+}
 
 function makeTranscript(
   assistantText: string,
@@ -20,16 +22,26 @@ function makeTranscript(
   const transcriptPath = path.join(dir, 'session.jsonl')
   const content: object[] = [{ type: 'text', text: assistantText }]
   for (let i = 0, { length } = toolUses; i < length; i += 1) {
-    content.push({ type: 'tool_use', name: toolUses[i]!.name, input: toolUses[i]!.input })
+    content.push({
+      type: 'tool_use',
+      name: toolUses[i]!.name,
+      input: toolUses[i]!.input,
+    })
   }
   writeFileSync(
     transcriptPath,
     [
       JSON.stringify({ role: 'user', content: 'hi' }),
-      JSON.stringify({ type: 'assistant', message: { role: 'assistant', content } }),
+      JSON.stringify({
+        type: 'assistant',
+        message: { role: 'assistant', content },
+      }),
     ].join('\n'),
   )
-  return { path: transcriptPath, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
+  return {
+    path: transcriptPath,
+    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  }
 }
 
 function runHook(transcriptPath: string): { stderr: string; exitCode: number } {
@@ -93,7 +105,12 @@ test('flags "we have seen this before"', () => {
 test('does NOT flag when CLAUDE.md was edited (rule promotion)', () => {
   const { path: p, cleanup } = makeTranscript(
     'Hitting the same regex bug again. Promoting to a rule.',
-    [{ name: 'Edit', input: { file_path: '/repo/template/CLAUDE.md', new_string: '...' } }],
+    [
+      {
+        name: 'Edit',
+        input: { file_path: '/repo/template/CLAUDE.md', new_string: '...' },
+      },
+    ],
   )
   try {
     const { stderr, exitCode } = runHook(p)
@@ -107,7 +124,15 @@ test('does NOT flag when CLAUDE.md was edited (rule promotion)', () => {
 test('does NOT flag when a new hook is added', () => {
   const { path: p, cleanup } = makeTranscript(
     'Second time hitting this. Adding a hook for it.',
-    [{ name: 'Write', input: { file_path: '/repo/template/.claude/hooks/new-rule/index.mts', content: '...' } }],
+    [
+      {
+        name: 'Write',
+        input: {
+          file_path: '/repo/template/.claude/hooks/new-rule/index.mts',
+          content: '...',
+        },
+      },
+    ],
   )
   try {
     const { stderr } = runHook(p)

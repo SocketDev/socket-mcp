@@ -1,4 +1,3 @@
-// @ts-expect-error - node:test types via @types/node@catalog work at runtime
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -10,7 +9,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HOOK_PATH = path.join(__dirname, '..', 'index.mts')
 
-function makeTranscript(assistantText: string): { path: string; cleanup: () => void } {
+function makeTranscript(assistantText: string): {
+  path: string
+  cleanup: () => void
+} {
   const dir = mkdtempSync(path.join(tmpdir(), 'comment-tone-'))
   const transcriptPath = path.join(dir, 'session.jsonl')
   const lines = [
@@ -18,15 +20,26 @@ function makeTranscript(assistantText: string): { path: string; cleanup: () => v
     JSON.stringify({ role: 'assistant', content: assistantText }),
   ].join('\n')
   writeFileSync(transcriptPath, lines)
-  return { path: transcriptPath, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
+  return {
+    path: transcriptPath,
+    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  }
 }
 
-function runHook(transcriptPath: string): { stdout: string; stderr: string; exitCode: number } {
+function runHook(transcriptPath: string): {
+  stdout: string
+  stderr: string
+  exitCode: number
+} {
   const result = spawnSync('node', [HOOK_PATH], {
     input: JSON.stringify({ transcript_path: transcriptPath }),
     encoding: 'utf8',
   })
-  return { stdout: result.stdout, stderr: result.stderr, exitCode: result.status ?? -1 }
+  return {
+    stdout: result.stdout,
+    stderr: result.stderr,
+    exitCode: result.status ?? -1,
+  }
 }
 
 test('flags "first, we will" teacher-tone preamble', () => {
@@ -42,7 +55,9 @@ test('flags "first, we will" teacher-tone preamble', () => {
 })
 
 test('flags "note that" tutorial filler', () => {
-  const { path: p, cleanup } = makeTranscript('Note that the parser caches results.')
+  const { path: p, cleanup } = makeTranscript(
+    'Note that the parser caches results.',
+  )
   try {
     const { stderr } = runHook(p)
     assert.match(stderr, /note that/)
@@ -52,7 +67,9 @@ test('flags "note that" tutorial filler', () => {
 })
 
 test('flags "in order to" wordiness', () => {
-  const { path: p, cleanup } = makeTranscript('We use a cache in order to avoid recomputation.')
+  const { path: p, cleanup } = makeTranscript(
+    'We use a cache in order to avoid recomputation.',
+  )
   try {
     const { stderr } = runHook(p)
     assert.match(stderr, /in order to/)
@@ -62,7 +79,9 @@ test('flags "in order to" wordiness', () => {
 })
 
 test('does not flag plain prose', () => {
-  const { path: p, cleanup } = makeTranscript('The cache stores parsed results keyed by input.')
+  const { path: p, cleanup } = makeTranscript(
+    'The cache stores parsed results keyed by input.',
+  )
   try {
     const { stderr, exitCode } = runHook(p)
     assert.equal(exitCode, 0)
@@ -73,7 +92,9 @@ test('does not flag plain prose', () => {
 })
 
 test('does not false-positive on phrases inside code fences', () => {
-  const { path: p, cleanup } = makeTranscript('Plain output here.\n```\nnote that this is in code\n```\nMore prose.')
+  const { path: p, cleanup } = makeTranscript(
+    'Plain output here.\n```\nnote that this is in code\n```\nMore prose.',
+  )
   try {
     const { stderr } = runHook(p)
     assert.equal(stderr, '')
