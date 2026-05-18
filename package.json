@@ -10,7 +10,7 @@
     "node": ">=22.0.0",
     "npm": ">= 10"
   },
-  "packageManager": "pnpm@11.0.8",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "prepare": "node scripts/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
