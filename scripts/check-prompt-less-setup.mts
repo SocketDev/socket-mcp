@@ -32,12 +32,11 @@
  * whenever a fresh signing/keychain prompt surprises you.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-
-import { spawnSync } from '@socketsecurity/lib-stable/spawn'
 
 const logger = console
 
@@ -52,10 +51,6 @@ const CACHE_TTL_THRESHOLD_SECONDS = 28800
 
 function isMac(): boolean {
   return os.platform() === 'darwin'
-}
-
-function isLinux(): boolean {
-  return os.platform() === 'linux'
 }
 
 function readGpgAgentConf(): string | undefined {
