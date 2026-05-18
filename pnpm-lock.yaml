@@ -221,6 +221,12 @@ importers:
         specifier: 'catalog:'
         version: 24.9.2
 
+  .claude/hooks/lock-step-ref-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
   .claude/hooks/logger-guard:
     devDependencies:
       '@types/node':
@@ -236,6 +242,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.9.2
+
+  .claude/hooks/marketplace-comment-guard: {}
 
   .claude/hooks/new-hook-claude-md-guard:
     devDependencies:
@@ -254,6 +262,12 @@ importers:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
+  .claude/hooks/no-file-scope-oxlint-disable-guard:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
