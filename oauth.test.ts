@@ -211,6 +211,11 @@ async function startOAuthHttpServer(
       SOCKET_OAUTH_ISSUER: issuerBaseUrl,
       SOCKET_OAUTH_INTROSPECTION_CLIENT_ID: 'oauth-test-client-id',
       SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET: 'oauth-test-client-secret',
+      // Required scopes the test fixtures key off of. Without this,
+      // SOCKET_OAUTH_REQUIRED_SCOPES defaults to [] → the scope check
+      // is a no-op → 'token-with-wrong-scope' reaches handlePost and
+      // 500s instead of getting a 403 insufficient_scope from auth.
+      SOCKET_OAUTH_REQUIRED_SCOPES: 'packages:list',
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
