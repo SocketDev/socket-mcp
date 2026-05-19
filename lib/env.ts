@@ -59,6 +59,32 @@ export function getMcpPort(): number {
 // don't have to change.
 export const getSocketApiUrl = getSocketApiBaseUrl
 
+// API token resolution — lib@5.28.0's getSocketApiToken only reads
+// SOCKET_API_TOKEN. Local dev + CI configs already export
+// SOCKET_API_KEY (because more tools support that name), and
+// socket-cli ships SOCKET_CLI_API_TOKEN / SOCKET_SECURITY_API_TOKEN
+// for backward compatibility. Walk the same chain socket-lib's
+// unpublished src/env/socket.ts defines; once that ships, replace
+// this shim with `export { getSocketApiToken } from '@socketsecurity/lib/env/socket'`.
+const SOCKET_API_TOKEN_ENV_VARS = [
+  'SOCKET_API_TOKEN',
+  'SOCKET_API_KEY',
+  'SOCKET_CLI_API_TOKEN',
+  'SOCKET_CLI_API_KEY',
+  'SOCKET_SECURITY_API_TOKEN',
+  'SOCKET_SECURITY_API_KEY',
+] as const
+
+export function getSocketApiToken(): string | undefined {
+  for (const name of SOCKET_API_TOKEN_ENV_VARS) {
+    const v = envString(name)
+    if (v !== undefined) {
+      return v
+    }
+  }
+  return undefined
+}
+
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with

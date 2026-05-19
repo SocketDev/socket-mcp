@@ -239,30 +239,53 @@ async function startOAuthHttpServer(
   }
 }
 
-test('stdio mode ignores partial OAuth config', async t => {
-  const transport = new StdioClientTransport({
-    command: 'node',
-    args: ['--experimental-strip-types', serverPath],
-    env: {
-      ...inheritedEnv,
-      SOCKET_API_TOKEN: 'test-api-token',
-      SOCKET_OAUTH_ISSUER: 'https://issuer.example.test',
-    },
+// Both env-var names are valid entry points — the canonical name is
+// SOCKET_API_TOKEN, but SOCKET_API_KEY is the legacy alias more tools
+// (and most local-dev setups) export, so mcp's local getSocketApiToken
+// shim walks the fleet-canonical chain. Cover both so a future drop of
+// either alias surfaces here, not in a user report.
+const SOCKET_API_TOKEN_ALIASES = [
+  'SOCKET_API_TOKEN',
+  'SOCKET_API_KEY',
+  'SOCKET_CLI_API_TOKEN',
+  'SOCKET_CLI_API_KEY',
+  'SOCKET_SECURITY_API_TOKEN',
+  'SOCKET_SECURITY_API_KEY',
+] as const
+for (const tokenEnvVar of ['SOCKET_API_TOKEN', 'SOCKET_API_KEY']) {
+  test(`stdio mode ignores partial OAuth config (${tokenEnvVar})`, async t => {
+    // Strip every alias so we're exercising exactly the env-var name
+    // this case is parametrizing on — otherwise an inherited
+    // SOCKET_API_KEY on the dev machine would mask the
+    // SOCKET_API_TOKEN-only path.
+    const cleanEnv = { ...inheritedEnv }
+    for (const name of SOCKET_API_TOKEN_ALIASES) {
+      delete cleanEnv[name]
+    }
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: ['--experimental-strip-types', serverPath],
+      env: {
+        ...cleanEnv,
+        [tokenEnvVar]: 'test-api-token',
+        SOCKET_OAUTH_ISSUER: 'https://issuer.example.test',
+      },
+    })
+
+    const client = new Client(
+      { name: 'oauth-stdio-test-client', version: '1.0.0' },
+      { capabilities: {} },
+    )
+
+    t.after(async () => {
+      await client.close().catch(() => {})
+    })
+
+    await client.connect(transport)
+    const tools = await client.listTools()
+    assert.ok(tools.tools.some(tool => tool.name === 'depscore'))
   })
-
-  const client = new Client(
-    { name: 'oauth-stdio-test-client', version: '1.0.0' },
-    { capabilities: {} },
-  )
-
-  t.after(async () => {
-    await client.close().catch(() => {})
-  })
-
-  await client.connect(transport)
-  const tools = await client.listTools()
-  assert.ok(tools.tools.some(tool => tool.name === 'depscore'))
-})
+}
 
 test('HTTP OAuth metadata and auth semantics', async t => {
   const issuer = await startMockIssuer()

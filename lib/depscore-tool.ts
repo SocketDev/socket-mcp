@@ -1,9 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  getSocketApiToken,
-  getSocketDebug,
-} from '@socketsecurity/lib/env/socket'
-import { getSocketApiUrl } from './env.ts'
+import { getSocketDebug } from '@socketsecurity/lib/env/socket'
+import { getSocketApiToken, getSocketApiUrl } from './env.ts'
 import { httpRequest } from '@socketsecurity/lib/http-request'
 import { z } from 'zod'
 import { deduplicateArtifacts } from './artifacts.ts'
