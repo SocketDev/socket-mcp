@@ -24,6 +24,7 @@ catalog:
   'ecc-agentshield': 1.4.0
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
+  'npm-run-all2': 9.0.0
   'oxfmt': 0.37.0
   'oxlint': 1.52.0
   'taze': 19.9.2
@@ -48,6 +49,7 @@ minimumReleaseAgeExclude:
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - '@stuie/*'
+  - 'npm-run-all2@9.0.0'
 
 pmOnFail: error
 resolutionMode: highest

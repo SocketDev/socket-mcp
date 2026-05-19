@@ -103,5 +103,8 @@
     "oxlint": "1.52.0",
     "taze": "catalog:",
     "typescript": "~5.9.3"
+  },
+  "npm-run-all2": {
+    "nodeRun": true
   }
 }
