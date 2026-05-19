@@ -246,10 +246,18 @@ async function setupNpmTool(opts: NpmToolInstallOptions): Promise<boolean> {
 // ── cdxgen ──
 
 export async function setupCdxgen(): Promise<boolean> {
-  return setupNpmTool({
+  // cdxgen ships per-platform SEA binaries (slim variant by default —
+  // no bundled bun/deno runtimes, ~3× smaller than the full flavor).
+  // Falls through to the generic GitHub-release-tool helper. Platforms
+  // that aren't in the asset map quietly skip via the helper's
+  // "unsupported platform" warning path — none today (the slim matrix
+  // covers all 8 fleet targets).
+  return installGitHubReleaseTool({
     name: 'cdxgen',
     displayName: 'cdxgen',
     tool: CDXGEN,
+    binaryNameInArchive: 'cdxgen',
+    finalBinaryName: 'cdxgen',
   })
 }
 
@@ -874,17 +882,22 @@ async function main(): Promise<void> {
   logger.log('')
   const sfwOk = await setupSfw(apiToken)
   logger.log('')
-  // socket-basics SAST + secrets stack + janus (shared wheelhouse) —
-  // non-fatal if any individual tool fails (the basics workflow degrades
-  // cleanly when a scanner is absent; janus is opt-in and mac-only).
-  // Install in parallel since they don't share state.
-  const [trufflehogOk, trivyOk, opengrepOk, uvOk, janusOk] = await Promise.all([
-    setupTrufflehog(),
-    setupTrivy(),
-    setupOpengrep(),
-    setupUv(),
-    setupJanus(),
-  ])
+  // socket-basics SAST + secrets stack + janus (shared wheelhouse) +
+  // npm-only tools (cdxgen, synp) — non-fatal if any individual tool
+  // fails (the basics workflow degrades cleanly when a scanner is
+  // absent; janus is opt-in and mac-only; cdxgen + synp are consumed
+  // by socket-cli scan/lockfile codepaths). Install in parallel since
+  // they don't share state.
+  const [trufflehogOk, trivyOk, opengrepOk, uvOk, janusOk, cdxgenOk, synpOk] =
+    await Promise.all([
+      setupTrufflehog(),
+      setupTrivy(),
+      setupOpengrep(),
+      setupUv(),
+      setupJanus(),
+      setupCdxgen(),
+      setupSynp(),
+    ])
   logger.log('')
 
   logger.log('=== Summary ===')
@@ -896,6 +909,8 @@ async function main(): Promise<void> {
   logger.log(`OpenGrep:    ${opengrepOk ? 'ready' : 'FAILED'}`)
   logger.log(`uv:          ${uvOk ? 'ready' : 'FAILED'}`)
   logger.log(`janus:       ${janusOk ? 'ready' : 'FAILED'}`)
+  logger.log(`cdxgen:      ${cdxgenOk ? 'ready' : 'FAILED'}`)
+  logger.log(`synp:        ${synpOk ? 'ready' : 'FAILED'}`)
 
   const allOk =
     agentshieldOk &&
@@ -905,7 +920,9 @@ async function main(): Promise<void> {
     trivyOk &&
     opengrepOk &&
     uvOk &&
-    janusOk
+    janusOk &&
+    cdxgenOk &&
+    synpOk
   if (allOk) {
     logger.log('\nAll security tools ready.')
   } else {
