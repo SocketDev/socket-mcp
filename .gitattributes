@@ -184,6 +184,11 @@
 .claude/hooks/new-hook-claude-md-guard/package.json linguist-generated=true
 .claude/hooks/new-hook-claude-md-guard/test/index.test.mts linguist-generated=true
 .claude/hooks/new-hook-claude-md-guard/tsconfig.json linguist-generated=true
+.claude/hooks/no-blind-keychain-read-guard/README.md linguist-generated=true
+.claude/hooks/no-blind-keychain-read-guard/index.mts linguist-generated=true
+.claude/hooks/no-blind-keychain-read-guard/package.json linguist-generated=true
+.claude/hooks/no-blind-keychain-read-guard/test/index.test.mts linguist-generated=true
+.claude/hooks/no-blind-keychain-read-guard/tsconfig.json linguist-generated=true
 .claude/hooks/no-experimental-strip-types-guard/README.md linguist-generated=true
 .claude/hooks/no-experimental-strip-types-guard/index.mts linguist-generated=true
 .claude/hooks/no-experimental-strip-types-guard/package.json linguist-generated=true
