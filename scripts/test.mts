@@ -13,9 +13,14 @@ import process from 'node:process'
 const args = process.argv.slice(2)
 const isFast = args.includes('--fast')
 const isStaged = args.includes('--staged')
+// On Windows, `pnpm` is a .cmd shim that can't be invoked without a shell.
+const useShell = process.platform === 'win32'
 
 function run(script: string, label: string): number {
-  const r = spawnSync('pnpm', ['run', script], { stdio: 'inherit' })
+  const r = spawnSync('pnpm', ['run', script], {
+    shell: useShell,
+    stdio: 'inherit',
+  })
   if (r.status !== 0) {
     console.error(`${label} failed`)
     return 1

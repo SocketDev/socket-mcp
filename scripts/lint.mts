@@ -41,6 +41,8 @@ const mode: 'staged' | 'all' | 'modified' = args.includes('--all')
 const fix = args.includes('--fix')
 const quiet = args.includes('--quiet') || args.includes('--silent')
 const stdio: SpawnSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
+// On Windows, pnpm is a .cmd shim that requires shell invocation.
+const useShell = process.platform === 'win32'
 
 const LINTABLE_EXTS = new Set(['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts'])
 
@@ -110,7 +112,7 @@ function runAll(): number {
       fix ? '--write' : '--check',
       '.',
     ],
-    { stdio },
+    { shell: useShell, stdio },
   )
   if (fmt.status !== 0) {
     return 1
@@ -120,7 +122,7 @@ function runAll(): number {
   if (fix) {
     lintArgs.push('--fix')
   }
-  const lint = spawnSync('pnpm', lintArgs, { stdio })
+  const lint = spawnSync('pnpm', lintArgs, { shell: useShell, stdio })
   if (lint.status !== 0) {
     return 1
   }
@@ -142,7 +144,7 @@ function runFiles(files: string[]): number {
     '--no-error-on-unmatched-pattern',
     ...files,
   ]
-  const fmt = spawnSync('pnpm', oxfmtArgs, { stdio })
+  const fmt = spawnSync('pnpm', oxfmtArgs, { shell: useShell, stdio })
   if (fmt.status !== 0) {
     return 1
   }

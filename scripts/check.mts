@@ -19,9 +19,11 @@ const args = process.argv.slice(2)
 const forwardedArgs = args.filter(
   a => a === '--all' || a === '--fix' || a === '--quiet' || a === '--staged',
 )
+// On Windows, pnpm is a .cmd shim that requires shell invocation.
+const useShell = process.platform === 'win32'
 
 function run(cmd: string, cmdArgs: string[]): number {
-  const r = spawnSync(cmd, cmdArgs, { stdio: 'inherit' })
+  const r = spawnSync(cmd, cmdArgs, { shell: useShell, stdio: 'inherit' })
   return r.status ?? 1
 }
 
