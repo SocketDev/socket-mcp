@@ -41,6 +41,7 @@ overrides:
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
+  'ip-address': '10.1.1'
 
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
