@@ -35,7 +35,7 @@
     "build-mcpb:validate": "pnpm exec mcpb validate ./",
     "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
     "build-mcpb:mcpb-pack": "pnpm exec mcpb pack ./",
-    "clean": "./scripts/clean.sh",
+    "clean": "bash ./scripts/clean.sh",
     "debug-stdio": "node --experimental-strip-types ./mock-client/debug-client.ts",
     "debug-sdk": "node --experimental-strip-types ./mock-client/stdio-client.ts",
     "debug-http": "node --experimental-strip-types ./mock-client/http-client.ts",
