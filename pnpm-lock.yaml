@@ -63,6 +63,9 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
     devDependencies:
+      '@sinclair/typebox':
+        specifier: 'catalog:'
+        version: 0.34.49
       '@types/node':
         specifier: ^24.12.3
         version: 24.12.3
@@ -345,6 +348,8 @@ importers:
         specifier: 'catalog:'
         version: 24.9.2
 
+  .claude/hooks/no-structured-clone-prefer-json-guard: {}
+
   .claude/hooks/no-token-in-dotenv-guard:
     devDependencies:
       '@types/node':
@@ -465,6 +470,8 @@ importers:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+
+  .claude/hooks/soak-exclude-date-annotation-guard: {}
 
   .claude/hooks/socket-token-minifier-start:
     dependencies:
