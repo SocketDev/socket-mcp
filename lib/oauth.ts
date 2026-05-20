@@ -51,15 +51,15 @@ export const SOCKET_OAUTH_REQUIRED_SCOPES: string[] =
 // caller uses this to detect partial / incomplete configs and refuse to
 // start.
 export const hasAnyOAuthConfig: boolean = Boolean(
-  SOCKET_OAUTH_ISSUER ||
   SOCKET_OAUTH_INTROSPECTION_CLIENT_ID ||
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET,
+  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET ||
+  SOCKET_OAUTH_ISSUER,
 )
 
 const allOAuthConfig = Boolean(
-  SOCKET_OAUTH_ISSUER &&
   SOCKET_OAUTH_INTROSPECTION_CLIENT_ID &&
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET,
+  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET &&
+  SOCKET_OAUTH_ISSUER,
 )
 
 // Cached discovery promise — populated on first call and cleared on

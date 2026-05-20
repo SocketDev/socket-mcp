@@ -244,6 +244,7 @@ async function startOAuthHttpServer(
 // (and most local-dev setups) export, so mcp's local getSocketApiToken
 // shim walks the fleet-canonical chain. Cover both so a future drop of
 // either alias surfaces here, not in a user report.
+// socket-api-token-env: bootstrap -- this array tests the alias-normalization shim.
 const SOCKET_API_TOKEN_ALIASES = [
   'SOCKET_API_TOKEN',
   'SOCKET_API_KEY',
@@ -252,6 +253,7 @@ const SOCKET_API_TOKEN_ALIASES = [
   'SOCKET_SECURITY_API_TOKEN',
   'SOCKET_SECURITY_API_KEY',
 ] as const
+// socket-api-token-env: bootstrap -- parametrizing tests over both aliases.
 for (const tokenEnvVar of ['SOCKET_API_TOKEN', 'SOCKET_API_KEY']) {
   test(`stdio mode ignores partial OAuth config (${tokenEnvVar})`, async t => {
     // Strip every alias so we're exercising exactly the env-var name
@@ -259,8 +261,8 @@ for (const tokenEnvVar of ['SOCKET_API_TOKEN', 'SOCKET_API_KEY']) {
     // SOCKET_API_KEY on the dev machine would mask the
     // SOCKET_API_TOKEN-only path.
     const cleanEnv = { ...inheritedEnv }
-    for (const name of SOCKET_API_TOKEN_ALIASES) {
-      delete cleanEnv[name]
+    for (let i = 0, { length } = SOCKET_API_TOKEN_ALIASES; i < length; i += 1) {
+      delete cleanEnv[SOCKET_API_TOKEN_ALIASES[i]!]
     }
     const transport = new StdioClientTransport({
       command: 'node',

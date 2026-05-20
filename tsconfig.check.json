@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "declarationMap": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": [
+    "./scripts/**/*.mts",
+    "./.claude/hooks/**/*.mts",
+    "./.config/oxlint-plugin/**/*.mts"
+  ],
+  "exclude": [
+    "./.cache",
+    "./build",
+    "./coverage",
+    "./dist",
+    "./node_modules",
+    "./template",
+    "**/node_modules"
+  ]
+}

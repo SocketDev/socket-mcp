@@ -66,6 +66,7 @@ export const getSocketApiUrl = getSocketApiBaseUrl
 // for backward compatibility. Walk the same chain socket-lib's
 // unpublished src/env/socket.ts defines; once that ships, replace
 // this shim with `export { getSocketApiToken } from '@socketsecurity/lib/env/socket'`.
+// socket-api-token-env: bootstrap -- this array IS the alias-normalization shim.
 const SOCKET_API_TOKEN_ENV_VARS = [
   'SOCKET_API_TOKEN',
   'SOCKET_API_KEY',
@@ -76,8 +77,8 @@ const SOCKET_API_TOKEN_ENV_VARS = [
 ] as const
 
 export function getSocketApiToken(): string | undefined {
-  for (const name of SOCKET_API_TOKEN_ENV_VARS) {
-    const v = envString(name)
+  for (let i = 0, { length } = SOCKET_API_TOKEN_ENV_VARS; i < length; i += 1) {
+    const v = envString(SOCKET_API_TOKEN_ENV_VARS[i]!)
     if (v !== undefined) {
       return v
     }

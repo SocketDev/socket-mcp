@@ -12,7 +12,7 @@
  *   pnpm run check --all        # full lint + full type (CI)
  */
 
-import { execSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/spawn'
 import process from 'node:process'
 
 const args = process.argv.slice(2)
@@ -20,12 +20,23 @@ const forwardedArgs = args.filter(
   a => a === '--all' || a === '--fix' || a === '--quiet' || a === '--staged',
 )
 
-try {
-  const lintArgs = forwardedArgs.length ? ' ' + forwardedArgs.join(' ') : ''
-  execSync(`node scripts/lint.mts${lintArgs}`, { stdio: 'inherit' })
-  execSync('pnpm exec tsgo --noEmit -p tsconfig.json', {
-    stdio: 'inherit',
-  })
-} catch {
-  process.exitCode = 1
+function run(cmd: string, cmdArgs: string[]): number {
+  const r = spawnSync(cmd, cmdArgs, { stdio: 'inherit' })
+  return r.status ?? 1
+}
+
+const lintStatus = run('node', ['scripts/lint.mts', ...forwardedArgs])
+if (lintStatus !== 0) {
+  process.exitCode = lintStatus
+} else {
+  const tscStatus = run('pnpm', [
+    'exec',
+    'tsgo',
+    '--noEmit',
+    '-p',
+    'tsconfig.json',
+  ])
+  if (tscStatus !== 0) {
+    process.exitCode = tscStatus
+  }
 }

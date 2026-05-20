@@ -49,6 +49,7 @@ minimumReleaseAgeExclude:
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - '@stuie/*'
+  # published: 2026-05-19 | removable: 2026-05-26
   - 'npm-run-all2@9.0.0'
 
 pmOnFail: error
