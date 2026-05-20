@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Publish Packages to npm
+name: 📦 Publish to npm
 
 on:
   workflow_dispatch:
