@@ -456,6 +456,16 @@ importers:
         specifier: 'catalog:'
         version: 24.9.2
 
+  .claude/hooks/readme-fleet-shape-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@5.28.0(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
   .claude/hooks/release-workflow-guard:
     devDependencies:
       '@socketsecurity/lib-stable':
