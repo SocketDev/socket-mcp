@@ -4,7 +4,7 @@ import {
   getSocketOauthIssuer,
   getSocketOauthRequiredScopes,
 } from './env.ts'
-import { httpRequest } from '@socketsecurity/lib/http-request'
+import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {

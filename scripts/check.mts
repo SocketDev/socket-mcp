@@ -12,7 +12,7 @@
  *   pnpm run check --all        # full lint + full type (CI)
  */
 
-import { spawnSync } from '@socketsecurity/lib-stable/spawn'
+import { spawnSync } from '@socketsecurity/lib-stable/spawn/spawn'
 import process from 'node:process'
 
 const args = process.argv.slice(2)
