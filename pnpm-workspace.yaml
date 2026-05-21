@@ -42,6 +42,12 @@ overrides:
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
   'ip-address': '10.1.1'
+  # CVE-2026-... node-forge prototype-pollution-class advisories #55/#57/#59/#61
+  'node-forge': '1.4.0'
+  # GHSA-9wv6-86v2-598j path-to-regexp DoS / GHSA-rhx6-c78j-4q9w; advisories #51/#53
+  'path-to-regexp': '8.4.2'
+  # advisory #42 arbitrary file/directory write via symlink
+  'tmp': '0.2.5'
 
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
