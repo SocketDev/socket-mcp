@@ -8,6 +8,10 @@ import { buildSocketHeaders } from './http-helpers.ts'
 import { logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
 import { VERSION } from './version.ts'
+import { registerAlertsTool } from './alerts-tool.ts'
+import { registerOrganizationsTool } from './organizations-tool.ts'
+import { registerPackageFilesTools } from './package-files-tool.ts'
+import { registerThreatFeedTool } from './threat-feed-tool.ts'
 
 interface DepscorePackageInput {
   ecosystem?: string | undefined
@@ -108,6 +112,10 @@ export function createConfiguredServer(): McpServer {
     async ({ packages, platform }, extra) =>
       handleDepscore(packages, platform, extra.authInfo?.token),
   )
+  registerOrganizationsTool(srv)
+  registerAlertsTool(srv)
+  registerThreatFeedTool(srv)
+  registerPackageFilesTools(srv)
   return srv
 }
 
@@ -266,6 +274,12 @@ export function parseNdjsonPackageBody(
 export function parseSinglePackageBody(responseText: string): string[] {
   const jsonData = JSON.parse(responseText) as Record<string, unknown>
   return [formatScoreLine(jsonData)]
+}
+
+// Read the boot-time static API key. Used by tool modules outside this file
+// that share the same token-resolution chain as depscore.
+export function getStaticApiKey(): string {
+  return staticApiKey
 }
 
 // Set the static API key. Called once during boot from index.ts.
