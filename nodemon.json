@@ -1,0 +1,7 @@
+{
+  "watch": ["index.ts", "lib"],
+  "ext": "ts,json",
+  "ignore": ["**/*.test.ts", "node_modules", "mock-client", "scripts"],
+  "delay": 250,
+  "exec": "node --experimental-strip-types index.ts --http"
+}

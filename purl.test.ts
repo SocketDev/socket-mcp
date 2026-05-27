@@ -69,4 +69,39 @@ test('buildPurl produces correct PURLs across all ecosystems', async (t) => {
   await t.test('version omitted when empty', () => {
     assert.strictEqual(buildPurl('npm', 'lodash', ''), 'pkg:npm/lodash')
   })
+
+  await t.test('openvsx rewrites to vscode type with repository_url qualifier and platform', () => {
+    assert.strictEqual(
+      buildPurl('openvsx', 'meta/pyrefly', '1.0.0', { platform: 'linux-x64' }),
+      'pkg:vscode/meta/pyrefly@1.0.0?platform=linux-x64&repository_url=https%3A%2F%2Fopen-vsx.org'
+    )
+  })
+
+  await t.test('openvsx without platform still adds repository_url', () => {
+    assert.strictEqual(
+      buildPurl('openvsx', 'meta/pyrefly', '1.0.0'),
+      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https%3A%2F%2Fopen-vsx.org'
+    )
+  })
+
+  await t.test('vscode (Marketplace) does not auto-add repository_url', () => {
+    assert.strictEqual(
+      buildPurl('vscode', 'meta/pyrefly', '1.0.0'),
+      'pkg:vscode/meta/pyrefly@1.0.0'
+    )
+  })
+
+  await t.test('chrome extensions pass through (no namespace)', () => {
+    assert.strictEqual(
+      buildPurl('chrome', 'gighmmpiobklfepjocnamgkkbiglidom', '1.55.0'),
+      'pkg:chrome/gighmmpiobklfepjocnamgkkbiglidom@1.55.0'
+    )
+  })
+
+  await t.test('caller can override openvsx repository_url', () => {
+    assert.strictEqual(
+      buildPurl('openvsx', 'meta/pyrefly', '1.0.0', { repository_url: 'https://example.test' }),
+      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https%3A%2F%2Fexample.test'
+    )
+  })
 })

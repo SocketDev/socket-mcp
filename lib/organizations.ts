@@ -1,0 +1,32 @@
+export interface FetchOrganizationsOptions {
+  baseUrl: string
+  fetchFn?: typeof fetch
+  userAgent?: string
+  /** Socket access token, sent as `Authorization: Bearer <token>` when set. */
+  authToken?: string
+  extraHeaders?: Record<string, string>
+}
+
+/**
+ * Fetch the organizations the authenticated user belongs to from
+ * `GET /v0/organizations`. Returns the parsed JSON body untouched —
+ * downstream callers decide how to render it.
+ */
+export async function fetchOrganizations (
+  options: FetchOrganizationsOptions
+): Promise<unknown> {
+  const baseUrl = options.baseUrl.replace(/\/$/, '')
+  const url = `${baseUrl}/v0/organizations`
+
+  const fetchFn = options.fetchFn ?? fetch
+  const headers: Record<string, string> = { accept: 'application/json' }
+  if (options.userAgent) headers['user-agent'] = options.userAgent
+  if (options.authToken) headers['authorization'] = `Bearer ${options.authToken}`
+  if (options.extraHeaders) Object.assign(headers, options.extraHeaders)
+
+  const res = await fetchFn(url, { headers })
+  if (!res.ok) {
+    throw new Error(`organizations endpoint ${res.status}: ${await res.text()}`)
+  }
+  return res.json()
+}
