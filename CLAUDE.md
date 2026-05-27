@@ -43,7 +43,7 @@ Full ruleset + threat model + bypass surface in [`docs/claude.md/fleet/public-su
 
 ### Commits & PRs
 
-🚨 Conventional Commits `<type>(<scope>): <description>`, lowercase type, NO AI attribution (enforced by `.claude/hooks/commit-message-format-guard/` + draft-time reminder `.claude/hooks/commit-pr-reminder/`; bypasses `Allow commit-format bypass` / `Allow ai-attribution bypass`). Push policy: push direct → fall back to PR only on rejection (no pre-emptive PRs, no force-pushes). When adding commits to an OPEN PR, update the title + description via `gh pr edit` to match the new scope.
+🚨 Conventional Commits `<type>(<scope>): <description>`, lowercase type, NO AI attribution (enforced by `.claude/hooks/commit-message-format-guard/` + draft-time reminder `.claude/hooks/commit-pr-reminder/`; bypasses `Allow commit-format bypass` / `Allow ai-attribution bypass`). Push policy: push direct → fall back to PR only on rejection (no pre-emptive PRs, no force-pushes). When adding commits to an OPEN PR, update the title + description via `gh pr edit` to match the new scope. NEVER push to a non-fleet repo (bypass `Allow non-fleet-push bypass`; enforced by `.claude/hooks/no-non-fleet-push-guard/`).
 
 Full ruleset — open-PR edits, Bugbot inline replies, rebase-over-revert for unpushed commits, no-empty-commits, commit-author canonical identity, scan-label scrubbing, enterprise-ruleset bypass — in [`docs/claude.md/fleet/commit-cadence-format.md`](docs/claude.md/fleet/commit-cadence-format.md).
 
@@ -67,13 +67,17 @@ Some fleet repos squash the default branch on a cadence — currently socket-add
 
 🚨 **Package manager: `pnpm`** — scripts via `pnpm run foo --flag` (never `foo:bar`); after `package.json` edits, `pnpm install`. NEVER `npx` / `pnpm dlx` / `yarn dlx` — use `pnpm exec` or `pnpm run` # socket-hook: allow npx. NEVER `--experimental-strip-types` to Node (enforced by `.claude/hooks/no-experimental-strip-types-guard/`).
 
-🚨 **Engine floors are pinned fleet-wide:** `engines.pnpm: ">=11.3.0"` (matches the canonical `packageManager` pin) and `engines.npm: ">=11.15.0"` (the version that introduced `npm stage publish`). The wheelhouse `package.json` is the single source of truth — both floors cascade to fleet repos via the sync-scaffolding `engines_pnpm_drift` + `engines_npm_drift` categories.
+🚨 **Engine floors pinned fleet-wide:** `engines.pnpm: ">=11.3.0"` (matches the `packageManager` pin), `engines.npm: ">=11.15.0"` (introduced `npm stage publish`). Wheelhouse `package.json` is the source of truth; both cascade via sync-scaffolding `engines_pnpm_drift` + `engines_npm_drift`.
 
 🚨 **Bundler: rolldown, not esbuild.** Backward compatibility is FORBIDDEN — actively remove when encountered.
 
-🚨 **New deps Socket-scored at edit time** (enforced by `.claude/hooks/check-new-deps/`); the 7-day `minimumReleaseAge` soak is malware protection (bypass `Allow minimumReleaseAge bypass`; enforced by `.claude/hooks/minimum-release-age-guard/`). Soak-bypass entries need `# published: YYYY-MM-DD | removable: YYYY-MM-DD` annotations (enforced by `.claude/hooks/soak-exclude-date-annotation-guard/`).
+🚨 **`-stable` self-import:** `scripts/**` + `.claude/hooks/**` import the repo-owned fleet package via its `-stable` alias, never the bare name (bare = WIP local `src/`). Autofix `socket/prefer-stable-self-import`.
 
-Full ruleset — docs lead with pnpm, `packageManager` field, `.config/` placement, `.mts` runners, monorepo `engines.node`, vitest/node-test runner separation, `npm-run-all2` + `node --run` opt-in — in [`docs/claude.md/fleet/tooling.md`](docs/claude.md/fleet/tooling.md).
+🚨 **New deps Socket-scored at edit time** (enforced by `.claude/hooks/check-new-deps/`); the 7-day `minimumReleaseAge` soak is malware protection (bypass `Allow minimumReleaseAge bypass`; enforced by `.claude/hooks/minimum-release-age-guard/`). Soak-bypass entries need `# published: YYYY-MM-DD | removable: YYYY-MM-DD` annotations (enforced by `.claude/hooks/soak-exclude-date-annotation-guard/`). Dep overrides go in `pnpm-workspace.yaml` `overrides:`, never `package.json` `pnpm.overrides` (bypass `Allow package-json-overrides bypass`; enforced by `.claude/hooks/no-package-json-pnpm-overrides-guard/`).
+
+Full ruleset (docs lead with pnpm, `packageManager` field, `.config/` placement, `.mts` runners, monorepo `engines.node`, vitest/node-test runner separation, `npm-run-all2` + `node --run` opt-in) in [`docs/claude.md/fleet/tooling.md`](docs/claude.md/fleet/tooling.md).
+
+🚨 **Need a database? PostgreSQL + Drizzle ORM** (driver `node:smol-sql`, `pglite` for tests, config `.config/drizzle.config.mts`). Most repos need none; don't add speculatively. [`docs/claude.md/fleet/database.md`](docs/claude.md/fleet/database.md).
 
 ### Claude Code plugin pins
 
@@ -99,7 +103,7 @@ Exceptions (state the trade-off and ask): genuinely large refactor on a small bu
 
 ### Smallest chunks, land ASAP
 
-🚨 Smallest possible chunks; land ASAP via direct-push-to-main. Don't accumulate work across worktrees or long-lived branches — each unmerged branch is in-flight state that has to be rebased and reconciled later. Same instinct that flags _Drift watch_ across fleet repos applies to in-flight branches in one repo. Past incident: 4 sibling wheelhouse worktrees (2 dead, 2 needing rebase) burned a turn on consolidation. **How to apply:** finish a branch the session it's opened; consolidate any pile-up at session start before resuming the queue.
+🚨 Smallest possible chunks; land ASAP via direct-push-to-main. Don't accumulate work across worktrees or long-lived branches; each unmerged branch is in-flight state that has to be rebased and reconciled later. Past incident: 4 sibling wheelhouse worktrees (2 dead, 2 needing rebase) burned a turn on consolidation. **How to apply:** finish a branch the session it's opened; consolidate any pile-up at session start before resuming the queue.
 
 ### Commit cadence & message format
 
@@ -161,7 +165,7 @@ For non-trivial work (multi-file refactor, new feature, migration), the plan its
 
 ### Code style
 
-Default to no comments (enforced by `.claude/hooks/no-meta-comments-guard/`); when written, write for a junior reader. Heaviest fleet invariants: no `TODO`/`FIXME`/stubs; `undefined` over `null`; `httpJson`/`httpText` from `@socketsecurity/lib/http-request` over `fetch()`; `safeDelete()` from `@socketsecurity/lib/fs` over `fs.rm`; Edit tool over `sed`/`awk`; `JSON.parse(JSON.stringify(x))` over `structuredClone(x)` for JSON-shaped data (enforced by `.claude/hooks/no-structured-clone-prefer-json-guard/` + `socket/no-structured-clone-prefer-json` oxlint rule; bypass: `Allow no-structured-clone-prefer-json bypass`); `getDefaultLogger()` over `console.*` (enforced by `.claude/hooks/logger-guard/`). Cross-port files use `Lock-step` comments — see [`docs/claude.md/fleet/parser-comments.md`](docs/claude.md/fleet/parser-comments.md) §5–7 (enforced by `.claude/hooks/lock-step-ref-guard/` + `scripts/check-lock-step-{refs,header}.mts`; bypass: `Allow lock-step bypass`). Full ruleset (object literals, imports, subprocesses, file existence, env checks, generated reports, sorting, Promise.race, Safe suffix, `node:smol-*`, doc filenames, inline-defer, ESLint-config refs, inclusive language) in [`docs/claude.md/fleet/code-style.md`](docs/claude.md/fleet/code-style.md). See also [`docs/claude.md/fleet/sorting.md`](docs/claude.md/fleet/sorting.md) and [`docs/claude.md/fleet/inclusive-language.md`](docs/claude.md/fleet/inclusive-language.md).
+Default to no comments (enforced by `.claude/hooks/no-meta-comments-guard/`); when written, write for a junior reader. Heaviest fleet invariants: no `TODO`/`FIXME`/stubs; `undefined` over `null`; `httpJson`/`httpText` from `@socketsecurity/lib/http-request` over `fetch()`; `safeDelete()` from `@socketsecurity/lib/fs` over `fs.rm`; Edit tool over `sed`/`awk`; `JSON.parse(JSON.stringify(x))` over `structuredClone(x)` for JSON-shaped data; `getDefaultLogger()` over `console.*` (enforced by `.claude/hooks/logger-guard/`); `@sinclair/typebox` for wire/config schema validation over zod/valibot/ajv. Cross-port files use `Lock-step` comments; see [`docs/claude.md/fleet/parser-comments.md`](docs/claude.md/fleet/parser-comments.md) §5–7 (enforced by `.claude/hooks/lock-step-ref-guard/` + `scripts/check-lock-step-{refs,header}.mts`; bypass: `Allow lock-step bypass`). Full ruleset in [`docs/claude.md/fleet/code-style.md`](docs/claude.md/fleet/code-style.md).
 
 ### No underscore-prefixed identifiers
 
@@ -205,7 +209,7 @@ Never use `Bash(run_in_background: true)` for test / build commands (`vitest`, `
 
 `.DS_Store` files created by Finder mid-session are swept at turn-end by `.claude/hooks/sweep-ds-store/` (excludes `.git/` and `node_modules/`). Silent on the happy path; logs sweep count when files are found. No bypass — `.DS_Store` is never wanted in a repo (enforced by `.claude/hooks/sweep-ds-store/`).
 
-When writing or extending a Bash-allowlist hook, prefer **AST-based parsing** over regex matchers when the rule needs to reason about command structure (chains, subshells, redirects, command substitution). Regex matchers approve `git $(echo rm) foo.txt` because the surface looks like `git`; an AST parser sees the substitution and blocks. Pure-syntactic rules (binary name only) can stay regex; structure-sensitive rules (no writes to `.env*`, no destructive chains, no `$(…)` containing destructive verbs) need a parser. Pattern reference: https://github.com/ldayton/Dippy.
+When writing or extending a Bash-allowlist hook, prefer **AST-based parsing** over regex matchers when the rule needs to reason about command structure (chains, subshells, redirects, command substitution). Regex matchers approve `git $(echo rm) foo.txt` because the surface looks like `git`; an AST parser sees the substitution and blocks. Pure-syntactic rules (binary name only) can stay regex; structure-sensitive rules (no destructive chains, no `$(…)` containing destructive verbs) need a parser: use `.claude/hooks/_shared/shell-command.mts` (`findInvocation`, wraps `shell-quote`).
 
 ### Judgment & self-evaluation
 
@@ -232,6 +236,18 @@ Use `isError` / `isErrnoException` / `errorMessage` / `errorStack` from `@socket
 ### Token hygiene
 
 🚨 Never emit a raw secret to tool output, commits, comments, or replies; when blocked, rewrite — don't bypass. Redact `token` / `jwt` / `api_key` / `secret` / `password` / `authorization` fields when citing API responses (`.claude/hooks/token-guard/`). Tokens live in env vars (CI) or the OS keychain (dev local) — never in `.env*` / `.envrc` / `~/.sfw.config` / dotfiles (`.claude/hooks/no-token-in-dotenv-guard/`). Setup + rotation: `node .claude/hooks/setup-security-tools/install.mts [--rotate]` — the ONLY correct rotator. Never call platform keychain CLIs from Bash to read (token is already in-process — use `findApiToken()` or `process.env.SOCKET_API_KEY` / `SOCKET_API_TOKEN`); writes/deletes are allowed. Bypass: `Allow blind-keychain-read bypass` (`.claude/hooks/no-blind-keychain-read-guard/`). Canonical env var: `SOCKET_API_TOKEN` in docs / workflow inputs / `.env.example`; local-dev keychain stores as `SOCKET_API_KEY`. Full spec: [`docs/claude.md/fleet/token-hygiene.md`](docs/claude.md/fleet/token-hygiene.md).
+
+### gh token hygiene
+
+🚨 GitHub CLI tokens are high-blast-radius. Three invariants apply (enforced by `.claude/hooks/gh-token-hygiene-guard/`):
+
+1. **Keychain storage only.** `gh auth status` must report `(keyring)`. On-disk `~/.config/gh/hosts.yml` rejected — re-auth with `gh auth logout && gh auth login` (keychain is the default since gh 2.40). Nx breach exfiltrated this file in <74s.
+2. **`workflow` scope off by default; bypass single-use + Touch ID.** Type `Allow workflow-scope bypass` → `gh auth refresh -s workflow` → Touch ID (osascript fallback, absolute `/usr/bin/` paths defeat PATH-hijack) → ONE dispatch. Recommended scopes: `read:org, repo, gist` (gh forces `gist`).
+3. **8-hour token age cap.** Same hook (not `auth-rotation-reminder`). Refresh: `gh auth refresh -h github.com`. The cap is the floor — real defense is signed commits + branch protection + audit log. Full spec: [`docs/claude.md/fleet/gh-token-hygiene.md`](docs/claude.md/fleet/gh-token-hygiene.md).
+
+### Commit signing
+
+🚨 Commits on `main`/`master` must be signed. Three layers: pre-commit config gate, pre-push signature check (`%G?` ∈ {`N`,`B`} blocks), GitHub `required_signatures`. Setup: `node .claude/hooks/setup-signing/install.mts`. Bypass envs `SOCKET_PRE_{COMMIT,PUSH}_ALLOW_UNSIGNED=1`. Full spec: [`docs/claude.md/fleet/commit-signing.md`](docs/claude.md/fleet/commit-signing.md). Post-hoc audit: `node scripts/audit-transcript.mts --recent` flags privileged tool uses in a session ([full stack](docs/claude.md/fleet/security-stack.md)).
 
 ### Agents & skills
 

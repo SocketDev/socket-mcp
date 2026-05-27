@@ -10,24 +10,25 @@ catalog:
   '@sinclair/typebox': 0.34.49
   '@socketregistry/packageurl-js': 1.4.2
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib': 6.0.0
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.0
+  '@socketsecurity/lib': 6.0.3
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.3
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
   '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
   '@types/mdast': 4.0.4
   '@types/node': 24.9.2
-  '@typescript/native-preview': 7.0.0-dev.20260415.1
+  '@typescript/native-preview': 7.0.0-dev.20260510.1
   '@vitest/coverage-v8': 4.1.6
   '@vitest/ui': 4.1.6
   'ecc-agentshield': 1.4.0
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'npm-run-all2': 9.0.0
-  'oxfmt': 0.37.0
-  'oxlint': 1.52.0
-  'taze': 19.9.2
+  'oxfmt': 0.48.0
+  'oxlint': 1.63.0
+  'shell-quote': 1.8.4
+  'taze': 19.11.0
   'vitest': 4.1.6
 enablePrePostScripts: true
 
@@ -58,6 +59,35 @@ minimumReleaseAgeExclude:
   - '@stuie/*'
   # published: 2026-05-19 | removable: 2026-05-26
   - 'npm-run-all2@9.0.0'
+  - 'shell-quote'
+  - 'vite'
+  - 'vitest'
+  - '@vitest/coverage-v8'
+  - '@vitest/expect'
+  - '@vitest/mocker'
+  - '@vitest/pretty-format'
+  - '@vitest/runner'
+  - '@vitest/snapshot'
+  - '@vitest/spy'
+  - '@vitest/ui'
+  - '@vitest/utils'
+  - 'rolldown'
+  - '@rolldown/pluginutils'
+  - '@rolldown/binding-android-arm64'
+  - '@rolldown/binding-darwin-arm64'
+  - '@rolldown/binding-darwin-x64'
+  - '@rolldown/binding-freebsd-x64'
+  - '@rolldown/binding-linux-arm-gnueabihf'
+  - '@rolldown/binding-linux-arm64-gnu'
+  - '@rolldown/binding-linux-arm64-musl'
+  - '@rolldown/binding-linux-ppc64-gnu'
+  - '@rolldown/binding-linux-s390x-gnu'
+  - '@rolldown/binding-linux-x64-gnu'
+  - '@rolldown/binding-linux-x64-musl'
+  - '@rolldown/binding-openharmony-arm64'
+  - '@rolldown/binding-wasm32-wasi'
+  - '@rolldown/binding-win32-arm64-msvc'
+  - '@rolldown/binding-win32-x64-msvc'
 
 pmOnFail: error
 resolutionMode: highest
