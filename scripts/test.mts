@@ -7,7 +7,7 @@
  * them, but the pre-commit hook always passes one or both.
  */
 
-import { spawnSync } from '@socketsecurity/lib-stable/spawn/spawn'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import process from 'node:process'
 
 const args = process.argv.slice(2)

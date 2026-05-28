@@ -38,10 +38,13 @@ enablePrePostScripts: true
 # in the default `catalog:` block above. This defeats accidental
 # local-checkout resolution when a sibling repo is on disk.
 overrides:
+  '@hono/node-server': '1.19.13'
   '@socketregistry/packageurl-js': 'catalog:'
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
+  'fast-uri': '3.1.2'
+  'hono': '4.12.18'
   'ip-address': '10.1.1'
   # CVE-2026-... node-forge prototype-pollution-class advisories #55/#57/#59/#61
   'node-forge': '1.4.0'
@@ -49,6 +52,8 @@ overrides:
   'path-to-regexp': '8.4.2'
   # advisory #42 arbitrary file/directory write via symlink
   'tmp': '0.2.5'
+  'zod': '3.25.76'
+  'zod-to-json-schema': '3.25.1'
 
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:

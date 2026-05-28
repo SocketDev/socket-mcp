@@ -26,14 +26,19 @@ catalogs:
       version: 19.11.0
 
 overrides:
+  '@hono/node-server': 1.19.13
   '@socketregistry/packageurl-js': 1.4.2
   '@socketsecurity/lib': 6.0.3
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/sdk': 4.0.1
+  fast-uri: 3.1.2
+  hono: 4.12.18
   ip-address: 10.1.1
   node-forge: 1.4.0
   path-to-regexp: 8.4.2
   tmp: 0.2.5
+  zod: 3.25.76
+  zod-to-json-schema: 3.25.1
 
 importers:
 
@@ -496,6 +501,16 @@ importers:
         specifier: 'catalog:'
         version: 24.9.2
 
+  .claude/hooks/plugin-patch-format-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@6.0.3(typescript@5.9.3)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.9.2
+
   .claude/hooks/pointer-comment-guard:
     devDependencies:
       '@types/node':
@@ -689,7 +704,7 @@ packages:
     resolution: {integrity: sha512-TsQLe4i2gvoTtrHje625ngThGBySOgSK3Xo2XRYOdqGN1teR8+I7vchQC46uLJi8OF62YTYA3AhSpumtkhsaKQ==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: ^4
+      hono: 4.12.18
 
   '@inquirer/checkbox@3.0.1':
     resolution: {integrity: sha512-0hm2nrToWUdD6/UHnel/UKGdk1//ke5zGUpHIvk5ZWmaKezlGxZkOJXNSWsdxO/rEqTkbB3lNC2J6nBElV2aAQ==}
@@ -752,7 +767,7 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
-      zod: ^3.25 || ^4.0
+      zod: 3.25.76
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
@@ -1823,7 +1838,7 @@ packages:
   zod-to-json-schema@3.25.1:
     resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
     peerDependencies:
-      zod: ^3.25 || ^4
+      zod: 3.25.76
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
