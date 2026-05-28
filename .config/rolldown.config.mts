@@ -32,7 +32,6 @@ export const buildConfig: RolldownOptions = {
     entryFileNames: '[name].cjs',
     inlineDynamicImports: true,
     minify: false,
-    banner:
-      '#!/usr/bin/env node\n"use strict";\n/* Socket MCP — bundled with rolldown */',
+    banner: '"use strict";\n/* Socket MCP — bundled with rolldown */',
   },
 }
