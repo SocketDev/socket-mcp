@@ -17,7 +17,7 @@ export const EXEMPT_FILE_PATTERNS: RegExp[] = [
   /scripts\/check-paths\.mts$/,
   /scripts\/check-paths\//,
   /scripts\/check-consistency\.mts$/,
-  /\.claude\/hooks\/path-guard\//,
+  /\.claude\/hooks\/fleet\/path-guard\//,
   // Allowlist + config files.
   /\.github\/paths-allowlist\.yml$/,
 ]

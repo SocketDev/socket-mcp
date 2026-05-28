@@ -20,7 +20,7 @@ Use `undefined`. `null` is allowed only for `__proto__: null` or external API re
 
 ## Imports
 
-No dynamic `await import()`. `node:fs` is the canonical fs source. One import per file: `import { existsSync, promises as fs } from 'node:fs'`. Sync APIs may be cherry-picked (`existsSync`, `copyFileSync`, `readFileSync`, etc.). Async APIs MUST go through the `promises as fs` namespace. Never cherry-pick from `node:fs/promises` (`import { rename } from 'node:fs/promises'` is forbidden; use `fs.rename(...)` instead). Rationale: a single canonical handle for async fs keeps the call sites uniform across the fleet and avoids two imports for what's logically one module. `path` / `os` / `url` / `crypto` use default imports. Exception: `fileURLToPath` from `node:url`.
+No dynamic `await import()`. `node:fs` is the canonical fs source. One import per file: `import { existsSync, promises as fs } from 'node:fs'`. Sync APIs may be cherry-picked (`existsSync`, `copyFileSync`, `readFileSync`, etc.). Async APIs MUST go through the `promises as fs` namespace. Never cherry-pick from `node:fs/promises` (`import { rename } from 'node:fs/promises'` is forbidden; use `fs.rename(...)` instead). Rationale: a single canonical handle for async fs keeps the call sites uniform across the fleet and avoids two imports for what's logically one module. `path` / `os` / `crypto` use default imports. `node:url` is cherry-picked like `node:fs` (`import { fileURLToPath, pathToFileURL } from 'node:url'`) — callers use just those symbols and `url.fileURLToPath(...)` reads worse than the named form.
 
 ## HTTP
 
