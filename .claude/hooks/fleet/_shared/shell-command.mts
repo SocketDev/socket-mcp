@@ -71,7 +71,7 @@ function isOp(e: ParseEntry): e is { op: string } {
   return typeof e === 'object' && e !== null && 'op' in e
 }
 
-function isComment(e: ParseEntry): boolean {
+function isComment(e: ParseEntry): e is { comment: string } {
   return typeof e === 'object' && e !== null && 'comment' in e
 }
 
@@ -230,6 +230,33 @@ export function findInvocation(
  */
 export function commandsFor(command: string, binary: string): Command[] {
   return parseCommands(command).filter(c => c.binary === binary)
+}
+
+/**
+ * Detect a `git add` invocation that sweeps the working tree (`-A` / `--all` /
+ * `-u` / `--update` / `.`), returning a label like `git add -A` or undefined.
+ * Parses with the shared tokenizer so chains, quoting, and leading env-var
+ * assignments are handled, and a quoted "git add ." inside a message can't
+ * false-fire. `git add ./path` (a surgical dotfile add) is not confused with
+ * `git add .` because the parser preserves the exact arg. Shared by
+ * overeager-staging-guard + parallel-agent-staging-guard.
+ */
+export function detectBroadGitAdd(command: string): string | undefined {
+  for (const c of commandsFor(command, 'git')) {
+    if (!c.args.includes('add')) {
+      continue
+    }
+    for (let k = 0, { length } = c.args; k < length; k += 1) {
+      const arg = c.args[k]!
+      if (arg === '--all' || arg === '-A' || arg === '--update' || arg === '-u') {
+        return `git add ${arg}`
+      }
+      if (arg === '.') {
+        return 'git add .'
+      }
+    }
+  }
+  return undefined
 }
 
 /**
