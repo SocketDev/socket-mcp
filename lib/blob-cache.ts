@@ -1,5 +1,5 @@
 import { fetchBlob, type BlobResult } from './blob.ts'
-import { logger } from './logger.ts'
+import { debug } from './logger.ts'
 
 // Process-wide LRU blob cache keyed by content-addressed hash. Survives across
 // stateless HTTP requests (each request gets a fresh McpServer) so repeated
@@ -51,7 +51,7 @@ function evict(): void {
     if (victim) {
       cacheBytes -= blobWeight(victim)
     }
-    logger.debug(
+    debug(
       { hash: oldest, cacheBytes, cacheSize: cache.size },
       'blob cache evict',
     )
@@ -70,7 +70,7 @@ export async function getOrFetchBlob(hash: string): Promise<BlobResult> {
     baseUrl: SOCKET_BLOB_URL,
     userAgent: BROWSER_USER_AGENT,
     extraHeaders: BYPASS_HEADERS,
-    onRequest: url => logger.debug({ url }, 'blob request'),
+    onRequest: url => debug({ url }, 'blob request'),
   })
   cache.set(hash, blob)
   cacheBytes += blobWeight(blob)

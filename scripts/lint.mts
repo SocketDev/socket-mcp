@@ -1,26 +1,16 @@
 /**
- * @fileoverview Canonical minimal lint runner for socket-* repos.
- *
- * Scope modes:
- *   (default)   Lint files modified in the working tree vs HEAD.
- *   --staged    Lint files in the git index (used by .husky/pre-commit).
- *   --all       Lint the entire workspace.
- *
- * Flags:
- *   --fix       Auto-fix issues.
- *   --quiet     Suppress progress output.
- *
- * If the chosen scope has no lintable files, the script is a no-op.
- *
- * Config or infrastructure changes (.config/oxlintrc.json,
- * .config/oxfmtrc.json, tsconfig*.json, pnpm-lock.yaml, .config/**,
- * scripts/**, package.json) escalate to `--all` automatically, since they
- * can affect everything.
- *
- * This is the minimal zero-dependency reference implementation. Larger repos
- * (socket-lib, socket-registry, socket-sdk-js, etc.) use a richer version
- * based on @socketsecurity/lib helpers; this one keeps the same CLI
- * contract so pre-commit hooks and CI work identically across repos.
+ * @file Canonical minimal lint runner for socket-* repos. Scope modes:
+ *   (default) Lint files modified in the working tree vs HEAD. --staged Lint
+ *   files in the git index (used by .husky/pre-commit). --all Lint the entire
+ *   workspace. Flags: --fix Auto-fix issues. --quiet Suppress progress output.
+ *   If the chosen scope has no lintable files, the script is a no-op. Config or
+ *   infrastructure changes (.config/oxlintrc.json, .config/oxfmtrc.json,
+ *   tsconfig*.json, pnpm-lock.yaml, .config/**, scripts/**, package.json)
+ *   escalate to `--all` automatically, since they can affect everything. This
+ *   is the minimal zero-dependency reference implementation. Larger repos
+ *   (socket-lib, socket-registry, socket-sdk-js, etc.) use a richer version
+ *   based on @socketsecurity/lib helpers; this one keeps the same CLI contract
+ *   so pre-commit hooks and CI work identically across repos.
  */
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
@@ -101,7 +91,7 @@ function filterLintable(files: string[]): string[] {
 }
 
 function runAll(): number {
-  log('Formatting all files...')
+  log('Formatting all files…')
   const fmt = spawnSync(
     'pnpm',
     [
@@ -117,7 +107,7 @@ function runAll(): number {
   if (fmt.status !== 0) {
     return 1
   }
-  log('Running oxlint on all files...')
+  log('Running oxlint on all files…')
   const lintArgs = ['exec', 'oxlint', '-c', '.config/oxlintrc.json']
   if (fix) {
     lintArgs.push('--fix')

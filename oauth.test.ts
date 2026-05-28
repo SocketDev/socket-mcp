@@ -202,7 +202,7 @@ async function startOAuthHttpServer(
   const port = await getFreePort()
   let output = ''
 
-  const child = spawn('node', ['--experimental-strip-types', serverPath], {
+  const child = spawn('node', [serverPath], {
     cwd: import.meta.dirname,
     env: {
       ...inheritedEnv,
@@ -266,7 +266,7 @@ for (const tokenEnvVar of ['SOCKET_API_TOKEN', 'SOCKET_API_KEY']) {
     }
     const transport = new StdioClientTransport({
       command: 'node',
-      args: ['--experimental-strip-types', serverPath],
+      args: [serverPath],
       env: {
         ...cleanEnv,
         [tokenEnvVar]: 'test-api-token',

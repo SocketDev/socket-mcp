@@ -32,7 +32,7 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024
 // intentional — it should only happen for files the fleet jointly owns,
 // not per-repo binary leaks.
 const ALLOWED_LARGE_FILES = new Set<string>([
-  '.claude/hooks/_shared/acorn/acorn.wasm',
+  '.claude/hooks/fleet/_shared/acorn/acorn.wasm',
   'vendor/acorn-wasm/acorn.wasm',
 ])
 

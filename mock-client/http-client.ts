@@ -28,13 +28,13 @@ async function testHTTPMode() {
     '',
   ) // Remove trailing slash
 
-  logger.log('Testing Socket MCP in HTTP mode...')
+  logger.log('Testing Socket MCP in HTTP mode…')
   logger.info(`Server URL: ${baseUrl}`)
 
   try {
     // 1. Initialize connection (stateless)
     logger.error('')
-    logger.info('1. Initializing connection...')
+    logger.info('1. Initializing connection…')
     const initRequest = {
       jsonrpc: '2.0',
       id: 1,
@@ -67,7 +67,7 @@ async function testHTTPMode() {
 
     // 2. List tools
     logger.error('')
-    logger.info('2. Listing available tools...')
+    logger.info('2. Listing available tools…')
     const toolsRequest = {
       jsonrpc: '2.0',
       id: 2,
@@ -98,7 +98,7 @@ async function testHTTPMode() {
 
     // 3. Call depscore
     logger.error('')
-    logger.info('3. Calling depscore tool...')
+    logger.info('3. Calling depscore tool…')
     const depscoreRequest = {
       jsonrpc: '2.0',
       id: 3,

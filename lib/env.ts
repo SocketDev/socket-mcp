@@ -1,21 +1,16 @@
 /**
- * @fileoverview mcp-local env getters.
+ * @file Mcp-local env getters. Functions that `lib/*.ts` previously imported
+ *   from `@socketsecurity/lib/env/socket`, but which aren't exported by
+ *   `lib@5.28.0` (the version pinned in the catalog). The functions fall into
+ *   two groups:
  *
- * Functions that `lib/*.ts` previously imported from
- * `@socketsecurity/lib/env/socket`, but which aren't exported
- * by `lib@5.28.0` (the version pinned in the catalog). The
- * functions fall into two groups:
- *
- *   1. mcp-specific (MCP_HTTP_MODE, MCP_PORT, TRUST_PROXY) — these
- *      will never live in the canonical socket-lib env surface; they
- *      belong here.
- *   2. naming drift (`getSocketApiUrl` → `getSocketApiBaseUrl` in
- *      lib@5.28+) and OAuth getters that haven't shipped upstream
- *      yet — re-exports / shims that keep the mcp call sites stable
- *      until lib catches up.
- *
- * When lib publishes the missing canonical getters, this file shrinks
- * to just the mcp-specific group.
+ *   1. mcp-specific (MCP_HTTP_MODE, MCP_PORT, TRUST_PROXY) — these will never live
+ *      in the canonical socket-lib env surface; they belong here.
+ *   2. naming drift (`getSocketApiUrl` → `getSocketApiBaseUrl` in lib@5.28+) and
+ *      OAuth getters that haven't shipped upstream yet — re-exports / shims
+ *      that keep the mcp call sites stable until lib catches up. When lib
+ *      publishes the missing canonical getters, this file shrinks to just the
+ *      mcp-specific group.
  */
 
 import process from 'node:process'

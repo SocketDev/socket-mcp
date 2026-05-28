@@ -71,13 +71,14 @@ class SimpleJSONRPCClient {
 }
 
 async function main() {
+  // socket-api-token-getter: allow direct-env — mock client / dev tool, not the runtime auth path.
   const apiKey = process.env['SOCKET_API_TOKEN']
   if (!apiKey) {
     logger.error('Error: SOCKET_API_KEY environment variable is required')
     process.exit(1)
   }
 
-  logger.info('Starting MCP server debug client...')
+  logger.info('Starting MCP server debug client…')
 
   const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
   logger.info(`Using server script: ${serverPath}`)
@@ -93,7 +94,7 @@ async function main() {
   try {
     // Initialize the connection
     logger.error('')
-    logger.info('1. Initializing connection...')
+    logger.info('1. Initializing connection…')
     const initResult = await client.sendRequest('initialize', {
       protocolVersion: '0.1.0',
       capabilities: {},
@@ -106,13 +107,13 @@ async function main() {
 
     // List available tools
     logger.error('')
-    logger.info('2. Listing available tools...')
+    logger.info('2. Listing available tools…')
     const toolsResult = await client.sendRequest('tools/list', {})
     logger.info('Available tools:', JSON.stringify(toolsResult, null, 2))
 
     // Call the depscore tool
     logger.error('')
-    logger.info('3. Calling depscore tool...')
+    logger.info('3. Calling depscore tool…')
     const depscoreResult = await client.sendRequest('tools/call', {
       name: 'depscore',
       arguments: {

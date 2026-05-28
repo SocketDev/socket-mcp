@@ -1,10 +1,10 @@
 /**
- * @fileoverview Test runner — accepts `--staged` / `--fast` from the
- * fleet pre-commit hook and forwards to the test sub-scripts. `--staged`
- * is the pre-commit signal; `--fast` skips the embedded lint pass since
- * the hook runs lint separately. Both are silently ignored here — the
- * granular test scripts (test:tsc, test:node-test) don't understand
- * them, but the pre-commit hook always passes one or both.
+ * @file Test runner — accepts `--staged` / `--fast` from the fleet pre-commit
+ *   hook and forwards to the test sub-scripts. `--staged` is the pre-commit
+ *   signal; `--fast` skips the embedded lint pass since the hook runs lint
+ *   separately. Both are silently ignored here — the granular test scripts
+ *   (test:tsc, test:node-test) don't understand them, but the pre-commit hook
+ *   always passes one or both.
  */
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'

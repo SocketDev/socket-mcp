@@ -18,6 +18,7 @@ async function main() {
       ...(Object.fromEntries(
         Object.entries(process.env).filter(([, value]) => value !== undefined),
       ) as Record<string, string>),
+      // socket-api-token-getter: allow direct-env — mock client passes through to the spawned server's env.
       SOCKET_API_KEY: process.env['SOCKET_API_TOKEN'] || '',
     },
   })

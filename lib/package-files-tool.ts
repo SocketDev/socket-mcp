@@ -5,7 +5,7 @@ import { getStaticApiKey } from './depscore-tool.ts'
 import { fetchFileList } from './files.ts'
 import { getOrFetchBlob } from './blob-cache.ts'
 import { buildPurl } from './purl.ts'
-import { logger } from './logger.ts'
+import { debug, logger } from './logger.ts'
 
 const SOCKET_API_BASE_URL =
   getSocketApiUrl() || 'https://api.socket.dev'
@@ -109,7 +109,7 @@ export function registerPackageFilesTools(srv: McpServer): void {
           includeHashes: true,
           userAgent: INTERNAL_USER_AGENT,
           authToken: accessToken,
-          onRequest: url => logger.debug({ url }, 'file list request'),
+          onRequest: url => debug({ url }, 'file list request'),
         })
         if (result.fileCount === 0) {
           return {
