@@ -62,7 +62,7 @@ In `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/gitmodules-comment-guard/index.mts"
+            "command": "node .claude/hooks/fleet/gitmodules-comment-guard/index.mts"
           }
         ]
       }

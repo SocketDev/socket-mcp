@@ -4,9 +4,9 @@
  *   TruffleHog (secrets scanner), Trivy (vuln/SBOM scanner), OpenGrep (SAST),
  *   and uv (Python package manager bootstrap). Slim leaf of the
  *   `setup-security-tools` umbrella. Run via: node
- *   .claude/hooks/setup-basics-tools/install.mts For the full setup (firewall +
+ *   .claude/hooks/fleet/setup-basics-tools/install.mts For the full setup (firewall +
  *   scanners + socket-basics + misc), use `node
- *   .claude/hooks/setup-security-tools/install.mts`.
+ *   .claude/hooks/fleet/setup-security-tools/install.mts`.
  */
 
 import process from 'node:process'

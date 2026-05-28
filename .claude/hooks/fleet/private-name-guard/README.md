@@ -56,7 +56,7 @@ sure that read happens.
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/private-name-guard/index.mts"
+            "command": "node .claude/hooks/fleet/private-name-guard/index.mts"
           }
         ]
       }

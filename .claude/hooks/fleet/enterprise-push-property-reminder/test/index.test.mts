@@ -16,15 +16,17 @@ interface Result {
 
 async function runHook(payload: Record<string, unknown>): Promise<Result> {
   return new Promise(resolve => {
-    const child = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
+    // lib spawn() returns a Promise enriched with `.process` (the raw
+    // ChildProcess) + `.stdin`; stream stderr / exit off `.process`.
+    const childPromise = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
     let stderr = ''
-    child.stderr.on('data', chunk => {
+    childPromise.process.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString('utf8')
     })
-    child.on('exit', code => {
+    childPromise.process.on('exit', code => {
       resolve({ code: code ?? 0, stderr })
     })
-    child.stdin.end(JSON.stringify(payload))
+    childPromise.stdin?.end(JSON.stringify(payload))
   })
 }
 
@@ -136,28 +138,28 @@ test('non-PostToolUse event passes silently', async () => {
 })
 
 test('malformed JSON input passes silently (fail-open)', async () => {
-  const child = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
+  const childPromise = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
   let stderr = ''
-  child.stderr.on('data', chunk => {
+  childPromise.process.stderr?.on('data', (chunk: Buffer) => {
     stderr += chunk.toString('utf8')
   })
-  child.stdin.end('not valid json')
+  childPromise.stdin?.end('not valid json')
   const code: number = await new Promise(resolve => {
-    child.on('exit', c => resolve(c ?? 0))
+    childPromise.process.on('exit', c => resolve(c ?? 0))
   })
   assert.equal(code, 0)
   assert.equal(stderr, '')
 })
 
 test('empty stdin passes silently', async () => {
-  const child = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
+  const childPromise = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
   let stderr = ''
-  child.stderr.on('data', chunk => {
+  childPromise.process.stderr?.on('data', (chunk: Buffer) => {
     stderr += chunk.toString('utf8')
   })
-  child.stdin.end('')
+  childPromise.stdin?.end('')
   const code: number = await new Promise(resolve => {
-    child.on('exit', c => resolve(c ?? 0))
+    childPromise.process.on('exit', c => resolve(c ?? 0))
   })
   assert.equal(code, 0)
   assert.equal(stderr, '')

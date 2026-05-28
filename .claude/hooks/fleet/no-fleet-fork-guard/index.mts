@@ -74,11 +74,22 @@ const CANONICAL_PREFIXES = [
 ]
 
 // Carve-out: paths under a CANONICAL_PREFIXES dir that are explicitly
-// per-repo (not cascaded). `docs/claude.md/repo/` is the per-repo
-// analog of `docs/claude.md/fleet/` — host repos drop architecture /
-// commands / build-pipeline detail here to keep CLAUDE.md under the
-// whole-file size cap.
-const PER_REPO_PREFIXES = ['docs/claude.md/repo/']
+// per-repo (not cascaded). Mirrors the docs convention:
+//   docs/claude.md/fleet/  — cascaded, edited in template
+//   docs/claude.md/repo/   — local, edited in the host repo
+// And extends it to hooks + scripts:
+//   .claude/hooks/<name>/      — fleet (default; cascaded)
+//   .claude/hooks/repo/<name>/ — per-repo, local-only
+//   scripts/<name>             — fleet (default; cascaded)
+//   scripts/repo/<name>        — per-repo, local-only
+// Repo-local hooks/scripts let a host repo address one-off concerns
+// (e.g. socket-btm's gypi source-path quirk) without forcing the
+// whole fleet to carry the rule.
+const PER_REPO_PREFIXES = [
+  'docs/claude.md/repo/',
+  '.claude/hooks/repo/',
+  'scripts/repo/',
+]
 
 // Fleet-canonical individual files (not under one of the prefix
 // dirs). Matches relative-to-repo-root.

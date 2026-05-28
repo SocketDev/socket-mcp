@@ -96,7 +96,7 @@ In `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/no-structured-clone-prefer-json-guard/index.mts"
+            "command": "node .claude/hooks/fleet/no-structured-clone-prefer-json-guard/index.mts"
           }
         ]
       }

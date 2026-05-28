@@ -7,7 +7,7 @@ paths containing `node_modules/` or `package-lock.json` under
 ## Why
 
 `-f` overrides `.gitignore`. Past incident: an agent ran
-`git add -f .claude/hooks/check-new-deps/node_modules/` to "fix" what
+`git add -f .claude/hooks/fleet/check-new-deps/node_modules/` to "fix" what
 looked like a missing dir in a commit. The directory landed in 6 fleet
 repos via cascade. Removing it required either a history rewrite
 (`git filter-branch` / `git filter-repo`) + force-push, or living with

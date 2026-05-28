@@ -57,7 +57,7 @@ In `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/public-surface-reminder/index.mts"
+            "command": "node .claude/hooks/fleet/public-surface-reminder/index.mts"
           }
         ]
       }

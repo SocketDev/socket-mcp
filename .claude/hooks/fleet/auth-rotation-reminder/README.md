@@ -110,7 +110,7 @@ In `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/auth-rotation-reminder/index.mts"
+            "command": "node .claude/hooks/fleet/auth-rotation-reminder/index.mts"
           }
         ]
       }

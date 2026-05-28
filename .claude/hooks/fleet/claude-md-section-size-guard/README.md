@@ -35,4 +35,4 @@ No bypass phrase — the override env-var is the documented escape valve. If you
 ## Reading
 
 - CLAUDE.md → opening fleet-canonical note (cap is cited there).
-- `.claude/hooks/claude-md-size-guard/` — the companion byte-cap hook.
+- `.claude/hooks/fleet/claude-md-size-guard/` — the companion byte-cap hook.

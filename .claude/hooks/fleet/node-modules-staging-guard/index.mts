@@ -150,7 +150,7 @@ async function main(): Promise<void> {
       ...blockedArgs.map(a => `    ${a}`),
       '',
       '  Past incident: a cascading agent committed',
-      '  `.claude/hooks/check-new-deps/node_modules/` into 6 fleet repos.',
+      '  `.claude/hooks/fleet/check-new-deps/node_modules/` into 6 fleet repos.',
       '  Removing it required force-push (itself a hazard) or filter-branch.',
       '',
       '  `node_modules/` and hook `package-lock.json` files are gitignored',

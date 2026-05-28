@@ -48,7 +48,7 @@ const BLOCK_END = '# END socket-cli env'
 export function buildBlockBody(token: string): string {
   const quoted = shellSingleQuote(token)
   return `# Token persisted by setup-security-tools install.mts.
-# Rotate via: node .claude/hooks/setup-security-tools/install.mts --rotate
+# Rotate via: node .claude/hooks/fleet/setup-security-tools/install.mts --rotate
 # Keychain copy still lives at: security find-generic-password -s socket-cli -a SOCKET_API_KEY
 # SOCKET_API_KEY is universally supported across Socket tools (CLI, SDK, sfw,
 # fleet scripts) — one env var covers the whole surface with no fallback chain.

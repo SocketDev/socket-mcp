@@ -7,9 +7,9 @@
  *   gpg.format` (ssh|openpgp). Paired with the pre-commit signing-config gate
  *   and the pre-push signed-commits enforcement. Without signing set up, those
  *   hooks block commits / pushes; this helper makes the one-time setup
- *   mechanical. Usage: node .claude/hooks/setup-signing/install.mts node
- *   .claude/hooks/setup-signing/install.mts --check # report only node
- *   .claude/hooks/setup-signing/install.mts --force # overwrite existing config
+ *   mechanical. Usage: node .claude/hooks/fleet/setup-signing/install.mts node
+ *   .claude/hooks/fleet/setup-signing/install.mts --check # report only node
+ *   .claude/hooks/fleet/setup-signing/install.mts --force # overwrite existing config
  *   Auto-detection order (first hit wins):
  *
  *   1. 1Password SSH agent (SOCK at ~/Library/Group Containers/.../agent.sock). If

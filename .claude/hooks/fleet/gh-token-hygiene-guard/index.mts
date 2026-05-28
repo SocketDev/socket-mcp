@@ -151,6 +151,18 @@ interface GhAuthStatus {
 }
 
 async function main(): Promise<void> {
+  // CLI mode: `node index.mts --stamp` writes a fresh timestamp.
+  // Provides an explicit recovery path for users who ran `gh auth
+  // refresh` outside Claude's tool flow (so the PreToolUse-driven
+  // pre-stamp at line ~228 didn't fire) and got stuck on the >8h
+  // block. Documented in CLAUDE.md's `### gh token hygiene` section.
+  if (process.argv.includes('--stamp')) {
+    recordTokenIssuedAt()
+    process.stdout.write(
+      `gh-token-hygiene-guard: stamped ${TOKEN_ISSUED_AT_FILE}\n`,
+    )
+    process.exit(0)
+  }
   const raw = await readStdin()
   let payload: PreToolUsePayload
   try {
@@ -398,6 +410,13 @@ function isAuthMaintenanceCommand(command: string): boolean {
   return /\bgh\s+auth\s+(?:login|logout|refresh|status)\b/.test(command)
 }
 
+// 2020-01-01T00:00:00Z in epoch ms. Any stamp file value below this is
+// either zero, a POSIX-seconds value (~1.7e9) mistakenly written instead
+// of ms (~1.7e12), or garbage. Treat as malformed and re-stamp so a
+// user who attempted `date "+%s" > ~/.claude/gh-token-issued-at`
+// doesn't get permanently blocked.
+const MIN_PLAUSIBLE_STAMP_MS = 1_577_836_800_000
+
 function isTokenFresh(): boolean {
   if (!existsSync(TOKEN_ISSUED_AT_FILE)) {
     // First run: stamp now and treat as fresh. This makes the hook
@@ -411,6 +430,15 @@ function isTokenFresh(): boolean {
     const recorded = Number(readFileSync(TOKEN_ISSUED_AT_FILE, 'utf8'))
     if (!Number.isFinite(recorded)) {
       return false
+    }
+    // Malformed value (zero, POSIX-seconds, garbage) — re-stamp and
+    // treat as fresh. The actual gh token in keychain is what matters
+    // for security; this stamp file just tracks when we last saw a
+    // confirmed refresh. A wrong value here would lock the user out
+    // until they figured out the file format.
+    if (recorded < MIN_PLAUSIBLE_STAMP_MS) {
+      recordTokenIssuedAt()
+      return true
     }
     return Date.now() - recorded < TOKEN_TTL_MS
   } catch {

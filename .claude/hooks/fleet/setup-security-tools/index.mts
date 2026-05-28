@@ -31,7 +31,7 @@
 // Output: stderr lines starting with `[setup-security-tools]`. Each
 // finding ends with the exact remediation command:
 //
-//   node .claude/hooks/setup-security-tools/install.mts
+//   node .claude/hooks/fleet/setup-security-tools/install.mts
 //
 // Disabled via `SOCKET_SETUP_SECURITY_TOOLS_DISABLED=1`.
 //
@@ -101,7 +101,7 @@ export function checkEdition(): Finding[] {
         kind: 'edition-mismatch',
         message:
           'SOCKET_API_KEY is set but the SFW shim is the free build. ' +
-          'Run `node .claude/hooks/setup-security-tools/install.mts` to ' +
+          'Run `node .claude/hooks/fleet/setup-security-tools/install.mts` to ' +
           'switch to sfw-enterprise (org-aware malware scanning + private ' +
           'package data).',
       },
@@ -156,7 +156,7 @@ export async function checkShims(): Promise<Finding[]> {
         `(manifest rebuild, manual delete, or cache rotation). Every ` +
         `command through ${broken.length === 1 ? 'that shim' : 'those shims'} ` +
         `currently fails with "No such file or directory." Run ` +
-        `\`node .claude/hooks/setup-security-tools/install.mts\` to ` +
+        `\`node .claude/hooks/fleet/setup-security-tools/install.mts\` to ` +
         `re-download SFW and rewrite the shims.`,
     },
   ]
@@ -222,7 +222,7 @@ export async function checkToken401(
           message:
             'Socket API returned 401 — the configured SOCKET_API_KEY ' +
             'is invalid, expired, or lacks the required permissions. ' +
-            'Run `node .claude/hooks/setup-security-tools/install.mts ' +
+            'Run `node .claude/hooks/fleet/setup-security-tools/install.mts ' +
             '--rotate` to re-prompt and overwrite the keychain entry.',
         },
       ]

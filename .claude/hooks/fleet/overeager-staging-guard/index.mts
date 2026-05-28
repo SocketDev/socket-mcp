@@ -37,11 +37,14 @@
 //     "transcript_path": "/.../session.jsonl" }
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { commandsFor, findInvocation } from '../_shared/shell-command.mts'
+import { readTouchedPaths } from '../_shared/foreign-paths.mts'
+import {
+  detectBroadGitAdd,
+  findInvocation,
+} from '../_shared/shell-command.mts'
 import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
 
 interface ToolInput {
@@ -52,69 +55,6 @@ interface ToolInput {
 
 const ENV_DISABLE = 'SOCKET_OVEREAGER_STAGING_GUARD_DISABLED'
 const BYPASS_PHRASES = ['Allow add-all bypass'] as const
-
-export function addTouchedFromBash(
-  command: string,
-  touched: Set<string>,
-): void {
-  const segments = command.split(/(?:&&|\|\||;|\n)/)
-  for (let i = 0, { length } = segments; i < length; i += 1) {
-    const segment = segments[i]!
-    const tokens = segment.trim().split(/\s+/)
-    let j = 0
-    while (j < tokens.length && tokens[j]!.includes('=')) {
-      j += 1
-    }
-    if (tokens[j] !== 'git') {
-      continue
-    }
-    const verb = tokens[j + 1]
-    if (verb !== 'add' && verb !== 'mv' && verb !== 'rm') {
-      continue
-    }
-    // Everything after the verb that isn't a flag is a path.
-    for (const arg of tokens.slice(j + 2)) {
-      if (arg.startsWith('-')) {
-        continue
-      }
-      // Skip the "." / glob forms; those weren't surgical adds.
-      if (arg === '.') {
-        continue
-      }
-      touched.add(path.resolve(arg))
-    }
-  }
-}
-
-// Detects `git add` invocations that sweep the working tree. Parses
-// the command with the shared shell tokenizer so chains, quoting, and
-// leading env-var assignments (`GIT_AUTHOR_NAME=x git add …`) are all
-// handled — and a quoted "git add ." inside a message can't false-fire.
-// `git add ./path` (a legitimate surgical add of a dotfile) is NOT
-// confused with `git add .` (the broad sweep) because the parser
-// preserves the exact arg.
-export function detectBroadGitAdd(command: string): string | undefined {
-  for (const c of commandsFor(command, 'git')) {
-    // The `add` subcommand can sit after global flags (`git -C x add .`),
-    // so scan all args rather than assuming position.
-    if (!c.args.includes('add')) {
-      continue
-    }
-    for (let k = 0, { length } = c.args; k < length; k += 1) {
-      const arg = c.args[k]!
-      if (arg === '--all' || arg === '-A') {
-        return `git add ${arg}`
-      }
-      if (arg === '--update' || arg === '-u') {
-        return `git add ${arg}`
-      }
-      if (arg === '.') {
-        return 'git add .'
-      }
-    }
-  }
-  return undefined
-}
 
 export function getRepoDir(): string {
   return process.env['CLAUDE_PROJECT_DIR'] || process.cwd()
@@ -138,76 +78,6 @@ export function listStagedFiles(repoDir: string): string[] {
     .filter(Boolean)
 }
 
-// Read tool-use history from the transcript. Return the set of file
-// paths the agent has Edit/Write'd, plus any `git rm <path>` targets
-// the agent has staged this session.
-export function readTouchedPaths(
-  transcriptPath: string | undefined,
-): Set<string> {
-  const touched = new Set<string>()
-  if (!transcriptPath) {
-    return touched
-  }
-  let raw: string
-  try {
-    raw = readFileSync(transcriptPath, 'utf8')
-  } catch {
-    return touched
-  }
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) {
-      continue
-    }
-    let entry: unknown
-    try {
-      entry = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (entry === null || typeof entry !== 'object') {
-      continue
-    }
-    const msg = (entry as { message?: unknown | undefined }).message
-    if (msg === null || typeof msg !== 'object') {
-      continue
-    }
-    const content = (msg as { content?: unknown | undefined }).content
-    if (!Array.isArray(content)) {
-      continue
-    }
-    for (let i = 0, { length } = content; i < length; i += 1) {
-      const part = content[i]!
-      if (part === null || typeof part !== 'object') {
-        continue
-      }
-      const toolName = (part as { name?: unknown | undefined }).name
-      const toolInput = (part as { input?: unknown | undefined }).input
-      if (typeof toolName !== 'string') {
-        continue
-      }
-      if (toolInput === null || typeof toolInput !== 'object') {
-        continue
-      }
-      const filePath = (toolInput as { file_path?: unknown | undefined })
-        .file_path
-      if (typeof filePath === 'string' && filePath) {
-        // Edit / Write / Read carry file_path; only Edit and Write
-        // modify, but tracking Read'd-but-not-edited files as touched
-        // is harmless for this heuristic.
-        if (toolName === 'Edit' || toolName === 'Write') {
-          touched.add(path.resolve(filePath))
-        }
-      }
-      // Bash commands with `git rm <path>` / `git add <path>` also
-      // count as touched. Parse the command tokens.
-      const command = (toolInput as { command?: unknown | undefined }).command
-      if (toolName === 'Bash' && typeof command === 'string') {
-        addTouchedFromBash(command, touched)
-      }
-    }
-  }
-  return touched
-}
 
 async function main(): Promise<void> {
   if (process.env[ENV_DISABLE]) {

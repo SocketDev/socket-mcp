@@ -57,7 +57,7 @@ In `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/stale-process-sweeper/index.mts"
+            "command": "node .claude/hooks/fleet/stale-process-sweeper/index.mts"
           }
         ]
       }

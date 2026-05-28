@@ -13,10 +13,10 @@ free). Slim leaf of the `setup-security-tools` umbrella.
 
 ```sh
 # Install / verify
-node .claude/hooks/setup-firewall/install.mts
+node .claude/hooks/fleet/setup-firewall/install.mts
 
 # Rotate the API token (re-prompts; overwrites keychain)
-node .claude/hooks/setup-firewall/install.mts --rotate
+node .claude/hooks/fleet/setup-firewall/install.mts --rotate
 ```
 
 ## Relationship to setup-security-tools

@@ -47,4 +47,4 @@ The pattern requires both error lines for a tight match — generic "permission 
 
 - `docs/claude.md/fleet/push-policy.md` — full rationale + operator flow.
 - `scripts/_shared/repo-properties.mts` — `canSkipReviewGate()` implementation used by the cascade.
-- `.claude/hooks/pr-vs-push-default-reminder/` — sibling hook for the reverse case (Claude opening a PR when direct push would have worked).
+- `.claude/hooks/fleet/pr-vs-push-default-reminder/` — sibling hook for the reverse case (Claude opening a PR when direct push would have worked).

@@ -61,7 +61,7 @@ const configSchema = Type.Object({
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // external-tools.json lives one level up at the hook root
-// (.claude/hooks/setup-security-tools/external-tools.json) — keep it
+// (.claude/hooks/fleet/setup-security-tools/external-tools.json) — keep it
 // out of `lib/` so it's discoverable as a top-level config file rather
 // than buried as an implementation detail. Fall back to a sibling path
 // so an early-installed copy in lib/ still resolves during onboarding.

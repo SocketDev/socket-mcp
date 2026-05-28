@@ -26,7 +26,7 @@ Accepted variants:
 
 ## Why wheelhouse-only
 
-Downstream fleet repos receive their CLAUDE.md and hook code via `sync-scaffolding`. They consume the canonical version; they shouldn't be re-policing the source-of-truth mapping. This hook lives in `template/.claude/hooks/new-hook-claude-md-guard/` but is **NOT** listed in `scripts/sync-scaffolding/manifest.mts`'s `IDENTICAL_FILES`, so the cascade skips it.
+Downstream fleet repos receive their CLAUDE.md and hook code via `sync-scaffolding`. They consume the canonical version; they shouldn't be re-policing the source-of-truth mapping. This hook lives in `template/.claude/hooks/fleet/new-hook-claude-md-guard/` but is **NOT** listed in `scripts/sync-scaffolding/manifest.mts`'s `IDENTICAL_FILES`, so the cascade skips it.
 
 ## Skipped paths
 

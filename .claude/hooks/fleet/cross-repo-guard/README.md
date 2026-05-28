@@ -86,7 +86,7 @@ companion git-side scanner in `.git-hooks/_helpers.mts` (`FLEET_REPO_NAMES`)
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/cross-repo-guard/index.mts"
+            "command": "node .claude/hooks/fleet/cross-repo-guard/index.mts"
           }
         ]
       }

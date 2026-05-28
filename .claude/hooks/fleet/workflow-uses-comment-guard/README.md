@@ -66,7 +66,7 @@ In `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/workflow-uses-comment-guard/index.mts"
+            "command": "node .claude/hooks/fleet/workflow-uses-comment-guard/index.mts"
           }
         ]
       }

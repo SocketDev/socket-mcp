@@ -53,7 +53,7 @@ All three address the same underlying anti-pattern: offloading judgment the assi
 
 ## Dependencies
 
-- `compromise@14.15.0` — NLP library for POS-tagged modal-verb detection. Lazy-loaded; optional.
+- `compromise@14.15.1` — NLP library for POS-tagged modal-verb detection. Lazy-loaded; optional.
 
 ## Test
 

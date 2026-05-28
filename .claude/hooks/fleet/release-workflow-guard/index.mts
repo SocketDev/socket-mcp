@@ -428,7 +428,7 @@ export function workflowDeclaresDryRunInput(
 export function resolveSearchRoots(command: string): string[] {
   // Resolution order: $CLAUDE_PROJECT_DIR (Claude Code sets this when
   // it remembers to) → derive from this hook script's path (the hook
-  // lives at <project>/.claude/hooks/release-workflow-guard/index.mts,
+  // lives at <project>/.claude/hooks/fleet/release-workflow-guard/index.mts,
   // so go three levels up from __dirname) → $PWD as last resort.
   // The script-path derivation is the most robust because it doesn't
   // depend on the runner exporting env vars correctly.
@@ -438,7 +438,7 @@ export function resolveSearchRoots(command: string): string[] {
     // invoked via `node <path>`. Walk up to the repo root.
     const scriptPath = process.argv[1]
     if (scriptPath) {
-      // .claude/hooks/release-workflow-guard/index.mts → ../../../ = repo
+      // .claude/hooks/fleet/release-workflow-guard/index.mts → ../../../ = repo
       const candidate = path.resolve(scriptPath, '..', '..', '..', '..')
       if (existsSync(path.join(candidate, '.github', 'workflows'))) {
         projectDir = candidate

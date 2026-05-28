@@ -10,7 +10,7 @@
     "test": "node --test test/*.test.mts"
   },
   "dependencies": {
-    "compromise": "14.15.0"
+    "compromise": "14.15.1"
   },
   "devDependencies": {
     "@types/node": "catalog:"

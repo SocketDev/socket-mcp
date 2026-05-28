@@ -80,7 +80,7 @@ agent can apply it directly:
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/logger-guard/index.mts"
+            "command": "node .claude/hooks/fleet/logger-guard/index.mts"
           }
         ]
       }

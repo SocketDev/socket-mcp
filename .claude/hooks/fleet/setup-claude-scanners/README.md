@@ -13,11 +13,11 @@ claude-config / GitHub-Actions scanners. Slim leaf of the
   scanning right now is claude-config + workflow YAML.
 
 ```sh
-node .claude/hooks/setup-claude-scanners/install.mts
+node .claude/hooks/fleet/setup-claude-scanners/install.mts
 ```
 
 For the full setup (firewall + scanners + socket-basics + misc), use
-`node .claude/hooks/setup-security-tools/install.mts`.
+`node .claude/hooks/fleet/setup-security-tools/install.mts`.
 
 ## Relationship to setup-security-tools
 

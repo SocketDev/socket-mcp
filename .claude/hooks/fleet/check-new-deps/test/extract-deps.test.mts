@@ -78,18 +78,13 @@ function runHook(
     input,
     timeout: 15_000,
     stdio: ['pipe', 'pipe', 'pipe'],
+    stdioString: true,
     env,
   })
   return {
     code: result.status ?? 1,
-    stdout:
-      typeof result.stdout === 'string'
-        ? result.stdout
-        : result.stdout.toString(),
-    stderr:
-      typeof result.stderr === 'string'
-        ? result.stderr
-        : result.stderr.toString(),
+    stdout: typeof result.stdout === 'string' ? result.stdout : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr : '',
   }
 }
 
@@ -116,14 +111,14 @@ describe('extractNewDeps', () => {
     it('unscoped', () => {
       const d = extractNewDeps('package.json', '"lodash": "^4.17.21"')
       assert.equal(d.length, 1)
-      assert.equal(d[0].type, 'npm')
-      assert.equal(d[0].name, 'lodash')
-      assert.equal(d[0].namespace, undefined)
+      assert.equal(d[0]!.type, 'npm')
+      assert.equal(d[0]!.name, 'lodash')
+      assert.equal(d[0]!.namespace, undefined)
     })
     it('scoped', () => {
       const d = extractNewDeps('package.json', '"@types/node": "^20.0.0"')
-      assert.equal(d[0].namespace, '@types')
-      assert.equal(d[0].name, 'node')
+      assert.equal(d[0]!.namespace, '@types')
+      assert.equal(d[0]!.name, 'node')
     })
     it('multiple', () => {
       const d = extractNewDeps(
@@ -164,11 +159,11 @@ describe('extractNewDeps', () => {
         'Cargo.toml',
         'serde = { version = "1.0", features = ["derive"] }',
       )
-      assert.equal(d[0].name, 'serde')
+      assert.equal(d[0]!.name, 'serde')
     })
     it('hyphenated name', () => {
       assert.equal(
-        extractNewDeps('Cargo.toml', 'simd-json = "0.17"')[0].name,
+        extractNewDeps('Cargo.toml', 'simd-json = "0.17"')[0]!.name,
         'simd-json',
       )
     })
@@ -184,13 +179,13 @@ describe('extractNewDeps', () => {
   describe('golang', () => {
     it('with namespace', () => {
       const d = extractNewDeps('go.mod', 'github.com/gin-gonic/gin v1.9.1')
-      assert.equal(d[0].namespace, 'github.com/gin-gonic')
-      assert.equal(d[0].name, 'gin')
+      assert.equal(d[0]!.namespace, 'github.com/gin-gonic')
+      assert.equal(d[0]!.name, 'gin')
     })
     it('stdlib extension', () => {
       const d = extractNewDeps('go.mod', 'golang.org/x/sync v0.7.0')
-      assert.equal(d[0].namespace, 'golang.org/x')
-      assert.equal(d[0].name, 'sync')
+      assert.equal(d[0]!.namespace, 'golang.org/x')
+      assert.equal(d[0]!.name, 'sync')
     })
   })
 
@@ -220,11 +215,11 @@ describe('extractNewDeps', () => {
   // gem
   describe('gem', () => {
     it('single-quoted', () => {
-      assert.equal(extractNewDeps('Gemfile', "gem 'rails'")[0].name, 'rails')
+      assert.equal(extractNewDeps('Gemfile', "gem 'rails'")[0]!.name, 'rails')
     })
     it('double-quoted with version', () => {
       assert.equal(
-        extractNewDeps('Gemfile', 'gem "sinatra", "~> 3.0"')[0].name,
+        extractNewDeps('Gemfile', 'gem "sinatra", "~> 3.0"')[0]!.name,
         'sinatra',
       )
     })
@@ -237,23 +232,23 @@ describe('extractNewDeps', () => {
         'pom.xml',
         '<groupId>org.apache</groupId><artifactId>commons-lang3</artifactId>',
       )
-      assert.equal(d[0].namespace, 'org.apache')
-      assert.equal(d[0].name, 'commons-lang3')
+      assert.equal(d[0]!.namespace, 'org.apache')
+      assert.equal(d[0]!.name, 'commons-lang3')
     })
     it('build.gradle', () => {
       const d = extractNewDeps(
         'build.gradle',
         "implementation 'com.google.guava:guava:32.1'",
       )
-      assert.equal(d[0].namespace, 'com.google.guava')
-      assert.equal(d[0].name, 'guava')
+      assert.equal(d[0]!.namespace, 'com.google.guava')
+      assert.equal(d[0]!.name, 'guava')
     })
     it('build.gradle.kts', () => {
       const d = extractNewDeps(
         'build.gradle.kts',
         "implementation 'org.jetbrains:annotations:24.0'",
       )
-      assert.equal(d[0].name, 'annotations')
+      assert.equal(d[0]!.name, 'annotations')
     })
   })
 
@@ -264,8 +259,8 @@ describe('extractNewDeps', () => {
         'Package.swift',
         '.package(url: "https://github.com/vapor/vapor", from: "4.0.0")',
       )
-      assert.equal(d[0].type, 'swift')
-      assert.equal(d[0].name, 'vapor')
+      assert.equal(d[0]!.type, 'swift')
+      assert.equal(d[0]!.name, 'vapor')
     })
   })
 
@@ -273,7 +268,7 @@ describe('extractNewDeps', () => {
   describe('pub', () => {
     it('dart package', () => {
       assert.equal(
-        extractNewDeps('pubspec.yaml', '  flutter_bloc: ^8.1')[0].name,
+        extractNewDeps('pubspec.yaml', '  flutter_bloc: ^8.1')[0]!.name,
         'flutter_bloc',
       )
     })
@@ -283,7 +278,7 @@ describe('extractNewDeps', () => {
   describe('hex', () => {
     it('elixir dep', () => {
       assert.equal(
-        extractNewDeps('mix.exs', '{:phoenix, "~> 1.7"}')[0].name,
+        extractNewDeps('mix.exs', '{:phoenix, "~> 1.7"}')[0]!.name,
         'phoenix',
       )
     })
@@ -293,8 +288,8 @@ describe('extractNewDeps', () => {
   describe('composer', () => {
     it('vendor/package', () => {
       const d = extractNewDeps('composer.json', '"monolog/monolog": "^3.0"')
-      assert.equal(d[0].namespace, 'monolog')
-      assert.equal(d[0].name, 'monolog')
+      assert.equal(d[0]!.namespace, 'monolog')
+      assert.equal(d[0]!.name, 'monolog')
     })
   })
 
@@ -305,7 +300,7 @@ describe('extractNewDeps', () => {
         extractNewDeps(
           'test.csproj',
           '<PackageReference Include="Newtonsoft.Json" Version="13.0" />',
-        )[0].name,
+        )[0]!.name,
         'Newtonsoft.Json',
       )
     })
@@ -315,7 +310,7 @@ describe('extractNewDeps', () => {
   describe('julia', () => {
     it('Project.toml', () => {
       assert.equal(
-        extractNewDeps('Project.toml', 'JSON3 = "0a1fb500"')[0].name,
+        extractNewDeps('Project.toml', 'JSON3 = "0a1fb500"')[0]!.name,
         'JSON3',
       )
     })
@@ -325,13 +320,13 @@ describe('extractNewDeps', () => {
   describe('conan', () => {
     it('conanfile.txt', () => {
       assert.equal(
-        extractNewDeps('conanfile.txt', 'boost/1.83.0')[0].name,
+        extractNewDeps('conanfile.txt', 'boost/1.83.0')[0]!.name,
         'boost',
       )
     })
     it('conanfile.py', () => {
       assert.equal(
-        extractNewDeps('conanfile.py', 'requires = "zlib/1.3.0"')[0].name,
+        extractNewDeps('conanfile.py', 'requires = "zlib/1.3.0"')[0]!.name,
         'zlib',
       )
     })
@@ -344,24 +339,24 @@ describe('extractNewDeps', () => {
         '.github/workflows/ci.yml',
         'uses: actions/checkout@v4',
       )
-      assert.equal(d[0].type, 'github')
-      assert.equal(d[0].namespace, 'actions')
-      assert.equal(d[0].name, 'checkout')
+      assert.equal(d[0]!.type, 'github')
+      assert.equal(d[0]!.namespace, 'actions')
+      assert.equal(d[0]!.name, 'checkout')
     })
     it('extracts action with SHA', () => {
       const d = extractNewDeps(
         '.github/workflows/ci.yml',
         'uses: actions/setup-node@abc123def',
       )
-      assert.equal(d[0].name, 'setup-node')
+      assert.equal(d[0]!.name, 'setup-node')
     })
     it('extracts action with subpath', () => {
       const d = extractNewDeps(
         '.github/workflows/ci.yml',
         'uses: org/repo/subpath@v1',
       )
-      assert.equal(d[0].namespace, 'org')
-      assert.equal(d[0].name, 'repo/subpath')
+      assert.equal(d[0]!.namespace, 'org')
+      assert.equal(d[0]!.name, 'repo/subpath')
     })
     it('multiple actions', () => {
       const d = extractNewDeps(
@@ -376,9 +371,9 @@ describe('extractNewDeps', () => {
   describe('terraform', () => {
     it('registry module source', () => {
       const d = extractTerraform('source = "hashicorp/consul/aws"')
-      assert.equal(d[0].type, 'terraform')
-      assert.equal(d[0].namespace, 'hashicorp')
-      assert.equal(d[0].name, 'consul')
+      assert.equal(d[0]!.type, 'terraform')
+      assert.equal(d[0]!.namespace, 'hashicorp')
+      assert.equal(d[0]!.name, 'consul')
     })
     it('via extractNewDeps', () => {
       const d = extractNewDeps(
@@ -386,7 +381,7 @@ describe('extractNewDeps', () => {
         'source = "cloudflare/dns/cloudflare"',
       )
       assert.equal(d.length, 1)
-      assert.equal(d[0].namespace, 'cloudflare')
+      assert.equal(d[0]!.namespace, 'cloudflare')
     })
   })
 
@@ -394,9 +389,9 @@ describe('extractNewDeps', () => {
   describe('nix flakes', () => {
     it('github input', () => {
       const d = extractNixFlake('inputs.nixpkgs.url = "github:NixOS/nixpkgs"')
-      assert.equal(d[0].type, 'github')
-      assert.equal(d[0].namespace, 'NixOS')
-      assert.equal(d[0].name, 'nixpkgs')
+      assert.equal(d[0]!.type, 'github')
+      assert.equal(d[0]!.namespace, 'NixOS')
+      assert.equal(d[0]!.name, 'nixpkgs')
     })
     it('via extractNewDeps', () => {
       const d = extractNewDeps(
@@ -404,7 +399,7 @@ describe('extractNewDeps', () => {
         'url = "github:nix-community/home-manager"',
       )
       assert.equal(d.length, 1)
-      assert.equal(d[0].name, 'home-manager')
+      assert.equal(d[0]!.name, 'home-manager')
     })
   })
 
@@ -412,12 +407,12 @@ describe('extractNewDeps', () => {
   describe('homebrew', () => {
     it('brew formula', () => {
       const d = extractBrewfile('brew "git"')
-      assert.equal(d[0].type, 'brew')
-      assert.equal(d[0].name, 'git')
+      assert.equal(d[0]!.type, 'brew')
+      assert.equal(d[0]!.name, 'git')
     })
     it('cask', () => {
       const d = extractBrewfile('cask "firefox"')
-      assert.equal(d[0].name, 'firefox')
+      assert.equal(d[0]!.name, 'firefox')
     })
     it('via extractNewDeps', () => {
       const d = extractNewDeps('Brewfile', 'brew "wget"\ncask "iterm2"')
@@ -449,16 +444,16 @@ describe('extractNewDeps', () => {
         'Cargo.lock',
         'name = "serde"\nversion = "1.0.210"',
       )
-      assert.equal(d[0].type, 'cargo')
-      assert.equal(d[0].name, 'serde')
+      assert.equal(d[0]!.type, 'cargo')
+      assert.equal(d[0]!.name, 'serde')
     })
     it('go.sum', () => {
       const d = extractNewDeps(
         'go.sum',
         'github.com/gin-gonic/gin v1.9.1 h1:abc=',
       )
-      assert.equal(d[0].type, 'golang')
-      assert.equal(d[0].name, 'gin')
+      assert.equal(d[0]!.type, 'golang')
+      assert.equal(d[0]!.name, 'gin')
     })
     it('Gemfile.lock', () => {
       const d = extractNewDeps(
@@ -469,8 +464,8 @@ describe('extractNewDeps', () => {
     })
     it('composer.lock', () => {
       const d = extractNewDeps('composer.lock', '"name": "monolog/monolog"')
-      assert.equal(d[0].namespace, 'monolog')
-      assert.equal(d[0].name, 'monolog')
+      assert.equal(d[0]!.namespace, 'monolog')
+      assert.equal(d[0]!.name, 'monolog')
     })
     it('poetry.lock', () => {
       const d = extractNewDeps(
@@ -496,7 +491,7 @@ describe('extractNewDeps', () => {
         '"lodash": "^4"',
       )
       assert.equal(d.length, 1)
-      assert.equal(d[0].name, 'lodash')
+      assert.equal(d[0]!.name, 'lodash')
     })
     it('handles backslash in workflow path', () => {
       const d = extractNewDeps(
@@ -504,7 +499,7 @@ describe('extractNewDeps', () => {
         'uses: actions/checkout@v4',
       )
       assert.equal(d.length, 1)
-      assert.equal(d[0].name, 'checkout')
+      assert.equal(d[0]!.name, 'checkout')
     })
     it('handles backslash in Cargo.toml path', () => {
       const d = extractNewDeps('src\\parser\\Cargo.toml', 'serde = "1.0"')
@@ -539,7 +534,7 @@ describe('diffDeps', () => {
     const oldDeps = [{ type: 'npm', name: 'a' }]
     const result = diffDeps(newDeps, oldDeps)
     assert.equal(result.length, 1)
-    assert.equal(result[0].name, 'b')
+    assert.equal(result[0]!.name, 'b')
   })
   it('returns empty when no new deps', () => {
     const deps = [{ type: 'npm', name: 'a' }]

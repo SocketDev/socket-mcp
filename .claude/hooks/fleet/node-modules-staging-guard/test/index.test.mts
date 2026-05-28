@@ -63,7 +63,7 @@ test('git add -f node_modules path blocked', async () => {
   const r = await runHook({
     tool_name: 'Bash',
     tool_input: {
-      command: 'git add -f .claude/hooks/check-new-deps/node_modules/',
+      command: 'git add -f .claude/hooks/fleet/check-new-deps/node_modules/',
     },
   })
   assert.strictEqual(r.code, 2)

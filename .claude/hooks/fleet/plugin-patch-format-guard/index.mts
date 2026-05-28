@@ -76,10 +76,10 @@ const HEADER_PLUGIN_VERSION = /^# @plugin-version:\s*(\d+\.\d+\.\d+)\s*$/m
 type Verdict = { ok: true } | { ok: false; reason: string }
 
 /**
- * Is the target file path a plugin-cache patch under
- * `scripts/plugin-patches/`? Normalizes to `/`-separators first so the
- * check is cross-platform (per the fleet path-regex-normalize rule), then
- * matches the canonical dir + `.patch` extension.
+ * Is the target file path a plugin-cache patch under `scripts/plugin-patches/`?
+ * Normalizes to `/`-separators first so the check is cross-platform (per the
+ * fleet path-regex-normalize rule), then matches the canonical dir + `.patch`
+ * extension.
  */
 export function isPluginPatchPath(filePath: string): boolean {
   const normalized = normalizePath(filePath)
@@ -95,8 +95,8 @@ export function isPluginPatchPath(filePath: string): boolean {
 }
 
 /**
- * Pure classifier: given a patch filename + its full content, return a
- * verdict. Exported for unit tests. Mirrors the runtime contract of
+ * Pure classifier: given a patch filename + its full content, return a verdict.
+ * Exported for unit tests. Mirrors the runtime contract of
  * `install-claude-plugins.mts` (filename → cache dir, header → provenance,
  * plain `diff -u` body → `patch -p1`).
  */
@@ -151,7 +151,7 @@ export function classifyPluginPatch(
   const lines = content.split('\n')
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i]!
-    if (/^diff --git /.test(line)) {
+    if (line.startsWith('diff --git ')) {
       return {
         ok: false,
         reason:
@@ -169,7 +169,7 @@ export function classifyPluginPatch(
           'regenerating-plugin-patches skill.',
       }
     }
-    if (/^new file mode /.test(line)) {
+    if (line.startsWith('new file mode ')) {
       return {
         ok: false,
         reason:

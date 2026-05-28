@@ -6,11 +6,11 @@ and **janus**. Slim leaf of the `setup-security-tools` umbrella.
 ## When to use
 
 ```sh
-node .claude/hooks/setup-misc-tools/install.mts
+node .claude/hooks/fleet/setup-misc-tools/install.mts
 ```
 
 For the full setup (firewall + scanners + socket-basics + misc), use
-`node .claude/hooks/setup-security-tools/install.mts`.
+`node .claude/hooks/fleet/setup-security-tools/install.mts`.
 
 ## What gets installed
 

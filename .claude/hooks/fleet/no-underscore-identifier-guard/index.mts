@@ -86,6 +86,13 @@ const BANNED_DECL_PATTERNS: readonly RegExp[] = [
 
 const BYPASS_PHRASE = 'Allow underscore-identifier bypass'
 
+// Node CJS exposes `__dirname` and `__filename` as module-scoped free
+// variables. ESM modules conventionally re-create them via
+// `path.dirname(fileURLToPath(import.meta.url))`, so the identifiers show
+// up in a `const ...` declaration. Skip those — they're matching Node's
+// published names, not a `_internal` marker.
+const ALLOWED_FREE_VARS = new Set(['__dirname', '__filename'])
+
 export function findBannedIdentifiers(text: string): Finding[] {
   const findings: Finding[] = []
   const lines = text.split('\n')
@@ -96,9 +103,13 @@ export function findBannedIdentifiers(text: string): Finding[] {
       pattern.lastIndex = 0
       let match: RegExpExecArray | null
       while ((match = pattern.exec(line)) !== null) {
+        const identifier = match[1]!
+        if (ALLOWED_FREE_VARS.has(identifier)) {
+          continue
+        }
         findings.push({
           line: i + 1,
-          identifier: match[1]!,
+          identifier,
           text: line.trimEnd(),
         })
       }
@@ -138,7 +149,7 @@ export function isInternalDirPath(filePath: string): boolean {
 // can have its own tests without bypass phrases.
 export function isPluginOrHookTestPath(filePath: string): boolean {
   return (
-    filePath.includes('/.claude/hooks/no-underscore-identifier-guard/') ||
+    filePath.includes('/.claude/hooks/fleet/no-underscore-identifier-guard/') ||
     filePath.includes(
       '/.config/oxlint-plugin/rules/no-underscore-identifier.',
     ) ||

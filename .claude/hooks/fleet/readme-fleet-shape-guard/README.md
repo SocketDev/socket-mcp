@@ -32,5 +32,5 @@ The hook fails open on its own bugs (exit 0 + stderr log) so a buggy hook can't 
 
 ## Related
 
-- `.claude/hooks/no-meta-comments-guard/` — structural template; same `_shared/transcript.mts` bypass pattern.
-- `.claude/hooks/plan-location-guard/` — same PreToolUse + bypass shape, blocking on file-path classification.
+- `.claude/hooks/fleet/no-meta-comments-guard/` — structural template; same `_shared/transcript.mts` bypass pattern.
+- `.claude/hooks/fleet/plan-location-guard/` — same PreToolUse + bypass shape, blocking on file-path classification.

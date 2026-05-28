@@ -33,4 +33,4 @@ The hook fails open on its own bugs (the catch in `main()`). A buggy hook can ne
 
 - `.claude/skills/squashing-history/SKILL.md` — the canonical squash-history skill (does the actual work).
 - `.claude/skills/cascading-fleet/lib/fleet-repos.json` — the roster + opt-in declarations.
-- `.claude/hooks/default-branch-guard/` — sibling hook that enforces `main → master` fallback wherever the default branch is hard-coded.
+- `.claude/hooks/fleet/default-branch-guard/` — sibling hook that enforces `main → master` fallback wherever the default branch is hard-coded.

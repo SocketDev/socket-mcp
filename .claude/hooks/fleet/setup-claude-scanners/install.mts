@@ -3,9 +3,9 @@
  * @file Install-only entry point for AgentShield + zizmor — the two
  *   claude-config / GitHub-Actions scanners. Slim leaf of the
  *   `setup-security-tools` umbrella. Run via: node
- *   .claude/hooks/setup-claude-scanners/install.mts For the full setup
+ *   .claude/hooks/fleet/setup-claude-scanners/install.mts For the full setup
  *   (firewall + scanners + socket-basics + misc), use `node
- *   .claude/hooks/setup-security-tools/install.mts`.
+ *   .claude/hooks/fleet/setup-security-tools/install.mts`.
  */
 
 import process from 'node:process'

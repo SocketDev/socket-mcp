@@ -14,8 +14,11 @@
 //       user must type "Allow <X> bypass" where <X> matches the flag
 //       (e.g. "Allow no-verify bypass", "Allow lint bypass",
 //        "Allow gpg bypass").
-//   - Force push (--force / -f to push or push-with-lease) →
-//       user must type "Allow force-push bypass".
+//   - Force push --force-with-lease (safer; aborts if remote moved) →
+//       user must type "Allow force-with-lease bypass".
+//   - Force push --force / -f (CAN silently clobber remote commits) →
+//       user must type "Allow force-push bypass". Always reach for
+//       --force-with-lease first; this is the high-friction path.
 //
 // Phrase scoping: the hook reads the recent user turns from the
 // transcript (most recent N user messages). A phrase from a prior
@@ -171,15 +174,39 @@ const CHECKS: readonly GuardCheck[] = [
       /(?:^|[\s;&|(`])(?:python3?\s+-c\b.*(?:open\([^)]*['"]w['"]?|\.write_text\(|\.write\([^)]*\)\s*$)|sed\s+-i\b|cat\s+<<-?\s*['"]?[A-Z_]+['"]?\b[^|;`]*>\s*[^/]|tee\s+(?!-)\S*\.(?:m?[jt]sx?|json|md|ya?ml|toml|sh|py|rs|go|css)\b|\bdd\s+[^|;`]*\bof=)/,
   },
   {
+    // --force-with-lease refuses the push if the remote moved since the
+    // last fetch — safer than --force because it can't silently clobber
+    // someone else's commits. Always prefer this form. Lower-friction
+    // bypass phrase so users aren't tempted to reach for raw --force
+    // when --force-with-lease would do.
+    bypassPhrase: 'Allow force-with-lease bypass',
+    label: 'git push --force-with-lease',
+    matches: command =>
+      commandsFor(command, 'git').some(
+        c =>
+          c.args.includes('push') &&
+          c.args.some(a => a.startsWith('--force-with-lease')),
+      )
+        ? 'git push --force-with-lease'
+        : undefined,
+  },
+  {
+    // Raw --force / -f bypasses the lease check and CAN silently
+    // overwrite remote commits. Always reach for --force-with-lease
+    // first; this rule + bypass phrase exist for the narrow cases
+    // where the remote really should be overwritten unconditionally
+    // (recovering from corruption, force-clobbering a doomed
+    // experimental branch the user owns).
     bypassPhrase: 'Allow force-push bypass',
     label: 'git push --force / -f',
     matches: command =>
       commandsFor(command, 'git').some(
         c =>
           c.args.includes('push') &&
-          (c.args.includes('--force') ||
-            c.args.includes('-f') ||
-            c.args.some(a => a.startsWith('--force-with-lease'))),
+          (c.args.includes('--force') || c.args.includes('-f')) &&
+          // Allow --force-with-lease through this rule (it's handled
+          // by the preceding lease-specific rule).
+          !c.args.some(a => a.startsWith('--force-with-lease')),
       )
         ? 'git push --force'
         : undefined,

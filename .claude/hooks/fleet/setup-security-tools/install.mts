@@ -16,8 +16,8 @@
  *   - Stdin isn't a TTY (`!process.stdin.isTTY`). In those skip cases, the script
  *     falls back to sfw-free (the auth- free SFW build) and continues without
  *     persisting a token. Invocation: node
- *     .claude/hooks/setup-security-tools/install.mts node
- *     .claude/hooks/setup-security-tools/install.mts --rotate Flags: --rotate
+ *     .claude/hooks/fleet/setup-security-tools/install.mts node
+ *     .claude/hooks/fleet/setup-security-tools/install.mts --rotate Flags: --rotate
  *     Re-prompt for SOCKET_API_KEY and overwrite the keychain entry, ignoring
  *     env/.env/keychain lookup. Use to rotate a leaked or expired token without
  *     manually clearing the keychain first. --update-token Alias for --rotate.

@@ -261,7 +261,7 @@ describe('path-guard — exempt files', () => {
     `
     const { code } = runHook(
       'Write',
-      '.claude/hooks/path-guard/index.mts',
+      '.claude/hooks/fleet/path-guard/index.mts',
       source,
     )
     assert.equal(code, 0)
@@ -273,7 +273,7 @@ describe('path-guard — exempt files', () => {
     `
     const { code } = runHook(
       'Write',
-      '.claude/hooks/path-guard/test/path-guard.test.mts',
+      '.claude/hooks/fleet/path-guard/test/path-guard.test.mts',
       source,
     )
     assert.equal(code, 0)

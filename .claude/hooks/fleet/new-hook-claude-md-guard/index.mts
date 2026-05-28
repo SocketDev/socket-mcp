@@ -56,9 +56,15 @@ const BYPASS_PHRASES = [
 //   <repo>/.claude/hooks/<name>/index.mts             (any fleet repo)
 //
 // Captures the hook name in group 1. The optional `template/` segment
-// covers the wheelhouse path; the rest is identical.
+// covers the wheelhouse path; the optional `fleet/` or `repo/` segment
+// covers the docs-style `.claude/hooks/{fleet,repo}/<name>/` layout
+// (matches the parallel docs/claude.md/{fleet,repo}/ convention).
+// hookName is the LEAF name (e.g. `avoid-cd-reminder`), not the
+// segment-qualified path — citations and registry refs use the full
+// canonical path (`\`.claude/hooks/fleet/<name>/\``) so the guard's
+// expectedRefs uses that path verbatim when checking.
 const HOOK_INDEX_PATH_RE =
-  /.*?(?:\/template)?\/\.claude\/hooks\/([^/]+)\/index\.mts$/
+  /.*?(?:\/template)?\/\.claude\/hooks\/(?:(fleet|repo)\/)?([^/]+)\/index\.mts$/
 
 // Hooks that are themselves wheelhouse-only — they don't need a
 // CLAUDE.md entry because they're internal tooling, not policy rules
@@ -108,75 +114,94 @@ export function readPayload(raw: string): PreToolUsePayload | undefined {
 
 async function main(): Promise<void> {
   if (process.env[ENV_DISABLE]) {
-    process.exit(0)
+    return
   }
   const payloadRaw = await readStdin()
   const payload = readPayload(payloadRaw)
   if (!payload) {
-    process.exit(0)
+    return
   }
   const toolName = payload.tool_name
   if (toolName !== 'Edit' && toolName !== 'Write') {
-    process.exit(0)
+    return
   }
   const filePath = payload.tool_input?.['file_path']
   if (typeof filePath !== 'string') {
-    process.exit(0)
+    return
   }
   const match = HOOK_INDEX_PATH_RE.exec(filePath)
   if (!match) {
-    process.exit(0)
+    return
   }
-  const hookName = match[1]!
+  // match[1] = "fleet" | "repo" | undefined (legacy top-level layout).
+  // match[2] = leaf hook name.
+  const segment = match[1]
+  const hookName = match[2]!
+  // hookPathSuffix is the canonical path under .claude/hooks/, used
+  // verbatim in CLAUDE.md citations:
+  //   fleet  →  `fleet/<name>`
+  //   repo   →  `repo/<name>`  (per-repo, normally exempt — see below)
+  //   (none) →  `<name>`        (legacy top-level)
+  const hookPathSuffix = segment ? `${segment}/${hookName}` : hookName
   // Skip _shared (helpers, not a hook) and wheelhouse-only hooks.
   if (hookName === '_shared' || WHEELHOUSE_ONLY_HOOKS.has(hookName)) {
-    process.exit(0)
+    return
+  }
+  // Per-repo hooks at `.claude/hooks/repo/<name>/` are NOT cascaded
+  // and live entirely in the host repo. Skip the CLAUDE.md citation
+  // requirement — repo hooks document themselves in their own README
+  // + the host repo's CLAUDE.md decides whether to cite them.
+  if (segment === 'repo') {
+    return
   }
   // Bypass via canonical user phrase.
   if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)) {
-    process.exit(0)
+    return
   }
   const claudeMdPath = findCanonicalClaudeMd(filePath, payload.cwd)
   if (!claudeMdPath || !existsSync(claudeMdPath)) {
     // Can't find CLAUDE.md; fail-open rather than blocking on
     // infrastructure problems.
-    process.exit(0)
+    return
   }
   let content: string
   try {
     content = readFileSync(claudeMdPath, 'utf8')
   } catch {
-    process.exit(0)
+    return
   }
-  // The required form is `(enforced by `.claude/hooks/<hookName>/`)`.
-  // We accept either backtick-quoted or plain-text variants of the
-  // path — the existing fleet uses backticks consistently, but a
-  // trailing slash is also optional.
-  const expectedRefs = [
-    `(enforced by \`.claude/hooks/${hookName}/\`)`,
-    `(enforced by \`.claude/hooks/${hookName}\`)`,
-    `enforced by \`.claude/hooks/${hookName}/\``,
-    `enforced by \`.claude/hooks/${hookName}\``,
-  ]
-  let found = false
-  for (let i = 0, { length } = expectedRefs; i < length; i += 1) {
-    if (content.includes(expectedRefs[i]!)) {
-      found = true
-      break
-    }
-  }
+  // Three citation shapes recognized:
+  //   1. Inline rule:    `enforced by \`.claude/hooks/fleet/<name>/\``
+  //   2. Comma-listed:   `enforced by \`.claude/hooks/fleet/a/\`, \`.../b/\``
+  //   3. Brace-grouped:  `enforced by \`.claude/hooks/fleet/{a,b,c}/\``
+  // 1+2 contain the literal backticked path; 3 is a brace expansion
+  // — the leaf name appears between `{...}`.
+  const literalSlashed = `\`.claude/hooks/${hookPathSuffix}/\``
+  const literalBare = `\`.claude/hooks/${hookPathSuffix}\``
+  const lastSlash = hookPathSuffix.lastIndexOf('/')
+  const prefix = lastSlash >= 0 ? hookPathSuffix.slice(0, lastSlash + 1) : ''
+  const leaf =
+    lastSlash >= 0 ? hookPathSuffix.slice(lastSlash + 1) : hookPathSuffix
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const braceRe = new RegExp(
+    `\`\\.claude/hooks/${escape(prefix)}\\{[^}]*\\b${escape(leaf)}\\b[^}]*\\}/\``,
+  )
+  const found =
+    content.includes(literalSlashed) ||
+    content.includes(literalBare) ||
+    braceRe.test(content)
   if (found) {
-    process.exit(0)
+    return
   }
 
   const lines = [
-    `[new-hook-claude-md-guard] Hook "${hookName}" missing CLAUDE.md reference.`,
+    `[new-hook-claude-md-guard] Hook "${hookPathSuffix}" missing CLAUDE.md reference.`,
     '',
     `  ${toolName} blocked: template/CLAUDE.md must contain a one-line`,
     `  reference to the hook before it lands. Expected form (inline,`,
     `  attached to the rule the hook enforces):`,
     '',
-    `      (enforced by \`.claude/hooks/${hookName}/\`)`,
+    `      (enforced by \`.claude/hooks/${hookPathSuffix}/\`)`,
     '',
     '  Why: fleet repos read CLAUDE.md as the source of truth. A hook',
     "  without a CLAUDE.md entry is policy that doesn't exist on paper —",
@@ -193,5 +218,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(() => {
-  process.exit(0)
+  // Fail-open: never block a session on this hook's own bug.
+  // Loop drains naturally to exit 0; explicit set for clarity.
+  process.exitCode = 0
 })

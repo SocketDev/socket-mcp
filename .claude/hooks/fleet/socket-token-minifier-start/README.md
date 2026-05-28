@@ -46,7 +46,7 @@ Inserted under `hooks.SessionStart`:
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/socket-token-minifier-start/index.mts",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/socket-token-minifier-start/index.mts",
             "timeout": 5
           }
         ]
