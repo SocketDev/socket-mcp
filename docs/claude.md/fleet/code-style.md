@@ -64,15 +64,15 @@ Sort alphanumerically (literal byte order, ASCII before letters). Applies to: ob
 
 ## Logger
 
-`getDefaultLogger()` from `@socketsecurity/lib-stable/logger` over `console.*` / `process.stderr.write` / `process.stdout.write` (enforced by `.claude/hooks/logger-guard/`). The logger wraps level routing, transcript-safe rendering, and the token-minifier proxy.
+`getDefaultLogger()` from `@socketsecurity/lib-stable/logger` over `console.*` / `process.stderr.write` / `process.stdout.write` (enforced by `.claude/hooks/fleet/logger-guard/`). The logger wraps level routing, transcript-safe rendering, and the token-minifier proxy.
 
 ## Doc filenames
 
-`lowercase-with-hyphens.md` under `docs/` or `.claude/` (enforced by `.claude/hooks/markdown-filename-guard/`). One canonical form; no spaces, no PascalCase, no underscores.
+`lowercase-with-hyphens.md` under `docs/` or `.claude/` (enforced by `.claude/hooks/fleet/markdown-filename-guard/`). One canonical form; no spaces, no PascalCase, no underscores.
 
 ## Inline `<script>` defer/async
 
-`<script defer>` and `<script async>` without a `src=` attribute are a spec no-op. The HTML parser ignores the deferral on inline scripts. Wrap the body in a `DOMContentLoaded` listener instead. Enforced by `.claude/hooks/inline-script-defer-guard/` + the `socket/no-inline-defer-async` oxlint rule. Bypass: `Allow inline-defer bypass`.
+`<script defer>` and `<script async>` without a `src=` attribute are a spec no-op. The HTML parser ignores the deferral on inline scripts. Wrap the body in a `DOMContentLoaded` listener instead. Enforced by `.claude/hooks/fleet/inline-script-defer-guard/` + the `socket/no-inline-defer-async` oxlint rule. Bypass: `Allow inline-defer bypass`.
 
 ## ESLint / Biome config refs
 
@@ -80,7 +80,7 @@ Stale. The fleet runs oxlint / oxfmt. Don't reference `.eslintrc` / `eslint-conf
 
 ## `structuredClone` vs JSON round-trip
 
-`structuredClone(x)` is banned for JSON-shaped data. `JSON.parse(JSON.stringify(x))` (or `JSONParse(JSONStringify(x))` from `@socketsecurity/lib/primordials/json`) is 3-5× faster because it skips the full HTML structured-clone algorithm (type tagging, transferable handling, prototype preservation, cycle detection; none of which the JSON subset needs). The common case is "defensive-copy a `JSON.parse`d value to defend against caller mutation". That's purely JSON-shaped by construction. Opt back in per-line with `// oxlint-disable-next-line socket/no-structured-clone-prefer-json -- <reason>` when the value contains `Date` / `Map` / `Set` / `RegExp` / `ArrayBuffer` / typed-array shapes. Enforced edit-time by `.claude/hooks/no-structured-clone-prefer-json-guard/` + the `socket/no-structured-clone-prefer-json` oxlint rule. Bypass: `Allow no-structured-clone-prefer-json bypass`.
+`structuredClone(x)` is banned for JSON-shaped data. `JSON.parse(JSON.stringify(x))` (or `JSONParse(JSONStringify(x))` from `@socketsecurity/lib/primordials/json`) is 3-5× faster because it skips the full HTML structured-clone algorithm (type tagging, transferable handling, prototype preservation, cycle detection; none of which the JSON subset needs). The common case is "defensive-copy a `JSON.parse`d value to defend against caller mutation". That's purely JSON-shaped by construction. Opt back in per-line with `// oxlint-disable-next-line socket/no-structured-clone-prefer-json -- <reason>` when the value contains `Date` / `Map` / `Set` / `RegExp` / `ArrayBuffer` / typed-array shapes. Enforced edit-time by `.claude/hooks/fleet/no-structured-clone-prefer-json-guard/` + the `socket/no-structured-clone-prefer-json` oxlint rule. Bypass: `Allow no-structured-clone-prefer-json bypass`.
 
 ## Ellipsis character, not three dots
 
@@ -92,11 +92,11 @@ Don't shell out to `which` / `command -v` / `where` to locate a project binary �
 
 ## Comments: cross-port Lock-step
 
-See [`parser-comments.md`](parser-comments.md) §5–7 for the full Lock-step comment spec (port provenance, byte-identical header block, deviation paragraphs). Enforced edit-time by `.claude/hooks/lock-step-ref-guard/` and CI-gate-time by `scripts/check-lock-step-refs.mts` + `scripts/check-lock-step-header.mts`. Bypass: `Allow lock-step bypass`.
+See [`parser-comments.md`](parser-comments.md) §5–7 for the full Lock-step comment spec (port provenance, byte-identical header block, deviation paragraphs). Enforced edit-time by `.claude/hooks/fleet/lock-step-ref-guard/` and CI-gate-time by `scripts/check-lock-step-refs.mts` + `scripts/check-lock-step-header.mts`. Bypass: `Allow lock-step bypass`.
 
 ## Pointer comments
 
-`// see X` comments need both a destination and an inline one-line claim of what's at the destination (enforced by `.claude/hooks/pointer-comment-guard/`). "see X" alone forces the reader to chase the link to learn anything; "see X: it does Y" gives the reader Y up front and X for verification.
+`// see X` comments need both a destination and an inline one-line claim of what's at the destination (enforced by `.claude/hooks/fleet/pointer-comment-guard/`). "see X" alone forces the reader to chase the link to learn anything; "see X: it does Y" gives the reader Y up front and X for verification.
 
 ## `Promise.race` / `Promise.any` in loops
 

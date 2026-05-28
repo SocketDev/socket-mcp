@@ -75,6 +75,6 @@ If the wheelhouse template change includes a `@socketsecurity/lib` catalog bump 
 
 ## Reference
 
-- FLEET_SYNC sentinel: `template/.claude/hooks/no-revert-guard/` + `template/.claude/hooks/overeager-staging-guard/`.
+- FLEET_SYNC sentinel: `template/.claude/hooks/fleet/no-revert-guard/` + `template/.claude/hooks/fleet/overeager-staging-guard/`.
 - Wheelhouse sync-scaffolding: `socket-wheelhouse/scripts/sync-scaffolding/cli.mts`.
 - Fleet-repo manifest: `lib/fleet-repos.txt`.

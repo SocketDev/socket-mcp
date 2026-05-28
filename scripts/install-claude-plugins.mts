@@ -21,7 +21,7 @@
  *      keep a dev-source override; let them remove it explicitly. Idempotent —
  *      running twice in a row is a no-op. Designed for `pnpm setup` wiring in
  *      every fleet repo. Pin discipline is enforced by
- *      `.claude/hooks/marketplace-comment-guard/`: every `plugins[].source.sha`
+ *      `.claude/hooks/fleet/marketplace-comment-guard/`: every `plugins[].source.sha`
  *      in `marketplace.json` must have a row in `.claude-plugin/README.md` with
  *      matching version + sha + ISO date.
  */

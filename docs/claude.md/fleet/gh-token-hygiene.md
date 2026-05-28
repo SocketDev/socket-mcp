@@ -1,6 +1,6 @@
 # gh token hygiene
 
-GitHub CLI auth tokens are the highest-blast-radius credential most developers carry. The Nx Console supply-chain compromise (May 2026) exfiltrated `~/.config/gh/hosts.yml` and used the token against the GitHub API within 74 seconds of malware execution. Three layered defenses, all enforced by `.claude/hooks/gh-token-hygiene-guard/` (the 8h age cap, keychain check, and workflow-scope gate all live in this hook — `auth-rotation-reminder` handles non-gh CLIs like npm/pnpm/gcloud/docker/vault).
+GitHub CLI auth tokens are the highest-blast-radius credential most developers carry. The Nx Console supply-chain compromise (May 2026) exfiltrated `~/.config/gh/hosts.yml` and used the token against the GitHub API within 74 seconds of malware execution. Three layered defenses, all enforced by `.claude/hooks/fleet/gh-token-hygiene-guard/` (the 8h age cap, keychain check, and workflow-scope gate all live in this hook — `auth-rotation-reminder` handles non-gh CLIs like npm/pnpm/gcloud/docker/vault).
 
 ## 1. Keychain storage only
 
@@ -144,7 +144,7 @@ Three recovery paths, ordered from cleanest to most surgical:
 1. **Run the refresh through Claude.** Ask Claude to run `gh auth refresh -h github.com` in a Bash tool call. The hook sees it, pre-stamps, and the next gh call goes through.
 2. **Use the hook's `--stamp` CLI mode.** From any shell:
    ```sh
-   node ~/.claude/hooks/gh-token-hygiene-guard/index.mts --stamp
+   node ~/.claude/hooks/fleet/gh-token-hygiene-guard/index.mts --stamp
    ```
    Writes a fresh `Date.now()` to the stamp file. Use this when you've already done `gh auth refresh` externally and don't want to re-run it.
 3. **Auto-correction of malformed values.** If the stamp file contains a value less than `1577836800000` (2020-01-01 in ms) — e.g. you accidentally wrote POSIX seconds via `date "+%s" > ~/.claude/gh-token-issued-at` — the hook treats it as malformed on the next read, re-stamps, and proceeds. No manual intervention required; the malformed-value branch is there as a safety net for cases like the seconds-vs-ms confusion (2026-05-28 incident).

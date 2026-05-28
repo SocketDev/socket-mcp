@@ -7,7 +7,7 @@
  *   languages where it has runtime meaning (Python name mangling, Ruby
  *   visibility); in TS the underscore is decorative and adds noise to `git
  *   blame` and IDE autocomplete. Commit-time partner of the edit-time
- *   `.claude/hooks/no-underscore-identifier-guard/`. Allowed (skipped by this
+ *   `.claude/hooks/fleet/no-underscore-identifier-guard/`. Allowed (skipped by this
  *   rule):
  *
  *   - Bare `_` as a throwaway (`for (const _ of arr)`, destructuring rest).

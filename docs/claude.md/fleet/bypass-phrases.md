@@ -43,7 +43,7 @@ The bypass policy is enforced at three layers:
 
 - **CLAUDE.md** documents the rule (`### Hook bypasses require the canonical phrase`).
 - **Memory** keeps the assistant honest across sessions even before the hook fires.
-- **`.claude/hooks/no-revert-guard/`** is the enforcement: a `PreToolUse(Bash)` hook that scans the proposed command, parses the transcript, and exits 2 with a stderr message naming the phrase the user must type.
+- **`.claude/hooks/fleet/no-revert-guard/`** is the enforcement: a `PreToolUse(Bash)` hook that scans the proposed command, parses the transcript, and exits 2 with a stderr message naming the phrase the user must type.
 
 The hook fails open on its own bugs (exit 0 + stderr log) so a bad deploy can't brick the session. Trade-off: a buggy hook silently allows the destructive command. Acceptable because the alternative (hook crash wedges the session) is worse for development velocity.
 
@@ -51,7 +51,7 @@ The hook fails open on its own bugs (exit 0 + stderr log) so a bad deploy can't 
 
 When introducing a new destructive flag or hook bypass:
 
-1. Add a new entry to the `CHECKS` array in `.claude/hooks/no-revert-guard/index.mts`. Each check is `{ pattern: RegExp, bypassPhrase: string, label: string }`.
+1. Add a new entry to the `CHECKS` array in `.claude/hooks/fleet/no-revert-guard/index.mts`. Each check is `{ pattern: RegExp, bypassPhrase: string, label: string }`.
 2. Add a row to this reference's table.
-3. Add a test case to `.claude/hooks/no-revert-guard/test/index.test.mts` covering both the blocked-without-phrase and allowed-with-phrase paths.
+3. Add a test case to `.claude/hooks/fleet/no-revert-guard/test/index.test.mts` covering both the blocked-without-phrase and allowed-with-phrase paths.
 4. Cascade via `node socket-wheelhouse/scripts/sync-scaffolding.mts --all --fix` so every fleet repo picks up the change.

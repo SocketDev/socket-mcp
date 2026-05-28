@@ -4,7 +4,7 @@
  *   immediately. The author intent (wait for DOMContentLoaded) is silently
  *   ignored. Past incident: same shape bit a fleet project twice; rendered
  *   pages went silently broken when the script tried to operate on DOM nodes
- *   that didn't exist yet. Sibling: `.claude/hooks/inline-script-defer-guard/`
+ *   that didn't exist yet. Sibling: `.claude/hooks/fleet/inline-script-defer-guard/`
  *   catches this at edit time. This lint rule catches it at commit time when
  *   edits happened outside Claude. Detects: string literals (single-quoted,
  *   double-quoted, or template) containing `<script ...defer...>` or `<script

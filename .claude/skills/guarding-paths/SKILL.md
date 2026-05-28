@@ -25,10 +25,10 @@ context: fork
 The strategy lives in three artifacts that ship together:
 
 1. **CLAUDE.md rule**: the mantra and detection rules in plain language. Every fleet repo's CLAUDE.md carries `## 1 path, 1 reference`. Synced from [`_shared/path-guard-rule.md`](../_shared/path-guard-rule.md).
-2. **Hook**: `.claude/hooks/path-guard/index.mts` runs `PreToolUse` on `Edit` / `Write` of `.mts` / `.cts` files. Blocks new violations at edit time.
+2. **Hook**: `.claude/hooks/fleet/path-guard/index.mts` runs `PreToolUse` on `Edit` / `Write` of `.mts` / `.cts` files. Blocks new violations at edit time.
 3. **Gate**: `scripts/check-paths.mts` runs in `pnpm check` (and CI). Whole-repo scan. Fails the build on any unsanctioned violation.
 
-The hook and gate share their stage / build-root / mode / sibling-package vocabulary via `.claude/hooks/path-guard/segments.mts`: a single canonical source. Adding a new stage segment or fleet package means editing one file; the two consumers can never drift on what counts as a build-output path.
+The hook and gate share their stage / build-root / mode / sibling-package vocabulary via `.claude/hooks/fleet/path-guard/segments.mts`: a single canonical source. Adding a new stage segment or fleet package means editing one file; the two consumers can never drift on what counts as a build-output path.
 
 This skill is the **audit-and-fix workflow** that makes a repo conform initially and validates conformance over time.
 
@@ -93,7 +93,7 @@ For Socket repos that don't yet have the gate:
 5. Append the rule snippet from [`_shared/path-guard-rule.md`](../_shared/path-guard-rule.md) to the repo's `CLAUDE.md` if a `1 path, 1 reference` section is missing.
 6. Add the hook entry to `.claude/settings.json` `PreToolUse` matcher `Edit|Write`:
    ```json
-   { "type": "command", "command": "node .claude/hooks/path-guard/index.mts" }
+   { "type": "command", "command": "node .claude/hooks/fleet/path-guard/index.mts" }
    ```
 7. Run the gate against the repo. Triage findings as you would in audit-and-fix mode.
 

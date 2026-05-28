@@ -5,7 +5,7 @@
  *   dlx` — use `pnpm exec <package>` or `pnpm run <script>`. Detects `npx`,
  *   `pnpm dlx`, `pnx` (the pnpm-11 dlx shorthand), and `yarn dlx` in source
  *   string literals — argv slices passed to `spawn()`, shell strings, scripts,
- *   doc snippets, README examples, etc. The hook at `.claude/hooks/path-guard/`
+ *   doc snippets, README examples, etc. The hook at `.claude/hooks/fleet/path-guard/`
  *   blocks these at the shell layer; this rule catches them at edit / commit
  *   time inside JavaScript / TypeScript source. Autofix: rewrites the literal
  *   in place — `npx foo` → `pnpm exec foo`, `pnpm dlx foo` → `pnpm exec foo`,
