@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { envAsBoolean } from '@socketsecurity/lib/env/boolean'
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
 import { getSocketApiToken, getSocketApiUrl } from './env.ts'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
@@ -12,6 +13,7 @@ import { registerAlertsTool } from './alerts-tool.ts'
 import { registerOrganizationsTool } from './organizations-tool.ts'
 import { registerPackageFilesTools } from './package-files-tool.ts'
 import { registerThreatFeedTool } from './threat-feed-tool.ts'
+import { withToolLogging } from './tool-logging.ts'
 
 interface DepscorePackageInput {
   ecosystem?: string | undefined
@@ -34,7 +36,7 @@ interface ToolOkResult {
 // stack development; the default targets production. Both env vars
 // resolved via fleet-canonical helpers.
 const DEFAULT_SOCKET_API_URL =
-  getSocketDebug() === 'true'
+  envAsBoolean(getSocketDebug())
     ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
     : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
 
@@ -97,7 +99,9 @@ export function buildPackageComponents(
 // Build a configured McpServer with the depscore tool registered.
 // Used for stdio (single instance) and HTTP (one per session).
 export function createConfiguredServer(): McpServer {
-  const srv = new McpServer({ name: 'socket', version: VERSION })
+  const srv = withToolLogging(
+    new McpServer({ name: 'socket', version: VERSION }),
+  )
   srv.registerTool(
     'depscore',
     {
@@ -151,6 +155,12 @@ export function formatScoreLine(jsonData: Record<string, unknown>): string {
     return `${purl}: ${formatScoreEntries(score)}`
   }
   return `${purl}: No score found`
+}
+
+// Read the boot-time static API key. Used by tool modules outside this file
+// that share the same token-resolution chain as depscore.
+export function getStaticApiKey(): string {
+  return staticApiKey
 }
 
 // Build the depscore handler — pulled out so the MCP registration is
@@ -274,12 +284,6 @@ export function parseNdjsonPackageBody(
 export function parseSinglePackageBody(responseText: string): string[] {
   const jsonData = JSON.parse(responseText) as Record<string, unknown>
   return [formatScoreLine(jsonData)]
-}
-
-// Read the boot-time static API key. Used by tool modules outside this file
-// that share the same token-resolution chain as depscore.
-export function getStaticApiKey(): string {
-  return staticApiKey
 }
 
 // Set the static API key. Called once during boot from index.ts.
