@@ -88,7 +88,9 @@ async function main(): Promise<void> {
         `Enabled OAuth-backed MCP auth with issuer ${oauthEnabledResult.issuer}`,
       )
     } catch (error) {
-      logger.error(`Failed to initialize OAuth metadata: ${errorMessage(error)}`)
+      logger.error(
+        `Failed to initialize OAuth metadata: ${errorMessage(error)}`,
+      )
       process.exitCode = 1
       return
     }

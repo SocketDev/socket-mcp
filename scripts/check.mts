@@ -2,7 +2,8 @@
  * @file Unified check runner — delegates to lint + type check. Forwards CLI
  *   scope flags to the lint script so `pnpm run check --all` actually runs a
  *   full-scope lint (not the default modified-only scope). `pnpm type` doesn't
- *   accept our scope flags, so it's always a full check. Usage: pnpm run check.
+ *   accept our scope flags, so it's always a full check. Usage: pnpm run
+ *   check.
  *
  *   # lint in modified scope + full type check pnpm run check --staged # lint
  *

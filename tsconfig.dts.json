@@ -6,7 +6,8 @@
     "emitDeclarationOnly": true,
     "noEmit": false,
     "outDir": "./dist",
-    "sourceMap": false
+    "sourceMap": false,
+    "types": ["node"]
   },
   "include": ["index.ts", "lib/**/*.ts"]
 }

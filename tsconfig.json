@@ -11,18 +11,23 @@
     "noEmit": true,
     "removeComments": true,
     "rewriteRelativeImportExtensions": true,
-    "stripInternal": true
+    "stripInternal": true,
+    "types": ["node"]
   },
   "include": ["**/*"],
   "exclude": [
+    "**/*.cjs",
     "**/*.js",
-    "node_modules",
-    "coverage",
-    ".github",
+    "**/*.mjs",
     ".claude",
     ".git-hooks",
+    ".github",
     ".husky",
+    "coverage",
+    "dist",
     "docs",
-    "scripts/**/*.mts"
+    "node_modules",
+    "scripts/**/*.mts",
+    "scripts/plugin-patches"
   ]
 }
