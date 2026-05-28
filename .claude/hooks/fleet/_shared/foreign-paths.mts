@@ -1,24 +1,23 @@
 /**
  * @file Shared heuristic for "which dirty paths in this checkout were authored
- *   by ANOTHER agent, not this session". Two responsibilities the parallel-agent
- *   hooks (and overeager-staging-guard) share:
+ *   by ANOTHER agent, not this session". Two responsibilities the
+ *   parallel-agent hooks (and overeager-staging-guard) share:
  *
- *   1. `readTouchedPaths(transcriptPath)` — the set of absolute paths THIS
- *      session modified: Edit / Write `file_path` targets plus `git add|mv|rm
- *      <path>` arguments parsed out of Bash commands. Lifted here from
+ *   1. `readTouchedPaths(transcriptPath)` — the set of absolute paths THIS session
+ *      modified: Edit / Write `file_path` targets plus `git add|mv|rm <path>`
+ *      arguments parsed out of Bash commands. Lifted here from
  *      overeager-staging-guard so the three consumers share one implementation
  *      instead of drifting copies.
- *   2. `listForeignDirtyPaths(repoDir, touched, opts)` — dirty paths
- *      (`git status --porcelain`) that this session did NOT touch and whose
- *      mtime is recent (so stale pre-session dirt doesn't false-fire). These are
- *      the likely fingerprints of a concurrent Claude session sharing the
- *      `.git/` — the failure mode where `git add -A` / `git stash` / `git
- *      reset --hard` would sweep up or destroy another agent's work.
- *
- *   Fail-open contract (matches the rest of `_shared/`): every helper returns a
- *   safe default on any parse / I/O error rather than throwing. A hook that
- *   crashes wedges every Claude Code call; one that returns "nothing foreign"
- *   simply falls through to the hook's default decision.
+ *   2. `listForeignDirtyPaths(repoDir, touched, opts)` — dirty paths (`git status
+ *      --porcelain`) that this session did NOT touch and whose mtime is recent
+ *      (so stale pre-session dirt doesn't false-fire). These are the likely
+ *      fingerprints of a concurrent Claude session sharing the `.git/` — the
+ *      failure mode where `git add -A` / `git stash` / `git reset --hard` would
+ *      sweep up or destroy another agent's work. Fail-open contract (matches
+ *      the rest of `_shared/`): every helper returns a safe default on any
+ *      parse / I/O error rather than throwing. A hook that crashes wedges every
+ *      Claude Code call; one that returns "nothing foreign" simply falls
+ *      through to the hook's default decision.
  */
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
@@ -45,9 +44,13 @@ const UNTRACKED_BY_DEFAULT_PREFIXES = [
 const DEFAULT_MAX_AGE_MS = 30 * 60 * 1000
 
 export interface ForeignPathsOptions {
-  /** Max age (ms) of a dirty path's mtime to count as foreign. */
+  /**
+   * Max age (ms) of a dirty path's mtime to count as foreign.
+   */
   readonly maxAgeMs?: number | undefined
-  /** Injectable clock for tests. Defaults to `Date.now()`. */
+  /**
+   * Injectable clock for tests. Defaults to `Date.now()`.
+   */
   readonly now?: number | undefined
 }
 
@@ -62,10 +65,10 @@ export function isUntrackedByDefault(p: string): boolean {
 
 /**
  * Parse `git add|mv|rm <path>` arguments out of a Bash command line and add the
- * resolved absolute paths to `touched`. Broad forms (`git add .` / `-A`) are NOT
- * surgical adds and are skipped — they don't establish authorship of a specific
- * file. Tolerates leading `NAME=val` env assignments and `&&` / `;` / `|`
- * chains.
+ * resolved absolute paths to `touched`. Broad forms (`git add .` / `-A`) are
+ * NOT surgical adds and are skipped — they don't establish authorship of a
+ * specific file. Tolerates leading `NAME=val` env assignments and `&&` / `;` /
+ * `|` chains.
  */
 export function addTouchedFromBash(
   command: string,
@@ -173,7 +176,7 @@ export interface DirtyEntry {
 
 /**
  * Parse `git status --porcelain` output, dropping untracked-by-default trees.
- * Rename entries (`R  old -> new`) resolve to the new path.
+ * Rename entries (`R old -> new`) resolve to the new path.
  */
 export function parsePorcelain(out: string): DirtyEntry[] {
   const entries: DirtyEntry[] = []
@@ -196,11 +199,11 @@ export function parsePorcelain(out: string): DirtyEntry[] {
 /**
  * Dirty paths this session did NOT author and that changed recently — the
  * fingerprint of a concurrent agent on the same `.git/`. A path qualifies when:
- *   - it's dirty (modified / deleted / untracked, minus vendored trees), AND
- *   - its resolved absolute path is not in `touched`, AND
- *   - its on-disk mtime is within `maxAgeMs` of `now`.
- * Deleted paths (no mtime) are included only if their status is `D`/`R` — a
- * delete by another agent is still foreign. Returns repo-relative paths.
+ * - it's dirty (modified / deleted / untracked, minus vendored trees), AND -
+ * its resolved absolute path is not in `touched`, AND - its on-disk mtime is
+ * within `maxAgeMs` of `now`. Deleted paths (no mtime) are included only if
+ * their status is `D`/`R` — a delete by another agent is still foreign. Returns
+ * repo-relative paths.
  */
 export function listForeignDirtyPaths(
   repoDir: string,

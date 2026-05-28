@@ -195,9 +195,9 @@ export function isTokenKey(key: string): boolean {
  * inspection).
  *
  * Kept short to minimize false positives. A "PASSWORD" mention in a
- * commit-message body would otherwise trip every commit, so token-guard
- * narrows matches to assignment / flag-value positions rather than any
- * occurrence in arbitrary text.
+ * commit-message body would otherwise trip every commit, so token-guard narrows
+ * matches to assignment / flag-value positions rather than any occurrence in
+ * arbitrary text.
  */
 export const SENSITIVE_NAME_FRAGMENTS: readonly string[] = [
   'TOKEN',

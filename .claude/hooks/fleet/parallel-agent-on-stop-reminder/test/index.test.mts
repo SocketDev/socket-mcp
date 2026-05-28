@@ -1,10 +1,9 @@
 /**
- * @file Unit tests for parallel-agent-on-stop-reminder hook.
- *
- *   Stop hook, always exit 0. Emits a stderr reminder listing dirty paths this
- *   session did not author and that changed recently. Each test builds a real
- *   git repo in tmpdir, writes foreign / own dirty files, and runs the hook as a
- *   child process with a synthesized Stop payload.
+ * @file Unit tests for parallel-agent-on-stop-reminder hook. Stop hook, always
+ *   exit 0. Emits a stderr reminder listing dirty paths this session did not
+ *   author and that changed recently. Each test builds a real git repo in
+ *   tmpdir, writes foreign / own dirty files, and runs the hook as a child
+ *   process with a synthesized Stop payload.
  */
 
 import assert from 'node:assert/strict'
@@ -96,7 +95,7 @@ test('reminds when a foreign dirty file exists (no transcript)', () => {
   assert.match(r.stderr, /another (Claude )?session|another agent/i)
 })
 
-test('silent when the only dirty file is this session\'s', () => {
+test("silent when the only dirty file is this session's", () => {
   const own = writeFile(repo, 'mine.txt')
   const tx = writeTranscriptTouching(own)
   const r = runHook({ cwd: repo, transcriptPath: tx })

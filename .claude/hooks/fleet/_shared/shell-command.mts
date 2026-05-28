@@ -248,7 +248,12 @@ export function detectBroadGitAdd(command: string): string | undefined {
     }
     for (let k = 0, { length } = c.args; k < length; k += 1) {
       const arg = c.args[k]!
-      if (arg === '--all' || arg === '-A' || arg === '--update' || arg === '-u') {
+      if (
+        arg === '--all' ||
+        arg === '-A' ||
+        arg === '--update' ||
+        arg === '-u'
+      ) {
         return `git add ${arg}`
       }
       if (arg === '.') {

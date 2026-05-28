@@ -6,10 +6,10 @@
  *   AgentShield / zizmor / socket-basics tool installers. The actual installer
  *   code lives in `../setup-security-tools/lib/installers.mts`. This entry
  *   point exists so operators can scope their setup precisely: node
- *   .claude/hooks/fleet/setup-firewall/install.mts For the full setup, use `node
- *   .claude/hooks/fleet/setup-security-tools/install.mts` which sequences this leaf
- *   alongside the others. --rotate is honored here too — re-prompts for
- *   SOCKET_API_KEY and overwrites the OS keychain entry, just like the
+ *   .claude/hooks/fleet/setup-firewall/install.mts For the full setup, use
+ *   `node .claude/hooks/fleet/setup-security-tools/install.mts` which sequences
+ *   this leaf alongside the others. --rotate is honored here too — re-prompts
+ *   for SOCKET_API_KEY and overwrites the OS keychain entry, just like the
  *   umbrella's --rotate path.
  */
 

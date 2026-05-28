@@ -6,14 +6,14 @@ present** in the checkout. Surgical ops and the all-clear case pass through.
 
 ## Gated operations (blocked only when foreign paths exist)
 
-| Op | Hazard |
-|----|--------|
-| `git add -A` / `.` / `--all` / `-u` | stages their unstaged edits |
-| `git commit -a` / `--all` | stages + commits their edits |
-| `git stash` / `stash push` | hides their working-tree changes |
-| `git reset --hard` | destroys their uncommitted work |
-| `git checkout <branch>` / `git switch <branch>` | may clobber on switch |
-| `git restore <path>` | reverts their changes |
+| Op                                              | Hazard                           |
+| ----------------------------------------------- | -------------------------------- |
+| `git add -A` / `.` / `--all` / `-u`             | stages their unstaged edits      |
+| `git commit -a` / `--all`                       | stages + commits their edits     |
+| `git stash` / `stash push`                      | hides their working-tree changes |
+| `git reset --hard`                              | destroys their uncommitted work  |
+| `git checkout <branch>` / `git switch <branch>` | may clobber on switch            |
+| `git restore <path>`                            | reverts their changes            |
 
 Detection runs through the shared shell AST parser
 (`_shared/shell-command.mts`), so indirection can't dodge it

@@ -50,7 +50,8 @@ test('command mentioning the guard name (codex-no-write-guard) is NOT a codex in
   const r = await runHook({
     tool_name: 'Bash',
     tool_input: {
-      command: 'grep -n "write" template/.claude/hooks/fleet/codex-no-write-guard/index.mts',
+      command:
+        'grep -n "write" template/.claude/hooks/fleet/codex-no-write-guard/index.mts',
     },
   })
   assert.strictEqual(r.code, 0)

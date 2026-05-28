@@ -10,14 +10,14 @@ Past incident: the assistant repeatedly claimed "the user reverted my edits" / "
 
 ## What it catches
 
-| Phrase shape | Why it's flagged |
-| --- | --- |
+| Phrase shape                                                    | Why it's flagged                                                       |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `the user/linter/formatter reverted/stripped/removed/rewrote …` | Attributes state to the user/tool as the cause, with no investigation. |
-| `user's intentional/preferred/preserved state` | Same — assumes intent the assistant hasn't evidenced. |
-| `removed/reverted/stripped by the user/linter/formatter` | Same. |
-| `the user/linter wants/chose to keep/strip/remove …` | Same. |
+| `user's intentional/preferred/preserved state`                  | Same — assumes intent the assistant hasn't evidenced.                  |
+| `removed/reverted/stripped by the user/linter/formatter`        | Same.                                                                  |
+| `the user/linter wants/chose to keep/strip/remove …`            | Same.                                                                  |
 
-Quoted spans are stripped before matching, so the hook doesn't self-fire when the assistant *describes* these phrases (e.g. paraphrasing this doc in a turn summary).
+Quoted spans are stripped before matching, so the hook doesn't self-fire when the assistant _describes_ these phrases (e.g. paraphrasing this doc in a turn summary).
 
 ## Why it blocks
 

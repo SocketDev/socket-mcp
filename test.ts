@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'node:path'
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+
+import { readSocketApiTokenSync } from '@socketsecurity/lib-stable/secrets/socket-api-token'
+
 test('Socket MCP Server', async t => {
-  const apiToken = process.env['SOCKET_API_TOKEN']
+  const apiToken = readSocketApiTokenSync()
   assert.ok(apiToken, 'We need an API token. Tests will not pass without it')
   const serverPath = path.join(import.meta.dirname, 'index.ts')
 
   const transport = new StdioClientTransport({
     command: 'node',
-    args: ['--experimental-strip-types', serverPath],
+    args: [serverPath],
     env: {
       ...(Object.fromEntries(
         Object.entries(process.env).filter(([, value]) => value !== undefined),
@@ -40,7 +43,7 @@ test('Socket MCP Server', async t => {
     const tools = await client.listTools()
     assert.ok(tools.tools.length > 0, 'Server should have tools')
     assert.ok(
-      tools.tools.some(t => t.name === 'depscore'),
+      tools.tools.some(tool => tool.name === 'depscore'),
       'Should have depscore tool',
     )
   })
@@ -176,7 +179,7 @@ test('Socket MCP Server', async t => {
     )
   })
 
-  await t.test('call depscore tool with golang ecosystem', async t => {
+  await t.test('call depscore tool with golang ecosystem', async () => {
     const golangPackages = [
       {
         depname: 'github.com/gin-gonic/gin',

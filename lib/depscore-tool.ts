@@ -8,6 +8,7 @@ import { buildSocketHeaders } from './http-helpers.ts'
 import { logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
 import { VERSION } from './version.ts'
+import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 
 interface DepscorePackageInput {
   ecosystem?: string | undefined
@@ -29,10 +30,9 @@ interface ToolOkResult {
 // Default Socket API URL. SOCKET_DEBUG=true points at localhost for local
 // stack development; the default targets production. Both env vars
 // resolved via fleet-canonical helpers.
-const DEFAULT_SOCKET_API_URL =
-  getSocketDebug() === 'true'
-    ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
-    : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
+const DEFAULT_SOCKET_API_URL = envAsBoolean(getSocketDebug())
+  ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
+  : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
 
 const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
 

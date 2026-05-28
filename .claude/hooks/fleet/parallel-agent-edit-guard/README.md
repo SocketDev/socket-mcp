@@ -27,7 +27,7 @@ Incident 2026-05-27: two Claude sessions plus a Codex companion shared one
 type-error fixes one Edit at a time. The four-times-clobbered fixes only
 stuck once both sessions stopped touching the same files.
 
-`parallel-agent-staging-guard` catches the *git-op* version of this hazard
+`parallel-agent-staging-guard` catches the _git-op_ version of this hazard
 (`git add -A` / `stash` / `reset --hard`); it can't see a plain `Write`
 that overwrites a file. This hook closes that gap at the write itself.
 

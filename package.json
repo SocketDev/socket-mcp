@@ -1,16 +1,24 @@
 {
   "name": "@socketsecurity/mcp",
   "version": "0.0.17",
-  "type": "module",
-  "main": "./index.js",
+  "description": "Socket MCP server for scanning dependencies",
+  "keywords": [],
+  "author": "Alexandros Kapravelos",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SocketDev/socket-mcp"
+  },
   "bin": {
-    "socket-mcp": "./index.js"
+    "socket-mcp": "./dist/index.cjs"
   },
-  "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=11.15.0"
-  },
-  "packageManager": "pnpm@11.3.0",
+  "files": [
+    "package.json",
+    "dist/index.cjs",
+    "dist/index.d.ts",
+    "dist/index.d.ts.map"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
   "scripts": {
     "prepare": "node scripts/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
@@ -28,93 +36,56 @@
     "fix:all": "node scripts/fix.mts --all",
     "update": "node scripts/update.mts",
     "build": "npm run clean && run-s build:*",
+    "build:bundle": "node scripts/build.mts",
     "build:types": "tsgo -p tsconfig.declaration.json",
-    "build:permissions": "chmod +x ./index.js && (chmod +x ./mock-client/*.js 2>/dev/null || true)",
+    "build:permissions": "chmod +x ./dist/index.cjs",
     "build-mcpb": "run-s build build-mcpb:*",
-    "build-mcpb:versions_match": "node --experimental-strip-types scripts/check-versions.ts",
+    "build-mcpb:versions_match": "node scripts/check-versions.ts",
     "build-mcpb:validate": "pnpm exec mcpb validate ./",
     "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
     "build-mcpb:mcpb-pack": "pnpm exec mcpb pack ./",
     "clean": "bash ./scripts/clean.sh",
-    "debug-stdio": "node --experimental-strip-types ./mock-client/debug-client.ts",
-    "debug-sdk": "node --experimental-strip-types ./mock-client/stdio-client.ts",
-    "debug-http": "node --experimental-strip-types ./mock-client/http-client.ts",
-    "server-stdio": "SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node --experimental-strip-types ./index.ts",
-    "server-http": "MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node  --experimental-strip-types ./index.ts",
+    "debug-stdio": "node ./mock-client/debug-client.ts",
+    "debug-sdk": "node ./mock-client/stdio-client.ts",
+    "debug-http": "node ./mock-client/http-client.ts",
+    "server-stdio": "SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./index.ts",
+    "server-http": "MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./index.ts",
     "check:paths": "node scripts/check-paths.mts",
     "security": "node scripts/security.mts",
-    "setup-security-tools": "node .claude/hooks/setup-security-tools/install.mts",
+    "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
     "lockstep": "node scripts/lockstep.mts",
     "lockstep:emit-schema": "node scripts/lockstep-emit-schema.mts"
   },
-  "keywords": [],
-  "files": [
-    "package.json",
-    "index.js",
-    "index.d.ts",
-    "index.d.ts.map",
-    "lib/**/*.js",
-    "lib/**/*.d.ts",
-    "mock-client/**/*.js",
-    "mock-client/**/*.d.ts*"
-  ],
-  "author": "Alexandros Kapravelos",
-  "description": "Socket MCP server for scanning dependencies",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/SocketDev/socket-mcp"
-  },
-  "dependencies": {
+  "devDependencies": {
     "@anthropic-ai/mcpb": "^1.2.0",
     "@modelcontextprotocol/sdk": "1.26.0",
+    "@sinclair/typebox": "catalog:",
     "@socketsecurity/lib": "npm:@socketsecurity/lib@6.0.3",
     "@socketsecurity/lib-stable": "npm:@socketsecurity/lib@6.0.3",
-    "packageurl-js": "^2.0.1",
-    "pino": "^10.3.1",
-    "pino-pretty": "^13.1.3",
-    "semver": "^7.7.4",
-    "zod": "3.25.76"
-  },
-  "overrides": {
-    "@hono/node-server": "1.19.13",
-    "fast-uri": "3.1.2",
-    "hono": "4.12.18",
-    "ip-address": "10.1.1",
-    "node-forge": "1.4.0",
-    "path-to-regexp": "8.4.2",
-    "tmp": "0.2.5",
-    "zod": "3.25.76",
-    "zod-to-json-schema": "3.25.1"
-  },
-  "pnpm": {
-    "overrides": {
-      "@hono/node-server": "1.19.13",
-      "fast-uri": "3.1.2",
-      "hono": "4.12.18",
-      "ip-address": "10.1.1",
-      "node-forge": "1.4.0",
-      "path-to-regexp": "8.4.2",
-      "tmp": "0.2.5",
-      "zod": "3.25.76",
-      "zod-to-json-schema": "3.25.1"
-    }
-  },
-  "devDependencies": {
-    "@sinclair/typebox": "catalog:",
-    "@types/node": "^24.12.3",
+    "@types/node": "^24.12.4",
     "@types/semver": "^7.7.1",
     "@types/triple-beam": "^1.3.5",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
     "npm-run-all2": "^8.0.4",
     "oxfmt": "0.48.0",
     "oxlint": "1.63.0",
+    "packageurl-js": "^2.0.1",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "rolldown": "catalog:",
+    "semver": "^7.8.1",
     "taze": "catalog:",
-    "typescript": "~5.9.3"
+    "zod": "3.25.76"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=11.16.0"
+  },
+  "packageManager": "pnpm@11.4.0",
+  "allowScripts": {
+    "esbuild": true
   },
   "npm-run-all2": {
     "nodeRun": true
-  },
-  "allowScripts": {
-    "esbuild": true
   }
 }

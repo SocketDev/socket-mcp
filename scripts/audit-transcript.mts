@@ -89,21 +89,20 @@ function readToolUses(transcriptPath: string): ToolUseEvent[] {
 }
 
 /**
- * Walk a shell command's parsed tokens and return the args of each
- * invocation whose leading tokens match `cmdLine` (e.g. `['sudo']`,
- * `['gh', 'auth', 'refresh']`). Returns an empty array when no
- * invocation matches.
+ * Walk a shell command's parsed tokens and return the args of each invocation
+ * whose leading tokens match `cmdLine` (e.g. `['sudo']`, `['gh', 'auth',
+ * 'refresh']`). Returns an empty array when no invocation matches.
  *
- * Will be lifted to `@socketsecurity/lib-stable/shell/parse` in the next
- * lib bump (the exports are already on socket-lib's `src/` but haven't
- * shipped yet). Keep this inline copy until the cascade can pin the new
- * lib version; remove it then.
+ * Will be lifted to `@socketsecurity/lib-stable/shell/parse` in the next lib
+ * bump (the exports are already on socket-lib's `src/` but haven't shipped
+ * yet). Keep this inline copy until the cascade can pin the new lib version;
+ * remove it then.
  *
- * Uses the AST-based `parseShell` (wraps `shell-quote`) so the matcher
- * sees actual invocations only, not embedded args (`echo "sudo foo"`),
- * variable substitutions (`$gh`), or command substitution (`$(...)`).
- * Treats `&&`, `;`, `||`, `|` as segment terminators so chained
- * commands each get their own scan.
+ * Uses the AST-based `parseShell` (wraps `shell-quote`) so the matcher sees
+ * actual invocations only, not embedded args (`echo "sudo foo"`), variable
+ * substitutions (`$gh`), or command substitution (`$(...)`). Treats `&&`, `;`,
+ * `||`, `|` as segment terminators so chained commands each get their own
+ * scan.
  */
 function findInvocations(
   command: string,
@@ -144,14 +143,11 @@ function findInvocations(
 }
 
 /**
- * Convenience: does `command` contain at least one invocation of
- * `cmdLine`? Equivalent to `findInvocations(command, cmdLine).length >
- * 0`. The most common audit-pattern shape.
+ * Convenience: does `command` contain at least one invocation of `cmdLine`?
+ * Equivalent to `findInvocations(command, cmdLine).length > 0`. The most common
+ * audit-pattern shape.
  */
-function commandInvokes(
-  command: string,
-  cmdLine: readonly string[],
-): boolean {
+function commandInvokes(command: string, cmdLine: readonly string[]): boolean {
   return findInvocations(command, cmdLine).length > 0
 }
 

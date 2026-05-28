@@ -1,14 +1,10 @@
 /**
- * @file Smoke test for socket-token-minifier-start.
- *
- *   SessionStart hook that auto-starts the socket-token-minifier proxy on
- *   `localhost:7779` and exports `ANTHROPIC_BASE_URL` only after a health
- *   probe succeeds. Fail-closed: missing proxy means the session uses
- *   api.anthropic.com directly, never silently routes through a broken
- *   intermediary.
- *
- *   Smoke contract: hook loads + dispatches without throwing; empty
- *   payload → exit 0.
+ * @file Smoke test for socket-token-minifier-start. SessionStart hook that
+ *   auto-starts the socket-token-minifier proxy on `localhost:7779` and exports
+ *   `ANTHROPIC_BASE_URL` only after a health probe succeeds. Fail-closed:
+ *   missing proxy means the session uses api.anthropic.com directly, never
+ *   silently routes through a broken intermediary. Smoke contract: hook loads +
+ *   dispatches without throwing; empty payload → exit 0.
  */
 
 import { spawn } from 'node:child_process'

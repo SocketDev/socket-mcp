@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 const logger = getDefaultLogger()
 
@@ -33,7 +33,7 @@ function readJsonFile<T>(filePath: string): T {
 
 function main(): void {
   console.log(
-    'Checking version consistency between package.json and manifest.json...',
+    'Checking version consistency between package.json and manifest.json…',
   )
 
   const packageJsonPath = path.join(projectRoot, 'package.json')

@@ -37,7 +37,7 @@ interface StopPayload {
 // Phrases that indicate the assistant brushed past the question.
 const DEFLECTION_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
   {
-    label: 'right now I\'m / right now I am',
+    label: "right now I'm / right now I am",
     regex: /\bright\s+now\s+i'?(m|\s+am)\b/i,
   },
   {
@@ -45,7 +45,8 @@ const DEFLECTION_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
     regex: /\b(let\s+me\s+(finish|first|wrap)|finish\s+first)\b/i,
   },
   {
-    label: 'that\'s a (structural|bigger|separate) (fix|refactor|question) (for|later)',
+    label:
+      "that's a (structural|bigger|separate) (fix|refactor|question) (for|later)",
     regex:
       /\bthat'?s\s+(a\s+)?(structural|bigger|separate|different)\s+(fix|refactor|question|issue|concern)\s+(for\s+later|though|\.\s)/i,
   },
@@ -54,12 +55,13 @@ const DEFLECTION_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
     regex: /\bfor\s+(now|the\s+moment)\s*,?\s+(i'?m|let\s+me|focus)/i,
   },
   {
-    label: 'I\'ll come back to / get to that',
+    label: "I'll come back to / get to that",
     regex: /\bi'?ll\s+(come\s+back\s+to|get\s+to)\s+(that|it|this)\b/i,
   },
   {
     label: 'later — focus / first',
-    regex: /\b(later|that\s+(part|piece))\s*[—–\-]\s*(focus|first|right\s+now)/i,
+    regex:
+      /\b(later|that\s+(part|piece))\s*[—–\-]\s*(focus|first|right\s+now)/i,
   },
   {
     label: 'noted / good question — moving on',
@@ -145,10 +147,7 @@ async function main(): Promise<void> {
     return
   }
 
-  const userSnippet = recentUser
-    .slice(0, 200)
-    .replace(/\s+/g, ' ')
-    .trim()
+  const userSnippet = recentUser.slice(0, 200).replace(/\s+/g, ' ').trim()
   const lines = [
     '[answer-passing-questions-reminder] User asked a passing question; assistant turn brushed past it without answering:',
     '',

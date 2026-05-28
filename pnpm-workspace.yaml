@@ -10,14 +10,15 @@ catalog:
   '@sinclair/typebox': 0.34.49
   '@socketregistry/packageurl-js': 1.4.2
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib': 6.0.3
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.3
+  '@socketsecurity/lib': 6.0.5
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.5
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
   '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
   '@types/mdast': 4.0.4
   '@types/node': 24.9.2
+  '@types/shell-quote': 1.7.5
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   '@vitest/coverage-v8': 4.1.6
   '@vitest/ui': 4.1.6
@@ -38,10 +39,13 @@ enablePrePostScripts: true
 # in the default `catalog:` block above. This defeats accidental
 # local-checkout resolution when a sibling repo is on disk.
 overrides:
+  '@hono/node-server': '1.19.13'
   '@socketregistry/packageurl-js': 'catalog:'
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
+  'fast-uri': '3.1.2'
+  'hono': '4.12.18'
   'ip-address': '10.1.1'
   # CVE-2026-... node-forge prototype-pollution-class advisories #55/#57/#59/#61
   'node-forge': '1.4.0'
@@ -49,6 +53,8 @@ overrides:
   'path-to-regexp': '8.4.2'
   # advisory #42 arbitrary file/directory write via symlink
   'tmp': '0.2.5'
+  'zod': '3.25.76'
+  'zod-to-json-schema': '3.25.1'
 
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:

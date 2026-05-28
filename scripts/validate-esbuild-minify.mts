@@ -8,6 +8,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
@@ -60,9 +61,7 @@ async function validateEsbuildMinify(): Promise<MinifyViolation[]> {
 
     return violations
   } catch (e) {
-    logger.error(
-      `Failed to load esbuild config: ${e instanceof Error ? e.message : String(e)}`,
-    )
+    logger.error(`Failed to load esbuild config: ${errorMessage(e)}`)
     process.exitCode = 1
     return []
   }

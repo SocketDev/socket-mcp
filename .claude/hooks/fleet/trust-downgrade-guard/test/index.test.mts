@@ -1,9 +1,8 @@
 /**
- * @file Unit tests for trust-downgrade-guard hook.
- *
- *   Spawns the hook as a child process with synthesized PreToolUse payloads.
- *   Covers Bash + Edit/Write downgrade detection, single-use bypass
- *   consumption, the disabled env var, and fail-open.
+ * @file Unit tests for trust-downgrade-guard hook. Spawns the hook as a child
+ *   process with synthesized PreToolUse payloads. Covers Bash + Edit/Write
+ *   downgrade detection, single-use bypass consumption, the disabled env var,
+ *   and fail-open.
  */
 
 import assert from 'node:assert/strict'

@@ -153,7 +153,9 @@ test('classifyPluginPatch: version/filename mismatch blocks', () => {
 test('isPluginPatchPath: matches only scripts/plugin-patches/*.patch', () => {
   assert.strictEqual(isPluginPatchPath(PATCH_PATH), true)
   assert.strictEqual(
-    isPluginPatchPath('/Users/x/projects/foo/scripts/other/codex-1.0.1-x.patch'),
+    isPluginPatchPath(
+      '/Users/x/projects/foo/scripts/other/codex-1.0.1-x.patch',
+    ),
     false,
   )
   assert.strictEqual(

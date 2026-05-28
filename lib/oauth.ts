@@ -4,6 +4,7 @@ import {
   getSocketOauthIssuer,
   getSocketOauthRequiredScopes,
 } from './env.ts'
+import { errorMessage } from '@socketsecurity/lib/errors'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -114,9 +115,7 @@ export async function authenticateRequest(
   try {
     authInfo = await verifyAccessToken(token)
   } catch (error) {
-    logger.error(
-      `Token verification failed: ${error instanceof Error ? error.message : String(error)}`,
-    )
+    logger.error(`Token verification failed: ${errorMessage(error)}`)
     writeJson(res, 500, {
       error: 'server_error',
       error_description: 'Token verification failed',

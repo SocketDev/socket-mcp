@@ -37,9 +37,11 @@ import { readStdin } from '../../_shared/transcript.mts'
 
 interface PreToolUseInput {
   readonly tool_name?: string | undefined
-  readonly tool_input?: {
-    readonly command?: string | undefined
-  } | undefined
+  readonly tool_input?:
+    | {
+        readonly command?: string | undefined
+      }
+    | undefined
 }
 
 // Matches `cd <something>` not preceded by `(` (subshell) and not
@@ -111,7 +113,7 @@ async function main(): Promise<void> {
       '[avoid-cd-reminder] Bash command contains a bare `cd <path>`.',
       '',
       "  The Bash tool's cwd PERSISTS across tool calls — a cd here lingers",
-      "  for every later command until something resets it. Recover with one",
+      '  for every later command until something resets it. Recover with one',
       '  of:',
       '',
       '    (a) Use absolute paths so no cd is needed:',

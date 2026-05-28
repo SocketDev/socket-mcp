@@ -127,9 +127,8 @@ async function main(): Promise<void> {
   if (payload.tool_name !== 'Bash') {
     process.exit(0)
   }
-  const command = (
-    payload.tool_input as { command?: unknown } | undefined
-  )?.command
+  const command = (payload.tool_input as { command?: unknown } | undefined)
+    ?.command
   if (typeof command !== 'string' || !command.trim()) {
     process.exit(0)
   }
@@ -170,7 +169,9 @@ async function main(): Promise<void> {
       '  same checkout. This operation would sweep up, hide, or destroy',
       '  their in-flight work:',
       ...foreign.slice(0, 10).map(p => `    ${p}`),
-      ...(foreign.length > 10 ? [`    ... and ${foreign.length - 10} more`] : []),
+      ...(foreign.length > 10
+        ? [`    ... and ${foreign.length - 10} more`]
+        : []),
       '',
       '  Fix: stage only YOUR files by explicit path, and avoid stash /',
       '  reset --hard / checkout while the other agent is active.',

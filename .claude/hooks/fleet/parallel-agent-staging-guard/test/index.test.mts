@@ -1,13 +1,11 @@
 /**
- * @file Unit tests for parallel-agent-staging-guard hook.
- *
- *   The guard blocks sweep / destructive git ops (add -A, commit -a, stash,
- *   reset --hard, checkout, restore) ONLY when foreign dirty paths are present:
- *   dirty, not in this session's transcript touched-set, recently changed.
- *
- *   Each test builds a real git repo in tmpdir, optionally creates a "foreign"
- *   dirty file (written WITHOUT a corresponding Edit/Write transcript entry),
- *   and runs the hook as a child process with a synthesized PreToolUse payload.
+ * @file Unit tests for parallel-agent-staging-guard hook. The guard blocks
+ *   sweep / destructive git ops (add -A, commit -a, stash, reset --hard,
+ *   checkout, restore) ONLY when foreign dirty paths are present: dirty, not in
+ *   this session's transcript touched-set, recently changed. Each test builds a
+ *   real git repo in tmpdir, optionally creates a "foreign" dirty file (written
+ *   WITHOUT a corresponding Edit/Write transcript entry), and runs the hook as
+ *   a child process with a synthesized PreToolUse payload.
  */
 
 import assert from 'node:assert/strict'
@@ -146,7 +144,7 @@ test('allows `git add -A` in a clean repo (no foreign paths)', () => {
   assert.equal(r.code, 0)
 })
 
-test('allows `git stash` when the only dirty file is this session\'s', () => {
+test("allows `git stash` when the only dirty file is this session's", () => {
   const own = writeForeign(repo, 'mine.txt')
   const tx = writeTranscriptTouching(own)
   const r = runHook('git stash', { cwd: repo, transcriptPath: tx })

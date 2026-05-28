@@ -16,18 +16,17 @@
  *   - Comment on a `class X {}` declaration (oxfmt re-flows it onto the class,
  *     where it has no effect): `/*@__PURE__*\/ class Logger {}`.
  *   - Comment outside parenthesized expressions where the call lives inside:
- *     `const x = /*@__PURE__*\/ (foo()).bar` — the magic is detached from
- *     the call site by the parens / member expression.
+ *     `const x = /*@__PURE__*\/ (foo()).bar` — the magic is detached from the
+ *     call site by the parens / member expression.
  *   - Comment on a bare identifier reference: `const ctor = /*@__PURE__*\/
- *     SomeClass` (no parens means no call; the hint does nothing).
- *
- *   Report-only — the right rewrite is "put the comment immediately before the
- *   call, like `const x = /*@__PURE__*\/ foo()`," and oxfmt's tendency to move
- *   comments back makes any literal autofix a moving target. The rule writes
- *   the call site location and leaves the human to either reposition the
- *   comment or restructure the surrounding code (the documented workaround:
- *   introduce an intermediate const so the magic comment lands adjacent to the
- *   call, e.g. `const tmp = /*@__PURE__*\/ foo(); const x = tmp.bar`).
+ *     SomeClass` (no parens means no call; the hint does nothing). Report-only
+ *     — the right rewrite is "put the comment immediately before the call, like
+ *     `const x = /*@__PURE__*\/ foo()`," and oxfmt's tendency to move comments
+ *     back makes any literal autofix a moving target. The rule writes the call
+ *     site location and leaves the human to either reposition the comment or
+ *     restructure the surrounding code (the documented workaround: introduce an
+ *     intermediate const so the magic comment lands adjacent to the call, e.g.
+ *     `const tmp = /*@__PURE__*\/ foo(); const x = tmp.bar`).
  */
 
 import type { AstNode, RuleContext } from '../lib/rule-types.mts'

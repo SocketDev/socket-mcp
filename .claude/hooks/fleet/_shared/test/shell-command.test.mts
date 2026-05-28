@@ -49,31 +49,51 @@ test('parseCommands: comments dropped', () => {
 })
 
 test('findInvocation: matches plain git push', () => {
-  assert.ok(findInvocation('git push origin main', { binary: 'git', subcommand: 'push' }))
+  assert.ok(
+    findInvocation('git push origin main', {
+      binary: 'git',
+      subcommand: 'push',
+    }),
+  )
 })
 
 test('findInvocation: matches git -C <dir> push (subcommand after option value)', () => {
-  assert.ok(findInvocation('git -C /x push', { binary: 'git', subcommand: 'push' }))
+  assert.ok(
+    findInvocation('git -C /x push', { binary: 'git', subcommand: 'push' }),
+  )
 })
 
 test('findInvocation: matches git -c k=v push', () => {
-  assert.ok(findInvocation('git -c foo=bar push', { binary: 'git', subcommand: 'push' }))
+  assert.ok(
+    findInvocation('git -c foo=bar push', {
+      binary: 'git',
+      subcommand: 'push',
+    }),
+  )
 })
 
 test('findInvocation: matches push reached via && chain', () => {
   assert.ok(
-    findInvocation('cd /x/depot && git push', { binary: 'git', subcommand: 'push' }),
+    findInvocation('cd /x/depot && git push', {
+      binary: 'git',
+      subcommand: 'push',
+    }),
   )
 })
 
 test('findInvocation: matches push in a pipe chain', () => {
   assert.ok(
-    findInvocation('ls | grep x && git push', { binary: 'git', subcommand: 'push' }),
+    findInvocation('ls | grep x && git push', {
+      binary: 'git',
+      subcommand: 'push',
+    }),
   )
 })
 
 test('findInvocation: a different subcommand does not match', () => {
-  assert.ok(!findInvocation('git status', { binary: 'git', subcommand: 'push' }))
+  assert.ok(
+    !findInvocation('git status', { binary: 'git', subcommand: 'push' }),
+  )
 })
 
 test('findInvocation: quoted "git push" in a commit message is NOT a push', () => {
@@ -122,7 +142,9 @@ test('commandsFor: binary-in-a-path is NOT the binary', () => {
 })
 
 test('invocationHasFlag: exact flag', () => {
-  assert.ok(invocationHasFlag('codex --write prompt', 'codex', ['--write', '-w']))
+  assert.ok(
+    invocationHasFlag('codex --write prompt', 'codex', ['--write', '-w']),
+  )
   assert.ok(invocationHasFlag('codex -w prompt', 'codex', ['--write', '-w']))
 })
 

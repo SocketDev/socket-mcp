@@ -1,12 +1,9 @@
 /**
- * @file Smoke test for path-regex-normalize-reminder.
- *
- *   Stop hook that warns when the assistant's recent output writes dual-
- *   separator regexes like `[/\\]` against a path — the fleet helper
- *   `normalizePath` already gives one `/` representation across platforms.
- *
- *   Smoke contract: hook loads + dispatches without throwing; empty
- *   transcript path → exit 0.
+ * @file Smoke test for path-regex-normalize-reminder. Stop hook that warns when
+ *   the assistant's recent output writes dual- separator regexes like `[/\\]`
+ *   against a path — the fleet helper `normalizePath` already gives one `/`
+ *   representation across platforms. Smoke contract: hook loads + dispatches
+ *   without throwing; empty transcript path → exit 0.
  */
 
 import { mkdtempSync, writeFileSync } from 'node:fs'

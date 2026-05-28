@@ -2,7 +2,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'node:path'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 const logger = getDefaultLogger()
 
@@ -18,6 +18,7 @@ async function main() {
       ...(Object.fromEntries(
         Object.entries(process.env).filter(([, value]) => value !== undefined),
       ) as Record<string, string>),
+      // socket-api-token-getter: allow direct-env — mock client passes through to the spawned server's env.
       SOCKET_API_KEY: process.env['SOCKET_API_TOKEN'] || '',
     },
   })

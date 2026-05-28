@@ -1,5 +1,8 @@
 import readline from 'node:readline'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+
+import { errorMessage } from '@socketsecurity/lib/errors'
+
 import { getTrustProxy } from './env.ts'
 import { logger } from './logger.ts'
 import { VERSION } from './version.ts'
@@ -116,8 +119,7 @@ export function parseJsonObject(
 
     return parsed as Record<string, unknown>
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${context} returned invalid JSON: ${message}`)
+    throw new Error(`${context} returned invalid JSON: ${errorMessage(error)}`)
   }
 }
 

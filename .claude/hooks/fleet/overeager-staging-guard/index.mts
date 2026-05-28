@@ -41,10 +41,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { readTouchedPaths } from '../_shared/foreign-paths.mts'
-import {
-  detectBroadGitAdd,
-  findInvocation,
-} from '../_shared/shell-command.mts'
+import { detectBroadGitAdd, findInvocation } from '../_shared/shell-command.mts'
 import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
 
 interface ToolInput {
@@ -77,7 +74,6 @@ export function listStagedFiles(repoDir: string): string[] {
     .map((s: string) => s.trim())
     .filter(Boolean)
 }
-
 
 async function main(): Promise<void> {
   if (process.env[ENV_DISABLE]) {

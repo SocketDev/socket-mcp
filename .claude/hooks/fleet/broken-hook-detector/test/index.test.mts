@@ -1,13 +1,10 @@
 /**
- * @file Smoke test for broken-hook-detector.
- *
- *   SessionStart hook (Node built-ins only, self-imposed) that walks every
- *   other hook's index.mts + every _shared/*.mts, spawns `node --check` on
- *   each, and aggregates ERR_MODULE_NOT_FOUND failures into one structured
- *   recovery message. Fail-open by design.
- *
- *   Smoke contract: hook loads + dispatches without throwing; empty
- *   payload → exit 0 (fail-open).
+ * @file Smoke test for broken-hook-detector. SessionStart hook (Node built-ins
+ *   only, self-imposed) that walks every other hook's index.mts + every
+ *   _shared/*.mts, spawns `node --check` on each, and aggregates
+ *   ERR_MODULE_NOT_FOUND failures into one structured recovery message.
+ *   Fail-open by design. Smoke contract: hook loads + dispatches without
+ *   throwing; empty payload → exit 0 (fail-open).
  */
 
 import { spawn } from 'node:child_process'

@@ -404,11 +404,14 @@ async function main(): Promise<void> {
       .filter((r): r is string => typeof r === 'string')
     const tier = escalateTier(ruleIds)
     const model = TIER_MODEL[tier]
-    logger.log(
-      `AI-fix ${rel} (${findings.length} findings, ${tier})…`,
-    )
+    logger.log(`AI-fix ${rel} (${findings.length} findings, ${tier})…`)
     const prompt = buildPrompt(filePath, findings)
-    const { exitCode, stderr } = await runClaudeFix(filePath, prompt, cwd, model)
+    const { exitCode, stderr } = await runClaudeFix(
+      filePath,
+      prompt,
+      cwd,
+      model,
+    )
     if (exitCode === 0) {
       totalEdits += findings.length
       continue

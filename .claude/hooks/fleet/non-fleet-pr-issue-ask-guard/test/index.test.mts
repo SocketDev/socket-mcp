@@ -19,8 +19,7 @@ test('BLOCKS gh pr create --repo against non-fleet repo', () => {
   const { stderr, exitCode } = runHook({
     tool_name: 'Bash',
     tool_input: {
-      command:
-        'gh pr create --repo oxc-project/oxc --title "x" --body "y"',
+      command: 'gh pr create --repo oxc-project/oxc --title "x" --body "y"',
     },
   })
   assert.equal(exitCode, 2)
@@ -33,8 +32,7 @@ test('BLOCKS gh issue create --repo against non-fleet repo', () => {
   const { stderr, exitCode } = runHook({
     tool_name: 'Bash',
     tool_input: {
-      command:
-        'gh issue create --repo nodejs/node --title "x" --body "y"',
+      command: 'gh issue create --repo nodejs/node --title "x" --body "y"',
     },
   })
   assert.equal(exitCode, 2)

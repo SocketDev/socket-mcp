@@ -26,10 +26,13 @@ export function artifactGroupKey(artifact: ArtifactData): string {
 }
 
 /**
- * Deduplicate artifacts that share the same (type, namespace, name, version) identity.
- * When multiple artifacts exist for the same package (e.g. PyPI wheels for different
- * platforms), one representative is selected using a priority: platform-matching artifact
- * (if hint provided) > source distribution > universal wheel > first artifact.
+ * Deduplicate artifacts that share the same (type, namespace, name, version)
+ * identity. When multiple artifacts exist for the same package (e.g. PyPI
+ * wheels for different platforms), one representative is selected using a
+ * priority: platform-matching artifact (if hint provided) > source
+ * distribution.
+ *
+ * > Universal wheel > first artifact.
  */
 export function deduplicateArtifacts(
   artifacts: ArtifactData[],

@@ -85,15 +85,18 @@ const DECLINE_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
   },
   {
     label: 'not enough time has passed',
-    regex: /\b(not\s+enough\s+time|hasn'?t\s+been\s+(long|enough))\s+(has\s+)?(passed|elapsed|gone\s+by)\b/i,
+    regex:
+      /\b(not\s+enough\s+time|hasn'?t\s+been\s+(long|enough))\s+(has\s+)?(passed|elapsed|gone\s+by)\b/i,
   },
   {
     label: "let me wait / I'll wait / wait a bit",
-    regex: /\b(let\s+me\s+wait|i'?ll\s+wait|wait\s+(a\s+(bit|moment|few|minute|second)|until))/i,
+    regex:
+      /\b(let\s+me\s+wait|i'?ll\s+wait|wait\s+(a\s+(bit|moment|few|minute|second)|until))/i,
   },
   {
     label: 'no need to check / no point',
-    regex: /\b(no\s+(need|point)\s+(to\s+)?(check(ing)?|polling|looking)|nothing\s+(to\s+)?check)\b/i,
+    regex:
+      /\b(no\s+(need|point)\s+(to\s+)?(check(ing)?|polling|looking)|nothing\s+(to\s+)?check)\b/i,
   },
   {
     label: 'polling is wasted / pointless',
@@ -101,7 +104,8 @@ const DECLINE_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
   },
   {
     label: 'no change since last check (without checking)',
-    regex: /\b(no\s+change|nothing\s+new|same\s+as\s+(before|last))\s+since\s+(the\s+)?last\s+(check|update|time)\b/i,
+    regex:
+      /\b(no\s+change|nothing\s+new|same\s+as\s+(before|last))\s+since\s+(the\s+)?last\s+(check|update|time)\b/i,
   },
 ]
 
@@ -158,10 +162,7 @@ async function main(): Promise<void> {
     return
   }
 
-  const userSnippet = recentUser
-    .slice(0, 200)
-    .replace(/\s+/g, ' ')
-    .trim()
+  const userSnippet = recentUser.slice(0, 200).replace(/\s+/g, ' ').trim()
   const lines = [
     '[answer-status-requests-reminder] User asked for a status update; assistant declined with rate-limiting excuse:',
     '',

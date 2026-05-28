@@ -2,7 +2,8 @@ import { PackageURL } from 'packageurl-js'
 
 /**
  * Build a PURL using packageurl-js for correct encoding across all ecosystems.
- * Handles namespace/name splitting per ecosystem (e.g. npm scoped @scope/name, maven groupId:artifactId).
+ * Handles namespace/name splitting per ecosystem (e.g. npm scoped @scope/name,
+ * maven groupId:artifactId).
  */
 export function buildPurl(
   ecosystem: string,

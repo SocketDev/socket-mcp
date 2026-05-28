@@ -28,7 +28,7 @@ unless the user typed `Allow trust-downgrade bypass` — and the bypass is
 counts prior downgrade actions in the assistant tool-use history (mirrors
 `release-workflow-guard`'s per-dispatch model) and requires an unconsumed phrase
 occurrence. A persisted bypass — an env var, or a phrase that opens the door for
-every future downgrade — is *itself* a trust downgrade, so it's disallowed by
+every future downgrade — is _itself_ a trust downgrade, so it's disallowed by
 design. Each downgrade needs its own freshly-typed phrase.
 
 ## The right fix instead of a downgrade

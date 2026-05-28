@@ -1,14 +1,12 @@
 /**
  * @file Smoke test for no-file-scope-oxlint-disable-guard.
- *
  *   PreToolUse(Edit|Write) hook that blocks file-scope `oxlint-disable` /
  *   `oxlint-disable-next-line` blocks at the top of a file. The block scope
  *   silently exempts future edits the author never thought about; per-line
- *   disables with rationale are the right shape.
+ *   disables with rationale are the right shape. Smoke contract:
  *
- *   Smoke contract:
- *   - benign payload (non-Edit/Write tool, or no oxlint-disable in content)
- *     → exit 0.
+ *   - benign payload (non-Edit/Write tool, or no oxlint-disable in content) →
+ *     exit 0.
  *   - the hook loads + dispatches without throwing.
  */
 

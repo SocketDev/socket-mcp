@@ -1,11 +1,8 @@
 /**
- * @file Smoke test for answer-passing-questions-reminder.
- *
- *   Stop hook that catches the failure mode where the user asks a passing
- *   question mid-task and the assistant deflects.
- *
- *   Smoke contract: hook loads + dispatches without throwing; empty
- *   transcript path → exit 0.
+ * @file Smoke test for answer-passing-questions-reminder. Stop hook that
+ *   catches the failure mode where the user asks a passing question mid-task
+ *   and the assistant deflects. Smoke contract: hook loads + dispatches without
+ *   throwing; empty transcript path → exit 0.
  */
 
 import { mkdtempSync, writeFileSync } from 'node:fs'

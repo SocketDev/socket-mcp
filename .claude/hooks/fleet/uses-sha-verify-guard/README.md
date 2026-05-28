@@ -8,11 +8,11 @@ Every GitHub URL pin across the fleet needs a full 40-char commit SHA that resol
 
 Three surfaces:
 
-| Surface | Required pin shape |
-| --- | --- |
-| `.github/workflows/*.yml` + `.github/actions/*/action.yml` | `uses: <owner>/<repo>(/<path>)?@<40-hex>` |
-| `.gitmodules` | BOTH `# <name>-<version> sha256:<64-hex>` comment AND `ref = <40-hex>` field per `[submodule]` block |
-| `package.json` | `git+https://github.com/<owner>/<repo>(.git)?#<40-hex>` for any GitHub-URL dep specifier |
+| Surface                                                    | Required pin shape                                                                                   |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `.github/workflows/*.yml` + `.github/actions/*/action.yml` | `uses: <owner>/<repo>(/<path>)?@<40-hex>`                                                            |
+| `.gitmodules`                                              | BOTH `# <name>-<version> sha256:<64-hex>` comment AND `ref = <40-hex>` field per `[submodule]` block |
+| `package.json`                                             | `git+https://github.com/<owner>/<repo>(.git)?#<40-hex>` for any GitHub-URL dep specifier             |
 
 The `.gitmodules` content-hash (`sha256:`) and the `ref =` (commit SHA) are both required — the comment is the upstream-archive content-hash pin (drift-watch signal); the `ref` is what `git submodule update` checks out.
 

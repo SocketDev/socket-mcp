@@ -1,12 +1,8 @@
 /**
- * @file Smoke test for provenance-publish-reminder.
- *
- *   Stop hook that fires when the assistant's recent turn appears to be a
- *   publish action without the canonical provenance + trustedPublisher
- *   verification steps.
- *
- *   Smoke contract: hook loads + dispatches without throwing; empty
- *   transcript path → exit 0.
+ * @file Smoke test for provenance-publish-reminder. Stop hook that fires when
+ *   the assistant's recent turn appears to be a publish action without the
+ *   canonical provenance + trustedPublisher verification steps. Smoke contract:
+ *   hook loads + dispatches without throwing; empty transcript path → exit 0.
  */
 
 import { mkdtempSync, writeFileSync } from 'node:fs'

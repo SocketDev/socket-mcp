@@ -17,12 +17,12 @@
  *     falls back to sfw-free (the auth- free SFW build) and continues without
  *     persisting a token. Invocation: node
  *     .claude/hooks/fleet/setup-security-tools/install.mts node
- *     .claude/hooks/fleet/setup-security-tools/install.mts --rotate Flags: --rotate
- *     Re-prompt for SOCKET_API_KEY and overwrite the keychain entry, ignoring
- *     env/.env/keychain lookup. Use to rotate a leaked or expired token without
- *     manually clearing the keychain first. --update-token Alias for --rotate.
- *     Exit codes: 0 — all tools installed + verified. 1 — at least one tool
- *     failed; details on stderr.
+ *     .claude/hooks/fleet/setup-security-tools/install.mts --rotate Flags:
+ *     --rotate Re-prompt for SOCKET_API_KEY and overwrite the keychain entry,
+ *     ignoring env/.env/keychain lookup. Use to rotate a leaked or expired
+ *     token without manually clearing the keychain first. --update-token Alias
+ *     for --rotate. Exit codes: 0 — all tools installed + verified. 1 — at
+ *     least one tool failed; details on stderr.
  */
 
 import { existsSync, promises as fs } from 'node:fs'

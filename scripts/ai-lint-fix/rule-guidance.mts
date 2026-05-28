@@ -34,12 +34,13 @@ export const AI_HANDLED_RULES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Capability tier per rule. The orchestrator picks the highest-tier model
- * among a per-file batch's rules so a single Haiku-only file goes cheap, a
- * mixed batch gets Sonnet, and any `max-file-lines` finding triggers Opus
- * (module splits are real refactoring).
+ * Capability tier per rule. The orchestrator picks the highest-tier model among
+ * a per-file batch's rules so a single Haiku-only file goes cheap, a mixed
+ * batch gets Sonnet, and any `max-file-lines` finding triggers Opus (module
+ * splits are real refactoring).
  *
  * Why per-rule rather than per-file or per-finding:
+ *
  * - Per-finding would spawn N AI calls per file. Wasteful.
  * - Per-file flat would route everything to Sonnet defensively. Wasteful too.
  * - Per-rule + escalation matches the actual cost surface: simple regex-shaped
@@ -47,10 +48,12 @@ export const AI_HANDLED_RULES: ReadonlySet<string> = new Set([
  *   control-flow + caller-chain rewrites (fetch→httpJson, sync→async, fs.access
  *   → existsSync) need Sonnet; module decomposition needs Opus.
  *
- * Tier order: `claude-haiku-4-5` < `claude-sonnet-4-6` < `claude-opus-4-8`.
- * Add new rules to the right bucket when adding to AI_HANDLED_RULES.
+ * Tier order: `claude-haiku-4-5` < `claude-sonnet-4-6` < `claude-opus-4-8`. Add
+ * new rules to the right bucket when adding to AI_HANDLED_RULES.
  */
-export const RULE_MODEL_TIER: Readonly<Record<string, 'haiku' | 'sonnet' | 'opus'>> = {
+export const RULE_MODEL_TIER: Readonly<
+  Record<string, 'haiku' | 'sonnet' | 'opus'>
+> = {
   __proto__: null,
   // Identifier renames, single-token substitutions, namespace rewrites.
   // The right rewrite is fully determined by the pattern that fired.
@@ -73,25 +76,26 @@ export const RULE_MODEL_TIER: Readonly<Record<string, 'haiku' | 'sonnet' | 'opus
 } as Readonly<Record<string, 'haiku' | 'sonnet' | 'opus'>>
 
 /**
- * Map a tier label to the canonical Claude Code model ID. Centralized here
- * so a global tier bump (Haiku 4.5 → 4.6, Sonnet 4.6 → 5.0, etc.) is a
- * single-file edit and won't drift across the orchestrator + the docs.
+ * Map a tier label to the canonical Claude Code model ID. Centralized here so a
+ * global tier bump (Haiku 4.5 → 4.6, Sonnet 4.6 → 5.0, etc.) is a single-file
+ * edit and won't drift across the orchestrator + the docs.
  */
-export const TIER_MODEL: Readonly<Record<'haiku' | 'sonnet' | 'opus', string>> = {
-  __proto__: null,
-  haiku: 'claude-haiku-4-5',
-  sonnet: 'claude-sonnet-4-6',
-  opus: 'claude-opus-4-8',
-} as Readonly<Record<'haiku' | 'sonnet' | 'opus', string>>
+export const TIER_MODEL: Readonly<Record<'haiku' | 'sonnet' | 'opus', string>> =
+  {
+    __proto__: null,
+    haiku: 'claude-haiku-4-5',
+    sonnet: 'claude-sonnet-4-6',
+    opus: 'claude-opus-4-8',
+  } as Readonly<Record<'haiku' | 'sonnet' | 'opus', string>>
 
 /**
- * Pick the highest tier present in a per-file batch's rule set. Returns a
- * tier label; the caller resolves it to a model via `TIER_MODEL`. Default
- * (no recognized rules in batch) is `sonnet` — the historical baseline.
+ * Pick the highest tier present in a per-file batch's rule set. Returns a tier
+ * label; the caller resolves it to a model via `TIER_MODEL`. Default (no
+ * recognized rules in batch) is `sonnet` — the historical baseline.
  *
- * `ruleIds` is a concrete array (not `Iterable<string>`) so the loop can
- * use the cached-length for-loop idiom the fleet's `prefer-cached-for-loop`
- * lint rule enforces. Callers in cli.mts already build a string[] via
+ * `ruleIds` is a concrete array (not `Iterable<string>`) so the loop can use
+ * the cached-length for-loop idiom the fleet's `prefer-cached-for-loop` lint
+ * rule enforces. Callers in cli.mts already build a string[] via
  * `findings.map(f => f.ruleId).filter(...)`.
  */
 export function escalateTier(

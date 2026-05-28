@@ -1,5 +1,7 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+
+import { errorMessage } from '@socketsecurity/lib/errors'
 
 import { getMcpHttpMode, getMcpPort, getSocketApiToken } from './lib/env.ts'
 
@@ -87,9 +89,7 @@ if (oauthEnabled && oauthEnabledResult) {
       `Enabled OAuth-backed MCP auth with issuer ${oauthEnabledResult.issuer}`,
     )
   } catch (error) {
-    logger.error(
-      `Failed to initialize OAuth metadata: ${error instanceof Error ? error.message : String(error)}`,
-    )
+    logger.error(`Failed to initialize OAuth metadata: ${errorMessage(error)}`)
     process.exit(1)
   }
 }

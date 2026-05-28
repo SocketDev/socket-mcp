@@ -337,10 +337,7 @@ function isPackageJsonPath(filePath: string): boolean {
   if (filePath.includes('/node_modules/')) {
     return false
   }
-  return (
-    filePath.endsWith('/package.json') ||
-    filePath === 'package.json'
-  )
+  return filePath.endsWith('/package.json') || filePath === 'package.json'
 }
 
 async function main(): Promise<void> {
@@ -374,7 +371,9 @@ async function main(): Promise<void> {
   const cache = loadCache()
   const usesIssues = isUses ? findUsesIssues(body, cache) : []
   const gitmodulesIssues = isGitmodules ? findGitmodulesIssues(body) : []
-  const packageJsonIssues = isPackageJson ? findPackageJsonIssues(body, cache) : []
+  const packageJsonIssues = isPackageJson
+    ? findPackageJsonIssues(body, cache)
+    : []
   saveCache(cache)
 
   if (
@@ -408,7 +407,9 @@ async function main(): Promise<void> {
     out.push('')
   }
   for (const issue of packageJsonIssues) {
-    out.push(`  ${filePath}: git+https://github.com/${issue.ownerRepo}#${issue.ref}`)
+    out.push(
+      `  ${filePath}: git+https://github.com/${issue.ownerRepo}#${issue.ref}`,
+    )
     out.push(`    ↳ ${issue.problem}`)
     out.push('')
   }

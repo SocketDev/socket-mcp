@@ -84,7 +84,8 @@ test('BLOCKS .gitmodules submodule with header but no ref', () => {
     tool_input: {
       file_path: '/repo/.gitmodules',
       content:
-        '# foo-1.2.3 sha256:' + 'a'.repeat(64) +
+        '# foo-1.2.3 sha256:' +
+        'a'.repeat(64) +
         '\n[submodule "vendor/foo"]\n\tpath = vendor/foo\n\turl = https://github.com/owner/foo.git\n',
     },
   })
@@ -98,8 +99,11 @@ test('BLOCKS .gitmodules header sha256 of wrong length', () => {
     tool_input: {
       file_path: '/repo/.gitmodules',
       content:
-        '# foo-1.2.3 sha256:' + 'a'.repeat(32) +
-        '\n[submodule "vendor/foo"]\n\tpath = vendor/foo\n\tref = ' + 'b'.repeat(40) + '\n',
+        '# foo-1.2.3 sha256:' +
+        'a'.repeat(32) +
+        '\n[submodule "vendor/foo"]\n\tpath = vendor/foo\n\tref = ' +
+        'b'.repeat(40) +
+        '\n',
     },
   })
   assert.equal(exitCode, 2)
@@ -112,7 +116,8 @@ test('BLOCKS .gitmodules ref of wrong length', () => {
     tool_input: {
       file_path: '/repo/.gitmodules',
       content:
-        '# foo-1.2.3 sha256:' + 'a'.repeat(64) +
+        '# foo-1.2.3 sha256:' +
+        'a'.repeat(64) +
         '\n[submodule "vendor/foo"]\n\tpath = vendor/foo\n\tref = abc123\n',
     },
   })
@@ -153,8 +158,7 @@ test('IGNORES node_modules/package.json', () => {
     tool_name: 'Write',
     tool_input: {
       file_path: '/repo/node_modules/foo/package.json',
-      content:
-        '{"dependencies": {"x": "git+https://github.com/owner/x#abc"}}',
+      content: '{"dependencies": {"x": "git+https://github.com/owner/x#abc"}}',
     },
   })
   assert.equal(exitCode, 0)

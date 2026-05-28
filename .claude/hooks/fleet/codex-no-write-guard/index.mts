@@ -112,9 +112,7 @@ async function main(): Promise<void> {
         // Check write-intent verbs only in the codex command's OWN args
         // (the prompt), not the whole shell line — so a sibling command
         // or a path containing a verb word doesn't trip the guard.
-        const codexArgText = codexCommands
-          .flatMap(c => c.args)
-          .join(' ')
+        const codexArgText = codexCommands.flatMap(c => c.args).join(' ')
         const verb = hasWriteIntent(codexArgText)
         if (verb) {
           blocked = { kind: 'bash', reason: `write-intent verb "${verb}"` }
