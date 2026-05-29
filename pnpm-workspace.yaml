@@ -1,12 +1,16 @@
 packages:
   - .claude/hooks/*
 allowBuilds:
+  cpu-features: false
   esbuild: true
+  protobufjs: false
+  ssh2: false
 autoInstallPeers: true
 
 blockExoticSubdeps: true
 
 catalog:
+  '@redwoodjs/agent-ci': 0.16.2
   '@sinclair/typebox': 0.34.49
   '@socketregistry/packageurl-js': 1.4.2
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
@@ -95,6 +99,8 @@ minimumReleaseAgeExclude:
   - '@rolldown/binding-wasm32-wasi'
   - '@rolldown/binding-win32-arm64-msvc'
   - '@rolldown/binding-win32-x64-msvc'
+  - '@redwoodjs/agent-ci'
+  - 'dtu-github-actions'
 
 pmOnFail: error
 resolutionMode: highest

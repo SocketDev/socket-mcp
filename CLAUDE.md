@@ -49,7 +49,7 @@ Full ruleset — open-PR edits, Bugbot inline replies, rebase-over-revert for un
 
 ### Prose authoring (commit bodies, PRs, CHANGELOG, docs)
 
-🚨 Run human-facing prose through the `prose` skill before it lands: commit message bodies, PR descriptions, CHANGELOG entries, README sections, `docs/` markdown. The skill catches throat-clearing openers, "not X, it's Y" contrasts, em-dash chains, adverbs doing vague work, metronomic rhythms. Subject lines stay terse and imperative under `commit-message-format-guard`. Cascade commits and bot output are exempt. Full rules: [`.claude/skills/prose/SKILL.md`](.claude/skills/prose/SKILL.md).
+🚨 Run human-facing prose through the `prose` skill before it lands: commit message bodies, PR descriptions, CHANGELOG entries, README sections, `docs/` markdown. The skill catches throat-clearing openers, "not X, it's Y" contrasts, em-dash chains, adverbs doing vague work, metronomic rhythms. Subject lines stay terse and imperative under `commit-message-format-guard`. Cascade commits and bot output are exempt. Full rules: [`.claude/skills/fleet/prose/SKILL.md`](.claude/skills/fleet/prose/SKILL.md).
 
 ### Squash-history opt-in
 
@@ -61,7 +61,7 @@ Some fleet repos squash the default branch on a cadence — currently socket-add
 
 ### Programmatic Claude calls
 
-🚨 Workflows / skills / scripts that invoke `claude` CLI or `@anthropic-ai/claude-agent-sdk` MUST set all four lockdown flags: `tools`, `allowedTools`, `disallowedTools`, `permissionMode: 'dontAsk'`. Never `default` mode in headless contexts. Never `bypassPermissions`. See `.claude/skills/locking-down-programmatic-claude/SKILL.md`.
+🚨 Workflows / skills / scripts that invoke `claude` CLI or `@anthropic-ai/claude-agent-sdk` MUST set all four lockdown flags: `tools`, `allowedTools`, `disallowedTools`, `permissionMode: 'dontAsk'`. Never `default` mode in headless contexts. Never `bypassPermissions`. See `.claude/skills/fleet/locking-down-programmatic-claude/SKILL.md`.
 
 ### Tooling
 
@@ -209,7 +209,7 @@ Never use `Bash(run_in_background: true)` for test / build commands (`vitest`, `
 
 ### Judgment & self-evaluation
 
-🚨 **Default to perfectionist** when you have latitude — "works now" ≠ "right" (enforced by `.claude/hooks/fleet/perfectionist-reminder/`). **Direct imperatives → execute, don't litigate**: bare commands ("do it", "kill it", "cancel the build") get the tool call, not a tradeoff paragraph (enforced by `.claude/hooks/fleet/follow-direct-imperative-reminder/`). **When the user authorizes a queue** ("complete each one", "100%", "do them all"): finish every item before stopping — no "what's next?" / "session totals" mid-queue (enforced by `.claude/hooks/fleet/dont-stop-mid-queue-reminder/`); skip AskUserQuestion when explicit go-ahead is already in transcript (enforced by `.claude/hooks/fleet/ask-suppression-reminder/`). **Fix warnings on sight** — don't label "pre-existing" / "out of scope" (enforced by `.claude/hooks/fleet/excuse-detector/`). **UI/render changes**: rebuild + visually verify BEFORE committing (enforced by `.claude/hooks/fleet/verify-rendered-output-before-commit-reminder/`). Flag adjacent bugs ("I also noticed X — want me to fix it?"). Name misconceptions before executing. If a fix fails twice: stop, re-read top-down, try something fundamentally different. Full prose + scenarios + past incidents in [`docs/claude.md/fleet/judgment-and-self-evaluation.md`](docs/claude.md/fleet/judgment-and-self-evaluation.md).
+🚨 **Default to perfectionist** when you have latitude — "works now" ≠ "right" (enforced by `.claude/hooks/fleet/perfectionist-reminder/`). **Direct imperatives → execute, don't litigate**: bare commands ("do it", "kill it", "cancel the build") get the tool call, not a tradeoff paragraph (enforced by `.claude/hooks/fleet/follow-direct-imperative-reminder/`). **When the user authorizes a queue** ("complete each one", "100%", "do them all"): finish every item before stopping — no "what's next?" / "session totals" mid-queue (enforced by `.claude/hooks/fleet/dont-stop-mid-queue-reminder/`); skip AskUserQuestion when explicit go-ahead is already in transcript (enforced by `.claude/hooks/fleet/ask-suppression-reminder/`). **Fix warnings on sight** — don't label "pre-existing" / "out of scope" (enforced by `.claude/hooks/fleet/excuse-detector/`). **UI/render changes**: rebuild + visually verify BEFORE committing (enforced by `.claude/hooks/fleet/verify-rendered-output-before-commit-reminder/`). Flag adjacent bugs ("I also noticed X — want me to fix it?"). Name misconceptions before executing. If a fix fails twice: stop, re-read top-down, try something fundamentally different. Detail in [`docs/claude.md/fleet/judgment-and-self-evaluation.md`](docs/claude.md/fleet/judgment-and-self-evaluation.md).
 
 ### Error messages
 
@@ -242,7 +242,7 @@ Use `isError` / `isErrnoException` / `errorMessage` / `errorStack` from `@socket
 
 - `/scanning-security` — AgentShield + zizmor audit
 - `/scanning-quality` — quality analysis
-- Shared subskills in `.claude/skills/_shared/`
+- Shared subskills in `.claude/skills/fleet/_shared/`
 - **Handing off to another agent** — see [`docs/claude.md/fleet/agent-delegation.md`](docs/claude.md/fleet/agent-delegation.md).
 - **Skill scope tiers** (fleet / partial / unique), the `updating` umbrella + `updating-*` siblings convention, and the `scripts/run-skill-fleet.mts` cross-fleet runner in [`docs/claude.md/fleet/agents-and-skills.md`](docs/claude.md/fleet/agents-and-skills.md).
 

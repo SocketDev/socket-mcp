@@ -54,7 +54,8 @@
     "security": "node scripts/security.mts",
     "setup-security-tools": "node .claude/hooks/setup-security-tools/install.mts",
     "lockstep": "node scripts/lockstep.mts",
-    "lockstep:emit-schema": "node scripts/lockstep-emit-schema.mts"
+    "lockstep:emit-schema": "node scripts/lockstep-emit-schema.mts",
+    "ci:local": "agent-ci run --all"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^1.2.0",
