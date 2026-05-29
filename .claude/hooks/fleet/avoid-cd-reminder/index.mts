@@ -33,7 +33,7 @@
 
 import process from 'node:process'
 
-import { readStdin } from '../../_shared/transcript.mts'
+import { readStdin } from '../_shared/transcript.mts'
 
 interface PreToolUseInput {
   readonly tool_name?: string | undefined
@@ -54,7 +54,6 @@ function detectsBareCd(command: string): boolean {
   const cdRe = /(^|[\s;&|])cd\s+(\S+)/g
   let m: RegExpExecArray | null
   while ((m = cdRe.exec(flat)) !== null) {
-    const lead = m[1]!
     const target = m[2]!
 
     // Skip `cd -` (intentional return).

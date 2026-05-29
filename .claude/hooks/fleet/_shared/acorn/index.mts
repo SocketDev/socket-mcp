@@ -1,14 +1,14 @@
 /**
  * @file Shared acorn-wasm wrapper for fleet hooks. Vendored from
- *   socket-lib/vendor/acorn-wasm pending the `@ultrathink/acorn` npm publish;
- *   once that lands, fleet hooks switch to the published package and this
- *   directory can be retired. Surface kept narrow: `parse(source, opts)` for
- *   raw AST + `simple(source, visitors, opts)` for visitor-based walks.
- *   Higher-level shape detectors (`findCallsTo`, `findBareCallsTo`) cover the
- *   common "lint a specific identifier call" pattern that hooks need.
+ *   socket-lib/vendor/acorn pending the `@ultrathink/acorn` npm publish; once
+ *   that lands, fleet hooks switch to the published package and this directory
+ *   can be retired. Surface kept narrow: `parse(source, opts)` for raw AST +
+ *   `simple(source, visitors, opts)` for visitor-based walks. Higher-level
+ *   shape detectors (`findCallsTo`, `findBareCallsTo`) cover the common "lint a
+ *   specific identifier call" pattern that hooks need.
  */
 
-import { parse as wasmParse, simple as wasmSimple } from './acorn-wasm-sync.mts'
+import { parse as wasmParse, simple as wasmSimple } from './acorn-sync.mts'
 
 export interface AcornNode {
   type: string

@@ -124,7 +124,7 @@ export async function ghApiLatestRelease(repo: string): Promise<GhRelease> {
     { stdio: 'pipe' },
   )
   const stdout =
-    typeof result.stdout === 'string' ? result.stdout : result.stdout.toString()
+    typeof result.stdout === 'string' ? result.stdout : String(result.stdout)
   return JSON.parse(stdout) as GhRelease
 }
 

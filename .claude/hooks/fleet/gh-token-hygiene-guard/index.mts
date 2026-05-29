@@ -635,7 +635,26 @@ function platformAuthGuidance(): readonly string[] {
     ]
   }
   if (process.platform === 'darwin') {
+    const noTty = !process.stdin.isTTY
     const osBlocked = isOsascriptBlocked()
+    const ttyNote = noTty
+      ? [
+          'This shell has no controlling TTY, so the Touch ID prompt',
+          "can't surface — `sudo` needs an interactive parent to ask",
+          'for the biometric confirmation. Common cause: running via',
+          "a tool that spawns subprocesses without `-it` (Claude Code's",
+          'Bash tool, CI runners, headless scripts).',
+          '',
+          'Workaround: run the gh refresh from your own terminal:',
+          '',
+          '  gh auth refresh -h github.com -s workflow',
+          '',
+          'Touch the sensor when prompted. The session-bound grant',
+          'will land at ~/.claude/gh-workflow-grant; the next workflow',
+          'dispatch in this Claude session will then pass through.',
+          '',
+        ]
+      : []
     const mdmNote = osBlocked
       ? [
           'An MDM (iru / Jamf / Mosyle / Kandji) is intercepting',
@@ -645,6 +664,7 @@ function platformAuthGuidance(): readonly string[] {
         ]
       : []
     return [
+      ...ttyNote,
       ...mdmNote,
       'Enable Touch ID for sudo (copy-paste verbatim — `EOF` MUST be',
       'at column 0, no leading whitespace, or the heredoc will hang):',
@@ -704,25 +724,47 @@ function requireUserAuthentication(): AuthResult {
   //   macOS: pam_tid.so (Touch ID).
   //   Linux: pam_u2f.so (YubiKey / FIDO2) OR pam_fprintd.so (fingerprint
   //          reader on supported laptops).
-  // If PAM is configured to make these "sufficient" auth methods, then
-  // `sudo -n true` (non-interactive) succeeds silently after physical
-  // confirmation. If PAM falls through to password, `-n` blocks and
-  // we fall through here.
+  // Two sub-probes:
+  //   1a. `sudo -n true` (silent fast-path) — succeeds when PAM is
+  //       configured for a non-interactive biometric (e.g. some pam_u2f
+  //       setups with cached touch, or pam_pkcs11). Fails on the most
+  //       common pam_tid config because Touch ID prompts the user.
+  //   1b. Interactive `sudo true` (biometric prompt) — pops the system
+  //       Touch ID / U2F / fingerprint dialog. Inherit parent stdio so
+  //       the dialog appears in the user's foreground session. Cap at
+  //       30s so a missing sensor / cancelled prompt doesn't hang.
   const sudoBin = resolveSudoBin()
   if (sudoBin) {
     // Invalidate any cached sudo timestamp so the user can't accidentally
     // skip the prompt. -k is silent and always exits 0.
     spawnSync(sudoBin, ['-k'], { stdio: 'ignore', timeout: 2000 })
-    // -n suppresses the TTY password prompt. If pam_tid.so / pam_u2f /
-    // pam_fprintd is configured "sufficient" in the auth stack, sudo
-    // presents the system biometric dialog (no TTY needed) and -n
-    // still allows it to succeed.
-    const touchIdResult = spawnSync(sudoBin, ['-n', 'true'], {
+    // 1a. Silent fast-path.
+    const silentResult = spawnSync(sudoBin, ['-n', 'true'], {
       stdio: 'ignore',
-      timeout: 30_000,
+      timeout: 5000,
     })
-    if (touchIdResult.status === 0) {
+    if (silentResult.status === 0) {
       return 'authenticated'
+    }
+    // 1b. Interactive prompt. macOS pam_tid + Linux pam_u2f/pam_fprintd
+    // surface their biometric dialog here. stdio inherited so the user
+    // sees the prompt; 30s timeout so a missing sensor / cancelled
+    // dialog doesn't hang the hook forever.
+    //
+    // Only attempt when stdin is a TTY — sudo without a TTY parent will
+    // hang waiting for input (or the biometric dialog won't surface in
+    // the right session). Surface 'unsupported' with a clearer message
+    // (see formatPhysicalAuthError) so the caller knows to run the gh
+    // refresh from their own terminal.
+    if (process.stdin.isTTY) {
+      spawnSync(sudoBin, ['-k'], { stdio: 'ignore', timeout: 2000 })
+      const interactiveResult = spawnSync(sudoBin, ['true'], {
+        stdio: 'inherit',
+        timeout: 30_000,
+      })
+      if (interactiveResult.status === 0) {
+        return 'authenticated'
+      }
     }
   }
   // Path 2: macOS-only — osascript password prompt + dscl validation.

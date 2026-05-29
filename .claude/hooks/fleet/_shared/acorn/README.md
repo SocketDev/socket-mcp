@@ -1,4 +1,4 @@
-# acorn-wasm — shared parser for fleet hooks
+# acorn — shared wasm parser for fleet hooks
 
 Vendored from
 [`@ultrathink/acorn-monorepo`](https://github.com/SocketDev/ultrathink/tree/main/packages/acorn)'s
@@ -13,7 +13,7 @@ The three vendored files come straight from the ultrathink prod build:
 
 - `acorn.wasm` — compiled Rust acorn parser, ~3.3 MB.
 - `acorn-bindgen.cjs` — wasm-bindgen JS glue.
-- `acorn-wasm-sync.mts` — sync ESM loader (no top-level await,
+- `acorn-sync.mts` — sync ESM loader (no top-level await,
   `WebAssembly.Instance` constructed at module import).
 
 The artifact is rebuilt in ultrathink with `pnpm run
@@ -39,12 +39,12 @@ Last refreshed: 2026-05-20 (ultrathink build dated 2026-05-20).
 
 ## Public surface
 
-`template/.claude/hooks/_shared/acorn/index.mts` is the canonical
+`template/.claude/hooks/fleet/_shared/acorn/index.mts` is the canonical
 import path for fleet hooks. It re-exports a narrow `tryParse` /
 `walkSimple` / `findBareCallsTo` surface — see the module's JSDoc for
 the parse-failure tolerance + visitor patterns hook authors rely on.
 
-Don't import `acorn-wasm-sync.mts` directly from hooks; the `index.mts`
+Don't import `acorn-sync.mts` directly from hooks; the `index.mts`
 wrapper provides the failure-handling + visitor adapters every hook
 needs.
 

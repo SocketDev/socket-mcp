@@ -32,7 +32,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
-const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd()
+const PROJECT_DIR = process.env['CLAUDE_PROJECT_DIR'] ?? process.cwd()
 const HOOKS_DIR = path.join(PROJECT_DIR, '.claude', 'hooks')
 
 // 4-second total budget. Each `node --check` is ~50-150 ms; with
@@ -145,8 +145,8 @@ function probeHook(hookPath: string): ProbeFailure | undefined {
       // positives. CLAUDE_PROJECT_DIR is preserved because some
       // hooks read it at import time.
       env: {
-        PATH: process.env.PATH ?? '',
-        HOME: process.env.HOME ?? '',
+        PATH: process.env['PATH'] ?? '',
+        HOME: process.env['HOME'] ?? '',
         CLAUDE_PROJECT_DIR: PROJECT_DIR,
         // Suppress node's deprecation warnings during the probe;
         // unrelated to broken-hook detection.

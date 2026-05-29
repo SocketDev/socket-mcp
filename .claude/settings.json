@@ -6,6 +6,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/alpha-sort-reminder/index.mts"
+          },
+          {
+            "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/check-new-deps/index.mts"
           },
           {

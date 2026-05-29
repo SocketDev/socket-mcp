@@ -57,6 +57,7 @@ import socketApiTokenEnv from './rules/socket-api-token-env.mts'
 import sortBooleanChains from './rules/sort-boolean-chains.mts'
 import sortEqualityDisjunctions from './rules/sort-equality-disjunctions.mts'
 import sortNamedImports from './rules/sort-named-imports.mts'
+import sortObjectLiteralProperties from './rules/sort-object-literal-properties.mts'
 import sortRegexAlternations from './rules/sort-regex-alternations.mts'
 import sortSetArgs from './rules/sort-set-args.mts'
 import sortSourceMethods from './rules/sort-source-methods.mts'
@@ -119,6 +120,7 @@ const plugin = {
     'sort-boolean-chains': sortBooleanChains,
     'sort-equality-disjunctions': sortEqualityDisjunctions,
     'sort-named-imports': sortNamedImports,
+    'sort-object-literal-properties': sortObjectLiteralProperties,
     'sort-regex-alternations': sortRegexAlternations,
     'sort-set-args': sortSetArgs,
     'sort-source-methods': sortSourceMethods,

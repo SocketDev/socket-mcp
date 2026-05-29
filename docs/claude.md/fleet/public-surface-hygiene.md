@@ -9,6 +9,17 @@ The rules apply even when hooks are not installed. They're invariants, not enfor
 - **Real customer / company names**: never write one into a commit, PR, issue, comment, or release note. Replace with `Acme Inc` or rewrite the sentence to not need the reference. No enumerated denylist exists; a denylist is itself a leak.
 - **Private repos / internal project names**: never mention. Omit the reference entirely. Don't substitute "an internal tool"; the placeholder is a tell.
 
+## Neutral placeholders for test fixtures
+
+Pattern-matching tests, sample documentation, and example configs are tempting places to reach for a "real" package name (e.g. `eslint-plugin-react`, `react`, `lodash`). When the test exercises the _shape_ of a name rather than its identity, use the `acme-*` placeholder family — same convention as `Acme Inc` for company-name placeholders. This avoids tripping lint rules that flag references to specific package families (e.g. `socket/no-eslint-biome-config-ref` fires on `eslint-` prefixes even when the literal is a fixture, not a config ref). Recommended placeholder shapes:
+
+- bare: `acme-foo`, `acme-widget`
+- plugin-family: `acme-plugin-react`, `acme-plugin-node`
+- scoped: `@acme/widget`, `@acme/types`
+- versioned: `acme-foo@1.0.0`, `@acme/widget@2.0.0`
+
+The bypass comment (`socket-hook: allow eslint-biome-ref -- <reason>`) exists for genuinely irreplaceable cases — testing the lint rule itself, or quoting a real `.eslintrc.json` file path inside a migration script. Renaming the fixture is preferred over the bypass.
+
 ## Linear refs
 
 Never put `SOC-123` / `ENG-456` / Linear URLs in code, comments, or PR text. Linear lives in Linear.

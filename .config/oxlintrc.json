@@ -1,7 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "import"],
-  "jsPlugins": ["./oxlint-plugin/index.mts"],
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "import"
+  ],
+  "jsPlugins": [
+    "./oxlint-plugin/index.mts"
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "error"
@@ -246,7 +252,10 @@
     "**/scripts/test/install-claude-plugins.test.mts",
     "**/scripts/test/install-git-hooks.test.mts",
     "**/scripts/update.mts",
+    "**/scripts/util/multi-package-publish.mts",
+    "**/scripts/util/pack-app-triplets.mts",
     "**/scripts/util/run-command.mts",
+    "**/scripts/util/source-allowlist.mts",
     "**/scripts/validate-bundle-deps.mts",
     "**/scripts/validate-config-paths.mts",
     "**/scripts/validate-file-size.mts",

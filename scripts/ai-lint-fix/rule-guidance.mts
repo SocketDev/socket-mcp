@@ -52,7 +52,7 @@ export const AI_HANDLED_RULES: ReadonlySet<string> = new Set([
  * new rules to the right bucket when adding to AI_HANDLED_RULES.
  */
 export const RULE_MODEL_TIER: Readonly<
-  Record<string, 'haiku' | 'sonnet' | 'opus'>
+  Record<string, 'haiku' | 'opus' | 'sonnet'>
 > = {
   __proto__: null,
   // Identifier renames, single-token substitutions, namespace rewrites.
@@ -73,20 +73,20 @@ export const RULE_MODEL_TIER: Readonly<
   // by domain, decide what each new module exports, and rewrite imports
   // in every consumer. Real refactoring; Opus's depth pays back.
   'socket/max-file-lines': 'opus',
-} as Readonly<Record<string, 'haiku' | 'sonnet' | 'opus'>>
+} as unknown as Readonly<Record<string, 'haiku' | 'opus' | 'sonnet'>>
 
 /**
  * Map a tier label to the canonical Claude Code model ID. Centralized here so a
  * global tier bump (Haiku 4.5 → 4.6, Sonnet 4.6 → 5.0, etc.) is a single-file
  * edit and won't drift across the orchestrator + the docs.
  */
-export const TIER_MODEL: Readonly<Record<'haiku' | 'sonnet' | 'opus', string>> =
+export const TIER_MODEL: Readonly<Record<'haiku' | 'opus' | 'sonnet', string>> =
   {
     __proto__: null,
     haiku: 'claude-haiku-4-5',
     sonnet: 'claude-sonnet-4-6',
     opus: 'claude-opus-4-8',
-  } as Readonly<Record<'haiku' | 'sonnet' | 'opus', string>>
+  } as Readonly<Record<'haiku' | 'opus' | 'sonnet', string>>
 
 /**
  * Pick the highest tier present in a per-file batch's rule set. Returns a tier
@@ -100,8 +100,8 @@ export const TIER_MODEL: Readonly<Record<'haiku' | 'sonnet' | 'opus', string>> =
  */
 export function escalateTier(
   ruleIds: readonly string[],
-): 'haiku' | 'sonnet' | 'opus' {
-  let highest: 'haiku' | 'sonnet' | 'opus' = 'haiku'
+): 'haiku' | 'opus' | 'sonnet' {
+  let highest: 'haiku' | 'opus' | 'sonnet' = 'haiku'
   let sawAny = false
   for (let i = 0, { length } = ruleIds; i < length; i += 1) {
     const tier = RULE_MODEL_TIER[ruleIds[i]!]

@@ -48,17 +48,6 @@ function commentRange(c: AstNode): [number, number] | undefined {
   return [r[0], r[1]]
 }
 
-function nodeRange(n: AstNode | undefined): [number, number] | undefined {
-  if (!n) {
-    return undefined
-  }
-  const r = n.range
-  if (!Array.isArray(r) || r.length !== 2) {
-    return undefined
-  }
-  return [r[0], r[1]]
-}
-
 const rule = {
   meta: {
     type: 'suggestion',

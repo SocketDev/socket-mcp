@@ -52,7 +52,7 @@
     "server-http": "MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./index.ts",
     "check:paths": "node scripts/check-paths.mts",
     "security": "node scripts/security.mts",
-    "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
+    "setup-security-tools": "node .claude/hooks/setup-security-tools/install.mts",
     "lockstep": "node scripts/lockstep.mts",
     "lockstep:emit-schema": "node scripts/lockstep-emit-schema.mts"
   },
