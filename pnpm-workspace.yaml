@@ -26,6 +26,7 @@ catalog:
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   '@vitest/coverage-v8': 4.1.6
   '@vitest/ui': 4.1.6
+  'dtu-github-actions': 0.16.2
   'ecc-agentshield': 1.4.0
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
@@ -101,6 +102,12 @@ minimumReleaseAgeExclude:
   - '@rolldown/binding-win32-x64-msvc'
   - '@redwoodjs/agent-ci'
   - 'dtu-github-actions'
+  - '@socketdev/*'
+  - 'ecc-agentshield'
+  - 'sfw'
+  - 'socket-*'
+  - '@redwoodjs/agent-ci@0.16.2'
+  - 'dtu-github-actions@0.16.2'
 
 pmOnFail: error
 resolutionMode: highest
