@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./.config/tsconfig.base.json",
+  "extends": "./.config/fleet/tsconfig.base.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "allowJs": true,
