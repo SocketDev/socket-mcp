@@ -81,6 +81,32 @@ export function getSocketApiToken(): string | undefined {
   return undefined
 }
 
+// Max bytes the process-wide blob cache holds before LRU eviction. Defaults
+// to 64 MB; invalid/non-positive values fall back to the default.
+export function getSocketBlobCacheBytes(): number {
+  const n = envInt('SOCKET_BLOB_CACHE_BYTES')
+  return typeof n === 'number' && n > 0 ? n : 64 * 1024 * 1024
+}
+
+export function getSocketBlobUrl(): string {
+  return envString('SOCKET_BLOB_URL') || 'https://socketusercontent.com'
+}
+
+export function getSocketBrowserUserAgent(): string {
+  return (
+    envString('SOCKET_BROWSER_USER_AGENT') ||
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
+  )
+}
+
+export function getSocketBypassHeaderName(): string {
+  return envString('SOCKET_BYPASS_HEADER_NAME') || ''
+}
+
+export function getSocketBypassHeaderValue(): string {
+  return envString('SOCKET_BYPASS_HEADER_VALUE') || ''
+}
+
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with
