@@ -11,6 +11,7 @@ import { registerOrganizationsTool } from './organizations-tool.ts'
 import { registerPackageFilesTools } from './package-files-tool.ts'
 import { buildPurl } from './purl.ts'
 import { registerThreatFeedTool } from './threat-feed-tool.ts'
+import { withToolLogging } from './tool-logging.ts'
 import { buildSocketReportUrl } from './socket-url.ts'
 import { VERSION } from './version.ts'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
@@ -98,7 +99,9 @@ export function buildPackageComponents(
 // Build a configured McpServer with the depscore tool registered.
 // Used for stdio (single instance) and HTTP (one per session).
 export function createConfiguredServer(): McpServer {
-  const srv = new McpServer({ name: 'socket', version: VERSION })
+  const srv = withToolLogging(
+    new McpServer({ name: 'socket', version: VERSION }),
+  )
   srv.registerTool(
     'depscore',
     {
