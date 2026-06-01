@@ -30,10 +30,7 @@ import { bypassPhrasePresent, readLines } from '../_shared/transcript.mts'
 
 const logger = getDefaultLogger()
 
-const MODEL_BYPASS = [
-  'Allow model bypass',
-  'Allow model-spend bypass',
-] as const
+const MODEL_BYPASS = ['Allow model bypass', 'Allow model-spend bypass'] as const
 const EFFORT_BYPASS = ['Allow effort bypass'] as const
 
 // Effort levels that count as "premium" — the tiers worth conserving on
@@ -103,7 +100,8 @@ await withBashGuard((command, payload) => {
   // Each dimension is independently bypassable, so only flag the dimensions
   // that are both premium AND not bypassed for this turn.
   const flagModel =
-    modelIsPremium && !bypassPhrasePresent(payload.transcript_path, MODEL_BYPASS)
+    modelIsPremium &&
+    !bypassPhrasePresent(payload.transcript_path, MODEL_BYPASS)
   const flagEffort =
     effortIsPremium &&
     !bypassPhrasePresent(payload.transcript_path, EFFORT_BYPASS)
