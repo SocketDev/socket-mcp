@@ -1,12 +1,10 @@
-#!/usr/bin/env node
-import { test } from 'node:test'
-import assert from 'node:assert/strict'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Socket } from 'node:net'
 import path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import nock from 'nock'
+import { afterEach, beforeEach, expect, onTestFinished, test } from 'vitest'
 
 import {
   authenticateRequest,
@@ -17,11 +15,11 @@ import {
   splitScopes,
   validateOAuthMetadataFields,
   verifyAccessToken,
-} from './lib/oauth.ts'
-import type { OAuthConfig } from './lib/oauth.ts'
-import { getRequestBaseUrl } from './lib/http-helpers.ts'
+} from '../lib/oauth.ts'
+import type { OAuthConfig } from '../lib/oauth.ts'
+import { getRequestBaseUrl } from '../lib/http-helpers.ts'
 
-const serverPath = path.join(import.meta.dirname, 'index.ts')
+const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
 const inheritedEnv = Object.fromEntries(
   Object.entries(process.env).filter(([, value]) => value !== undefined),
 ) as Record<string, string>
@@ -60,11 +58,10 @@ export function assertOAuthError(
     error?: string | undefined
     error_description?: string | undefined
   }
-  assert.equal(captured.getStatus(), expected.status)
-  assert.equal(body.error, expected.error)
-  assert.equal(body.error_description, expected.errorDescription)
-  assert.equal(
-    captured.getHeaders()['WWW-Authenticate'],
+  expect(captured.getStatus()).toBe(expected.status)
+  expect(body.error).toBe(expected.error)
+  expect(body.error_description).toBe(expected.errorDescription)
+  expect(captured.getHeaders()['WWW-Authenticate']).toBe(
     `Bearer error="${expected.error}", error_description="${expected.errorDescription}", resource_metadata="${resourceMetadataUrl}"`,
   )
 }
@@ -159,24 +156,24 @@ export function mockIntrospection(): void {
 
 const resourceMetadataUrl = `https://resource.example.test${protectedResourceMetadataPath}`
 
-test.beforeEach(() => {
+beforeEach(() => {
   nock.disableNetConnect()
 })
 
-test.afterEach(() => {
+afterEach(() => {
   nock.cleanAll()
   nock.enableNetConnect()
 })
 
 test('splitScopes tokenizes space-delimited scope strings', () => {
-  assert.deepEqual(splitScopes('packages:list packages:write'), [
+  expect(splitScopes('packages:list packages:write')).toEqual([
     'packages:list',
     'packages:write',
   ])
-  assert.deepEqual(splitScopes('  packages:list   '), ['packages:list'])
-  assert.deepEqual(splitScopes(''), [])
-  assert.deepEqual(splitScopes(undefined), [])
-  assert.deepEqual(splitScopes(42), [])
+  expect(splitScopes('  packages:list   ')).toEqual(['packages:list'])
+  expect(splitScopes('')).toEqual([])
+  expect(splitScopes(undefined)).toEqual([])
+  expect(splitScopes(42)).toEqual([])
 })
 
 test('validateOAuthMetadataFields requires the RFC 8414 fields', () => {
@@ -186,11 +183,11 @@ test('validateOAuthMetadataFields requires the RFC 8414 fields', () => {
     token_endpoint: `${issuerBaseUrl}/token`,
     introspection_endpoint: `${issuerBaseUrl}${introspectionPath}`,
   }
-  assert.doesNotThrow(() => validateOAuthMetadataFields({ ...valid }))
-  assert.throws(() => {
+  expect(() => validateOAuthMetadataFields({ ...valid })).not.toThrow()
+  expect(() => {
     const { token_endpoint: _omit, ...missing } = valid
     validateOAuthMetadataFields(missing)
-  }, /missing required field: token_endpoint/)
+  }).toThrow(/missing required field: token_endpoint/)
 })
 
 test('buildProtectedResourceMetadata points clients at the issuer', () => {
@@ -205,16 +202,15 @@ test('buildProtectedResourceMetadata points clients at the issuer', () => {
     },
     config,
   )
-  assert.equal(metadata['resource'], 'https://resource.example.test/')
-  assert.deepEqual(metadata['authorization_servers'], [issuerBaseUrl])
-  assert.deepEqual(metadata['scopes_supported'], ['packages:list'])
+  expect(metadata['resource']).toBe('https://resource.example.test/')
+  expect(metadata['authorization_servers']).toEqual([issuerBaseUrl])
+  expect(metadata['scopes_supported']).toEqual(['packages:list'])
 })
 
 test('getProtectedResourceMetadataUrl builds the well-known URL', () => {
-  assert.equal(
+  expect(
     getProtectedResourceMetadataUrl(new URL('https://resource.example.test/')),
-    `https://resource.example.test${protectedResourceMetadataPath}`,
-  )
+  ).toBe(`https://resource.example.test${protectedResourceMetadataPath}`)
 })
 
 test('getRequestBaseUrl ignores forwarded headers unless trustProxy', () => {
@@ -223,53 +219,49 @@ test('getRequestBaseUrl ignores forwarded headers unless trustProxy', () => {
     'x-forwarded-host': 'proxy.example.com',
     'x-forwarded-proto': 'https',
   })
-  assert.equal(
-    getRequestBaseUrl(req, 3000, false).href,
+  expect(getRequestBaseUrl(req, 3000, false).href).toBe(
     'http://observed.example.test:1234/',
   )
-  assert.equal(
-    getRequestBaseUrl(req, 3000, true).href,
+  expect(getRequestBaseUrl(req, 3000, true).href).toBe(
     'https://proxy.example.com/',
   )
 })
 
 test('loadOAuthMetadata returns undefined when the config is disabled', async () => {
   const config = makeConfig({ enabled: false })
-  assert.equal(await loadOAuthMetadata(config), undefined)
+  expect(await loadOAuthMetadata(config)).toBe(undefined)
 })
 
 test('loadOAuthMetadata discovers and caches issuer metadata', async () => {
   mockDiscovery()
   const config = makeConfig()
   const metadata = await loadOAuthMetadata(config)
-  assert.equal(
-    metadata?.introspection_endpoint,
+  expect(metadata?.introspection_endpoint).toBe(
     `${issuerBaseUrl}${introspectionPath}`,
   )
   // Second call is served from the per-config cache — no new nock mock
   // is registered, so a live request would fail under disableNetConnect.
   const cached = await loadOAuthMetadata(config)
-  assert.equal(cached, metadata)
+  expect(cached).toBe(metadata)
 })
 
 test('loadOAuthMetadata clears the cache on discovery failure', async () => {
   nock(issuerBaseUrl).get(oauthWellKnownPath).reply(500, 'boom')
   const config = makeConfig()
-  await assert.rejects(
-    loadOAuthMetadata(config),
+  await expect(loadOAuthMetadata(config)).rejects.toThrow(
     /OAuth metadata discovery failed with status 500/,
   )
   // Cache was cleared, so a retry re-requests — succeed this time.
   mockDiscovery()
   const metadata = await loadOAuthMetadata(config)
-  assert.equal(metadata?.issuer, issuerBaseUrl)
+  expect(metadata?.issuer).toBe(issuerBaseUrl)
 })
 
 test('verifyAccessToken returns undefined for an inactive token', async () => {
   mockDiscovery()
   mockIntrospection()
   const config = makeConfig()
-  assert.equal(await verifyAccessToken('inactive-token', config), undefined)
+  expect(await verifyAccessToken('inactive-token', config)).toBe(undefined)
 })
 
 test('verifyAccessToken maps an active introspection to AuthInfo', async () => {
@@ -277,8 +269,8 @@ test('verifyAccessToken maps an active introspection to AuthInfo', async () => {
   mockIntrospection()
   const config = makeConfig()
   const authInfo = await verifyAccessToken('token-without-exp', config)
-  assert.equal(authInfo?.clientId, 'oauth-test-client')
-  assert.deepEqual(authInfo?.scopes, ['packages:list'])
+  expect(authInfo?.clientId).toBe('oauth-test-client')
+  expect(authInfo?.scopes).toEqual(['packages:list'])
 })
 
 test('authenticateRequest rejects a missing Authorization header', async () => {
@@ -289,7 +281,7 @@ test('authenticateRequest rejects a missing Authorization header', async () => {
     resourceMetadataUrl,
     makeConfig(),
   )
-  assert.equal(result.ok, false)
+  expect(result.ok).toBe(false)
   assertOAuthError(captured, resourceMetadataUrl, {
     status: 401,
     error: 'invalid_request',
@@ -305,7 +297,7 @@ test('authenticateRequest rejects a malformed Authorization header', async () =>
     resourceMetadataUrl,
     makeConfig(),
   )
-  assert.equal(result.ok, false)
+  expect(result.ok).toBe(false)
   assertOAuthError(captured, resourceMetadataUrl, {
     status: 401,
     error: 'invalid_request',
@@ -324,7 +316,7 @@ test('authenticateRequest returns invalid_token for an inactive token', async ()
     resourceMetadataUrl,
     makeConfig(),
   )
-  assert.equal(result.ok, false)
+  expect(result.ok).toBe(false)
   assertOAuthError(captured, resourceMetadataUrl, {
     status: 401,
     error: 'invalid_token',
@@ -342,7 +334,7 @@ test('authenticateRequest returns insufficient_scope when scopes are missing', a
     resourceMetadataUrl,
     makeConfig(),
   )
-  assert.equal(result.ok, false)
+  expect(result.ok).toBe(false)
   assertOAuthError(captured, resourceMetadataUrl, {
     status: 403,
     error: 'insufficient_scope',
@@ -360,9 +352,9 @@ test('authenticateRequest accepts an active token even without exp', async () =>
     resourceMetadataUrl,
     makeConfig(),
   )
-  assert.equal(result.ok, true)
+  expect(result.ok).toBe(true)
   if (result.ok) {
-    assert.deepEqual(result.authInfo.scopes, ['packages:list'])
+    expect(result.authInfo.scopes).toEqual(['packages:list'])
   }
 })
 
@@ -375,10 +367,10 @@ test('authenticateRequest 500s when introspection discovery fails', async () => 
     resourceMetadataUrl,
     makeConfig(),
   )
-  assert.equal(result.ok, false)
-  assert.equal(captured.getStatus(), 500)
+  expect(result.ok).toBe(false)
+  expect(captured.getStatus()).toBe(500)
   const body = JSON.parse(captured.getBody()) as { error?: string | undefined }
-  assert.equal(body.error, 'server_error')
+  expect(body.error).toBe('server_error')
 })
 
 // Both env-var names are valid entry points — the canonical name is
@@ -397,7 +389,7 @@ const SOCKET_API_TOKEN_ALIASES = [
 ] as const
 // socket-api-token-env: bootstrap -- parametrizing tests over both aliases.
 for (const tokenEnvVar of ['SOCKET_API_TOKEN', 'SOCKET_API_KEY']) {
-  test(`stdio mode ignores partial OAuth config (${tokenEnvVar})`, async t => {
+  test(`stdio mode ignores partial OAuth config (${tokenEnvVar})`, async () => {
     // stdio transport speaks over the child's stdin/stdout — no network
     // — so this spawned-server check coexists with nock.disableNetConnect.
     // Strip every alias so we're exercising exactly the env-var name
@@ -423,12 +415,12 @@ for (const tokenEnvVar of ['SOCKET_API_TOKEN', 'SOCKET_API_KEY']) {
       { capabilities: {} },
     )
 
-    t.after(async () => {
+    onTestFinished(async () => {
       await client.close().catch(() => {})
     })
 
     await client.connect(transport)
     const tools = await client.listTools()
-    assert.ok(tools.tools.some(tool => tool.name === 'depscore'))
+    expect(tools.tools.some(tool => tool.name === 'depscore')).toBe(true)
   })
 }
