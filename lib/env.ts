@@ -107,6 +107,11 @@ export function getSocketBypassHeaderValue(): string {
   return envString('SOCKET_BYPASS_HEADER_VALUE') || ''
 }
 
+// Internal UA for authenticated calls to socket.dev's file-list endpoint.
+export function getSocketInternalUserAgent(): string {
+  return envString('SOCKET_INTERNAL_USER_AGENT') || 'socket-internal-tool/1.0'
+}
+
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { deduplicateArtifacts } from './artifacts.ts'
 import { buildSocketHeaders } from './http-helpers.ts'
 import { logger } from './logger.ts'
+import { registerPackageFilesTools } from './package-files-tool.ts'
 import { buildPurl } from './purl.ts'
 import { buildSocketReportUrl } from './socket-url.ts'
 import { VERSION } from './version.ts'
@@ -109,6 +110,7 @@ export function createConfiguredServer(): McpServer {
     async ({ packages, platform }, extra) =>
       handleDepscore(packages, platform, extra.authInfo?.token),
   )
+  registerPackageFilesTools(srv)
   return srv
 }
 
@@ -145,6 +147,13 @@ export function formatScoreLine(jsonData: Record<string, unknown>): string {
     return `${purl}: ${formatScoreEntries(score)}\n  Report: ${reportUrl}`
   }
   return `${purl}: No score found`
+}
+
+// Read the process-wide static API key (set in stdio mode from
+// SOCKET_API_TOKEN). The new file/alerts/org/threat-feed tools share this
+// accessor so per-request authInfo can fall back to it.
+export function getStaticApiKey(): string {
+  return staticApiKey
 }
 
 // Build the depscore handler — pulled out so the MCP registration is
