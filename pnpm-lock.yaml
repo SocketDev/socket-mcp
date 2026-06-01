@@ -12,12 +12,18 @@ catalogs:
     '@sinclair/typebox':
       specifier: 0.34.49
       version: 0.34.49
+    '@types/shell-quote':
+      specifier: 1.7.5
+      version: 1.7.5
     '@vitest/coverage-v8':
       specifier: 4.1.6
       version: 4.1.6
     rolldown:
       specifier: 1.0.3
       version: 1.0.3
+    shell-quote:
+      specifier: 1.8.4
+      version: 1.8.4
     taze:
       specifier: 19.11.0
       version: 19.11.0
@@ -67,6 +73,9 @@ importers:
       '@types/node':
         specifier: ^24.12.4
         version: 24.12.4
+      '@types/shell-quote':
+        specifier: 'catalog:'
+        version: 1.7.5
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260510.1
         version: 7.0.0-dev.20260510.1
@@ -91,6 +100,9 @@ importers:
       rolldown:
         specifier: 'catalog:'
         version: 1.0.3
+      shell-quote:
+        specifier: 'catalog:'
+        version: 1.8.4
       taze:
         specifier: 'catalog:'
         version: 19.11.0
@@ -811,6 +823,9 @@ packages:
 
   '@types/node@24.12.4':
     resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
+
+  '@types/shell-quote@1.7.5':
+    resolution: {integrity: sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw==}
 
   '@types/wrap-ansi@3.0.0':
     resolution: {integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==}
@@ -1698,6 +1713,10 @@ packages:
     resolution: {integrity: sha512-ObmnIF4hXNg1BqhnHmgbDETF8dLPCggZWBjkQfhZpbszZnYur5DUljTcCHii5LC3J5E0yeO/1LIMyH+UvHQgyw==}
     engines: {node: '>= 0.4'}
 
+  shell-quote@1.8.4:
+    resolution: {integrity: sha512-VsC6n6vz1ihYYyZZwX7YZSF5l5x36ca17OC+a69h94YqB7X6XLwf+5MOgynYir2SLFUbl8gIYvBo8K8RoNQ6bQ==}
+    engines: {node: '>= 0.4'}
+
   side-channel-list@1.0.0:
     resolution: {integrity: sha512-FCLHtRD/gnpCiCHEiJLOwdmFP+wzCmDEkc9y7NsYxeF4u7Btsn1ZuwgwJGxImImHicJArLP4R0yX4c2KCrMrTA==}
     engines: {node: '>= 0.4'}
@@ -2527,6 +2546,8 @@ snapshots:
   '@types/node@24.12.4':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/shell-quote@1.7.5': {}
 
   '@types/wrap-ansi@3.0.0': {}
 
@@ -3443,6 +3464,8 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   shell-quote@1.8.3: {}
+
+  shell-quote@1.8.4: {}
 
   side-channel-list@1.0.0:
     dependencies:
