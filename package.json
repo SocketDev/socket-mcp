@@ -12,10 +12,11 @@
     "socket-mcp": "./dist/index.cjs"
   },
   "files": [
-    "package.json",
+    "CHANGELOG.md",
     "dist/index.cjs",
     "dist/index.d.ts",
-    "dist/index.d.ts.map"
+    "dist/index.d.ts.map",
+    "package.json"
   ],
   "type": "module",
   "main": "./dist/index.cjs",
