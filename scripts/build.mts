@@ -29,7 +29,10 @@ async function main(): Promise<void> {
   const { output, ...inputOptions } = buildConfig
   const bundle = await rolldown(inputOptions)
   try {
-    await bundle.write(output!)
+    const outputs = Array.isArray(output) ? output : [output!]
+    for (const outputOptions of outputs) {
+      await bundle.write(outputOptions)
+    }
   } finally {
     await bundle.close()
   }

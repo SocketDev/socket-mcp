@@ -9,19 +9,21 @@
     "rootDir": ".",
     "skipLibCheck": true,
     "sourceMap": false,
-    "types": ["node"]
+    "types": ["node", "vitest"]
   },
   "include": [
     "./scripts/**/*.mts",
-    "./.claude/hooks/**/*.mts",
-    "./.config/oxlint-plugin/**/*.mts"
+    "./.claude/hooks/repo/**/*.mts",
+    "./.config/fleet/oxlint-plugin/**/*.mts"
   ],
   "exclude": [
     "./.cache",
+    "./.claude/hooks/fleet",
     "./build",
     "./coverage",
     "./dist",
     "./node_modules",
+    "./scripts/fleet",
     "./template",
     "**/node_modules"
   ]
