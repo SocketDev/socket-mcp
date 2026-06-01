@@ -24,6 +24,7 @@
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "test": "node scripts/fleet/test.mts",
+    "cover": "pnpm exec vitest run --coverage",
     "test:tsc": "tsgo --noEmit -p tsconfig.json",
     "test:node-test": "node --test --test-reporter spec --experimental-test-coverage --test-coverage-exclude='scripts/**' --test-coverage-exclude='**/node_modules/**' --test-coverage-exclude='**/*.test.ts' './*.test.ts'",
     "lint": "node scripts/fleet/lint.mts",

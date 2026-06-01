@@ -1,0 +1,59 @@
+{
+  "$schema": "./socket-wheelhouse-schema.json",
+  "schemaVersion": 1,
+  "repoName": "socket-mcp",
+  "layout": "single-package",
+  "native": "none",
+  "kind": "single-package",
+  "hooks": {
+    "enablePrePush": true,
+    "enableCommitMsg": true,
+    "enablePreCommit": true,
+    "preCommitVariant": "lint-test"
+  },
+  "scripts": {
+    "optional": {
+      "check": true,
+      "clean": true,
+      "cover": true,
+      "fix": true,
+      "security": true,
+      "setup": false,
+      "type": false,
+      "update": true
+    }
+  },
+  "lint": {
+    "profile": "standard"
+  },
+  "workflows": {
+    "ci": true,
+    "provenance": false,
+    "requirePinnedFullSha": true,
+    "weeklyUpdate": true
+  },
+  "claude": {
+    "includeSecurityScanSkill": true,
+    "includeSharedSkills": true,
+    "includeUpdatingSkill": true
+  },
+  "workspace": {
+    "allowBuilds": {
+      "@pnpm/exe": true,
+      "esbuild": true
+    },
+    "blockExoticSubdeps": true,
+    "minimumReleaseAge": 10080,
+    "minimumReleaseAgeExclude": [
+      "@socketaddon/*",
+      "@socketbin/*",
+      "@socketregistry/*",
+      "@socketsecurity/*"
+    ],
+    "resolutionMode": "highest",
+    "trustPolicy": "no-downgrade"
+  },
+  "github": {
+    "apps": ["cursor", "socket-security", "socket-trufflehog"]
+  }
+}
