@@ -4,17 +4,24 @@ import {
   getSocketOauthIssuer,
   getSocketOauthRequiredScopes,
 } from './env.ts'
+import { getSocketDebug } from '@socketsecurity/lib/env/socket'
 import { errorMessage } from '@socketsecurity/lib/errors'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
+import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
+  assertSafeHttpUrl,
   getRequestHeaderValue,
   parseJsonObject,
   writeJson,
   writeOAuthError,
 } from './http-helpers.ts'
 import { logger } from './logger.ts'
+
+// In SOCKET_DEBUG local-stack mode the issuer/introspection endpoints may be
+// on localhost; otherwise loopback/private hosts are refused as SSRF targets.
+const ALLOW_LOCAL_OAUTH = envAsBoolean(getSocketDebug())
 
 export interface OAuthAuthorizationServerMetadata {
   issuer: string
@@ -216,8 +223,13 @@ export async function loadOAuthMetadata(
     const metadataPromise = (async () => {
       // `enabled` is only set when all three settings were present (see
       // setOauthEnabled / allOAuthConfig), which requires `issuer` to be
-      // a non-empty string. TS can't narrow through that; assert here.
-      const issuerUrl = new URL(config.issuer)
+      // a non-empty string. SSRF-guard it: an operator-set issuer must not
+      // point the discovery request at an internal/loopback host.
+      const issuerUrl = assertSafeHttpUrl(
+        config.issuer,
+        'SOCKET_OAUTH_ISSUER',
+        ALLOW_LOCAL_OAUTH,
+      )
       const response = await httpRequest(
         new URL(OAUTH_WELL_KNOWN_PATH, issuerUrl).href,
       )
@@ -324,7 +336,15 @@ export async function verifyAccessToken(
     throw new Error('OAuth is not configured for this server')
   }
 
-  const response = await httpRequest(oauthMetadata.introspection_endpoint, {
+  // The introspection endpoint comes from the issuer's metadata response — a
+  // malicious/MITM'd issuer could point it at an internal host. SSRF-guard it
+  // before sending the bearer token there.
+  const introspectionUrl = assertSafeHttpUrl(
+    oauthMetadata.introspection_endpoint,
+    'OAuth introspection_endpoint',
+    ALLOW_LOCAL_OAUTH,
+  ).href
+  const response = await httpRequest(introspectionUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

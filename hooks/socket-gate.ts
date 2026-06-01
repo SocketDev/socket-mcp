@@ -258,7 +258,15 @@ async function main(): Promise<void> {
     } else {
       outputAllow()
     }
-  } catch {
+  } catch (e) {
+    // Deliberate fail-OPEN: a Socket outage / network error / parse failure
+    // must not block legitimate installs (this hook is an advisory guardrail,
+    // not a hard gate — see the file header). Surface the error on stderr so
+    // the failure is observable; stdout stays the allow/deny IPC channel.
+    // oxlint-disable-next-line socket/prefer-error-message -- standalone copy-paste hook; cannot import @socketsecurity/lib.
+    const msg = e instanceof Error ? e.message : String(e)
+    const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${msg}\n`
+    process.stderr.write(errLine) // socket-hook: allow console
     outputAllow()
   }
 }

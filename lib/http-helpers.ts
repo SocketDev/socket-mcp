@@ -14,6 +14,46 @@ import { VERSION } from './version.ts'
 // semantics stay in lockstep across the fleet.
 export const TRUST_PROXY: boolean = getTrustProxy()
 
+// Loopback / link-local / private IPv4 ranges + IPv6 loopback/ULA that an
+// SSRF probe would target. Compared against the resolved URL host.
+const PRIVATE_HOST_RE =
+  /^(?:0\.0\.0\.0$|10\.|127\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.|\[?::1\]?$|\[?fc00:|\[?fd|\[?fe80:)/iu
+
+/**
+ * SSRF guard for operator/issuer-supplied URLs (the OAuth issuer + the
+ * introspection endpoint advertised in its metadata). Rejects non-HTTP(S)
+ * schemes and hosts that resolve to loopback/private/link-local ranges, so a
+ * malicious or MITM'd OAuth server can't pivot the server into internal
+ * services (cloud metadata, redis, etc). `allowLocalhost` opens the gate for
+ * `localhost`/127.0.0.1 in local-stack development only.
+ */
+export function assertSafeHttpUrl(
+  rawUrl: string,
+  label: string,
+  allowLocalhost = false,
+): URL {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    throw new Error(`${label} is not a valid URL: ${rawUrl}`)
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`${label} must be http(s): ${rawUrl}`)
+  }
+  const host = url.hostname.toLowerCase()
+  const isLocal = host === '127.0.0.1' || host === '::1' || host === 'localhost'
+  if (isLocal && allowLocalhost) {
+    return url
+  }
+  if (PRIVATE_HOST_RE.test(host) || isLocal) {
+    throw new Error(
+      `${label} resolves to a private/loopback host and is refused: ${rawUrl}`,
+    )
+  }
+  return url
+}
+
 // Build request headers for the JSON REST endpoints (alerts, organizations,
 // threat-feed, file-list): `accept: application/json` plus optional user-agent,
 // bearer token, and caller extra headers. Shared so the four data modules
@@ -96,8 +136,15 @@ export function getRequestBaseUrl(
   const forwardedProto = trustProxy
     ? getForwardedHeaderValue(req.headers['x-forwarded-proto']).toLowerCase()
     : ''
-  const forwardedHost = trustProxy
+  const forwardedHostRaw = trustProxy
     ? getForwardedHeaderValue(req.headers['x-forwarded-host'])
+    : ''
+  // Even under TRUST_PROXY, only accept a bare host[:port] from
+  // X-Forwarded-Host — reject anything carrying a scheme, userinfo, path, or
+  // multiple comma-joined hosts, so a poisoned header can't smuggle a
+  // different origin into the OAuth metadata URLs.
+  const forwardedHost = /^[a-z0-9.-]+(?::\d+)?$/iu.test(forwardedHostRaw)
+    ? forwardedHostRaw
     : ''
   const host =
     forwardedHost ||
