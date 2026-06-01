@@ -225,28 +225,28 @@ Once installed, ask your AI assistant questions like:
 
 Query the Socket API for dependency scoring information. Returns supply chain, quality, maintenance, vulnerability, and license scores per package.
 
-| Parameter              | Type   | Required | Default     | Description                                      |
-| ---------------------- | ------ | -------- | ----------- | ------------------------------------------------ |
-| `packages`             | Array  | ✅ Yes   | -           | Array of package objects to analyze              |
+| Parameter              | Type   | Required | Default     | Description                                        |
+| ---------------------- | ------ | -------- | ----------- | -------------------------------------------------- |
+| `packages`             | Array  | ✅ Yes   | -           | Array of package objects to analyze                |
 | `packages[].ecosystem` | String | No       | `"npm"`     | Package ecosystem. See Supported ecosystems below. |
-| `packages[].depname`   | String | ✅ Yes   | -           | Name of the dependency/package                   |
-| `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                        |
+| `packages[].depname`   | String | ✅ Yes   | -           | Name of the dependency/package                     |
+| `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                          |
 
 **Supported ecosystems**
 
 Based on [Socket's language support](https://docs.socket.dev/docs/language-support). The `ecosystem` parameter maps to PURL types:
 
-| Ecosystem | PURL type | Package managers | Maturity |
-|-----------|-----------|------------------|----------|
-| JavaScript & TypeScript | `npm` | npm, yarn, pnpm, Bun, VLT | GA |
-| Python | `pypi` | uv, pip, Poetry, Anaconda | GA |
-| Go | `golang` | Go Modules | GA |
-| Java / Scala / Kotlin | `maven` | Maven, Gradle, sbt | GA |
-| Ruby | `gem` | Bundler | GA |
-| .NET (C#, F#, VB) | `nuget` | NuGet | GA |
-| Rust | `cargo` | cargo | GA |
-| PHP | `composer` | Composer | Experimental |
-| GitHub Actions | `actions` | GitHub Actions workflows | Experimental (workflow scanning, not package-level) |
+| Ecosystem               | PURL type  | Package managers          | Maturity                                            |
+| ----------------------- | ---------- | ------------------------- | --------------------------------------------------- |
+| JavaScript & TypeScript | `npm`      | npm, yarn, pnpm, Bun, VLT | GA                                                  |
+| Python                  | `pypi`     | uv, pip, Poetry, Anaconda | GA                                                  |
+| Go                      | `golang`   | Go Modules                | GA                                                  |
+| Java / Scala / Kotlin   | `maven`    | Maven, Gradle, sbt        | GA                                                  |
+| Ruby                    | `gem`      | Bundler                   | GA                                                  |
+| .NET (C#, F#, VB)       | `nuget`    | NuGet                     | GA                                                  |
+| Rust                    | `cargo`    | cargo                     | GA                                                  |
+| PHP                     | `composer` | Composer                  | Experimental                                        |
+| GitHub Actions          | `actions`  | GitHub Actions workflows  | Experimental (workflow scanning, not package-level) |
 
 Example request:
 
