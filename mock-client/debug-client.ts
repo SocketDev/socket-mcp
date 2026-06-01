@@ -1,5 +1,5 @@
 #!/usr/bin/env node --experimental-strip-types
-import { spawn } from 'node:child_process'
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import path from 'node:path'
 import readline from 'node:readline'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
@@ -8,19 +8,23 @@ const logger = getDefaultLogger()
 
 // Simple JSON-RPC client for testing MCP server
 class SimpleJSONRPCClient {
-  private process: any
+  private spawned: ReturnType<typeof spawn>
   private rl: readline.Interface
   private requestId = 1
   private pendingRequests = new Map()
 
-  constructor(command: string, args: string[] = [], env: any = {}) {
-    this.process = spawn(command, args, {
+  constructor(
+    command: string,
+    args: string[] = [],
+    env: Record<string, string> = {},
+  ) {
+    this.spawned = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...env },
     })
 
     this.rl = readline.createInterface({
-      input: this.process.stdout,
+      input: this.spawned.process.stdout!,
       crlfDelay: Infinity,
     })
 
@@ -44,12 +48,12 @@ class SimpleJSONRPCClient {
       }
     })
 
-    this.process.stderr.on('data', (data: Buffer) => {
+    this.spawned.process.stderr!.on('data', (data: Buffer) => {
       logger.error('Server stderr:', data.toString())
     })
   }
 
-  async sendRequest(method: string, params: any = {}) {
+  async sendRequest(method: string, params: Record<string, unknown> = {}) {
     const id = this.requestId++
     const request = {
       jsonrpc: '2.0',
@@ -60,13 +64,13 @@ class SimpleJSONRPCClient {
 
     return new Promise((resolve, reject) => {
       this.pendingRequests.set(id, { resolve, reject })
-      this.process.stdin.write(JSON.stringify(request) + '\n')
+      this.spawned.stdin?.write(JSON.stringify(request) + '\n')
     })
   }
 
   close() {
     this.rl.close()
-    this.process.kill()
+    this.spawned.process.kill()
   }
 }
 

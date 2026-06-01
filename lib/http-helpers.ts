@@ -69,11 +69,12 @@ export function getForwardedHeaderValue(
 export function getRequestBaseUrl(
   req: IncomingMessage,
   fallbackPort: number,
+  trustProxy: boolean = TRUST_PROXY,
 ): URL {
-  const forwardedProto = TRUST_PROXY
+  const forwardedProto = trustProxy
     ? getForwardedHeaderValue(req.headers['x-forwarded-proto']).toLowerCase()
     : ''
-  const forwardedHost = TRUST_PROXY
+  const forwardedHost = trustProxy
     ? getForwardedHeaderValue(req.headers['x-forwarded-host'])
     : ''
   const host =

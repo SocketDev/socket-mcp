@@ -67,6 +67,7 @@
     "@socketsecurity/lib-stable": "npm:@socketsecurity/lib@6.0.3",
     "@types/node": "^24.12.4",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
+    "nock": "14.0.15",
     "npm-run-all2": "^8.0.4",
     "oxfmt": "0.48.0",
     "oxlint": "1.63.0",

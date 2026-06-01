@@ -1,28 +1,32 @@
 #!/usr/bin/env node --experimental-strip-types
 import path from 'node:path'
+import { httpRequest } from '@socketsecurity/lib/http-request/request'
+import type { HttpResponse } from '@socketsecurity/lib/http-request/response-types'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 const logger = getDefaultLogger()
 
 // Helper function to parse SSE or JSON response
-async function parseResponse(response: any) {
-  const contentType = response.headers.get('content-type')
-  const text = await response.text()
+export function parseResponse(response: HttpResponse): unknown {
+  const contentType = response.headers['content-type']
+  const text = response.text()
 
-  if (contentType?.includes('text/event-stream')) {
+  if (
+    typeof contentType === 'string' &&
+    contentType.includes('text/event-stream')
+  ) {
     // Parse SSE format: "event: message\ndata: {json}\n"
     const dataMatch = text.match(/data: (.+)/)
     if (dataMatch) {
-      return JSON.parse(dataMatch[1])
+      return JSON.parse(dataMatch[1]!)
     }
     return undefined
-  } else {
-    return JSON.parse(text)
   }
+  return JSON.parse(text)
 }
 
 // Simple HTTP client for testing MCP server in HTTP mode
-async function testHTTPMode() {
+export async function testHTTPMode() {
   const baseUrl = (process.env['MCP_URL'] || 'http://localhost:3000').replace(
     /\/$/,
     '',
@@ -49,7 +53,7 @@ async function testHTTPMode() {
       },
     }
 
-    const initResponse = await fetch(`${baseUrl}/`, {
+    const initResponse = await httpRequest(`${baseUrl}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +64,7 @@ async function testHTTPMode() {
       body: JSON.stringify(initRequest),
     })
 
-    const initResult = await parseResponse(initResponse)
+    const initResult = parseResponse(initResponse)
     logger.info('Initialize response:', JSON.stringify(initResult, null, 2))
 
     logger.info('Initialized (stateless)')
@@ -75,7 +79,7 @@ async function testHTTPMode() {
       params: {},
     }
 
-    const toolsResponse = await fetch(`${baseUrl}/`, {
+    const toolsResponse = await httpRequest(`${baseUrl}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,14 +88,18 @@ async function testHTTPMode() {
       body: JSON.stringify(toolsRequest),
     })
 
-    const toolsResult = await parseResponse(toolsResponse)
+    const toolsResult = parseResponse(toolsResponse) as {
+      result?:
+        | { tools?: Array<{ name?: string | undefined }> | undefined }
+        | undefined
+    }
     logger.info('Available tools:', JSON.stringify(toolsResult, null, 2))
     // Assert that the 'depscore' tool exists in the toolsResult
     if (
       !toolsResult ||
       !toolsResult.result ||
       !Array.isArray(toolsResult.result.tools) ||
-      !toolsResult.result.tools.some((tool: any) => tool.name === 'depscore')
+      !toolsResult.result.tools.some(tool => tool.name === 'depscore')
     ) {
       throw new Error('depscore tool not found in available tools')
     }
@@ -115,7 +123,7 @@ async function testHTTPMode() {
       },
     }
 
-    const depscoreResponse = await fetch(`${baseUrl}/`, {
+    const depscoreResponse = await httpRequest(`${baseUrl}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -124,7 +132,7 @@ async function testHTTPMode() {
       body: JSON.stringify(depscoreRequest),
     })
 
-    const depscoreResult = await parseResponse(depscoreResponse)
+    const depscoreResult = parseResponse(depscoreResponse)
     logger.info('Depscore result:', JSON.stringify(depscoreResult, null, 2))
 
     logger.error('')

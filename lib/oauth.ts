@@ -36,41 +36,48 @@ export const OAUTH_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource'
 const OAUTH_WELL_KNOWN_PATH = '/.well-known/oauth-authorization-server'
 
-// All four OAuth env vars resolved via the fleet-canonical helpers in
-// @socketsecurity/lib/env/socket. Centralizing the reads means an env-
-// var rename / alias-table change is a single-file edit upstream;
-// socket-mcp picks it up on the next dep bump.
-const SOCKET_OAUTH_ISSUER = getSocketOauthIssuer()
-const SOCKET_OAUTH_INTROSPECTION_CLIENT_ID =
-  getSocketOauthIntrospectionClientId()
-const SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET =
-  getSocketOauthIntrospectionClientSecret()
+// Resolved OAuth settings + per-config discovery cache. The module
+// default reads env (the production path); tests construct their own
+// config so introspection/discovery can be driven against a nock-mocked
+// issuer in-process, without env-driven module init or a spawned server.
+export interface OAuthConfig {
+  issuer: string
+  introspectionClientId: string
+  introspectionClientSecret: string
+  requiredScopes: string[]
+  // Cached discovery promise — populated on first call and cleared on
+  // failure so a transient discovery error doesn't permanently break the
+  // server. Lives on the config so each config has an isolated cache.
+  metadataPromise: Promise<OAuthAuthorizationServerMetadata> | undefined
+  // Tracks whether OAuth has been opted into for the running mode (only
+  // HTTP). Set once during boot to gate metadata loading on configuration.
+  enabled: boolean
+}
+
+// Module-default config (production path). HTTP-mode boot flips its
+// `enabled` flag via setOauthEnabled(). `resolveOAuthConfig` is a
+// function declaration so it hoists above this module-eval-time call
+// despite living lower in the file (sorted into its export group).
+const defaultConfig: OAuthConfig = resolveOAuthConfig()
+
+// Back-compat export — the required scopes the resource advertises.
 export const SOCKET_OAUTH_REQUIRED_SCOPES: string[] =
-  getSocketOauthRequiredScopes()
+  defaultConfig.requiredScopes
 
 // True when ANY of the three introspection settings are configured —
 // caller uses this to detect partial / incomplete configs and refuse to
 // start.
 export const hasAnyOAuthConfig: boolean = Boolean(
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_ID ||
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET ||
-  SOCKET_OAUTH_ISSUER,
+  defaultConfig.introspectionClientId ||
+  defaultConfig.introspectionClientSecret ||
+  defaultConfig.issuer,
 )
 
 const allOAuthConfig = Boolean(
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_ID &&
-  SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET &&
-  SOCKET_OAUTH_ISSUER,
+  defaultConfig.introspectionClientId &&
+  defaultConfig.introspectionClientSecret &&
+  defaultConfig.issuer,
 )
-
-// Cached discovery promise — populated on first call and cleared on
-// failure so a transient discovery error doesn't permanently break the
-// server.
-let oauthMetadataPromise: Promise<OAuthAuthorizationServerMetadata> | undefined
-
-// Tracks whether OAuth has been opted into for the running mode (only
-// HTTP). Set once during boot to gate metadata loading on configuration.
-let oauthEnabledFlag = false
 
 const REQUIRED_OAUTH_FIELDS = [
   'issuer',
@@ -86,6 +93,7 @@ export async function authenticateRequest(
   req: AuthenticatedRequest,
   res: ServerResponse,
   resourceMetadataUrl: string,
+  config: OAuthConfig = defaultConfig,
 ): Promise<{ ok: false } | { ok: true; authInfo: AuthInfo }> {
   const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
   if (!authHeader) {
@@ -113,7 +121,7 @@ export async function authenticateRequest(
 
   let authInfo: AuthInfo | undefined
   try {
-    authInfo = await verifyAccessToken(token)
+    authInfo = await verifyAccessToken(token, config)
   } catch (error) {
     logger.error(`Token verification failed: ${errorMessage(error)}`)
     writeJson(res, 500, {
@@ -148,7 +156,7 @@ export async function authenticateRequest(
     return { ok: false }
   }
 
-  const missingScopes = SOCKET_OAUTH_REQUIRED_SCOPES.filter(
+  const missingScopes = config.requiredScopes.filter(
     scope => !authInfo.scopes.includes(scope),
   )
   if (missingScopes.length > 0) {
@@ -174,11 +182,12 @@ export async function authenticateRequest(
 export function buildProtectedResourceMetadata(
   baseUrl: URL,
   oauthMetadata: OAuthAuthorizationServerMetadata,
+  config: OAuthConfig = defaultConfig,
 ): Record<string, unknown> {
   return {
     resource: new URL('/', baseUrl).href,
     authorization_servers: [oauthMetadata.issuer],
-    scopes_supported: SOCKET_OAUTH_REQUIRED_SCOPES,
+    scopes_supported: config.requiredScopes,
     resource_name: 'Socket MCP Server',
   }
 }
@@ -190,26 +199,25 @@ export function getProtectedResourceMetadataUrl(baseUrl: URL): string {
 }
 
 export function isOauthEnabled(): boolean {
-  return oauthEnabledFlag
+  return defaultConfig.enabled
 }
 
 // Discover the upstream issuer's authorization-server metadata
 // (RFC 8414). The fetched metadata is cached; failures clear the cache so
 // the next request retries.
-export async function loadOAuthMetadata(): Promise<
-  OAuthAuthorizationServerMetadata | undefined
-> {
-  if (!oauthEnabledFlag) {
+export async function loadOAuthMetadata(
+  config: OAuthConfig = defaultConfig,
+): Promise<OAuthAuthorizationServerMetadata | undefined> {
+  if (!config.enabled) {
     return undefined
   }
 
-  if (!oauthMetadataPromise) {
+  if (!config.metadataPromise) {
     const metadataPromise = (async () => {
-      // `oauthEnabledFlag` is only set when `allOAuthConfig` was true
-      // at module init (see hasAllOAuthConfig), which requires
-      // SOCKET_OAUTH_ISSUER to be a non-empty string. TS can't narrow
-      // through that Boolean(...) computation; assert here.
-      const issuerUrl = new URL(SOCKET_OAUTH_ISSUER!)
+      // `enabled` is only set when all three settings were present (see
+      // setOauthEnabled / allOAuthConfig), which requires `issuer` to be
+      // a non-empty string. TS can't narrow through that; assert here.
+      const issuerUrl = new URL(config.issuer)
       const response = await httpRequest(
         new URL(OAUTH_WELL_KNOWN_PATH, issuerUrl).href,
       )
@@ -229,28 +237,52 @@ export async function loadOAuthMetadata(): Promise<
     })()
 
     const retryableMetadataPromise = metadataPromise.catch(error => {
-      if (oauthMetadataPromise === retryableMetadataPromise) {
-        oauthMetadataPromise = undefined
+      if (config.metadataPromise === retryableMetadataPromise) {
+        config.metadataPromise = undefined
       }
 
       throw error
     })
 
-    oauthMetadataPromise = retryableMetadataPromise
+    config.metadataPromise = retryableMetadataPromise
   }
 
-  return await oauthMetadataPromise
+  return await config.metadataPromise
 }
 
 // Call this in HTTP mode after confirming all three settings are present.
 // Returns the SOCKET_OAUTH_ISSUER (for logging) when enabled.
+// Build an OAuthConfig from the fleet-canonical env helpers in
+// @socketsecurity/lib/env/socket. Centralizing the reads means an env-
+// var rename / alias-table change is a single-file edit upstream;
+// socket-mcp picks it up on the next dep bump. Tests call this with
+// explicit overrides instead of mutating process.env.
+export function resolveOAuthConfig(
+  overrides: Partial<Omit<OAuthConfig, 'enabled' | 'metadataPromise'>> = {},
+): OAuthConfig {
+  return {
+    issuer: overrides.issuer ?? getSocketOauthIssuer() ?? '',
+    introspectionClientId:
+      overrides.introspectionClientId ??
+      getSocketOauthIntrospectionClientId() ??
+      '',
+    introspectionClientSecret:
+      overrides.introspectionClientSecret ??
+      getSocketOauthIntrospectionClientSecret() ??
+      '',
+    requiredScopes: overrides.requiredScopes ?? getSocketOauthRequiredScopes(),
+    metadataPromise: undefined,
+    enabled: false,
+  }
+}
+
 export function setOauthEnabled(): { issuer: string } | undefined {
   if (!allOAuthConfig) {
     return undefined
   }
-  oauthEnabledFlag = true
-  // `allOAuthConfig` was checked above; SOCKET_OAUTH_ISSUER is defined here.
-  return { issuer: SOCKET_OAUTH_ISSUER! }
+  defaultConfig.enabled = true
+  // `allOAuthConfig` was checked above; issuer is a non-empty string here.
+  return { issuer: defaultConfig.issuer }
 }
 
 // Tokenize the introspection "scope" field per RFC 6749 §3.3: a
@@ -285,8 +317,9 @@ export function validateOAuthMetadataFields(
 // client. Returns AuthInfo on `active:true`, undefined on inactive.
 export async function verifyAccessToken(
   token: string,
+  config: OAuthConfig = defaultConfig,
 ): Promise<AuthInfo | undefined> {
-  const oauthMetadata = await loadOAuthMetadata()
+  const oauthMetadata = await loadOAuthMetadata(config)
   if (!oauthMetadata) {
     throw new Error('OAuth is not configured for this server')
   }
@@ -295,7 +328,7 @@ export async function verifyAccessToken(
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      authorization: `Basic ${Buffer.from(`${SOCKET_OAUTH_INTROSPECTION_CLIENT_ID}:${SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET}`).toString('base64')}`,
+      authorization: `Basic ${Buffer.from(`${config.introspectionClientId}:${config.introspectionClientSecret}`).toString('base64')}`,
     },
     body: new URLSearchParams({ token }).toString(),
   })

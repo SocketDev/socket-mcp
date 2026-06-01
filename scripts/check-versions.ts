@@ -13,12 +13,12 @@ const projectRoot = path.join(__dirname, '..')
 
 interface PackageJson {
   version: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 interface ManifestJson {
   version: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 function readJsonFile<T>(filePath: string): T {
@@ -32,7 +32,7 @@ function readJsonFile<T>(filePath: string): T {
 }
 
 function main(): void {
-  console.log(
+  logger.log(
     'Checking version consistency between package.json and manifest.json…',
   )
 
@@ -45,18 +45,18 @@ function main(): void {
   const packageVersion = packageJson.version
   const manifestVersion = manifestJson.version
 
-  console.log(`package.json version: ${packageVersion}`)
-  console.log(`manifest.json version: ${manifestVersion}`)
+  logger.log(`package.json version: ${packageVersion}`)
+  logger.log(`manifest.json version: ${manifestVersion}`)
 
   if (packageVersion === manifestVersion) {
-    console.log('✅ Versions match!')
+    logger.log('✅ Versions match!')
     process.exit(0)
   } else {
-    console.error('❌ Version mismatch detected!')
-    console.error('Expected both files to have the same version, but found:')
-    console.error(`  package.json: ${packageVersion}`)
-    console.error(`  manifest.json: ${manifestVersion}`)
-    console.error('Please update both files to have matching versions.')
+    logger.fail('❌ Version mismatch detected!')
+    logger.fail('Expected both files to have the same version, but found:')
+    logger.fail(`  package.json: ${packageVersion}`)
+    logger.fail(`  manifest.json: ${manifestVersion}`)
+    logger.fail('Please update both files to have matching versions.')
     process.exit(1)
   }
 }

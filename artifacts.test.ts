@@ -4,7 +4,9 @@ import assert from 'node:assert'
 import { deduplicateArtifacts } from './lib/artifacts.ts'
 import type { ArtifactData } from './lib/artifacts.ts'
 
-function makeArtifact(overrides: Partial<ArtifactData> = {}): ArtifactData {
+export function makeArtifact(
+  overrides: Partial<ArtifactData> = {},
+): ArtifactData {
   return {
     type: 'pypi',
     name: 'numpy',
