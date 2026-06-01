@@ -84,4 +84,40 @@ describe('buildPurl produces correct PURLs across all ecosystems', () => {
   test('version omitted when empty', () => {
     expect(buildPurl('npm', 'lodash', '')).toBe('pkg:npm/lodash')
   })
+
+  test('openvsx rewrites to vscode type with repository_url and platform', () => {
+    expect(
+      buildPurl('openvsx', 'meta/pyrefly', '1.0.0', { platform: 'linux-x64' }),
+    ).toBe(
+      'pkg:vscode/meta/pyrefly@1.0.0?platform=linux-x64&repository_url=https%3A%2F%2Fopen-vsx.org',
+    )
+  })
+
+  test('openvsx without platform still adds repository_url', () => {
+    expect(buildPurl('openvsx', 'meta/pyrefly', '1.0.0')).toBe(
+      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https%3A%2F%2Fopen-vsx.org',
+    )
+  })
+
+  test('vscode (Marketplace) does not auto-add repository_url', () => {
+    expect(buildPurl('vscode', 'meta/pyrefly', '1.0.0')).toBe(
+      'pkg:vscode/meta/pyrefly@1.0.0',
+    )
+  })
+
+  test('chrome extensions keep 1.0.0 as a real version', () => {
+    expect(
+      buildPurl('chrome', 'gighmmpiobklfepjocnamgkkbiglidom', '1.0.0'),
+    ).toBe('pkg:chrome/gighmmpiobklfepjocnamgkkbiglidom@1.0.0')
+  })
+
+  test('caller can override openvsx repository_url', () => {
+    expect(
+      buildPurl('openvsx', 'meta/pyrefly', '1.0.0', {
+        repository_url: 'https://example.test',
+      }),
+    ).toBe(
+      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https%3A%2F%2Fexample.test',
+    )
+  })
 })
