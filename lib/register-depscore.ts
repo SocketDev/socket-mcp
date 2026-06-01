@@ -1,20 +1,17 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
-import { getSocketApiToken, getSocketApiUrl } from './env.ts'
+import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { z } from 'zod'
+
 import { deduplicateArtifacts } from './artifacts.ts'
+import { getSocketApiUrl } from './env.ts'
 import { buildSocketHeaders } from './http-helpers.ts'
-import { registerAlertsTool } from './alerts-tool.ts'
 import { logger } from './logger.ts'
-import { registerOrganizationsTool } from './organizations-tool.ts'
-import { registerPackageFilesTools } from './package-files-tool.ts'
 import { buildPurl } from './purl.ts'
-import { registerThreatFeedTool } from './threat-feed-tool.ts'
-import { withToolLogging } from './tool-logging.ts'
+import { AUTH_REQUIRED_MSG, errorResult, getStaticApiKey } from './server.ts'
+import type { ToolErrorResult, ToolOkResult } from './server.ts'
 import { buildSocketReportUrl } from './socket-url.ts'
-import { VERSION } from './version.ts'
-import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 
 interface DepscorePackageInput {
   ecosystem?: string | undefined
@@ -22,33 +19,16 @@ interface DepscorePackageInput {
   version?: string | undefined
 }
 
-interface ToolErrorResult {
-  [key: string]: unknown
-  content: Array<{ type: 'text'; text: string }>
-  isError: true
-}
-
-interface ToolOkResult {
-  [key: string]: unknown
-  content: Array<{ type: 'text'; text: string }>
-}
-
 // Default Socket API URL. SOCKET_DEBUG=true points at localhost for local
-// stack development; the default targets production. Both env vars
-// resolved via fleet-canonical helpers.
+// stack development; the default targets production. Both env vars resolved
+// via fleet-canonical helpers.
 const DEFAULT_SOCKET_API_URL = envAsBoolean(getSocketDebug())
   ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
   : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
 
 const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
 
-// Resolve via the fleet-canonical helper. Accepts SOCKET_API_TOKEN
-// (canonical) + 4 legacy aliases (SOCKET_CLI_API_TOKEN,
-// SOCKET_CLI_API_KEY, SOCKET_SECURITY_API_TOKEN, SOCKET_SECURITY_API_KEY).
-let staticApiKey: string = getSocketApiToken() || ''
-
-// Single shared schema reused by both stdio and HTTP modes; pulled out
-// so the server creator stays compact.
+// Single shared schema reused by both stdio and HTTP modes.
 const depscoreInputSchema = {
   packages: z
     .array(
@@ -75,8 +55,8 @@ const depscoreInputSchema = {
     ),
 }
 
-// Convert the depscore input list into PURLs ready for the components
-// payload, stripping semver range prefixes from versions.
+// Convert the depscore input list into PURLs ready for the components payload,
+// stripping semver range prefixes from versions.
 export function buildPackageComponents(
   packages: DepscorePackageInput[],
 ): Array<{ purl: string }> {
@@ -96,43 +76,9 @@ export function buildPackageComponents(
   })
 }
 
-// Build a configured McpServer with the depscore tool registered.
-// Used for stdio (single instance) and HTTP (one per session).
-export function createConfiguredServer(): McpServer {
-  const srv = withToolLogging(
-    new McpServer({ name: 'socket', version: VERSION }),
-  )
-  srv.registerTool(
-    'depscore',
-    {
-      title: 'Dependency Score Tool',
-      description:
-        "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
-      inputSchema: depscoreInputSchema,
-      annotations: {
-        readOnlyHint: true,
-      },
-    },
-    async ({ packages, platform }, extra) =>
-      handleDepscore(packages, platform, extra.authInfo?.token),
-  )
-  registerOrganizationsTool(srv)
-  registerAlertsTool(srv)
-  registerThreatFeedTool(srv)
-  registerPackageFilesTools(srv)
-  return srv
-}
-
-export function errorResult(text: string): ToolErrorResult {
-  return {
-    content: [{ type: 'text', text }],
-    isError: true,
-  }
-}
-
 // Render `Object.entries(score)` into a human-readable "k1: v1, k2: v2"
-// summary. Sub-1 floats render as percentages (0–100); values >1 render
-// raw so non-percentage metrics aren't distorted.
+// summary. Sub-1 floats render as percentages (0–100); values >1 render raw so
+// non-percentage metrics aren't distorted.
 export function formatScoreEntries(score: Record<string, unknown>): string {
   return Object.entries(score)
     .filter(([key]) => key !== 'overall' && key !== 'uuid')
@@ -145,8 +91,8 @@ export function formatScoreEntries(score: Record<string, unknown>): string {
 }
 
 // Compose a "pkg:.../...@..." string + per-key score summary used by the
-// depscore output. `score.overall` being defined gates whether we have
-// real scores to render.
+// depscore output. `score.overall` being defined gates whether we have real
+// scores to render.
 export function formatScoreLine(jsonData: Record<string, unknown>): string {
   const ns = jsonData['namespace'] ? `${jsonData['namespace']}/` : ''
   const purl = `pkg:${jsonData['type'] || 'unknown'}/${ns}${jsonData['name'] || 'unknown'}@${jsonData['version'] || 'unknown'}`
@@ -158,28 +104,19 @@ export function formatScoreLine(jsonData: Record<string, unknown>): string {
   return `${purl}: No score found`
 }
 
-// Read the process-wide static API key (set in stdio mode from
-// SOCKET_API_TOKEN). The new file/alerts/org/threat-feed tools share this
-// accessor so per-request authInfo can fall back to it.
-export function getStaticApiKey(): string {
-  return staticApiKey
-}
-
-// Build the depscore handler — pulled out so the MCP registration is
-// readable. The handler closes over the access token retrieval chain
-// (request authInfo → env token).
+// Build the depscore handler — pulled out so the MCP registration is readable.
+// The handler closes over the access token retrieval chain (request authInfo →
+// env token).
 export async function handleDepscore(
   packages: DepscorePackageInput[],
   platform: string | undefined,
   accessTokenFromAuth: string | undefined,
 ): Promise<ToolOkResult | ToolErrorResult> {
   logger.info(`Received request for ${packages.length} packages`)
-  const accessToken = accessTokenFromAuth || staticApiKey
+  const accessToken = accessTokenFromAuth || getStaticApiKey()
   if (!accessToken) {
-    const errorMsg =
-      'Authentication is required. Configure SOCKET_API_TOKEN (or a legacy alias) for stdio mode or connect through OAuth-enabled HTTP mode.'
-    logger.error(errorMsg)
-    return errorResult(errorMsg)
+    logger.error(AUTH_REQUIRED_MSG)
+    return errorResult(AUTH_REQUIRED_MSG)
   }
 
   const components = buildPackageComponents(packages)
@@ -257,9 +194,9 @@ export async function handleDepscore(
   }
 }
 
-// Parse an NDJSON response body — one JSON document per line — into
-// result lines, dropping `_type`-tagged control frames and running the
-// platform-aware artifact deduplication before formatting.
+// Parse an NDJSON response body — one JSON document per line — into result
+// lines, dropping `_type`-tagged control frames and running the platform-aware
+// artifact deduplication before formatting.
 export function parseNdjsonPackageBody(
   responseText: string,
   platform: string | undefined,
@@ -288,8 +225,19 @@ export function parseSinglePackageBody(responseText: string): string[] {
   return [formatScoreLine(jsonData)]
 }
 
-// Set the static API key. Called once during boot from index.ts.
-// Subsequent calls overwrite — only the most recent value is used.
-export function setStaticApiKey(value: string): void {
-  staticApiKey = value
+export function registerDepscoreTool(srv: McpServer): void {
+  srv.registerTool(
+    'depscore',
+    {
+      title: 'Dependency Score Tool',
+      description:
+        "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+      inputSchema: depscoreInputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    async ({ packages, platform }, extra) =>
+      handleDepscore(packages, platform, extra.authInfo?.token),
+  )
 }

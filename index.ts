@@ -5,7 +5,7 @@ import { errorMessage } from '@socketsecurity/lib/errors'
 
 import { getMcpHttpMode, getMcpPort, getSocketApiToken } from './lib/env.ts'
 
-import { createConfiguredServer, setStaticApiKey } from './lib/depscore-tool.ts'
+import { createConfiguredServer, setStaticApiKey } from './lib/server.ts'
 import { getApiKeyInteractively } from './lib/http-helpers.ts'
 import { startHttpServer } from './lib/http-server.ts'
 import { logger } from './lib/logger.ts'
@@ -28,7 +28,7 @@ export {
   writeJson,
   writeOAuthError,
 } from './lib/http-helpers.ts'
-export { createConfiguredServer } from './lib/depscore-tool.ts'
+export { createConfiguredServer } from './lib/server.ts'
 export {
   authenticateRequest,
   buildProtectedResourceMetadata,

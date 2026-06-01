@@ -3,17 +3,17 @@ import { errorMessage } from '@socketsecurity/lib/errors'
 import { z } from 'zod'
 
 import { getOrFetchBlob } from './blob-cache.ts'
-import { getStaticApiKey } from './depscore-tool.ts'
-import { getSocketApiUrl, getSocketInternalUserAgent } from './env.ts'
+import { getSocketInternalUserAgent } from './env.ts'
 import { fetchFileList } from './files.ts'
 import { debug, logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
+import {
+  AUTH_REQUIRED_MSG,
+  SOCKET_API_BASE_URL,
+  getStaticApiKey,
+} from './server.ts'
 
-const SOCKET_API_BASE_URL = getSocketApiUrl() || 'https://api.socket.dev'
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
-
-const AUTH_REQUIRED_MSG =
-  'Authentication is required. Configure SOCKET_API_TOKEN (or a legacy alias) for stdio mode or connect through OAuth-enabled HTTP mode.'
 
 export function buildPurlForFiles(
   ecosystem: string,

@@ -5,7 +5,7 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import crypto from 'node:crypto'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createConfiguredServer } from './depscore-tool.ts'
+import { createConfiguredServer } from './server.ts'
 import {
   getRequestBaseUrl,
   getRequestHeaderValue,

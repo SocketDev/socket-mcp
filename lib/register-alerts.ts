@@ -1,16 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { errorMessage } from '@socketsecurity/lib/errors'
 import { z } from 'zod'
-import { getSocketApiUrl } from './env.ts'
+
 import { fetchAlerts } from './alerts.ts'
-import { getStaticApiKey } from './depscore-tool.ts'
 import { logger } from './logger.ts'
+import {
+  AUTH_REQUIRED_MSG,
+  SOCKET_API_BASE_URL,
+  getStaticApiKey,
+} from './server.ts'
 import { VERSION } from './version.ts'
-
-const SOCKET_API_BASE_URL = getSocketApiUrl() || 'https://api.socket.dev'
-
-const AUTH_REQUIRED_MSG =
-  'Authentication is required. Configure SOCKET_API_TOKEN (or a legacy alias) for stdio mode or connect through OAuth-enabled HTTP mode.'
 
 export function registerAlertsTool(srv: McpServer): void {
   srv.registerTool(
