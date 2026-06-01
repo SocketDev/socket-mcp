@@ -1,29 +1,38 @@
-import { httpRequest } from '@socketsecurity/lib/http-request/request'
-
-import { buildJsonApiHeaders } from './http-helpers.ts'
+import { SocketSdk } from '@socketsecurity/sdk'
 
 export interface FetchOrganizationsOptions {
   baseUrl: string
   userAgent?: string | undefined
-  // Socket access token, sent as `Authorization: Bearer <token>` when set.
+  // Socket access token. The SDK sends it as HTTP Basic auth (token as the
+  // username, empty password).
   authToken?: string | undefined
-  extraHeaders?: Record<string, string> | undefined
 }
 
 /**
- * Fetch the organizations the authenticated user belongs to from `GET
- * /v0/organizations`. Returns the parsed JSON body untouched — downstream
- * callers decide how to render it.
+ * Fetch the organizations the authenticated user belongs to via the Socket
+ * SDK's `listOrganizations()` (`GET /v0/organizations`). Returns the parsed
+ * JSON body untouched — downstream callers decide how to render it. Throws with
+ * the SDK-reported status + error on a non-2xx response.
+ *
+ * The SDK's `baseUrl` already carries the `/v0/` path segment, so the caller's
+ * `baseUrl` (the bare API origin) gets `/v0/` appended.
  */
 export async function fetchOrganizations(
   options: FetchOrganizationsOptions,
 ): Promise<unknown> {
-  const baseUrl = options.baseUrl.replace(/\/$/u, '')
-  const url = `${baseUrl}/v0/organizations`
+  const baseUrl = `${options.baseUrl.replace(/\/$/u, '')}/v0/`
+  const sdk = new SocketSdk(options.authToken ?? '', {
+    baseUrl,
+    ...(options.userAgent ? { userAgent: options.userAgent } : {}),
+  })
 
-  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
-  if (!res.ok) {
-    throw new Error(`organizations endpoint ${res.status}: ${res.text()}`)
+  const result = await sdk.listOrganizations()
+  if (!result.success) {
+    throw new Error(
+      `organizations endpoint ${result.status}: ${result.error}${
+        result.cause ? ` (${result.cause})` : ''
+      }`,
+    )
   }
-  return res.json<unknown>()
+  return result.data
 }
