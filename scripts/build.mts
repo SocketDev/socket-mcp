@@ -14,7 +14,7 @@ import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
-import { buildConfig } from '../.config/rolldown.config.mts'
+import { buildConfig } from '../.config/repo/rolldown.config.mts'
 
 const logger = getDefaultLogger()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

@@ -24,9 +24,9 @@
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "test": "node scripts/fleet/test.mts",
-    "cover": "pnpm exec vitest run --coverage",
+    "test:e2e": "pnpm exec vitest run --config .config/repo/vitest.config.mts test/server.e2e.ts",
+    "cover": "pnpm exec vitest run --coverage --config .config/repo/vitest.config.mts",
     "test:tsc": "tsgo --noEmit -p tsconfig.json",
-    "test:node-test": "node --test --test-reporter spec --experimental-test-coverage --test-coverage-exclude='scripts/**' --test-coverage-exclude='**/node_modules/**' --test-coverage-exclude='**/*.test.ts' './*.test.ts'",
     "lint": "node scripts/fleet/lint.mts",
     "lint:all": "node scripts/fleet/lint.mts --all",
     "format": "oxfmt -c .config/fleet/oxfmtrc.json --write .",
@@ -67,6 +67,7 @@
     "@socketsecurity/lib-stable": "npm:@socketsecurity/lib@6.0.3",
     "@types/node": "^24.12.4",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
+    "@vitest/coverage-v8": "catalog:",
     "nock": "14.0.15",
     "npm-run-all2": "^8.0.4",
     "oxfmt": "0.48.0",
@@ -74,6 +75,7 @@
     "packageurl-js": "^2.0.1",
     "rolldown": "catalog:",
     "taze": "catalog:",
+    "vitest": "catalog:",
     "zod": "3.25.76"
   },
   "engines": {

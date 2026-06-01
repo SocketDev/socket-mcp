@@ -154,5 +154,11 @@ resolutionMode: highest
 saveExact: true
 trustPolicy: no-downgrade
 trustPolicyExclude:
+  # Transitive dep of @vitest/coverage-v8 (catalog-pinned 4.1.6).
+  # Authored by ariperkkio, the vitest coverage maintainer
+  # (github.com/AriPerkkio/ast-v8-to-istanbul); Socket's no-downgrade
+  # gate flags 1.0.2 only because it published 2026-05-25 (inside the
+  # soak window). Legitimate first-party vitest tooling, not a takeover.
+  - 'ast-v8-to-istanbul@1.0.2'
   - 'compromise@14.15.0'
   - 'undici-types@6.21.0'

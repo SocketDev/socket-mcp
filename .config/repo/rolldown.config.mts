@@ -22,7 +22,8 @@ import type { Plugin, RolldownOptions } from 'rolldown'
 import { createLibStubPlugin } from './rolldown/lib-stub.mts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootPath = path.join(__dirname, '..')
+// This config lives at .config/repo/, so the repo root is two levels up.
+const rootPath = path.join(__dirname, '..', '..')
 const distPath = path.join(rootPath, 'dist')
 
 // Externalize Node builtins (with + without `node:` prefix). Everything
