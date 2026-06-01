@@ -61,6 +61,8 @@ overrides:
   'node-forge': '1.4.0'
   # GHSA-9wv6-86v2-598j path-to-regexp DoS / GHSA-rhx6-c78j-4q9w; advisories #51/#53
   'path-to-regexp': '8.4.2'
+  # GHSA-q8mj-m7cp-5q26 qs (transitive via express/body-parser); fixed in 6.15.2
+  'qs': '6.15.2'
   # advisory #42 arbitrary file/directory write via symlink
   'tmp': '0.2.5'
   'zod': '3.25.76'
