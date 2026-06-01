@@ -73,6 +73,7 @@
 .claude/skills/fleet/worktree-management/SKILL.md linguist-generated=true
 .config/.prettierignore linguist-generated=true
 .config/fleet/.markdownlint-cli2.jsonc linguist-generated=true
+.config/fleet/.prettierignore linguist-generated=true
 .config/fleet/markdownlint-rules linguist-generated=true
 .config/fleet/oxlint-plugin linguist-generated=true
 .config/fleet/sfw-bypass-list.txt linguist-generated=true
