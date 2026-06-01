@@ -51,7 +51,7 @@ const depscoreInputSchema = {
         ecosystem: z
           .string()
           .describe(
-            'The package ecosystem (e.g., npm, pypi, gem, golang, maven, nuget, cargo)',
+            'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP). See https://docs.socket.dev/docs/language-support',
           )
           .default('npm'),
         depname: z.string().describe('The name of the dependency'),
