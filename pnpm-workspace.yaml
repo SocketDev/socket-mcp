@@ -146,6 +146,8 @@ minimumReleaseAgeExclude:
   # published: 2026-05-26 | removable: 2026-06-02
   - '@oxc-project/types@0.133.0'
   - 'shell-quote'
+  - '@ultrathink/*'
+  - '@yuku-parser/*'
 
 pmOnFail: error
 resolutionMode: highest
