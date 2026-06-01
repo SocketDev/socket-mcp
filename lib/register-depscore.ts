@@ -214,7 +214,9 @@ export function parseNdjsonPackageBody(
     try {
       obj = JSON.parse(line) as Record<string, unknown>
     } catch (e) {
-      logger.error(`Skipping malformed NDJSON line ${i + 1}: ${errorMessage(e)}`)
+      logger.error(
+        `Skipping malformed NDJSON line ${i + 1}: ${errorMessage(e)}`,
+      )
       continue
     }
     if (!obj['_type']) {
