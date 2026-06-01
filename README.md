@@ -64,7 +64,7 @@ claude mcp add --transport http socket-mcp https://mcp.socket.dev/
 
 ```sh
 # For VS Code with GitHub Copilot
-code --add-mcp '{"name":"socket-mcp","type":"http","url":"https://mcp.socket.dev/}'
+code --add-mcp '{"name":"socket-mcp","type":"http","url":"https://mcp.socket.dev/"}'
 ```
 
 Or add to `.vscode/mcp.json`:
