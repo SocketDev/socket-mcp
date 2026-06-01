@@ -5,9 +5,12 @@ import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { z } from 'zod'
 import { deduplicateArtifacts } from './artifacts.ts'
 import { buildSocketHeaders } from './http-helpers.ts'
+import { registerAlertsTool } from './alerts-tool.ts'
 import { logger } from './logger.ts'
+import { registerOrganizationsTool } from './organizations-tool.ts'
 import { registerPackageFilesTools } from './package-files-tool.ts'
 import { buildPurl } from './purl.ts'
+import { registerThreatFeedTool } from './threat-feed-tool.ts'
 import { buildSocketReportUrl } from './socket-url.ts'
 import { VERSION } from './version.ts'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
@@ -110,6 +113,9 @@ export function createConfiguredServer(): McpServer {
     async ({ packages, platform }, extra) =>
       handleDepscore(packages, platform, extra.authInfo?.token),
   )
+  registerOrganizationsTool(srv)
+  registerAlertsTool(srv)
+  registerThreatFeedTool(srv)
   registerPackageFilesTools(srv)
   return srv
 }
