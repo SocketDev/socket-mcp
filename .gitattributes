@@ -145,7 +145,6 @@ packages/build-infra/lib/release-checksums/producer.mts linguist-generated=true
 packages/build-infra/release-assets.schema.json linguist-generated=true
 scripts/fleet linguist-generated=true
 scripts/fleet/check-provenance.mts linguist-generated=true
-scripts/fleet/publish-release.mts linguist-generated=true
 scripts/fleet/publish-shared.mts linguist-generated=true
 scripts/fleet/publish.mts linguist-generated=true
 scripts/fleet/util/multi-package-publish.mts linguist-generated=true

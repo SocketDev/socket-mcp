@@ -36,10 +36,15 @@ import url from 'node:url'
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
-import {
-  updateReleaseAssets,
-  writeChecksumsFile,
-} from '../../packages/build-infra/lib/release-checksums/producer.mts'
+// The release-checksums producer (writeChecksumsFile + updateReleaseAssets)
+// lives at a repo-shape-specific location — `packages/build-infra/lib/
+// release-checksums/producer.mts` in a monorepo, elsewhere for a single-
+// package producer. A static import here would hard-code the monorepo
+// layout and break in any repo without `packages/build-infra/`. Instead each
+// producing repo provides a thin `scripts/repo/release-producer.mts`
+// re-export, dynamically loaded by loadProducer() below — mirroring the
+// per-repo release-assets.config.mts pattern. Non-producing repos simply
+// don't ship publish-release.mts.
 import { gitShortSha, runInherit } from './publish-shared.mts'
 
 const logger = getDefaultLogger()
@@ -98,6 +103,7 @@ interface CliArgs {
 async function main(): Promise<void> {
   const args = parseCli()
   const config = await loadConfig()
+  const { updateReleaseAssets, writeChecksumsFile } = await loadProducer()
 
   const buildDirAbs = path.resolve(rootPath, config.buildDir)
   if (!existsSync(buildDirAbs)) {
@@ -239,6 +245,56 @@ async function loadConfig(): Promise<ReleaseAssetsConfig> {
     process.exit(1)
   }
   return mod.config
+}
+
+/**
+ * The producer functions this orchestrator needs. Structurally typed so the
+ * shared script doesn't statically depend on the monorepo-only
+ * packages/build-infra path — each producing repo wires the impl via a
+ * repo-local scripts/repo/release-producer.mts.
+ */
+interface ReleaseProducer {
+  writeChecksumsFile: (options: {
+    inputDir: string
+    outputPath: string
+  }) => Promise<Record<string, string>>
+  updateReleaseAssets: (options: {
+    manifestPath: string
+    tool: string
+    tag: string
+    checksums: Record<string, string>
+    description?: string | undefined
+  }) => void
+}
+
+/**
+ * Dynamic-import the repo-local producer re-export at
+ * `<repo-root>/scripts/repo/release-producer.mts`. Keeps publish-release.mts
+ * layout-agnostic: a monorepo re-exports from packages/build-infra/lib/
+ * release-checksums/producer.mts; a single-package producer points at its own
+ * impl. The file is repo-local (not cascaded).
+ */
+async function loadProducer(): Promise<ReleaseProducer> {
+  const producerPath = path.join(rootPath, 'scripts/repo/release-producer.mts')
+  if (!existsSync(producerPath)) {
+    logger.fail(
+      `Missing scripts/repo/release-producer.mts at repo root.\n` +
+        `  Path:   ${producerPath}\n` +
+        `  Action: create a repo-local re-export of the release-checksums producer. ` +
+        `In a monorepo: \`export { writeChecksumsFile, updateReleaseAssets } from '../../packages/build-infra/lib/release-checksums/producer.mts'\`.`,
+    )
+    process.exit(1)
+  }
+  const mod = (await import(
+    url.pathToFileURL(producerPath).href
+  )) as Partial<ReleaseProducer>
+  if (!mod.writeChecksumsFile || !mod.updateReleaseAssets) {
+    logger.fail(
+      `scripts/repo/release-producer.mts must re-export \`writeChecksumsFile\` and \`updateReleaseAssets\`.`,
+    )
+    process.exit(1)
+  }
+  return mod as ReleaseProducer
 }
 
 async function collectAssetPaths(
