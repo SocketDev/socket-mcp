@@ -1,6 +1,7 @@
 /**
  * @file Vitest configuration.
  */
+import { existsSync } from 'node:fs'
 import process from 'node:process'
 
 import { defineConfig } from 'vitest/config'
@@ -16,6 +17,14 @@ export default defineConfig({
     },
     globals: false,
     environment: 'node',
+    // Test setup lives under test/scripts/{fleet,repo}/setup.mts — fleet-canonical
+    // setup (nock fail-closed, env scrubbing) in fleet/, repo-specific setup in
+    // repo/. Both are optional: vitest skips a setupFile that doesn't exist via
+    // the existsSync filter so scaffolding-only repos don't error.
+    setupFiles: [
+      'test/scripts/fleet/setup.mts',
+      'test/scripts/repo/setup.mts',
+    ].filter(p => existsSync(p)),
     include: ['test/**/*.test.{js,ts,mjs,mts,cjs}'],
     // Vitest treats `test/**` as `**/test/**`, so without an explicit
     // exclude it picks up every nested `test/` directory in the repo
