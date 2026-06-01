@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: 📦 Publish to npm
 
+# Dependencies:
+#   - SocketDev/socket-registry/.github/workflows/provenance.yml
+
 on:
   workflow_dispatch:
     inputs:
@@ -12,50 +15,32 @@ on:
         options:
           - '0'
           - '1'
+      dry-run:
+        description: 'Dry run (no publish, no tag)'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 (2026-05-15)
-        with:
-          persist-credentials: false
-      - name: Install pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0 (2026-05-18)
-        with:
-          run_install: false
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0 (2026-05-15)
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          scope: '@socketregistry'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Build package
-        run: pnpm run build
-      - name: Get package version
-        id: package-version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-      - run: pnpm pack
-      # `pnpm publish --provenance` forwards to `npm publish --provenance`
-      # for sigstore attestation; keep `npm publish` here for explicitness
-      # so the provenance path is obvious in the workflow.
-      - run: npm publish --provenance --access public
-        env:
-          SOCKET_CLI_DEBUG: ${{ inputs.debug }}
-      - name: Create GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.package-version.outputs.version }}
-        run: |
-          notes=$(printf '%s\n\n%s' \
-            "Release of @socketsecurity/mcp v${VERSION}" \
-            "This release has been published to npm with provenance.")
-          gh release create "v${VERSION}" "socketsecurity-mcp-${VERSION}.tgz" \
-            --title "Release v${VERSION}" \
-            --notes "$notes"
+  publish:
+    uses: SocketDev/socket-registry/.github/workflows/provenance.yml@88ee6a1ac2f39f5b6cfe8ad2e3e6e28254170342 # main (2026-06-01)
+    with:
+      debug: ${{ inputs.debug }}
+      dry-run: ${{ inputs.dry-run }}
+      node-version: '26.2.0'
+      package-name: '@socketsecurity/mcp'
+      scope: '@socketsecurity'
+      setup-script: 'pnpm run build'
+      publish-script: >-
+        if [ "$DRY_RUN" = "true" ]; then
+        npm publish --provenance --access public --dry-run;
+        else
+        npm publish --provenance --access public;
+        fi
+      use-trusted-publishing: true
+    secrets:
+      SOCKET_API_TOKEN: ${{ secrets.SOCKET_API_TOKEN }}
