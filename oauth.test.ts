@@ -18,15 +18,15 @@ const inheritedEnv = Object.fromEntries(
 const oauthWellKnownPath = '/.well-known/oauth-authorization-server'
 const protectedResourceMetadataPath = '/.well-known/oauth-protected-resource'
 const mockIntrospectionResponses: Record<string, Record<string, unknown>> = {
-  'token-without-exp': {
-    active: true,
-    client_id: 'oauth-test-client',
-    scope: 'packages:list',
-  },
   'token-with-wrong-scope': {
     active: true,
     client_id: 'oauth-test-client',
     scope: 'packages:write',
+  },
+  'token-without-exp': {
+    active: true,
+    client_id: 'oauth-test-client',
+    scope: 'packages:list',
   },
 }
 

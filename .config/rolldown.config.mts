@@ -87,16 +87,8 @@ export function createCodeStubPlugin(
 }
 
 export const buildConfig: RolldownOptions = {
-  input: { index: path.join(rootPath, 'index.ts') },
-  platform: 'node',
   external: externals,
-  plugins: [
-    createLibStubPlugin({ stubPattern: LIB_STUB_PATTERN }),
-    createCodeStubPlugin([
-      { pattern: MIME_DB_PATTERN, code: MIME_DB_STUB },
-      { pattern: OPERATIONS_PATTERN, code: OPERATIONS_STUB },
-    ]),
-  ],
+  input: { index: path.join(rootPath, 'index.ts') },
   output: {
     dir: distPath,
     format: 'cjs',
@@ -105,4 +97,12 @@ export const buildConfig: RolldownOptions = {
     minify: false,
     banner: '"use strict";\n/* Socket MCP — bundled with rolldown */',
   },
+  platform: 'node',
+  plugins: [
+    createLibStubPlugin({ stubPattern: LIB_STUB_PATTERN }),
+    createCodeStubPlugin([
+      { pattern: MIME_DB_PATTERN, code: MIME_DB_STUB },
+      { pattern: OPERATIONS_PATTERN, code: OPERATIONS_STUB },
+    ]),
+  ],
 }

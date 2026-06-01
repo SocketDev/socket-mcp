@@ -76,7 +76,7 @@ export async function handleDelete(
     writeJson(res, 404, {
       jsonrpc: '2.0',
       error: {
-        code: -32000,
+        code: -32_000,
         message: 'Not Found: Invalid or expired session.',
       },
       id: undefined,
@@ -90,7 +90,7 @@ export async function handleDelete(
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
-        error: { code: -32603, message: 'Internal server error' },
+        error: { code: -32_603, message: 'Internal server error' },
         id: undefined,
       })
     }
@@ -111,7 +111,7 @@ export async function handleGet(
     writeJson(res, 404, {
       jsonrpc: '2.0',
       error: {
-        code: -32000,
+        code: -32_000,
         message: 'Not Found: Invalid or expired session. Re-initialize.',
       },
       id: undefined,
@@ -126,7 +126,7 @@ export async function handleGet(
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
-        error: { code: -32603, message: 'Internal server error' },
+        error: { code: -32_603, message: 'Internal server error' },
         id: undefined,
       })
     }
@@ -150,7 +150,7 @@ export async function handlePost(
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
-        error: { code: -32603, message: 'Internal server error' },
+        error: { code: -32_603, message: 'Internal server error' },
         id: undefined,
       })
     }
@@ -199,7 +199,7 @@ export async function handlePost(
       writeJson(res, 400, {
         jsonrpc: '2.0',
         error: {
-          code: -32000,
+          code: -32_000,
           message: 'Bad Request: No valid session. Send initialize first.',
         },
         id: undefined,
@@ -220,7 +220,7 @@ export async function handlePost(
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
-        error: { code: -32603, message: 'Internal server error' },
+        error: { code: -32_603, message: 'Internal server error' },
         id: undefined,
       })
     }
@@ -303,7 +303,7 @@ export async function routeRequest(
     logger.warn(`Invalid URL in request: ${req.url} - ${error}`)
     writeJson(res, 400, {
       jsonrpc: '2.0',
-      error: { code: -32000, message: 'Bad Request: Invalid URL' },
+      error: { code: -32_000, message: 'Bad Request: Invalid URL' },
       id: undefined,
     })
     return
@@ -332,7 +332,7 @@ export async function routeRequest(
     )
     writeJson(res, 403, {
       jsonrpc: '2.0',
-      error: { code: -32000, message: 'Forbidden: Invalid origin' },
+      error: { code: -32_000, message: 'Forbidden: Invalid origin' },
       id: undefined,
     })
     return

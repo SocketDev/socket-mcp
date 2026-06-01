@@ -155,11 +155,11 @@ For non-trivial work (multi-file refactor, new feature, migration), the plan its
 
 ### Stranded cascades
 
-🚨 Local-only `chore(wheelhouse): cascade template@<sha>` commits + `chore/wheelhouse-<sha>` worktrees whose template SHA has been superseded on origin accumulate from interrupted cascade waves and silently block future pushes. The wheelhouse cascade auto-runs `socket-wheelhouse/scripts/fleet/cleanup-stranded.mts --target <repo>` at the start of every wave (default = fix; pass `--dry-run` to report only). Safety rails: cascade-subject regex match + trusted commit author + strict-ancestor proof of supersession + cascade-allowlist file check. Any ambiguity → bail the whole repo. Full algorithm + recovery instructions in [`docs/claude.md/fleet/stranded-cascades.md`](docs/claude.md/fleet/stranded-cascades.md).
+🚨 Local-only `chore(wheelhouse): cascade template@<sha>` commits + `chore/wheelhouse-<sha>` worktrees whose template SHA has been superseded on origin accumulate from interrupted cascade waves and silently block future pushes. The wheelhouse cascade auto-runs `socket-wheelhouse/scripts/fleet/cleanup-stranded.mts --target <repo>` at the start of every wave (default = fix; pass `--dry-run` to report only). Safety rails + recovery in [`docs/claude.md/fleet/stranded-cascades.md`](docs/claude.md/fleet/stranded-cascades.md).
 
 ### Never fork fleet-canonical files locally
 
-🚨 Edit fleet-canonical files ONLY in `socket-wheelhouse/template/...` — never downstream. Lift missing helpers upstream + re-cascade. **Trust the wheelhouse:** don't grep / read / debug canonical files in downstream repos to verify contents — treat the wheelhouse as oracle (enforced by `.claude/hooks/fleet/no-fleet-fork-guard/`; bypass: `Allow fleet-fork bypass`). Full ruleset: [`docs/claude.md/wheelhouse/no-local-fork-canonical.md`](docs/claude.md/wheelhouse/no-local-fork-canonical.md).
+🚨 Edit fleet-canonical files ONLY in `socket-wheelhouse/template/...` — never downstream. **Trust the wheelhouse:** don't grep / read / debug canonical files downstream — treat the wheelhouse as oracle. **Composite-file rule:** in `CLAUDE.md` only the `BEGIN/END FLEET-CANONICAL` block is canonical; preamble + `🏗️ Project-Specific` postamble are repo-owned — trim them when the whole-file total approaches the 40 KB cap (enforced by `.claude/hooks/fleet/no-fleet-fork-guard/`; bypass: `Allow fleet-fork bypass`). Full ruleset: [`docs/claude.md/wheelhouse/no-local-fork-canonical.md`](docs/claude.md/wheelhouse/no-local-fork-canonical.md).
 
 ### Code style
 
