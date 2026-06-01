@@ -4,7 +4,7 @@ import {
   formatScoreLine,
   parseNdjsonPackageBody,
   parseSinglePackageBody,
-} from '../lib/register-depscore.ts'
+} from '../lib/tool-depscore.ts'
 
 describe('formatScoreLine', () => {
   test('renders a scored package with a report URL', () => {

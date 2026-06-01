@@ -1,6 +1,6 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Type } from '@sinclair/typebox'
+
 import { errorMessage } from '@socketsecurity/lib/errors'
-import { z } from 'zod'
 
 import { getOrFetchBlob } from './blob-cache.ts'
 import { getSocketInternalUserAgent } from './env.ts'
@@ -13,8 +13,31 @@ import {
   authRequiredResult,
   resolveAuthToken,
 } from './server.ts'
+import type { ToolSpec } from './tool-types.ts'
 
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
+
+interface PackageFilesArgs {
+  ecosystem?: string | undefined
+  depname: string
+  version: string
+  artifactId?: string | undefined
+  platform?: string | undefined
+}
+
+interface PackageFileContentsArgs {
+  hash: string
+  path?: string | undefined
+}
+
+interface PackageFileGrepArgs {
+  hash: string
+  pattern: string
+  caseInsensitive?: boolean | undefined
+  contextLines?: number | undefined
+  maxMatches?: number | undefined
+  path?: string | undefined
+}
 
 export function buildPurlForFiles(
   ecosystem: string,
@@ -38,44 +61,93 @@ export function buildPurlForFiles(
   )
 }
 
-export function registerPackageFilesTools(srv: McpServer): void {
-  srv.registerTool(
-    'package_files',
-    {
-      title: 'Package File List Tool',
+const packageFilesInputSchema = Type.Object({
+  ecosystem: Type.String({
+    description:
+      'Package ecosystem (e.g., npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx)',
+    default: 'npm',
+  }),
+  depname: Type.String({
+    description:
+      'Package name (e.g., "lodash", "@babel/core", "org.springframework:spring-core", "meta/pyrefly" for openvsx)',
+  }),
+  version: Type.String({ description: 'Package version' }),
+  artifactId: Type.Optional(
+    Type.String({
       description:
-        "List the files published in a package using the `package_files` tool from Socket. Returns a tree of paths and sizes for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, use `package_file_contents` with one of the paths to read the file's contents.",
-      inputSchema: {
-        ecosystem: z
-          .string()
-          .describe(
-            'Package ecosystem (e.g., npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx)',
-          )
-          .default('npm'),
-        depname: z
-          .string()
-          .describe(
-            'Package name (e.g., "lodash", "@babel/core", "org.springframework:spring-core", "meta/pyrefly" for openvsx)',
-          ),
-        version: z.string().describe('Package version'),
-        artifactId: z
-          .string()
-          .optional()
-          .describe(
-            'Per-version artifact disambiguator (e.g. PyPI filename, Maven artifact id, NuGet asset). Required when an ecosystem ships multiple artifacts per version.',
-          ),
-        platform: z
-          .string()
-          .optional()
-          .describe(
-            "Platform qualifier for ecosystems with per-OS/arch artifacts (e.g. openvsx: 'linux-x64', 'darwin-arm64', 'win32-x64').",
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-      },
-    },
-    async ({ ecosystem, depname, version, artifactId, platform }, extra) => {
+        'Per-version artifact disambiguator (e.g. PyPI filename, Maven artifact id, NuGet asset). Required when an ecosystem ships multiple artifacts per version.',
+    }),
+  ),
+  platform: Type.Optional(
+    Type.String({
+      description:
+        "Platform qualifier for ecosystems with per-OS/arch artifacts (e.g. openvsx: 'linux-x64', 'darwin-arm64', 'win32-x64').",
+    }),
+  ),
+})
+
+const packageFileContentsInputSchema = Type.Object({
+  hash: Type.String({
+    description:
+      'Blob hash exactly as shown by `package_files` (the token printed after each file size)',
+  }),
+  path: Type.Optional(
+    Type.String({
+      description:
+        'Optional file path for display only; does not affect the lookup',
+    }),
+  ),
+})
+
+const packageFileGrepInputSchema = Type.Object({
+  hash: Type.String({
+    description:
+      'Blob hash exactly as shown by `package_files` (the token printed after each file size)',
+  }),
+  pattern: Type.String({
+    description:
+      'JavaScript regular expression. Plain literal strings work too. Anchors and character classes are supported.',
+  }),
+  caseInsensitive: Type.Optional(
+    Type.Boolean({
+      description: 'Match case-insensitively (default: false)',
+    }),
+  ),
+  contextLines: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      maximum: 5,
+      description:
+        'Lines of context to show before and after each match (0-5, default: 0)',
+    }),
+  ),
+  maxMatches: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      maximum: 500,
+      description:
+        'Cap on number of matching lines returned (default: 100, max: 500)',
+    }),
+  ),
+  path: Type.Optional(
+    Type.String({
+      description:
+        'Optional file path for display only; does not affect the lookup',
+    }),
+  ),
+})
+
+export function definePackageFilesTool(): ToolSpec {
+  return {
+    name: 'package_files',
+    title: 'Package File List Tool',
+    description:
+      "List the files published in a package using the `package_files` tool from Socket. Returns a tree of paths and sizes for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, use `package_file_contents` with one of the paths to read the file's contents.",
+    inputSchema: packageFilesInputSchema,
+    annotations: { readOnlyHint: true },
+    async handler(rawArgs, extra) {
+      const args = rawArgs as unknown as PackageFilesArgs
+      const { ecosystem, depname, version, artifactId, platform } = args
       const purlWithQualifiers = buildPurlForFiles(
         ecosystem ?? 'npm',
         depname,
@@ -129,32 +201,20 @@ export function registerPackageFilesTools(srv: McpServer): void {
         }
       }
     },
-  )
+  }
+}
 
-  srv.registerTool(
-    'package_file_contents',
-    {
-      title: 'Package File Contents Tool',
-      description:
-        'Read a single file from a package using the `package_file_contents` tool from Socket. Pass the `hash` printed next to each entry in `package_files` output. Returns up to 1 MB of UTF-8 text; binary files return metadata only.',
-      inputSchema: {
-        hash: z
-          .string()
-          .describe(
-            'Blob hash exactly as shown by `package_files` (the token printed after each file size)',
-          ),
-        path: z
-          .string()
-          .optional()
-          .describe(
-            'Optional file path for display only; does not affect the lookup',
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-      },
-    },
-    async ({ hash, path }) => {
+export function definePackageFileContentsTool(): ToolSpec {
+  return {
+    name: 'package_file_contents',
+    title: 'Package File Contents Tool',
+    description:
+      'Read a single file from a package using the `package_file_contents` tool from Socket. Pass the `hash` printed next to each entry in `package_files` output. Returns up to 1 MB of UTF-8 text; binary files return metadata only.',
+    inputSchema: packageFileContentsInputSchema,
+    annotations: { readOnlyHint: true },
+    async handler(rawArgs) {
+      const args = rawArgs as unknown as PackageFileContentsArgs
+      const { hash, path } = args
       const label = path ?? hash
       logger.info({ tool: 'package_file_contents', hash, path }, 'tool invoked')
       try {
@@ -190,66 +250,21 @@ export function registerPackageFilesTools(srv: McpServer): void {
         }
       }
     },
-  )
+  }
+}
 
-  srv.registerTool(
-    'package_file_grep',
-    {
-      title: 'Package File Grep Tool',
-      description:
-        'Search a single file from a package for lines matching a JavaScript regular expression. Pass the `hash` printed next to each entry in `package_files` output. The file is fetched from Socket once per session and cached, so repeated greps on the same hash skip the network. Returns matching lines with line numbers (grep -n style); binary files are refused. Useful for locating a specific symbol, import, or string inside a dependency without dumping the whole file.',
-      inputSchema: {
-        hash: z
-          .string()
-          .describe(
-            'Blob hash exactly as shown by `package_files` (the token printed after each file size)',
-          ),
-        pattern: z
-          .string()
-          .describe(
-            'JavaScript regular expression. Plain literal strings work too. Anchors and character classes are supported.',
-          ),
-        caseInsensitive: z
-          .boolean()
-          .optional()
-          .describe('Match case-insensitively (default: false)'),
-        contextLines: z
-          .number()
-          .int()
-          .min(0)
-          .max(5)
-          .optional()
-          .describe(
-            'Lines of context to show before and after each match (0-5, default: 0)',
-          ),
-        maxMatches: z
-          .number()
-          .int()
-          .min(1)
-          .max(500)
-          .optional()
-          .describe(
-            'Cap on number of matching lines returned (default: 100, max: 500)',
-          ),
-        path: z
-          .string()
-          .optional()
-          .describe(
-            'Optional file path for display only; does not affect the lookup',
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-      },
-    },
-    async ({
-      hash,
-      pattern,
-      caseInsensitive,
-      contextLines,
-      maxMatches,
-      path,
-    }) => {
+export function definePackageFileGrepTool(): ToolSpec {
+  return {
+    name: 'package_file_grep',
+    title: 'Package File Grep Tool',
+    description:
+      'Search a single file from a package for lines matching a JavaScript regular expression. Pass the `hash` printed next to each entry in `package_files` output. The file is fetched from Socket once per session and cached, so repeated greps on the same hash skip the network. Returns matching lines with line numbers (grep -n style); binary files are refused. Useful for locating a specific symbol, import, or string inside a dependency without dumping the whole file.',
+    inputSchema: packageFileGrepInputSchema,
+    annotations: { readOnlyHint: true },
+    async handler(rawArgs) {
+      const args = rawArgs as unknown as PackageFileGrepArgs
+      const { hash, pattern, caseInsensitive, contextLines, maxMatches, path } =
+        args
       const label = path ?? hash
       const cap = maxMatches ?? 100
       const ctx = contextLines ?? 0
@@ -350,5 +365,5 @@ export function registerPackageFilesTools(srv: McpServer): void {
         }
       }
     },
-  )
+  }
 }

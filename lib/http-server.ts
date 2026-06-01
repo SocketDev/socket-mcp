@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
@@ -28,7 +28,7 @@ import { VERSION } from './version.ts'
 // before subsequent RPC calls.
 interface Session {
   transport: StreamableHTTPServerTransport
-  server: McpServer
+  server: Server
   lastActivity: number
 }
 

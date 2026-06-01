@@ -1,12 +1,22 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 
 import { getSocketApiUrl } from './env.ts'
-import { registerAlertsTool } from './register-alerts.ts'
-import { registerDepscoreTool } from './register-depscore.ts'
-import { registerOrganizationsTool } from './register-organizations.ts'
-import { registerPackageFilesTools } from './register-package-files.ts'
-import { registerThreatFeedTool } from './register-threat-feed.ts'
+import { defineAlertsTool } from './tool-alerts.ts'
+import { defineDepscoreTool } from './tool-depscore.ts'
+import {
+  definePackageFileContentsTool,
+  definePackageFileGrepTool,
+  definePackageFilesTool,
+} from './tool-package-files.ts'
+import { defineOrganizationsTool } from './tool-organizations.ts'
+import { defineThreatFeedTool } from './tool-threat-feed.ts'
 import { withToolLogging } from './tool-logging.ts'
+import type { ToolHandler } from './tool-logging.ts'
+import type { ToolCallResult, ToolHandlerExtra, ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'
 
 export interface ToolErrorResult {
@@ -41,19 +51,80 @@ export function authRequiredResult(): ToolErrorResult {
   return errorResult(AUTH_REQUIRED_MSG)
 }
 
-// Build a configured McpServer with every Socket tool registered. Used for
-// stdio (single instance) and HTTP (one per session). withToolLogging wraps
-// registerTool so all tools get uniform call/error logging.
-export function createConfiguredServer(): McpServer {
-  const srv = withToolLogging(
-    new McpServer({ name: 'socket', version: VERSION }),
+/**
+ * Build the canonical set of tool specs. Each tool ships its own
+ * `define*Tool()` factory so the data + handler stay co-located; this
+ * function just collects them. Order here is the order clients see in
+ * `tools/list`.
+ */
+function buildToolSpecs(): ToolSpec[] {
+  return [
+    defineDepscoreTool(),
+    defineOrganizationsTool(),
+    defineAlertsTool(),
+    defineThreatFeedTool(),
+    definePackageFilesTool(),
+    definePackageFileContentsTool(),
+    definePackageFileGrepTool(),
+  ]
+}
+
+/**
+ * Build a configured low-level `Server` instance with every Socket tool
+ * registered. Used for stdio (single instance) and HTTP (one per session).
+ *
+ * Migration note: previously this used the high-level `McpServer`, which
+ * bakes zod adapters into `registerTool`. The low-level `Server` accepts
+ * raw JSON Schema in `Tool.inputSchema` — which is exactly what TypeBox's
+ * `Type.Object({...})` produces. So every tool's input schema flows through
+ * the SDK to clients verbatim; no zod, no extra validation layer here.
+ */
+export function createConfiguredServer(): Server {
+  const specs = buildToolSpecs()
+  const handlers = new Map<string, ToolHandler>(
+    specs.map(spec => [
+      spec.name,
+      withToolLogging(spec.name, spec.handler.bind(spec)),
+    ]),
   )
-  registerDepscoreTool(srv)
-  registerOrganizationsTool(srv)
-  registerAlertsTool(srv)
-  registerThreatFeedTool(srv)
-  registerPackageFilesTools(srv)
-  return srv
+
+  const server = new Server(
+    { name: 'socket', version: VERSION },
+    { capabilities: { tools: {} } },
+  )
+
+  server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: specs.map(spec => ({
+      name: spec.name,
+      title: spec.title,
+      description: spec.description,
+      inputSchema: spec.inputSchema,
+      ...(spec.annotations ? { annotations: spec.annotations } : {}),
+    })),
+  }))
+
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    const { name } = request.params
+    const handler = handlers.get(name)
+    if (!handler) {
+      // The SDK's CallTool spec returns an error result (not an exception)
+      // for an unknown name — clients render it the same way as any other
+      // tool error.
+      const message = `Unknown tool: ${name}`
+      return {
+        content: [{ type: 'text', text: message }],
+        isError: true,
+      } as ToolCallResult
+    }
+    // `request.params.arguments` is optional in the SDK shape; tools that
+    // declare empty inputSchemas (e.g. organizations) get undefined here.
+    const args = (request.params.arguments ?? {}) as Record<string, unknown>
+    // extra carries authInfo + transport extras; shape-cast to our local
+    // type so the handler sees a stable signature.
+    return handler(args, extra as unknown as ToolHandlerExtra)
+  })
+
+  return server
 }
 
 export function errorResult(text: string): ToolErrorResult {

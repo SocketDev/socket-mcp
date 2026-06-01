@@ -10,7 +10,7 @@ import {
 import { debug } from './logger.ts'
 
 // Process-wide LRU blob cache keyed by content-addressed hash. Survives across
-// stateless HTTP requests (each request gets a fresh McpServer) so repeated
+// stateless HTTP requests (each request gets a fresh MCP server) so repeated
 // reads/greps of the same file skip the socketusercontent fetch.
 const BLOB_CACHE_MAX_BYTES = getSocketBlobCacheBytes()
 const SOCKET_BLOB_URL = getSocketBlobUrl()

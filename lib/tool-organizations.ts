@@ -1,4 +1,5 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Type } from '@sinclair/typebox'
+
 import { errorMessage } from '@socketsecurity/lib/errors'
 
 import { logger } from './logger.ts'
@@ -9,22 +10,18 @@ import {
   authRequiredResult,
   resolveAuthToken,
 } from './server.ts'
+import type { ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'
 
-export function registerOrganizationsTool(srv: McpServer): void {
-  srv.registerTool(
-    'organizations',
-    {
-      title: 'List Organizations Tool',
-      description:
-        'List the Socket organizations the authenticated user belongs to with the `organizations` tool. Use this to discover the `org_slug` values needed by other org-scoped tools (e.g. `alerts`, `threat_feed`), or when the user asks which organizations they have access to.',
-      inputSchema: {},
-      annotations: {
-        readOnlyHint: true,
-      },
-    },
-    async (args, extra) => {
-      void args
+export function defineOrganizationsTool(): ToolSpec {
+  return {
+    name: 'organizations',
+    title: 'List Organizations Tool',
+    description:
+      'List the Socket organizations the authenticated user belongs to with the `organizations` tool. Use this to discover the `org_slug` values needed by other org-scoped tools (e.g. `alerts`, `threat_feed`), or when the user asks which organizations they have access to.',
+    inputSchema: Type.Object({}),
+    annotations: { readOnlyHint: true },
+    async handler(_args, extra) {
       logger.info({ tool: 'organizations' }, 'tool invoked')
       const accessToken = resolveAuthToken(extra.authInfo?.token)
       if (!accessToken) {
@@ -49,5 +46,5 @@ export function registerOrganizationsTool(srv: McpServer): void {
         }
       }
     },
-  )
+  }
 }

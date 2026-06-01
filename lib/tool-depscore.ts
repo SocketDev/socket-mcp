@@ -1,9 +1,9 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Type } from '@sinclair/typebox'
+
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
 import { errorMessage } from '@socketsecurity/lib/errors'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
-import { z } from 'zod'
 
 import { deduplicateArtifacts } from './artifacts.ts'
 import { getSocketApiUrl } from './env.ts'
@@ -13,8 +13,9 @@ import { buildPurl } from './purl.ts'
 import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.ts'
 import type { ToolErrorResult, ToolOkResult } from './server.ts'
 import { buildSocketReportUrl } from './socket-url.ts'
+import type { ToolSpec } from './tool-types.ts'
 
-interface DepscorePackageInput {
+export interface DepscorePackageInput {
   ecosystem?: string | undefined
   depname: string
   version?: string | undefined
@@ -29,32 +30,32 @@ const DEFAULT_SOCKET_API_URL = envAsBoolean(getSocketDebug())
 
 const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
 
-// Single shared schema reused by both stdio and HTTP modes.
-const depscoreInputSchema = {
-  packages: z
-    .array(
-      z.object({
-        ecosystem: z
-          .string()
-          .describe(
-            'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP). See https://docs.socket.dev/docs/language-support',
-          )
-          .default('npm'),
-        depname: z.string().describe('The name of the dependency'),
-        version: z
-          .string()
-          .describe("The version of the dependency, use 'unknown' if not known")
-          .default('unknown'),
+// Single shared JSON Schema (via TypeBox) reused by both stdio and HTTP
+// modes. TypeBox `Type.Object` returns native JSON Schema — the SDK ships
+// it verbatim to clients as `Tool.inputSchema`.
+const depscoreInputSchema = Type.Object({
+  packages: Type.Array(
+    Type.Object({
+      ecosystem: Type.String({
+        description:
+          'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP). See https://docs.socket.dev/docs/language-support',
+        default: 'npm',
       }),
-    )
-    .describe('Array of packages to check'),
-  platform: z
-    .string()
-    .optional()
-    .describe(
-      "Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds.",
-    ),
-}
+      depname: Type.String({ description: 'The name of the dependency' }),
+      version: Type.String({
+        description: "The version of the dependency, use 'unknown' if not known",
+        default: 'unknown',
+      }),
+    }),
+    { description: 'Array of packages to check' },
+  ),
+  platform: Type.Optional(
+    Type.String({
+      description:
+        "Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds.",
+    }),
+  ),
+})
 
 // Convert the depscore input list into PURLs ready for the components payload,
 // stripping semver range prefixes from versions.
@@ -105,9 +106,6 @@ export function formatScoreLine(jsonData: Record<string, unknown>): string {
   return `${purl}: No score found`
 }
 
-// Build the depscore handler — pulled out so the MCP registration is readable.
-// The handler closes over the access token retrieval chain (request authInfo →
-// env token).
 export async function handleDepscore(
   packages: DepscorePackageInput[],
   platform: string | undefined,
@@ -242,19 +240,18 @@ export function parseSinglePackageBody(responseText: string): string[] {
   return [formatScoreLine(jsonData)]
 }
 
-export function registerDepscoreTool(srv: McpServer): void {
-  srv.registerTool(
-    'depscore',
-    {
-      title: 'Dependency Score Tool',
-      description:
-        "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
-      inputSchema: depscoreInputSchema,
-      annotations: {
-        readOnlyHint: true,
-      },
+export function defineDepscoreTool(): ToolSpec {
+  return {
+    name: 'depscore',
+    title: 'Dependency Score Tool',
+    description:
+      "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+    inputSchema: depscoreInputSchema,
+    annotations: { readOnlyHint: true },
+    handler(args, extra) {
+      const packages = args['packages'] as DepscorePackageInput[]
+      const platform = args['platform'] as string | undefined
+      return handleDepscore(packages, platform, extra.authInfo?.token)
     },
-    async ({ packages, platform }, extra) =>
-      handleDepscore(packages, platform, extra.authInfo?.token),
-  )
+  }
 }
