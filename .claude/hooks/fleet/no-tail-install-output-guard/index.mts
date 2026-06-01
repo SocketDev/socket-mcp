@@ -81,10 +81,12 @@ const PNPM_RUN_SCRIPTS = new Set([
 // `head`. Pipes are the only operator that matters — `&&`, `||`, `;`,
 // `&` separate independent commands, so `pnpm i && echo done | tail -5`
 // is NOT the bad pattern (the tail consumes `echo`, not `pnpm`).
-function findOffendingPipe(command: string): {
-  install: string
-  truncator: string
-} | undefined {
+function findOffendingPipe(command: string):
+  | {
+      install: string
+      truncator: string
+    }
+  | undefined {
   let entries: ParseEntry[]
   try {
     entries = parse(command)
@@ -111,7 +113,14 @@ function findOffendingPipe(command: string): {
       continue
     }
     if (isOp(e)) {
-      if (e.op === '|' || e.op === '||' || e.op === '&&' || e.op === ';' || e.op === '&' || e.op === '\n') {
+      if (
+        e.op === '|' ||
+        e.op === '||' ||
+        e.op === '&&' ||
+        e.op === ';' ||
+        e.op === '&' ||
+        e.op === '\n'
+      ) {
         flush(e.op)
         continue
       }

@@ -145,6 +145,7 @@ minimumReleaseAgeExclude:
   - '@rolldown/binding-win32-x64-msvc@1.0.3'
   # published: 2026-05-26 | removable: 2026-06-02
   - '@oxc-project/types@0.133.0'
+  - 'shell-quote'
 
 pmOnFail: error
 resolutionMode: highest
