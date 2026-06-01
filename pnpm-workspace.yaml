@@ -63,8 +63,9 @@ overrides:
   'path-to-regexp': '8.4.2'
   # GHSA-q8mj-m7cp-5q26 qs (transitive via express/body-parser); fixed in 6.15.2
   'qs': '6.15.2'
-  # advisory #42 arbitrary file/directory write via symlink
-  'tmp': '0.2.5'
+  # advisory #42 arbitrary file/directory write via symlink;
+  # GHSA-ph9p-34f9-6g65 symlink-traversal fixed in 0.2.6
+  'tmp': '0.2.6'
   'zod': '3.25.76'
   'zod-to-json-schema': '3.25.1'
 
@@ -150,6 +151,9 @@ minimumReleaseAgeExclude:
   - 'shell-quote'
   - '@ultrathink/*'
   - '@yuku-parser/*'
+  # security fix for GHSA-ph9p-34f9-6g65; bypassing soak to land the patch now
+  # published: 2026-05-26 | removable: 2026-06-02
+  - 'tmp@0.2.6'
 
 pmOnFail: error
 resolutionMode: highest
