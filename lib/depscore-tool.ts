@@ -7,6 +7,7 @@ import { deduplicateArtifacts } from './artifacts.ts'
 import { buildSocketHeaders } from './http-helpers.ts'
 import { logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
+import { buildSocketReportUrl } from './socket-url.ts'
 import { VERSION } from './version.ts'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 
@@ -140,7 +141,8 @@ export function formatScoreLine(jsonData: Record<string, unknown>): string {
   const purl = `pkg:${jsonData['type'] || 'unknown'}/${ns}${jsonData['name'] || 'unknown'}@${jsonData['version'] || 'unknown'}`
   const score = jsonData['score'] as Record<string, unknown> | undefined
   if (score && score['overall'] !== undefined) {
-    return `${purl}: ${formatScoreEntries(score)}`
+    const reportUrl = buildSocketReportUrl(jsonData)
+    return `${purl}: ${formatScoreEntries(score)}\n  Report: ${reportUrl}`
   }
   return `${purl}: No score found`
 }

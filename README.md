@@ -247,7 +247,9 @@ Sample response:
 
 ```
 pkg:npm/express@4.18.2: supply_chain: 1.0, quality: 0.9, maintenance: 1.0, vulnerability: 1.0, license: 1.0
+  Report: https://socket.dev/npm/package/express
 pkg:pypi/fastapi@0.100.0: supply_chain: 1.0, quality: 0.95, maintenance: 0.98, vulnerability: 1.0, license: 1.0
+  Report: https://socket.dev/pypi/package/fastapi
 ```
 
 ### Adjusting tool usage via client rules
