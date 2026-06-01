@@ -122,16 +122,22 @@ export async function fetchChunkedBytes(
   }
   const chunks = manifest.chunks as string[]
   const totalSize = typeof manifest.size === 'number' ? manifest.size : -1
+  // Offsets are usable only when every entry is a number AND there's one per
+  // chunk. Check both together so a single non-numeric entry yields undefined
+  // (skip the optimization) rather than a short, mismatched array.
+  const rawOffset = manifest.offset
   const offsets =
-    Array.isArray(manifest.offset) && manifest.offset.length === chunks.length
-      ? manifest.offset.filter((n): n is number => typeof n === 'number')
+    Array.isArray(rawOffset) &&
+    rawOffset.length === chunks.length &&
+    rawOffset.every(n => typeof n === 'number')
+      ? (rawOffset as number[])
       : undefined
 
   // Decide how many chunks we actually need. With offsets we can stop at the
   // first chunk whose start is at or past maxBytes; without, we fetch
   // everything and truncate after concatenation.
   let needed = chunks.length
-  if (offsets && offsets.length === chunks.length) {
+  if (offsets) {
     needed = 0
     for (let i = 0; i < chunks.length; i += 1) {
       if (offsets[i]! >= maxBytes) {

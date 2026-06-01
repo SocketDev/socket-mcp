@@ -35,6 +35,12 @@ export const AUTH_REQUIRED_MSG =
 // no per-request authInfo token.
 let staticApiKey: string = ''
 
+// Shared "auth missing" tool result — every tool returns the same shape so
+// clients get a consistent error.
+export function authRequiredResult(): ToolErrorResult {
+  return errorResult(AUTH_REQUIRED_MSG)
+}
+
 // Build a configured McpServer with every Socket tool registered. Used for
 // stdio (single instance) and HTTP (one per session). withToolLogging wraps
 // registerTool so all tools get uniform call/error logging.
@@ -59,6 +65,15 @@ export function errorResult(text: string): ToolErrorResult {
 
 export function getStaticApiKey(): string {
   return staticApiKey
+}
+
+// Resolve the access token a tool should use: the per-request OAuth token
+// (HTTP mode) takes precedence, falling back to the boot-time static key
+// (stdio mode). Returns undefined when neither is available.
+export function resolveAuthToken(
+  authInfoToken: string | undefined,
+): string | undefined {
+  return authInfoToken || staticApiKey || undefined
 }
 
 // Set the static API key. Called once during boot from index.ts. Subsequent

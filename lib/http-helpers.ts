@@ -14,6 +14,28 @@ import { VERSION } from './version.ts'
 // semantics stay in lockstep across the fleet.
 export const TRUST_PROXY: boolean = getTrustProxy()
 
+// Build request headers for the JSON REST endpoints (alerts, organizations,
+// threat-feed, file-list): `accept: application/json` plus optional user-agent,
+// bearer token, and caller extra headers. Shared so the four data modules
+// don't each re-spell the same header-assembly block.
+export function buildJsonApiHeaders(options: {
+  userAgent?: string | undefined
+  authToken?: string | undefined
+  extraHeaders?: Record<string, string> | undefined
+}): Record<string, string> {
+  const headers: Record<string, string> = { accept: 'application/json' }
+  if (options.userAgent) {
+    headers['user-agent'] = options.userAgent
+  }
+  if (options.authToken) {
+    headers['authorization'] = `Bearer ${options.authToken}`
+  }
+  if (options.extraHeaders) {
+    Object.assign(headers, options.extraHeaders)
+  }
+  return headers
+}
+
 // Build the Socket API request headers carrying the optional bearer token.
 // The Accept header pins NDJSON so the depscore handler can stream rows
 // instead of buffering a full JSON document.

@@ -7,7 +7,8 @@ import { logger } from './logger.ts'
 import {
   AUTH_REQUIRED_MSG,
   SOCKET_API_BASE_URL,
-  getStaticApiKey,
+  authRequiredResult,
+  resolveAuthToken,
 } from './server.ts'
 import { VERSION } from './version.ts'
 
@@ -90,12 +91,10 @@ export function registerAlertsTool(srv: McpServer): void {
         },
         'tool invoked',
       )
-      const accessToken = extra.authInfo?.token || getStaticApiKey()
+      const accessToken = resolveAuthToken(extra.authInfo?.token)
       if (!accessToken) {
-        return {
-          content: [{ type: 'text', text: AUTH_REQUIRED_MSG }],
-          isError: true,
-        }
+        logger.error('alerts: ' + AUTH_REQUIRED_MSG)
+        return authRequiredResult()
       }
       try {
         const data = await fetchAlerts({

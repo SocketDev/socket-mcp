@@ -1,5 +1,7 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
+import { buildJsonApiHeaders } from './http-helpers.ts'
+
 export interface AlertsFilters {
   // Comma-separated subset of: low,medium,high,critical
   severity?: string | undefined
@@ -83,18 +85,7 @@ export async function fetchAlerts(
   const qs = buildAlertsQuery(options.filters).toString()
   const url = `${baseUrl}/v0/orgs/${encodeURIComponent(options.orgSlug)}/alerts${qs ? `?${qs}` : ''}`
 
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
-  }
-  if (options.authToken) {
-    headers['authorization'] = `Bearer ${options.authToken}`
-  }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
-  }
-
-  const res = await httpRequest(url, { headers })
+  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
   if (!res.ok) {
     throw new Error(`alerts endpoint ${res.status}: ${res.text()}`)
   }

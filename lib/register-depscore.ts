@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
+import { errorMessage } from '@socketsecurity/lib/errors'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { z } from 'zod'
@@ -9,7 +10,7 @@ import { getSocketApiUrl } from './env.ts'
 import { buildSocketHeaders } from './http-helpers.ts'
 import { logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
-import { AUTH_REQUIRED_MSG, errorResult, getStaticApiKey } from './server.ts'
+import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.ts'
 import type { ToolErrorResult, ToolOkResult } from './server.ts'
 import { buildSocketReportUrl } from './socket-url.ts'
 
@@ -113,7 +114,7 @@ export async function handleDepscore(
   accessTokenFromAuth: string | undefined,
 ): Promise<ToolOkResult | ToolErrorResult> {
   logger.info(`Received request for ${packages.length} packages`)
-  const accessToken = accessTokenFromAuth || getStaticApiKey()
+  const accessToken = resolveAuthToken(accessTokenFromAuth)
   if (!accessToken) {
     logger.error(AUTH_REQUIRED_MSG)
     return errorResult(AUTH_REQUIRED_MSG)
@@ -129,8 +130,7 @@ export async function handleDepscore(
       body: JSON.stringify({ components }),
     })
   } catch (e) {
-    const error = e as Error
-    logger.error(`Error processing packages: ${error.message}`)
+    logger.error(`Error processing packages: ${errorMessage(e)}`)
     return errorResult('Error connecting to Socket API')
   }
 
@@ -187,8 +187,7 @@ export async function handleDepscore(
       ],
     }
   } catch (e) {
-    const error = e as Error
-    const errorMsg = `JSON parsing error: ${error.message} -- Response: ${responseText}`
+    const errorMsg = `JSON parsing error: ${errorMessage(e)} -- Response: ${responseText}`
     logger.error(errorMsg)
     return errorResult('Error parsing response from Socket API')
   }
@@ -201,11 +200,27 @@ export function parseNdjsonPackageBody(
   responseText: string,
   platform: string | undefined,
 ): string[] | { error: string } {
-  const jsonLines = responseText
-    .split('\n')
-    .filter(line => line.trim())
-    .map(line => JSON.parse(line))
-    .filter((obj: Record<string, unknown>) => !obj['_type'])
+  // Parse line-by-line so one malformed line doesn't discard the whole
+  // batch — NDJSON is line-oriented, and a truncated/garbage line is skipped
+  // (logged) rather than thrown.
+  const jsonLines: Array<Record<string, unknown>> = []
+  const lines = responseText.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!.trim()
+    if (!line) {
+      continue
+    }
+    let obj: Record<string, unknown>
+    try {
+      obj = JSON.parse(line) as Record<string, unknown>
+    } catch (e) {
+      logger.error(`Skipping malformed NDJSON line ${i + 1}: ${errorMessage(e)}`)
+      continue
+    }
+    if (!obj['_type']) {
+      jsonLines.push(obj)
+    }
+  }
 
   if (!jsonLines.length) {
     return { error: 'No valid JSON objects found in NDJSON response' }

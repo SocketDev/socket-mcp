@@ -10,7 +10,8 @@ import { buildPurl } from './purl.ts'
 import {
   AUTH_REQUIRED_MSG,
   SOCKET_API_BASE_URL,
-  getStaticApiKey,
+  authRequiredResult,
+  resolveAuthToken,
 } from './server.ts'
 
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
@@ -94,12 +95,10 @@ export function registerPackageFilesTools(srv: McpServer): void {
         },
         'tool invoked',
       )
-      const accessToken = extra.authInfo?.token || getStaticApiKey()
+      const accessToken = resolveAuthToken(extra.authInfo?.token)
       if (!accessToken) {
-        return {
-          content: [{ type: 'text', text: AUTH_REQUIRED_MSG }],
-          isError: true,
-        }
+        logger.error('package_files: ' + AUTH_REQUIRED_MSG)
+        return authRequiredResult()
       }
       try {
         const result = await fetchFileList(purlWithQualifiers, {

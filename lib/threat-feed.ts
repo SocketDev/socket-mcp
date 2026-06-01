@@ -1,5 +1,7 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
+import { buildJsonApiHeaders } from './http-helpers.ts'
+
 export interface ThreatFeedFilters {
   // 1..100. API caps at 100 and defaults to 30.
   perPage?: number | undefined
@@ -96,18 +98,7 @@ export async function fetchThreatFeed(
   const qs = buildThreatFeedQuery(options.filters).toString()
   const url = `${baseUrl}/v0/orgs/${encodeURIComponent(options.orgSlug)}/threat-feed${qs ? `?${qs}` : ''}`
 
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
-  }
-  if (options.authToken) {
-    headers['authorization'] = `Bearer ${options.authToken}`
-  }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
-  }
-
-  const res = await httpRequest(url, { headers })
+  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
   if (!res.ok) {
     throw new Error(`threat-feed endpoint ${res.status}: ${res.text()}`)
   }

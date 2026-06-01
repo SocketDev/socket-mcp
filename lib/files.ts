@@ -1,5 +1,7 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
+import { buildJsonApiHeaders } from './http-helpers.ts'
+
 export function buildTree(entries: FileListEntry[]): TreeNode {
   const root: TreeNode = { name: '', isFile: false, children: new Map() }
   for (let e = 0, { length } = entries; e < length; e += 1) {
@@ -120,16 +122,7 @@ export async function fetchFileList(
   const baseUrl = options.baseUrl.replace(/\/$/u, '')
   const url = `${baseUrl}/v0/purl/file-list/${encodeURIComponent(purlStr)}`
 
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
-  }
-  if (options.authToken) {
-    headers['authorization'] = `Bearer ${options.authToken}`
-  }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
-  }
+  const headers = buildJsonApiHeaders(options)
   options.onRequest?.(url)
   let res
   try {

@@ -1,5 +1,7 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
+import { buildJsonApiHeaders } from './http-helpers.ts'
+
 export interface FetchOrganizationsOptions {
   baseUrl: string
   userAgent?: string | undefined
@@ -19,18 +21,7 @@ export async function fetchOrganizations(
   const baseUrl = options.baseUrl.replace(/\/$/u, '')
   const url = `${baseUrl}/v0/organizations`
 
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
-  }
-  if (options.authToken) {
-    headers['authorization'] = `Bearer ${options.authToken}`
-  }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
-  }
-
-  const res = await httpRequest(url, { headers })
+  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
   if (!res.ok) {
     throw new Error(`organizations endpoint ${res.status}: ${res.text()}`)
   }

@@ -26,12 +26,17 @@ const BYPASS_HEADERS: Record<string, string> =
     : {}
 
 const cache = new Map<string, BlobResult>()
+// In-flight fetches, keyed by hash. Concurrent misses for the same hash share
+// one promise so the blob is fetched + accounted exactly once (no double-count
+// of cacheBytes, no duplicate network calls).
+const inFlight = new Map<string, Promise<BlobResult>>()
 let cacheBytes = 0
 
 export function blobWeight(blob: BlobResult): number {
-  // Account for a small fixed overhead so binary entries (empty text) still
-  // occupy a slot.
-  return blob.text.length + 256
+  // Weight by UTF-8 byte length (not UTF-16 .length) so the byte cap is
+  // honored for multibyte content, plus a fixed overhead so binary entries
+  // (empty text) still occupy a slot.
+  return Buffer.byteLength(blob.text, 'utf8') + 512
 }
 
 export function evict(): void {
@@ -43,7 +48,7 @@ export function evict(): void {
     const victim = cache.get(oldest)
     cache.delete(oldest)
     if (victim) {
-      cacheBytes -= blobWeight(victim)
+      cacheBytes = Math.max(0, cacheBytes - blobWeight(victim))
     }
     debug(
       { hash: oldest, cacheBytes, cacheSize: cache.size },
@@ -60,14 +65,32 @@ export async function getOrFetchBlob(hash: string): Promise<BlobResult> {
     cache.set(hash, cached)
     return cached
   }
-  const blob = await fetchBlob(hash, {
-    baseUrl: SOCKET_BLOB_URL,
-    userAgent: BROWSER_USER_AGENT,
-    extraHeaders: BYPASS_HEADERS,
-    onRequest: url => debug({ url }, 'blob request'),
-  })
-  cache.set(hash, blob)
-  cacheBytes += blobWeight(blob)
-  evict()
-  return blob
+  // Coalesce concurrent misses for the same hash onto a single fetch.
+  const pending = inFlight.get(hash)
+  if (pending) {
+    return pending
+  }
+  const fetchPromise = (async () => {
+    try {
+      const blob = await fetchBlob(hash, {
+        baseUrl: SOCKET_BLOB_URL,
+        userAgent: BROWSER_USER_AGENT,
+        extraHeaders: BYPASS_HEADERS,
+        onRequest: url => debug({ url }, 'blob request'),
+      })
+      const weight = blobWeight(blob)
+      // Only cache blobs that fit under the cap; a single blob larger than the
+      // whole cache is returned but never stored, so the cap invariant holds.
+      if (weight <= BLOB_CACHE_MAX_BYTES) {
+        cache.set(hash, blob)
+        cacheBytes += weight
+        evict()
+      }
+      return blob
+    } finally {
+      inFlight.delete(hash)
+    }
+  })()
+  inFlight.set(hash, fetchPromise)
+  return fetchPromise
 }
