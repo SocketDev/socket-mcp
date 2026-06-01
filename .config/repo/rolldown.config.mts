@@ -15,16 +15,15 @@
 
 import { builtinModules } from 'node:module'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import type { Plugin, RolldownOptions } from 'rolldown'
 
+import {
+  DIST_DIR,
+  REPO_ROOT,
+  SOCKET_GATE_DIR,
+} from '../../scripts/repo/paths.mts'
 import { createLibStubPlugin } from './rolldown/lib-stub.mts'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// This config lives at .config/repo/, so the repo root is two levels up.
-const rootPath = path.join(__dirname, '..', '..')
-const distPath = path.join(rootPath, 'dist')
 
 // Externalize Node builtins (with + without `node:` prefix). Everything
 // else gets inlined into the bundle.
@@ -87,23 +86,59 @@ export function createCodeStubPlugin(
   }
 }
 
-export const buildConfig: RolldownOptions = {
-  external: externals,
-  input: { index: path.join(rootPath, 'index.ts') },
-  output: {
-    dir: distPath,
-    format: 'cjs',
-    entryFileNames: '[name].cjs',
-    inlineDynamicImports: true,
-    minify: false,
-    banner: '"use strict";\n/* Socket MCP — bundled with rolldown */',
-  },
-  platform: 'node',
-  plugins: [
-    createLibStubPlugin({ stubPattern: LIB_STUB_PATTERN }),
-    createCodeStubPlugin([
-      { pattern: MIME_DB_PATTERN, code: MIME_DB_STUB },
-      { pattern: OPERATIONS_PATTERN, code: OPERATIONS_STUB },
-    ]),
-  ],
+// Shared bundling primitives. Each artifact is its own single-entry,
+// dynamic-import-inlined CJS file (inlineDynamicImports forbids multi-entry
+// outputs), so we emit one RolldownOptions per artifact.
+const sharedPlugins: Plugin[] = [
+  createLibStubPlugin({ stubPattern: LIB_STUB_PATTERN }),
+  createCodeStubPlugin([
+    { pattern: MIME_DB_PATTERN, code: MIME_DB_STUB },
+    { pattern: OPERATIONS_PATTERN, code: OPERATIONS_STUB },
+  ]),
+]
+
+function singleEntryConfig(
+  name: string,
+  inputPath: string,
+  outDir: string,
+  banner: string,
+): RolldownOptions {
+  return {
+    external: externals,
+    input: { [name]: inputPath },
+    output: {
+      dir: outDir,
+      format: 'cjs',
+      entryFileNames: '[name].cjs',
+      inlineDynamicImports: true,
+      minify: false,
+      sourcemap: false,
+      banner,
+    },
+    platform: 'node',
+    plugins: sharedPlugins,
+  }
 }
+
+// The server bundle (dist/index.cjs) — the published bin.
+export const buildConfig: RolldownOptions = singleEntryConfig(
+  'index',
+  path.join(REPO_ROOT, 'index.ts'),
+  DIST_DIR,
+  '"use strict";\n/* Socket MCP — bundled with rolldown */',
+)
+
+// The optional Claude Code hook. Emitted into hooks/socket-gate/ alongside its
+// source + README so the whole directory is a self-contained unit users copy
+// recursively into ~/.claude/hooks/. Bundled because a Claude Code hook has no
+// package.json/node_modules — its @socketsecurity/lib-stable import must be
+// inlined. The shebang lets `node` / direct execution find the interpreter.
+export const socketGateConfig: RolldownOptions = singleEntryConfig(
+  'socket-gate',
+  path.join(SOCKET_GATE_DIR, 'index.mts'),
+  SOCKET_GATE_DIR,
+  '#!/usr/bin/env node\n"use strict";\n/* Socket gate hook — bundled with rolldown */',
+)
+
+// Every artifact build.mts should emit, in order.
+export const buildConfigs: RolldownOptions[] = [buildConfig, socketGateConfig]

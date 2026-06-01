@@ -15,7 +15,7 @@
     "CHANGELOG.md",
     "dist/index.cjs",
     "dist/index.d.ts",
-    "dist/index.d.ts.map",
+    "hooks/socket-gate",
     "package.json"
   ],
   "type": "module",

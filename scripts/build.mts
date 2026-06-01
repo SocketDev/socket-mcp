@@ -1,49 +1,59 @@
 #!/usr/bin/env node
 /**
- * @file Build socket-mcp into a single CJS file at `dist/index.cjs`. Inlines
- *   every runtime dep (every entry from package.json `dependencies` is now a
- *   devDep — the published package has no runtime deps after bundling).
+ * @file Build socket-mcp's CJS artifacts into `dist/`: the server bin
+ *   (`index.cjs`) and the optional Claude Code hook (`socket-gate.cjs`). Each
+ *   inlines every runtime dep (every entry from package.json `dependencies` is
+ *   now a devDep — the published package has no runtime deps after bundling).
  *   Pattern: socket-packageurl-js + socket-sdk-js.
  */
 
+import { chmod } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
-import { buildConfig } from '../.config/repo/rolldown.config.mts'
+import { buildConfigs } from '../.config/repo/rolldown.config.mts'
+import { DIST_DIR, SOCKET_GATE_BUNDLE } from './repo/paths.mts'
+
+import type { RolldownOptions } from 'rolldown'
 
 const logger = getDefaultLogger()
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootPath = path.join(__dirname, '..')
-const distPath = path.join(rootPath, 'dist')
 
-async function main(): Promise<void> {
-  logger.log('Cleaning dist/…')
-  await safeDelete(distPath)
-
-  logger.log('Bundling with rolldown…')
-  const { output, ...inputOptions } = buildConfig
+async function buildOne(config: RolldownOptions): Promise<void> {
+  const { output, ...inputOptions } = config
   const bundle = await rolldown(inputOptions)
   try {
     const outputs = Array.isArray(output) ? output : [output!]
     for (const outputOptions of outputs) {
-      await bundle.write(outputOptions)
+      const { output: written } = await bundle.write(outputOptions)
+      const outDir = outputOptions.dir ?? DIST_DIR
+      // Make each emitted entry executable so direct invocation works without
+      // a `node` prefix (the server bin + the hook both ship a shebang).
+      for (const chunk of written) {
+        if (chunk.type === 'chunk' && chunk.isEntry) {
+          await chmod(path.join(outDir, chunk.fileName), 0o755)
+        }
+      }
     }
   } finally {
     await bundle.close()
   }
+}
 
-  // Make the bin executable so `pnpm exec socket-mcp` / direct invocation
-  // works without `node` prefix.
-  const fs = await import('node:fs/promises')
-  const binPath = path.join(distPath, 'index.cjs')
-  await fs.chmod(binPath, 0o755)
+async function main(): Promise<void> {
+  logger.log('Cleaning build outputs…')
+  await safeDelete(DIST_DIR)
+  await safeDelete(SOCKET_GATE_BUNDLE)
 
-  logger.log(`Built ${binPath}`)
+  logger.log('Bundling with rolldown…')
+  for (const config of buildConfigs) {
+    await buildOne(config)
+  }
+
+  logger.log(`Built ${buildConfigs.length} artifact(s)`)
 }
 
 main().catch(err => {

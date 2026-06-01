@@ -19,6 +19,10 @@ coverage
 *.js
 !*.config.js
 
+# Bundled socket-gate hook (built by scripts/build.mts into its source dir so
+# the whole hooks/socket-gate/ directory is a self-contained, copyable unit).
+hooks/socket-gate/socket-gate.cjs
+
 # ─── BEGIN fleet-canonical (managed by socket-wheelhouse sync) ──
 # Managed by socket-wheelhouse. Don't edit locally — edit upstream
 # in scripts/sync-scaffolding/checks/gitignore-fleet-block.mts and

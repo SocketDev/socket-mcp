@@ -5,7 +5,7 @@ import {
   extractPackage,
   parseSupplyChainScore,
   stripVersion,
-} from '../hooks/socket-gate.ts'
+} from '../hooks/socket-gate/index.mts'
 
 // A fetch stub for checkPackage: first call is the MCP `initialize` (must
 // return an mcp-session-id header), second is the depscore tool call whose

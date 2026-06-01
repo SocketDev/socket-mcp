@@ -1,18 +1,26 @@
-#!/usr/bin/env -S node --experimental-strip-types
 /**
- * Socket-gate.ts — Claude Code PreToolUse hook.
+ * Socket-gate — Claude Code PreToolUse hook (source for the bundled
+ * socket-gate.cjs).
  *
  * Intercepts package install commands across npm, PyPI, Cargo, RubyGems, Go,
  * and NuGet, and checks the target package against the public Socket MCP
  * server. Blocks installs when the supply chain score is below 20 (known
  * malware, typosquats, high-risk supply chain signals).
  *
- * No API key, no CLI, no registration beyond copying this file.
+ * No API key, no CLI, no registration beyond copying the bundled directory.
  *
- * Setup:
+ * Setup (see README.md):
  *
- * 1. Copy this file to ~/.claude/hooks/socket-gate.ts
- * 2. Add to ~/.claude/settings.json (see README)
+ * 1. Copy the whole hooks/socket-gate/ directory to ~/.claude/hooks/ (from a
+ *    published @socketsecurity/mcp install, or build it here with `pnpm run
+ *    build`).
+ * 2. Point a PreToolUse Bash hook at ~/.claude/hooks/socket-gate/socket-gate.cjs
+ *    in ~/.claude/settings.json.
+ *
+ * This source imports @socketsecurity/lib-stable; rolldown inlines it into the
+ * bundled socket-gate.cjs so the copied-out hook stays self-contained (a Claude
+ * Code hook has no package.json and no node_modules — it can only run what is
+ * physically present in the file).
  *
  * Fails open on network, parse, and timeout errors so a Socket outage does not
  * block legitimate work.
@@ -21,6 +29,8 @@
 import { readFileSync } from 'node:fs'
 import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
+
+import { errorMessage } from '@socketsecurity/lib-stable/errors'
 
 const MCP_URL = 'https://mcp.socket.dev/'
 const SUPPLY_CHAIN_THRESHOLD = 20
@@ -263,9 +273,7 @@ async function main(): Promise<void> {
     // must not block legitimate installs (this hook is an advisory guardrail,
     // not a hard gate — see the file header). Surface the error on stderr so
     // the failure is observable; stdout stays the allow/deny IPC channel.
-    // oxlint-disable-next-line socket/prefer-error-message -- standalone copy-paste hook; cannot import @socketsecurity/lib.
-    const msg = e instanceof Error ? e.message : String(e)
-    const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${msg}\n`
+    const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
     process.stderr.write(errLine) // socket-hook: allow console
     outputAllow()
   }

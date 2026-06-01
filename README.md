@@ -303,11 +303,14 @@ Supported ecosystems and package managers:
 
 **Prerequisites:** Node.js 22+.
 
-1. Copy the hook script:
+1. Copy the whole `socket-gate` directory into your hooks folder. The bundled
+   `socket-gate.cjs` is self-contained, so it runs without any dependencies
+   beside it. From a checkout, run `pnpm run build` first to produce it; from a
+   published install, copy from `node_modules/@socketsecurity/mcp/`:
 
 ```bash
 mkdir -p ~/.claude/hooks
-cp hooks/socket-gate.ts ~/.claude/hooks/
+cp -R hooks/socket-gate ~/.claude/hooks/
 ```
 
 2. Add to `~/.claude/settings.json`:
@@ -321,7 +324,7 @@ cp hooks/socket-gate.ts ~/.claude/hooks/
         "hooks": [
           {
             "type": "command",
-            "command": "node --experimental-strip-types ~/.claude/hooks/socket-gate.ts"
+            "command": "node ~/.claude/hooks/socket-gate/socket-gate.cjs"
           }
         ]
       }
@@ -329,6 +332,9 @@ cp hooks/socket-gate.ts ~/.claude/hooks/
   }
 }
 ```
+
+See [`hooks/socket-gate/README.md`](hooks/socket-gate/README.md) for the full
+reference.
 
 ### How it works
 
