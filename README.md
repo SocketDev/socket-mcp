@@ -116,6 +116,20 @@ Or add to `.vscode/mcp.json`:
 
 </details>
 
+<details><summary><b>Manual install — Factory</b></summary>
+
+[Factory](https://factory.ai) is an AI-powered software engineering platform. Install the Socket MCP server with the Factory CLI:
+
+```bash
+droid mcp add socket https://mcp.socket.dev/ --type http
+```
+
+To self-host with an API key instead, see Option 2 below and register the stdio command with `droid mcp add`.
+
+Alternatively, type `/mcp` within the Factory droid to manage MCP servers from an interactive UI. Learn more in the [Factory MCP documentation](https://docs.factory.ai/cli/configuration/mcp).
+
+</details>
+
 ### Option 2: Self-host the Socket MCP server
 
 To run your own instance, create an API key first (only the `packages:list` permission scope is needed; see [creating-and-managing-api-tokens](https://docs.socket.dev/reference/creating-and-managing-api-tokens)).
@@ -251,6 +265,66 @@ Example rule:
 ```md
 Always check dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself.
 ```
+
+## Claude Code Hook (Optional)
+
+The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No API key, no CLI, no registration — copy the file and wire it up.
+
+Supported ecosystems and package managers:
+
+| Ecosystem | Commands                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------- |
+| npm       | `npm install`, `npm i`, `npm add`, `yarn add`, `pnpm add`, `bun add`                      |
+| PyPI      | `pip install`, `pip3 install`, `uv add`, `uv pip install`, `poetry add`, `pipenv install` |
+| Cargo     | `cargo add`, `cargo install`                                                              |
+| RubyGems  | `gem install`, `bundle add`                                                               |
+| Go        | `go get`, `go install`                                                                    |
+| NuGet     | `dotnet add package`, `nuget install`                                                     |
+
+### Setup
+
+**Prerequisites:** Node.js 22+.
+
+1. Copy the hook script:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp hooks/socket-gate.ts ~/.claude/hooks/
+```
+
+2. Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types ~/.claude/hooks/socket-gate.ts"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### How it works
+
+The hook denies installation when `supplyChain < 20`, allows it otherwise — e.g. `express`/`lodash`/`react` (75–97) allow, `browserlist` (typosquat of `browserslist`, 15) and confirmed malware (0) block. Network, timeout, or parse errors all fail open, so a Socket outage will not block legitimate work.
+
+### Limitations
+
+A best-effort guardrail, not a complete defense. Known gaps:
+
+- **Manifest edits + lockfile installs.** If Claude edits a manifest directly (`package.json`, `requirements.txt`, `Cargo.toml`, `Gemfile`, `go.mod`, `*.csproj`) then runs a bare install (`npm install`, `pip install -r requirements.txt`, `cargo build`, `bundle install`, `go mod tidy`, `dotnet restore`), there is no package name on the command line to check.
+- **Package-manager invocations only.** Direct downloads (`curl | sh`, `wget`), post-install scripts of already-accepted packages, and transitive dependencies are not re-checked.
+- **Indirect Claude paths.** Sub-agents, MCP tools that shell out, and non-`Bash` tool calls are not covered unless the `matcher` is broadened.
+
+Inspired by [Jimmy Vo's dependency hook](https://blog.jimmyvo.com/posts/claudes-dependency-hook/).
 
 ## Development
 
