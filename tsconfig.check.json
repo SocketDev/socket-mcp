@@ -1,15 +1,7 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./.config/fleet/tsconfig.check.base.json",
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
-    "declarationMap": false,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "rootDir": ".",
-    "skipLibCheck": true,
-    "sourceMap": false,
-    "types": ["node", "vitest"]
+    "rootDir": "."
   },
   "include": [
     "./scripts/**/*.mts",
