@@ -6,7 +6,7 @@ Fleet-canonical files (anything tracked by `socket-wheelhouse/scripts/sync-scaff
 
 These directories and files cascade fleet-wide. They are **not** repo-local:
 
-- `.config/oxlint-plugin/`: plugin index + rules
+- `.config/fleet/oxlint-plugin/`: plugin index + rules
 - `.git-hooks/`: commit-msg / pre-commit / pre-push entry shims + .mts helpers (git invokes the shims when `core.hooksPath` is set to this directory; wired by `scripts/install-git-hooks.mts` at `pnpm install` time)
 - `.claude/hooks/`: PreToolUse / PostToolUse hooks
 - `.claude/skills/fleet/_shared/`: shared skill helpers
@@ -50,7 +50,7 @@ The fleet's value is the shared canon. Branching locally splits the canon and er
 
 Companion behavior to the no-fork rule: **don't read, grep, or debug wheelhouse-canonical files in a downstream repo to verify what they contain or how they behave**.
 
-- **DO NOT** grep a downstream repo's copy of `.config/oxlint-plugin/`, `.claude/hooks/fleet/`, `.git-hooks/`, `docs/claude.md/fleet/`, or the `CLAUDE.md` fleet block to check what's in it. Read from `socket-wheelhouse/template/...` instead.
+- **DO NOT** grep a downstream repo's copy of `.config/fleet/oxlint-plugin/`, `.claude/hooks/fleet/`, `.git-hooks/`, `docs/claude.md/fleet/`, or the `CLAUDE.md` fleet block to check what's in it. Read from `socket-wheelhouse/template/...` instead.
 - **DO NOT** debug the behavior of a cascaded hook by reading its downstream copy. The cascade overwrites those files; their content is the wheelhouse's content. Read upstream.
 - **DO** treat any divergence as the downstream being stale. The wheelhouse is the oracle.
 

@@ -78,7 +78,7 @@
     "node": ">=22.0.0",
     "npm": ">=11.16.0"
   },
-  "packageManager": "pnpm@11.5.0",
+  "packageManager": "pnpm@11.4.0",
   "allowScripts": {
     "cpu-features": false,
     "esbuild": true,
