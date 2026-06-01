@@ -88,6 +88,7 @@
 .config/socket-wheelhouse-schema.json linguist-generated=true
 .git-hooks linguist-generated=true
 .github/dependabot.yml linguist-generated=true
+.npmrc linguist-generated=true
 assets/README.md linguist-generated=true
 assets/socket-icon-brand-128.png linguist-generated=true
 assets/socket-icon-brand-16.png linguist-generated=true
