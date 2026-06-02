@@ -2,7 +2,7 @@
 // + tiny string utilities (color wrappers, marker-syntax picker, path
 // normalize). Each hook imports `getDefaultLogger` from
 // `@socketsecurity/lib-stable/logger/default` directly for output; this module stays
-// import-light so the cost of `import './_helpers.mts'` is bounded.
+// import-light so the cost of `import '../_shared/helpers.mts'` is bounded.
 //
 // Requires Node 25+ for stable .mts type-stripping (no flag needed).
 // Earlier Node versions either lacked --experimental-strip-types or
@@ -16,7 +16,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 // Hard-fail if Node is below 25. This runs at module load — every
-// hook invocation imports _helpers.mts before doing anything, so the
+// hook invocation imports _shared/helpers.mts before doing anything, so the
 // version check is the first thing that happens.
 const NODE_MIN_MAJOR = 25
 const nodeMajor = Number.parseInt(
@@ -934,7 +934,7 @@ export const readFileForScan = (filePath: string): string => {
 //                      legitimately tolerate a missing ref (e.g. probing
 //                      remote default-branch HEAD which may not be set up
 //                      locally) and provide their own fallback. Silent
-//                      by design — _helpers.mts can't import the canonical
+//                      by design — _shared/helpers.mts can't import the canonical
 //                      logger because it runs before the Node-version
 //                      gate has cleared, and a fire-and-forget dynamic
 //                      import races process exit. Callers that need to

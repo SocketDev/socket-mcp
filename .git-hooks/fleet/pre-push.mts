@@ -42,7 +42,7 @@ import {
   shouldSkipFile,
   socketHookMarkerFor,
   splitLines,
-} from './_helpers.mts'
+} from '../_shared/helpers.mts'
 
 const logger = getDefaultLogger()
 
@@ -151,9 +151,13 @@ const computeRange = (
     return `${baseRef}..${localSha}`
   }
 
+  const isAncestor = (ancestor: string, descendant: string): boolean =>
+    spawnSync('git', ['merge-base', '--is-ancestor', ancestor, descendant]).status === 0
+
   // Existing branch.
-  if (!remoteShaExists(remoteSha)) {
-    // Force-push or history rewrite — fall back to default branch.
+  if (!remoteShaExists(remoteSha) || !isAncestor(remoteSha, localSha)) {
+    // Force-push, history rewrite, or dangling object that is not an
+    // ancestor of the local tip — fall back to remote default branch.
     const def = defaultBranchOf(remote)
     const baseRef = `${remote}/${def}`
     if (!refExists(baseRef)) {
@@ -383,8 +387,14 @@ const scanFilesInRange = (range: string): number => {
     return 0
   }
   // Best-effort current repo name — used by cross-repo scanner to
-  // avoid flagging a repo's own paths.
-  const repoTopline = gitLines('rev-parse', '--show-toplevel')[0] ?? ''
+  // avoid flagging a repo's own paths. Fails gracefully in linked
+  // worktrees backed by a bare repo (show-toplevel is undefined there).
+  let repoTopline = ''
+  try {
+    repoTopline = gitLines('rev-parse', '--show-toplevel')[0] ?? ''
+  } catch {
+    // bare repo / worktree context — proceed without a repo name filter
+  }
   const currentRepoName = repoTopline ? path.basename(repoTopline) : undefined
 
   // .env files at any depth — match commit-msg.mts and pre-commit.mts.

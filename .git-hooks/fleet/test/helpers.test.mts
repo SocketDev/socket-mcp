@@ -1,6 +1,6 @@
 /* oxlint-disable socket/no-npx-dlx -- test fixture: asserts on the literal `npx` marker that the hook's bypass detector looks for. */
 
-// node --test specs for .git-hooks/_helpers.mts.
+// node --test specs for .git-hooks/_shared/helpers.mts.
 //
 // Covers the pure-function surface: AI-attribution scanner, marker
 // alias logic, suppression matching, backtick span detection, secret
@@ -37,7 +37,7 @@ import {
   suggestLoggerReplacement,
   suggestNpxReplacement,
   suggestPlaceholder,
-} from '../_helpers.mts'
+} from '../../_shared/helpers.mts'
 
 // ── containsAiAttribution ─────────────────────────────────────────
 

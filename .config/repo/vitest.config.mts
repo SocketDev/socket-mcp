@@ -4,10 +4,12 @@
 import { existsSync } from 'node:fs'
 import process from 'node:process'
 
+import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
+import { getCI } from '@socketsecurity/lib-stable/env/ci'
 import { defineConfig } from 'vitest/config'
 
 const isCoverageEnabled =
-  process.env.COVERAGE === 'true' ||
+  envAsBoolean(process.env['COVERAGE']) ||
   process.argv.some(arg => arg.includes('coverage'))
 
 export default defineConfig({
@@ -60,23 +62,22 @@ export default defineConfig({
     passWithNoTests: true,
     reporters: ['default'],
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        // Thread count tuned to physical CPUs. GH Actions ubuntu-latest
-        // has 4 cores; dev laptops typically have 8-16. Use
-        // `'CI' in process.env` (not truthy `process.env.CI`) so
-        // self-hosted runners with CI="" or CI=0 still count.
-        singleThread: isCoverageEnabled,
-        maxThreads: isCoverageEnabled ? 1 : 'CI' in process.env ? 4 : 16,
-        minThreads: isCoverageEnabled ? 1 : 'CI' in process.env ? 2 : 4,
-        isolate: false,
-        useAtomics: true,
-      },
-    },
+    // Vitest 4 removed `poolOptions`; the per-pool worker knobs are now
+    // top-level. `maxThreads`/`maxForks` → `maxWorkers`; `singleThread`/
+    // `singleFork` → `fileParallelism: false` (forces maxWorkers to 1);
+    // `minThreads` and `useAtomics` were dropped with no replacement.
+    // Worker count tuned to physical CPUs: GH Actions ubuntu-latest has
+    // 4 cores, dev laptops typically 8-16. `getCI()` (rewire-aware
+    // presence check on `CI`) is truthy even for CI="" or CI=0, matching
+    // the fleet convention that any CI value means CI.
+    isolate: false,
+    fileParallelism: !isCoverageEnabled,
+    maxWorkers: isCoverageEnabled ? 1 : getCI() ? 4 : 16,
     testTimeout: 10_000,
     hookTimeout: 10_000,
-    bail: 'CI' in process.env ? 1 : 0,
+    bail: getCI() ? 1 : 0,
     coverage: {
+      enabled: isCoverageEnabled,
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov', 'clover'],
       exclude: [

@@ -31,7 +31,7 @@ import {
   scanSocketApiKeys,
   shouldSkipFile,
   socketHookMarkerFor,
-} from './_helpers.mts'
+} from '../_shared/helpers.mts'
 
 const logger = getDefaultLogger()
 

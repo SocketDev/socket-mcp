@@ -15,11 +15,19 @@
 # - DISABLE_PRECOMMIT_LINT=1 to skip linting
 # - DISABLE_PRECOMMIT_TEST=1 to skip testing
 
+# Skip guards during rebase — commits are being replayed; lint/test on
+# each pick is noisy and slow. Signing is unaffected: git signs via
+# commit.gpgsign config, not this hook.
+GIT_DIR="$(git rev-parse --git-dir 2>/dev/null)"
+if [ -d "${GIT_DIR}/rebase-merge" ] || [ -d "${GIT_DIR}/rebase-apply" ]; then
+  exit 0
+fi
+
 # Put the repo-pinned Node (.node-version) on PATH — git runs hooks with
 # the login shell's PATH, which may be an older system Node than the
 # hooks' floor (.mts type-stripping needs Node >= 25). See
-# _resolve-node.sh.
-. "$(dirname "$0")/_resolve-node.sh"
+# _shared/resolve-node.sh.
+. "$(dirname "$0")/../_shared/resolve-node.sh"
 
 # Sanitize placeholder Socket API credentials. Some shell setups
 # export `SOCKET_API_TOKEN=literal-value` (or similar placeholders
