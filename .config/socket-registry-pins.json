@@ -20,7 +20,7 @@
     "socket-registry — Layer 4 (_local-not-for-reuse-*.yml) SHAs are not valid pins for",
     "external consumers."
   ],
-  "propagationSha": "f09a1cd39868ae45d304cfcead2d4f19a5325d8a",
-  "propagationShaUpdatedAt": "2026-06-01",
-  "propagationShaCommitSubject": "chore(wheelhouse): cascade template@cf15ef5a"
+  "propagationSha": "c4b120c34fa95a9974ffb3f407fa58f4d167c844",
+  "propagationShaUpdatedAt": "2026-06-03",
+  "propagationShaCommitSubject": "chore(wheelhouse): cascade template@cf6ed7fe"
 }
