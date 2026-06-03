@@ -26,7 +26,7 @@
     "postpublish": "npm run clean",
     "test": "node scripts/fleet/test.mts",
     "test:e2e": "pnpm exec vitest run --config .config/repo/vitest.config.mts test/server.e2e.ts",
-    "cover": "pnpm exec vitest run --coverage --config .config/repo/vitest.config.mts",
+    "cover": "node scripts/fleet/cover.mts",
     "test:tsc": "tsgo --noEmit -p tsconfig.json",
     "lint": "node scripts/fleet/lint.mts",
     "lint:all": "node scripts/fleet/lint.mts --all",
