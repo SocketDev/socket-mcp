@@ -1,16 +1,117 @@
+# Docker build context exclusions.
+#
+# The Dockerfile uses surgical `COPY <path> <dest>` lines (no `COPY . .`),
+# but the daemon still tarballs the entire build context up front and
+# applies these patterns. Keeping the context tight makes the transfer
+# fast (especially when the daemon is remote, like Depot/buildx).
+#
+# Strategy:
+#   1. Exclude obvious noise (node_modules, dist, caches, logs, etc.)
+#   2. Exclude documentation/metadata that compilation never reads (the
+#      Kikobeats/untracked autogen would emit these as a baseline).
+#   3. Re-include anything the build stage actually COPYs.
+
+# ─── Build artifacts (re-installed/regenerated inside the image) ───────────
+**/node_modules/
+**/dist/
+**/build/
+**/out/
+**/coverage/
+**/coverage-isolated/
+**/.cache/
+**/.ccache/
+
+# ─── Git, CI, IDE ──────────────────────────────────────────────────────────
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+
+# ─── Tests + fixtures (not needed in the runtime image) ────────────────────
+test/
+tests/
+__tests__/
+**/*.test.ts
+**/*.test.mts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.mts
+**/*.spec.js
+
+# ─── Docs + metadata (compilation never reads these) ───────────────────────
+docs/
+**/*.md
+**/*.MD
+**/*.markdown
+**/AUTHOR
+**/AUTHORS
+**/CHANGELOG
+**/CONTRIBUTING
+**/CONTRIBUTORS
+**/HISTORY
+**/MAINTAINERS
+**/NEWS
+**/NOTICE
+**/SECURITY
+**/SUPPORT
+**/COPYING
+**/CREDITS
+
+# ─── Source maps + type-only artifacts (not bundled) ───────────────────────
+**/*.map
+**/*.map.json
+**/*.flow
+
+# ─── Lint / format / CI configs ────────────────────────────────────────────
+.editorconfig
+.prettierrc*
+.eslintrc*
+.stylelintrc*
+**/appveyor.yml
+**/.travis.yml
+**/circle.yml
+**/.circleci/
+
+# ─── Logs + temp files ─────────────────────────────────────────────────────
+*.log
+**/*.log
+.DS_Store
+*.swp
+*.swo
+*~
+
+# ─── Secrets + local-only state ────────────────────────────────────────────
 **/.env*
-**/.git
-**/.idea
-**/.config
 **/.npm
-**/.github
-**/.DS_Store
-**/.gitignore
+**/.config
 **/.scannerwork
-**/.editorconfig
 **/certs
 **/nodemon.json
-**/node_modules
-**/npm-debug.log
-**/public
 **/.dtx
+.gitignore
+
+# ─── Repo-only directories the runtime doesn't need ────────────────────────
+hooks/
+mock-client/
+reports/
+docs/
+.claude/
+# Re-include .claude/hooks because pnpm install resolves them as workspace
+# packages (declared in pnpm-workspace.yaml `packages:`).
+!.claude/
+!.claude/hooks/
+!.claude/hooks/**
+
+# Brand assets (PNGs)
+*.png
+
+# ─── Re-includes for files the Dockerfile DOES COPY ────────────────────────
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!index.ts
+!lib/**
+!scripts/**
+!tsconfig.json
+!tsconfig.dts.json
