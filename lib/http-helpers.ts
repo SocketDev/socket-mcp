@@ -93,26 +93,6 @@ export function buildSocketHeaders(
   }
 }
 
-// `@socketsecurity/lib@6.0.6`'s `httpRequest` advertises `Accept-Encoding:
-// gzip, br` but never decompresses the response on its main path — only the
-// unused `readIncomingResponse` bypass decodes. A `Content-Encoding: br` reply
-// (e.g. the Socket file-list endpoint) then reaches `.json()`/`.text()` as raw
-// compressed bytes and fails to parse with `Unexpected token '�'`. Until
-// the lib decodes on its main path, force `Accept-Encoding: identity` so the
-// server returns uncompressed bodies. The override is appended last so it wins
-// the lib's header merge (and any caller header) regardless of order. Route
-// every Socket-bound request through this wrapper so no call site can fall
-// back onto the broken decode path.
-export function socketHttpRequest(
-  url: string,
-  options: HttpRequestOptions = {},
-): Promise<HttpResponse> {
-  return httpRequest(url, {
-    ...options,
-    headers: { ...options.headers, 'Accept-Encoding': 'identity' },
-  })
-}
-
 // Prompt for a Socket API token interactively. Only viable in HTTP mode —
 // stdio mode's stdin is the MCP protocol channel.
 export async function getApiKeyInteractively(): Promise<string> {
@@ -214,6 +194,26 @@ export function parseJsonObject(
   } catch (error) {
     throw new Error(`${context} returned invalid JSON: ${errorMessage(error)}`)
   }
+}
+
+// `@socketsecurity/lib@6.0.6`'s `httpRequest` advertises `Accept-Encoding:
+// gzip, br` but never decompresses the response on its main path — only the
+// unused `readIncomingResponse` bypass decodes. A `Content-Encoding: br` reply
+// (e.g. the Socket file-list endpoint) then reaches `.json()`/`.text()` as raw
+// compressed bytes and fails to parse with `Unexpected token '�'`. Until
+// the lib decodes on its main path, force `Accept-Encoding: identity` so the
+// server returns uncompressed bodies. The override is appended last so it wins
+// the lib's header merge (and any caller header) regardless of order. Route
+// every Socket-bound request through this wrapper so no call site can fall
+// back onto the broken decode path.
+export function socketHttpRequest(
+  url: string,
+  options: HttpRequestOptions = {},
+): Promise<HttpResponse> {
+  return httpRequest(url, {
+    ...options,
+    headers: { ...options.headers, 'Accept-Encoding': 'identity' },
+  })
 }
 
 // Helper for emitting JSON HTTP responses with a consistent Content-Type
