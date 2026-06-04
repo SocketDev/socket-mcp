@@ -56,11 +56,6 @@ overrides:
   'uuid': '11.1.1'
 
   # Repo-specific overrides below.
-  # update-notifier ≥4 → 7.3.1 — older versions (e.g. v5.1.0 pulled by
-  # `untracked`) end at semver@6.3.1 via semver-diff (no provenance).
-  # v7.3.1 uses semver@^7.6.3 (provenance-attested) directly. API
-  # surface for consumers (`notify()`) is unchanged 4.x → 7.x.
-  'update-notifier@>=4.0.0': '7.3.1'
   '@hono/node-server': '1.19.13'
   'fast-uri': '3.1.2'
   'hono': '4.12.18'

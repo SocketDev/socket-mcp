@@ -45,8 +45,9 @@ overrides:
   '@socketsecurity/lib': 6.0.6
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/sdk': 4.0.1
-  uuid: 11.1.1
+  semver@>=5.0.0 <7.6.0: 7.8.1
   update-notifier@>=4.0.0: 7.3.1
+  uuid: 11.1.1
   '@hono/node-server': 1.19.13
   fast-uri: 3.1.2
   hono: 4.12.18

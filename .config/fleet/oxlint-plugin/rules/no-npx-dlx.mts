@@ -2,16 +2,17 @@
 
 /**
  * @file Per CLAUDE.md "Tooling" rule: 🚨 NEVER use `npx`, `pnpm dlx`, or `yarn
- *   dlx` — run `node_modules/.bin/<tool>` or `pnpm run <script>` (`pnpm exec` is
- *   also banned, see no-pm-exec-guard). Detects `npx`, `pnpm dlx`, `pnx` (the
- *   pnpm-11 dlx shorthand), and `yarn dlx` in source string literals — argv
- *   slices passed to `spawn()`, shell strings, scripts, doc snippets, README
- *   examples, etc. The hook at `.claude/hooks/fleet/path-guard/` blocks these at
- *   the shell layer; this rule catches them at edit / commit time inside
- *   JavaScript / TypeScript source. Autofix: rewrites the literal in place —
- *   `npx foo` → `node_modules/.bin/foo`, `pnpm dlx foo` → `node_modules/.bin/foo`,
- *   `yarn dlx foo` → `node_modules/.bin/foo`, `pnx foo` → `node_modules/.bin/foo`
- *   (best-effort: assumes the tool is an installed dep). Allowed exceptions (skipped):
+ *   dlx` — run `node_modules/.bin/<tool>` or `pnpm run <script>` (`pnpm exec`
+ *   is also banned, see no-pm-exec-guard). Detects `npx`, `pnpm dlx`, `pnx`
+ *   (the pnpm-11 dlx shorthand), and `yarn dlx` in source string literals —
+ *   argv slices passed to `spawn()`, shell strings, scripts, doc snippets,
+ *   README examples, etc. The hook at `.claude/hooks/fleet/path-guard/` blocks
+ *   these at the shell layer; this rule catches them at edit / commit time
+ *   inside JavaScript / TypeScript source. Autofix: rewrites the literal in
+ *   place — `npx foo` → `node_modules/.bin/foo`, `pnpm dlx foo` →
+ *   `node_modules/.bin/foo`, `yarn dlx foo` → `node_modules/.bin/foo`, `pnx
+ *   foo` → `node_modules/.bin/foo` (best-effort: assumes the tool is an
+ *   installed dep). Allowed exceptions (skipped):
  *
  *   - The literal `npx` inside a comment with `socket-hook: allow npx` — the
  *     canonical bypass marker, used by the lockdown skill spec.

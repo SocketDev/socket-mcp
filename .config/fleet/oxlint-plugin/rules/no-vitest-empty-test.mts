@@ -155,7 +155,10 @@ const rule = {
           return
         }
         // `.todo` / `.skip` cases legitimately have no body assertion.
-        if (call.modifiers.includes('todo') || call.modifiers.includes('skip')) {
+        if (
+          call.modifiers.includes('todo') ||
+          call.modifiers.includes('skip')
+        ) {
           return
         }
         const cb = testCallback(node)

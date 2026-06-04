@@ -1,9 +1,9 @@
 /**
  * @file Flag duplicate test/describe titles within the SAME describe scope —
  *   two `it('does X', …)` with the identical title, or two sibling
- *   `describe('group', …)`. The fleet leans on describe-nesting for
- *   uniqueness, so a flattened duplicate slips by silently: the runner shows
- *   two identically-named cases and it's ambiguous which failed. Titles are
+ *   `describe('group', …)`. The fleet leans on describe-nesting for uniqueness,
+ *   so a flattened duplicate slips by silently: the runner shows two
+ *   identically-named cases and it's ambiguous which failed. Titles are
  *   compared per enclosing describe scope (siblings only), so the same title in
  *   two different groups is fine. Only string-literal / template-without-
  *   substitution titles are compared (a dynamic title can't be statically
@@ -36,7 +36,9 @@ function staticTitle(node: AstNode): string | undefined {
     Array.isArray(arg.quasis) &&
     arg.quasis.length === 1
   ) {
-    return String(arg.quasis[0]?.value?.cooked ?? arg.quasis[0]?.value?.raw ?? '')
+    return String(
+      arg.quasis[0]?.value?.cooked ?? arg.quasis[0]?.value?.raw ?? '',
+    )
   }
   return undefined
 }
@@ -99,9 +101,9 @@ const rule = {
       Program(program: AstNode) {
         names = collectVitestNames(program).names
       },
-      'FunctionExpression': maybeEnterDescribe,
+      FunctionExpression: maybeEnterDescribe,
       'FunctionExpression:exit': maybeExitDescribe,
-      'ArrowFunctionExpression': maybeEnterDescribe,
+      ArrowFunctionExpression: maybeEnterDescribe,
       'ArrowFunctionExpression:exit': maybeExitDescribe,
       CallExpression(node: AstNode) {
         if (!names) {

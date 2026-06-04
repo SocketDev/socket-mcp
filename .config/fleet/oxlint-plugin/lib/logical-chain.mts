@@ -1,9 +1,10 @@
 /**
  * @file Flatten a left-associative LogicalExpression chain of one operator into
- *   its leaf operands. `a && b && c` (a nested `((a && b) && c)`) → `[a, b, c]`.
- *   Extracted from sort-boolean-chains + sort-equality-disjunctions, which had
- *   byte-identical copies. Only descends through nodes whose operator matches
- *   `op`; any other node (including a `||` inside an `&&` chain) is a leaf.
+ *   its leaf operands. `a && b && c` (a nested `((a && b) && c)`) → `[a, b,
+ *   c]`. Extracted from sort-boolean-chains + sort-equality-disjunctions, which
+ *   had byte-identical copies. Only descends through nodes whose operator
+ *   matches `op`; any other node (including a `||` inside an `&&` chain) is a
+ *   leaf.
  */
 
 import type { AstNode } from './rule-types.mts'

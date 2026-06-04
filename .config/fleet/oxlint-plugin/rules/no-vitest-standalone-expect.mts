@@ -73,11 +73,11 @@ const rule = {
       Program(program: AstNode) {
         names = collectVitestNames(program).names
       },
-      'FunctionExpression': enterFn,
+      FunctionExpression: enterFn,
       'FunctionExpression:exit': exitFn,
-      'ArrowFunctionExpression': enterFn,
+      ArrowFunctionExpression: enterFn,
       'ArrowFunctionExpression:exit': exitFn,
-      'FunctionDeclaration': enterFn,
+      FunctionDeclaration: enterFn,
       'FunctionDeclaration:exit': exitFn,
       CallExpression(node: AstNode) {
         if (!names) {

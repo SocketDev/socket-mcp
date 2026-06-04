@@ -60,7 +60,6 @@ const rule = {
       ? context.getSourceCode()
       : context.sourceCode
 
-
     /**
      * For a binary-equality leaf, return `{ left, right, operator }` if it's
      * the shape we sort. Returns undefined otherwise.
