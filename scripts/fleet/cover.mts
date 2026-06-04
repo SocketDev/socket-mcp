@@ -50,6 +50,28 @@ export interface TestSuitesResult {
 // Resolve a config basename repo-first: prefer `.config/repo/<name>`, fall back
 // to the legacy top-level `.config/<name>`. Returns the repo-root-relative path
 // vitest should load, or undefined when neither location has the file.
+// The repo-root-relative build entry candidates, in precedence order. Most
+// repos ship scripts/build.mts; some name it scripts/bundle.mts after the
+// build→bundle rename.
+export const BUILD_ENTRY_CANDIDATES: readonly string[] = [
+  'scripts/build.mts',
+  'scripts/bundle.mts',
+]
+
+// Resolve the repo's source-map build entry, or undefined when none exists.
+// Tooling repos (the wheelhouse itself) have no buildable artifact — coverage
+// then instruments the sources directly instead of building first. `repoDir`
+// defaults to the live repo root; tests pass a fixture dir.
+export function resolveBuildEntry(repoDir: string = rootPath): string | undefined {
+  for (let i = 0, { length } = BUILD_ENTRY_CANDIDATES; i < length; i += 1) {
+    const rel = BUILD_ENTRY_CANDIDATES[i]!
+    if (existsSync(path.join(repoDir, rel))) {
+      return rel
+    }
+  }
+  return undefined
+}
+
 export function resolveConfig(basename: string): string | undefined {
   const candidates = [
     path.join('.config', 'repo', basename),
@@ -345,13 +367,7 @@ export async function main(): Promise<void> {
   printHeader('Test Coverage')
   logger.log('')
 
-  // Resolve the repo's build entry. Most repos ship scripts/build.mts; some
-  // name it scripts/bundle.mts after the build→bundle rename. Tooling repos
-  // (the wheelhouse itself) have no buildable artifact — skip the source-map
-  // build and let vitest instrument the sources directly.
-  const buildEntry = ['scripts/build.mts', 'scripts/bundle.mts'].find(rel =>
-    existsSync(path.join(rootPath, rel)),
-  )
+  const buildEntry = resolveBuildEntry()
   let buildFailed = false
   if (buildEntry) {
     logger.info('Building with source maps for coverage…')
