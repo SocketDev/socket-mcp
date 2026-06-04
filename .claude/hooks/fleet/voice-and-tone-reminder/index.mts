@@ -161,7 +161,7 @@ const SELF_NARRATION: ReminderGroup = {
     {
       label: 'conversational hedge ("honestly / to be fair / be straight with you")',
       regex:
-        /\b(?:honestly|to be honest|honest caveat|to be fair|in all honesty|the reality is|truth be told|be straight with you)\b/i,
+        /\b(?:honestly|to be honest|honest caveat|honest notes?|to be fair|in all honesty|the reality is|truth be told|be straight with you)\b/i,
       why: 'Filler hedge that softens or pre-apologizes for a direct statement. State the fact, the limitation, or the recommendation plainly — no "honest caveat" preamble.',
     },
     {

@@ -34,6 +34,8 @@
  * @type {import('eslint').Rule.RuleModule}
  */
 
+import { flattenLogicalChain } from '../lib/logical-chain.mts'
+
 import type { AstNode, RuleContext, RuleFixer } from '../lib/rule-types.mts'
 
 const rule = {
@@ -57,20 +59,6 @@ const rule = {
     const sourceCode = context.getSourceCode
       ? context.getSourceCode()
       : context.sourceCode
-
-    /**
-     * Flatten a left-associative LogicalExpression chain into leaf nodes. `(a
-     * && b) && c` and `a && (b && c)` both flatten to [a, b, c]. Caller checks
-     * operator uniformity.
-     */
-    function flatten(node: AstNode, op: string, out: AstNode[]): void {
-      if (node.type === 'LogicalExpression' && node.operator === op) {
-        flatten(node.left, op, out)
-        flatten(node.right, op, out)
-      } else {
-        out.push(node)
-      }
-    }
 
     /**
      * Returns true if a comment lies anywhere between the first and last leaf
@@ -108,7 +96,7 @@ const rule = {
       }
 
       const leaves: AstNode[] = []
-      flatten(rootNode, op, leaves)
+      flattenLogicalChain(rootNode, op, leaves)
       // Length 2 chains are guard patterns (`useHttp && oauthEnabled`)
       // where order carries narrative; only length 3+ chains are flag
       // lists where alpha-sort is unambiguously a readability win.

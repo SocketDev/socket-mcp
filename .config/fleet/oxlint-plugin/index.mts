@@ -35,6 +35,7 @@ import noStructuredClonePreferJson from './rules/no-structured-clone-prefer-json
 import noSyncRmInTestLifecycle from './rules/no-sync-rm-in-test-lifecycle.mts'
 import noTopLevelAwait from './rules/no-top-level-await.mts'
 import noUnderscoreIdentifier from './rules/no-underscore-identifier.mts'
+import noVitestEmptyTest from './rules/no-vitest-empty-test.mts'
 import noVitestFocusedTests from './rules/no-vitest-focused-tests.mts'
 import noVitestIdenticalTitle from './rules/no-vitest-identical-title.mts'
 import noVitestSkippedTests from './rules/no-vitest-skipped-tests.mts'
@@ -72,7 +73,6 @@ import sortRegexAlternations from './rules/sort-regex-alternations.mts'
 import sortSetArgs from './rules/sort-set-args.mts'
 import sortSourceMethods from './rules/sort-source-methods.mts'
 import useFleetCanonicalApiTokenGetter from './rules/use-fleet-canonical-api-token-getter.mts'
-import vitestExpectExpect from './rules/vitest-expect-expect.mts'
 
 /**
  * @type {import('eslint').ESLint.Plugin}
@@ -109,6 +109,7 @@ const plugin = {
     'no-sync-rm-in-test-lifecycle': noSyncRmInTestLifecycle,
     'no-top-level-await': noTopLevelAwait,
     'no-underscore-identifier': noUnderscoreIdentifier,
+    'no-vitest-empty-test': noVitestEmptyTest,
     'no-vitest-focused-tests': noVitestFocusedTests,
     'no-vitest-identical-title': noVitestIdenticalTitle,
     'no-vitest-skipped-tests': noVitestSkippedTests,
@@ -146,7 +147,6 @@ const plugin = {
     'sort-set-args': sortSetArgs,
     'sort-source-methods': sortSourceMethods,
     'use-fleet-canonical-api-token-getter': useFleetCanonicalApiTokenGetter,
-    'vitest-expect-expect': vitestExpectExpect,
   },
 }
 

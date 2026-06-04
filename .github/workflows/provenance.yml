@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   publish:
-    uses: SocketDev/socket-registry/.github/workflows/provenance.yml@74f3353793b9a9619bef7badae29821260bd4225 # main (2026-05-28)
+    uses: SocketDev/socket-registry/.github/workflows/provenance.yml@1710ff0c384b95e23651b84da9f90f90e7c32e52 # main (2026-05-28)
     with:
       debug: ${{ inputs.debug }}
       dry-run: ${{ inputs.dry-run }}

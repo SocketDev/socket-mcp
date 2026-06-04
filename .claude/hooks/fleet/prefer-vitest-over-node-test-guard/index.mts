@@ -2,7 +2,7 @@
 // Claude Code PreToolUse hook — prefer-vitest-over-node-test-guard.
 //
 // Blocks `node --test <file>` Bash commands and steers to the fleet-canonical
-// test runner (`pnpm exec vitest run <file>` or `pnpm test`).
+// test runner (`node_modules/.bin/vitest run <file>` or `pnpm test`).
 //
 // Why: fleet repos use vitest for all unit/integration tests. `node --test`
 // runs the Node.js built-in test runner which uses a different API surface
@@ -11,8 +11,8 @@
 // test files register with vitest's globals, not the node:test runner's.
 //
 // Also nudges toward targeting a specific file rather than the full suite —
-// `pnpm exec vitest run path/to/foo.test.mts` is faster and scoped to the
-// change in flight.
+// `node_modules/.bin/vitest run path/to/foo.test.mts` is faster and scoped to
+// the change in flight.
 //
 // Detection: parses the command string for `node ... --test` (flag anywhere)
 // or `node --test` (shorthand). The `node --run` form (pnpm/npm built-in
@@ -32,9 +32,9 @@ import { commandsFor } from '../_shared/shell-command.mts'
 const BYPASS_PHRASE = 'Allow node-test-runner bypass' as const
 
 interface Payload {
-  tool_name?: unknown
-  tool_input?: { command?: unknown }
-  transcript_path?: unknown
+  tool_name?: unknown | undefined
+  tool_input?: { command?: unknown | undefined } | undefined
+  transcript_path?: unknown | undefined
 }
 
 function isNodeTestCommand(command: string): {
@@ -95,8 +95,8 @@ async function main(): Promise<void> {
 
   const suggestion =
     testFiles.length > 0
-      ? `pnpm exec vitest run ${testFiles.join(' ')}`
-      : 'pnpm exec vitest run path/to/your.test.mts'
+      ? `node_modules/.bin/vitest run ${testFiles.join(' ')}`
+      : 'node_modules/.bin/vitest run path/to/your.test.mts'
 
   process.stderr.write(
     [

@@ -2,15 +2,16 @@
 
 /**
  * @file Per CLAUDE.md "Tooling" rule: 🚨 NEVER use `npx`, `pnpm dlx`, or `yarn
- *   dlx` — use `pnpm exec <package>` or `pnpm run <script>`. Detects `npx`,
- *   `pnpm dlx`, `pnx` (the pnpm-11 dlx shorthand), and `yarn dlx` in source
- *   string literals — argv slices passed to `spawn()`, shell strings, scripts,
- *   doc snippets, README examples, etc. The hook at
- *   `.claude/hooks/fleet/path-guard/` blocks these at the shell layer; this
- *   rule catches them at edit / commit time inside JavaScript / TypeScript
- *   source. Autofix: rewrites the literal in place — `npx foo` → `pnpm exec
- *   foo`, `pnpm dlx foo` → `pnpm exec foo`, `yarn dlx foo` → `pnpm exec foo`,
- *   `pnx foo` → `pnpm exec foo`. Allowed exceptions (skipped):
+ *   dlx` — run `node_modules/.bin/<tool>` or `pnpm run <script>` (`pnpm exec` is
+ *   also banned, see no-pm-exec-guard). Detects `npx`, `pnpm dlx`, `pnx` (the
+ *   pnpm-11 dlx shorthand), and `yarn dlx` in source string literals — argv
+ *   slices passed to `spawn()`, shell strings, scripts, doc snippets, README
+ *   examples, etc. The hook at `.claude/hooks/fleet/path-guard/` blocks these at
+ *   the shell layer; this rule catches them at edit / commit time inside
+ *   JavaScript / TypeScript source. Autofix: rewrites the literal in place —
+ *   `npx foo` → `node_modules/.bin/foo`, `pnpm dlx foo` → `node_modules/.bin/foo`,
+ *   `yarn dlx foo` → `node_modules/.bin/foo`, `pnx foo` → `node_modules/.bin/foo`
+ *   (best-effort: assumes the tool is an installed dep). Allowed exceptions (skipped):
  *
  *   - The literal `npx` inside a comment with `socket-hook: allow npx` — the
  *     canonical bypass marker, used by the lockdown skill spec.
@@ -28,10 +29,10 @@ const PATTERNS = [
   // Order matters — longest-prefix first so `pnpm dlx` is matched
   // before `pnpm` and `pnx ` is matched before `pnpm`. Each entry
   // is [match-prefix, replacement-prefix, label].
-  ['pnpm dlx ', 'pnpm exec ', 'pnpm dlx'],
-  ['yarn dlx ', 'pnpm exec ', 'yarn dlx'], // socket-hook: allow npx
-  ['npx ', 'pnpm exec ', 'npx'], // socket-hook: allow npx
-  ['pnx ', 'pnpm exec ', 'pnx'],
+  ['pnpm dlx ', 'node_modules/.bin/', 'pnpm dlx'],
+  ['yarn dlx ', 'node_modules/.bin/', 'yarn dlx'], // socket-hook: allow npx
+  ['npx ', 'node_modules/.bin/', 'npx'], // socket-hook: allow npx
+  ['pnx ', 'node_modules/.bin/', 'pnx'],
 ]
 
 const COMMENT_BYPASS_RE = /socket-hook:\s*allow\s+npx/ // socket-hook: allow npx
@@ -44,14 +45,14 @@ const rule = {
     type: 'problem',
     docs: {
       description:
-        'Use `pnpm exec <package>` instead of `npx` / `pnpm dlx` / `yarn dlx` / `pnx`. Per CLAUDE.md "Tooling" rule.',
+        'Use `node_modules/.bin/<tool>` or `pnpm run <script>` instead of `npx` / `pnpm dlx` / `yarn dlx` / `pnx`. Per CLAUDE.md "Tooling" rule.',
       category: 'Best Practices',
       recommended: true,
     },
     fixable: 'code',
     messages: {
       banned:
-        '`{{label}}` — use `pnpm exec` instead. CLAUDE.md "Tooling" rule bans dlx-style commands; they bypass the soak time and fetch packages without lockfile verification.',
+        '`{{label}}` — run `node_modules/.bin/<tool>` or `pnpm run <script>` instead. CLAUDE.md "Tooling" rule bans dlx-style commands; they bypass the soak time and fetch packages without lockfile verification. (`pnpm exec` is also banned — wrapper overhead — see no-pm-exec-guard.)',
     },
     schema: [],
   },

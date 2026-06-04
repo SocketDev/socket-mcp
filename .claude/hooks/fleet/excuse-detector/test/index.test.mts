@@ -457,3 +457,31 @@ test('fails open on malformed payload', async () => {
   })
   assert.strictEqual(result.code, 0)
 })
+
+test('fires on relaying an unverified subagent claim (count)', async () => {
+  const result = await runHook([
+    {
+      type: 'assistant',
+      content: 'The audit found 52 guards that only advise instead of blocking.',
+    },
+  ])
+  assert.match(result.stdout, /unverified subagent claim/)
+})
+
+test('does NOT fire when the subagent claim is verified / corrected in-sentence', async () => {
+  const result = await runHook([
+    {
+      type: 'assistant',
+      content:
+        'The agent found 52 such hooks, but grep showed every one exits 2 — the claim was wrong.',
+    },
+  ])
+  assert.strictEqual(result.code, 0)
+})
+
+test('does NOT fire on a plain numeric statement (no subagent relay)', async () => {
+  const result = await runHook([
+    { type: 'assistant', content: 'Fixed the bug across 3 files; tests pass.' },
+  ])
+  assert.strictEqual(result.code, 0)
+})

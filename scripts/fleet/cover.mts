@@ -345,21 +345,34 @@ export async function main(): Promise<void> {
   printHeader('Test Coverage')
   logger.log('')
 
-  logger.info('Building with source maps for coverage…')
-  const buildResult = await spawn('node', ['scripts/build.mts'], {
-    cwd: rootPath,
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      COVERAGE: 'true',
-    },
-  })
-  const buildFailed = buildResult.code !== 0
-  if (buildFailed) {
-    logger.error('Build with source maps failed')
-    process.exitCode = 1
+  // Resolve the repo's build entry. Most repos ship scripts/build.mts; some
+  // name it scripts/bundle.mts after the build→bundle rename. Tooling repos
+  // (the wheelhouse itself) have no buildable artifact — skip the source-map
+  // build and let vitest instrument the sources directly.
+  const buildEntry = ['scripts/build.mts', 'scripts/bundle.mts'].find(rel =>
+    existsSync(path.join(rootPath, rel)),
+  )
+  let buildFailed = false
+  if (buildEntry) {
+    logger.info('Building with source maps for coverage…')
+    const buildResult = await spawn('node', [buildEntry], {
+      cwd: rootPath,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        COVERAGE: 'true',
+      },
+    })
+    buildFailed = buildResult.code !== 0
+    if (buildFailed) {
+      logger.error('Build with source maps failed')
+      process.exitCode = 1
+    }
+    logger.log('')
+  } else {
+    logger.info('No build entry (scripts/build.mts | bundle.mts) — instrumenting sources directly.')
+    logger.log('')
   }
-  logger.log('')
 
   const customFlags = ['--code-only', '--type-only', '--summary']
   const passthroughArgs = process.argv

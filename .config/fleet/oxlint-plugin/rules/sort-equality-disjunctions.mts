@@ -34,6 +34,7 @@
  */
 
 import { stringComparator } from '../lib/comparators.mts'
+import { flattenLogicalChain } from '../lib/logical-chain.mts'
 
 import type { AstNode, RuleContext, RuleFixer } from '../lib/rule-types.mts'
 
@@ -59,19 +60,6 @@ const rule = {
       ? context.getSourceCode()
       : context.sourceCode
 
-    /**
-     * Flatten a left-associative LogicalExpression chain into a list of leaf
-     * nodes. `(a || b) || c` and `a || (b || c)` both flatten to [a, b, c]. We
-     * require the chain operator to be uniform (caller checks).
-     */
-    function flatten(node: AstNode, op: string, out: AstNode[]): void {
-      if (node.type === 'LogicalExpression' && node.operator === op) {
-        flatten(node.left, op, out)
-        flatten(node.right, op, out)
-      } else {
-        out.push(node)
-      }
-    }
 
     /**
      * For a binary-equality leaf, return `{ left, right, operator }` if it's
@@ -147,7 +135,7 @@ const rule = {
       }
 
       const leaves: AstNode[] = []
-      flatten(rootNode, op, leaves)
+      flattenLogicalChain(rootNode, op, leaves)
       if (leaves.length < 2) {
         return
       }

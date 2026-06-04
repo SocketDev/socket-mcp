@@ -14,14 +14,13 @@
  *   lib/vitest-fn-call.mts.
  */
 
+import { TEST_FILE_RE } from '../lib/test-file.mts'
 import {
   classifyVitestCall,
   collectVitestNames,
 } from '../lib/vitest-fn-call.mts'
 
 import type { AstNode, RuleContext } from '../lib/rule-types.mts'
-
-const TEST_FILE_RE = /\.test\.(?:[mc]?[jt]s)$/
 
 // Root identifiers that count as an assertion when called.
 const ASSERTION_ROOTS: ReadonlySet<string> = new Set(['assert', 'expect'])
@@ -47,7 +46,15 @@ function containsAssertion(node: AstNode): boolean {
     let cur: AstNode | undefined = node.callee
     while (cur) {
       if (cur.type === 'Identifier') {
-        if (ASSERTION_ROOTS.has(cur.name)) {
+        // `expect(...)` / `assert(...)`, OR a camelCase assertion helper named
+        // `expect<Upper>` / `assert<Upper>` (e.g. `expectLiteralRoundtrip`,
+        // `assertValidShape`) — a fleet convention for reusable assertions that
+        // wrap `expect` internally. The helper itself is linted, so treating a
+        // call to it as an assertion is sound, not a coverage dodge.
+        if (
+          ASSERTION_ROOTS.has(cur.name) ||
+          /^(?:expect|assert)[A-Z]/.test(cur.name)
+        ) {
           return true
         }
         break
@@ -148,10 +155,7 @@ const rule = {
           return
         }
         // `.todo` / `.skip` cases legitimately have no body assertion.
-        if (
-          call.modifiers.includes('todo') ||
-          call.modifiers.includes('skip')
-        ) {
+        if (call.modifiers.includes('todo') || call.modifiers.includes('skip')) {
           return
         }
         const cb = testCallback(node)

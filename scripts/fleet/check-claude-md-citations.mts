@@ -2,29 +2,25 @@
 /**
  * @file Doc-integrity gate: every hook + socket/ rule CITED in CLAUDE.md must
  *   actually exist. CLAUDE.md documents the fleet's guardrails by naming the
- *   enforcing hook (`enforced by \`.claude/hooks/fleet/<name>/\``) and lint rule
- *   (`\`socket/<rule>\``). When a hook is renamed/removed or a rule is dropped,
- *   the citation goes stale and the doc lies — a reader (human or agent) trusts
- *   a guard that no longer exists. The `new-hook-claude-md-guard` enforces the
- *   FORWARD direction at edit time (new hook ⇒ needs a citation); this gate
- *   enforces the REVERSE at commit time (citation ⇒ the thing exists), which
- *   nothing else checks.
+ *   enforcing hook (an "enforced by .claude/hooks/fleet/<name>/" phrase) and
+ *   the lint rule (a "socket/<rule>" reference). When a hook is renamed/removed
+ *   or a rule is dropped, the citation goes stale and the doc lies — a reader
+ *   (human or agent) trusts a guard that no longer exists. The
+ *   `new-hook-claude-md-guard` enforces the FORWARD direction at edit time (new
+ *   hook ⇒ needs a citation); this gate enforces the REVERSE at commit time
+ *   (citation ⇒ the thing exists), which nothing else checks. Checks:
  *
- *   Checks:
  *   1. Every `.claude/hooks/fleet/<name>/` cited in CLAUDE.md resolves to a real
  *      hook dir. Brace-grouped citations (`{a,b,c}/`) are expanded. Repo-only
  *      hooks (`.claude/hooks/repo/<name>/`) are checked the same way.
- *   2. Every `socket/<rule>` cited in CLAUDE.md is a registered rule in the
- *      oxlint plugin's rules/ dir.
- *
- *   Advisory (logged, non-failing): hooks on disk with NO citation, EXCEPT the
- *   reminder family + wheelhouse-only set (those legitimately need none). This
- *   surfaces undocumented guards without gating — promoting one to a citation
- *   is a judgment call, not a mechanical fix.
- *
- *   Reads the wheelhouse template tree when run there, else the repo's own
- *   CLAUDE.md + .claude/hooks. Exit codes: 0 — every citation resolves; 1 — at
- *   least one cited hook / rule is missing.
+ *   2. Every `socket/<rule>` cited in CLAUDE.md is a registered rule in the oxlint
+ *      plugin's rules/ dir. Advisory (logged, non-failing): hooks on disk with
+ *      NO citation, EXCEPT the reminder family + wheelhouse-only set (those
+ *      legitimately need none). This surfaces undocumented guards without
+ *      gating — promoting one to a citation is a judgment call, not a
+ *      mechanical fix. Reads the wheelhouse template tree when run there, else
+ *      the repo's own CLAUDE.md + .claude/hooks. Exit codes: 0 — every citation
+ *      resolves; 1 — at least one cited hook / rule is missing.
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
