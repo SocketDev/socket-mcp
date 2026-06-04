@@ -9,7 +9,6 @@ socket-mcp is the **Socket Model Context Protocol server** — exposes Socket de
 - `index.ts` — entry; registers MCP tools and starts the stdio server.
 - `lib/` — tool implementations and Socket API wrappers.
 - `artifacts.test.ts` — co-located unit tests; additional fixtures under `docs/`.
-- `Dockerfile` — container build for hosted deployment.
 
 ## Commands
 
