@@ -3,23 +3,22 @@
  *   `socket/no-vitest-*` guardrail rules. A lean adaptation of
  *   `@vitest/eslint-plugin`'s `parse-vitest-fn-call.ts` (612 lines, heavy on
  *   the TS type checker + scope analysis) tailored to how the fleet actually
- *   writes tests: globals are OFF everywhere (`globals: false` in every
- *   vitest config), so a bare `it` / `describe` / `expect` is a vitest call
- *   ONLY when imported from `'vitest'`. That collapses upstream's scope walk
- *   into a single import-binding pass. Callers run inside `*.test.*` files.
+ *   writes tests: globals are OFF everywhere (`globals: false` in every vitest
+ *   config), so a bare `it` / `describe` / `expect` is a vitest call ONLY when
+ *   imported from `'vitest'`. That collapses upstream's scope walk into a
+ *   single import-binding pass. Callers run inside `*.test.*` files. Vocabulary
+ *   (mirrors upstream `types.ts`):
  *
- *   Vocabulary (mirrors upstream `types.ts`):
  *   - test-case names: it, test, fit, xit, xtest, bench
  *   - describe names: describe, fdescribe, xdescribe
  *   - hook names: beforeAll, beforeEach, afterAll, afterEach
  *   - modifiers chained after a test/describe: only, skip, todo, concurrent,
- *     sequential, each, fails, skipIf, runIf, for
- *
- *   `getVitestCallChain(callNode, names)` returns the dotted member chain rooted
- *   at a known vitest binding (e.g. `['it','skip']`, `['describe','each']`,
- *   `['expect']`) or undefined. `collectVitestNames(program)` builds the set of
- *   local binding names that resolve to a vitest import (plus the always-known
- *   globals as a fallback so a globals-on fixture still classifies).
+ *     sequential, each, fails, skipIf, runIf, for `getVitestCallChain(callNode,
+ *     names)` returns the dotted member chain rooted at a known vitest binding
+ *     (e.g. `['it','skip']`, `['describe','each']`, `['expect']`) or undefined.
+ *     `collectVitestNames(program)` builds the set of local binding names that
+ *     resolve to a vitest import (plus the always-known globals as a fallback
+ *     so a globals-on fixture still classifies).
  */
 
 import type { AstNode } from './rule-types.mts'
