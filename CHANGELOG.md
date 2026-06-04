@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.18]
+
+### Fixed
+
+- The `package_files` and `organizations` tools no longer fail with
+  `Unexpected token` JSON errors against the live Socket API.
+
 ## [0.0.17]
 
 Initial tracked release.
