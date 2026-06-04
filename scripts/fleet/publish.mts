@@ -52,7 +52,8 @@ import {
 
 const logger = getDefaultLogger()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootPath = path.join(__dirname, '..')
+// __dirname is `<repo>/scripts/fleet`; climb out twice to reach repo root.
+const rootPath = path.join(__dirname, '..', '..')
 interface StageListEntry {
   name?: string | undefined
   version?: string | undefined

@@ -24,6 +24,7 @@
     "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
+    "publish": "node scripts/fleet/publish.mts",
     "test": "node scripts/fleet/test.mts",
     "test:e2e": "vitest run --config .config/repo/vitest.config.mts test/server.e2e.ts",
     "cover": "node scripts/fleet/cover.mts",
