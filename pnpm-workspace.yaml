@@ -36,6 +36,7 @@ catalog:
   'rolldown': 1.0.3
   'shell-quote': 1.8.4
   'taze': 19.11.0
+  'untracked': 1.6.1
   'vitest': 4.1.6
 enablePrePostScripts: true
 
@@ -53,6 +54,11 @@ overrides:
   'uuid': '11.1.1'
 
   # Repo-specific overrides below.
+  # update-notifier ≥4 → 7.3.1 — older versions (e.g. v5.1.0 pulled by
+  # `untracked`) end at semver@6.3.1 via semver-diff (no provenance).
+  # v7.3.1 uses semver@^7.6.3 (provenance-attested) directly. API
+  # surface for consumers (`notify()`) is unchanged 4.x → 7.x.
+  'update-notifier@>=4.0.0': '7.3.1'
   '@hono/node-server': '1.19.13'
   'fast-uri': '3.1.2'
   'hono': '4.12.18'
@@ -90,6 +96,12 @@ minimumReleaseAgeExclude:
   - 'shell-quote@1.8.4'
   # published: 2026-05-27 | removable: 2026-06-03
   - 'compromise@14.15.1'
+  # untracked@1.6.1 — Kikobeats/untracked, dev-only tool for autogenerating
+  # `.dockerignore` from package.json + the curated blacklist. semver
+  # override above pins the transitive update-notifier → semver-diff
+  # to a provenance-attested version.
+  # published: 2026-06-03 | removable: 2026-06-10
+  - 'untracked@1.6.1'
   # published: 2026-05-21 | removable: 2026-05-28
   - 'vite@8.0.14'
   # published: 2026-05-11 | removable: 2026-05-18

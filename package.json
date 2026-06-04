@@ -83,6 +83,7 @@
     "rolldown": "catalog:",
     "shell-quote": "catalog:",
     "taze": "catalog:",
+    "untracked": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {
