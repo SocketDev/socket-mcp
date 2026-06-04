@@ -10,23 +10,37 @@
 # shebang. This produces an image ~30 MB (alpine + node + 1 file) instead of
 # the ~250 MB the previous single-stage Dockerfile shipped (full node_modules
 # + repo source).
+#
+# Alignment with socket-btm/Dockerfile.local-dev: btm pulls pnpm via
+# socket-registry's `.build-context/registry-tools.json` (SHA-verified,
+# materialized by socket-registry's setup-and-install action in CI). That
+# pattern requires the CI infrastructure that exports
+# SOCKET_TOOL_CHECKSUMS_FILE; mcp's Dockerfile is also user-runnable from a
+# clean clone, so it uses corepack to resolve pnpm from package.json's
+# `packageManager` field. Same intent (pinned, reproducible), different
+# delivery (CI-side SHA gate vs. corepack signature).
 
 # ─── Build stage ────────────────────────────────────────────────────────────
 FROM node:lts-alpine AS build
 
 WORKDIR /usr/src/app
 
-# Enable corepack so the pinned pnpm version (from package.json
-# packageManager field) resolves automatically — no global install drift.
+# Resolve pnpm via corepack from the `packageManager` field in package.json.
+# corepack downloads + verifies the pnpm tarball against the SHA embedded in
+# `packageManager: "pnpm@X.Y.Z+sha512.<hex>"` (or against npm registry
+# signatures when the +sha suffix is absent). This is the user-runnable
+# equivalent of btm's `SHA-verify-then-extract` pnpm install pattern.
 RUN corepack enable
 
 # Copy lockfile + workspace config first so the dep layer caches when only
-# source changes. `pnpm install --frozen-lockfile` fails CI-style if the
-# lockfile is stale, which is what we want for reproducible builds.
+# source changes. `--frozen-lockfile` fails CI-style if the lockfile is
+# stale, which is what we want for reproducible builds. `--ignore-scripts`
+# blocks lifecycle hooks (postinstall, prepare) which would try to run
+# `install-git-hooks.mts` inside the image where there is no `.git`.
+# `--prefer-offline` favors the pnpm store cache when present.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY .claude/hooks ./.claude/hooks
 
-RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
 
 # Copy source needed by the build. The build runs scripts/build.mts
 # (rolldown bundler) + tsgo for .d.ts emission + chmod on the output.
