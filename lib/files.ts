@@ -1,6 +1,4 @@
-import { httpRequest } from '@socketsecurity/lib/http-request/request'
-
-import { buildJsonApiHeaders } from './http-helpers.ts'
+import { buildJsonApiHeaders, socketHttpRequest } from './http-helpers.ts'
 
 export function buildTree(entries: FileListEntry[]): TreeNode {
   const root: TreeNode = { name: '', isFile: false, children: new Map() }
@@ -126,7 +124,7 @@ export async function fetchFileList(
   options.onRequest?.(url)
   let res
   try {
-    res = await httpRequest(url, { headers })
+    res = await socketHttpRequest(url, { headers })
   } catch (e) {
     throw new Error(
       `file-list request to ${url} failed: ${(e as Error).message}`,

@@ -3,11 +3,10 @@ import { Type } from '@sinclair/typebox'
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
 import { errorMessage } from '@socketsecurity/lib/errors'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
-import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
 import { deduplicateArtifacts } from './artifacts.ts'
 import { getSocketApiUrl } from './env.ts'
-import { buildSocketHeaders } from './http-helpers.ts'
+import { buildSocketHeaders, socketHttpRequest } from './http-helpers.ts'
 import { logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
 import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.ts'
@@ -139,7 +138,7 @@ export async function handleDepscore(
 
   let response
   try {
-    response = await httpRequest(SOCKET_API_URL, {
+    response = await socketHttpRequest(SOCKET_API_URL, {
       method: 'POST',
       headers: buildSocketHeaders(accessToken),
       body: JSON.stringify({ components }),

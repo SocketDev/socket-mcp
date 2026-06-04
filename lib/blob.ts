@@ -1,4 +1,4 @@
-import { httpRequest } from '@socketsecurity/lib/http-request/request'
+import { socketHttpRequest } from './http-helpers.ts'
 
 export interface BlobResult {
   bytes: number
@@ -188,7 +188,7 @@ export async function fetchRawBytes(
   options.onRequest?.(url)
   let res
   try {
-    res = await httpRequest(url, { headers })
+    res = await socketHttpRequest(url, { headers })
   } catch (e) {
     throw new Error(`blob request to ${url} failed: ${(e as Error).message}`)
   }

@@ -6,7 +6,6 @@ import {
 } from './env.ts'
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
 import { errorMessage } from '@socketsecurity/lib/errors'
-import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -14,6 +13,7 @@ import {
   assertSafeHttpUrl,
   getRequestHeaderValue,
   parseJsonObject,
+  socketHttpRequest,
   writeJson,
   writeOAuthError,
 } from './http-helpers.ts'
@@ -230,7 +230,7 @@ export async function loadOAuthMetadata(
         'SOCKET_OAUTH_ISSUER',
         ALLOW_LOCAL_OAUTH,
       )
-      const response = await httpRequest(
+      const response = await socketHttpRequest(
         new URL(OAUTH_WELL_KNOWN_PATH, issuerUrl).href,
       )
       const responseText = response.text()
@@ -344,7 +344,7 @@ export async function verifyAccessToken(
     'OAuth introspection_endpoint',
     ALLOW_LOCAL_OAUTH,
   ).href
-  const response = await httpRequest(introspectionUrl, {
+  const response = await socketHttpRequest(introspectionUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
