@@ -1,3 +1,5 @@
+import { brotliCompressSync, gzipSync } from 'node:zlib'
+
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
@@ -206,4 +208,38 @@ describe('fetchFileList', () => {
     expect(encodeURIComponent(purl)).toContain('%3F')
     expect(scope.isDone()).toBe(true)
   })
+
+  // Regression: the Socket API answers `Accept-Encoding: gzip, br` (which
+  // @socketsecurity/lib advertises) with a compressed body. Through lib@6.0.6
+  // httpRequest exposed the raw compressed bytes on `res.json()`, so parsing
+  // blew up with `Unexpected token '\x1f'` (gzip) / `'\x1B'` (brotli) — the
+  // package_files / organizations failures observed against the live API.
+  // lib@6.0.7 decodes by `content-encoding` before parsing.
+  const COMPRESSED_BODY = {
+    files: [
+      { path: 'package', type: 'dir' },
+      { path: 'package/index.js', type: 'file', size: 100, hash: 'Qa' },
+    ],
+  }
+  for (const { encoding, compress } of [
+    { encoding: 'gzip', compress: gzipSync },
+    { encoding: 'br', compress: brotliCompressSync },
+  ]) {
+    test(`decodes a ${encoding}-compressed JSON body`, async () => {
+      nock(API)
+        .get(filePath('pkg:npm/lodash@4.17.21'))
+        .reply(200, compress(Buffer.from(JSON.stringify(COMPRESSED_BODY))), {
+          'content-encoding': encoding,
+          'content-type': 'application/json',
+        })
+
+      const result = await fetchFileList('pkg:npm/lodash@4.17.21', {
+        baseUrl: API,
+      })
+
+      expect(result.fileCount).toBe(1)
+      expect(result.totalBytes).toBe(100)
+      expect(result.tree).toMatch(/index\.js {2}100B/)
+    })
+  }
 })
