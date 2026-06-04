@@ -58,7 +58,10 @@ overrides:
   # Repo-specific overrides below.
   '@hono/node-server': '1.19.13'
   'fast-uri': '3.1.2'
-  'hono': '4.12.18'
+  # GHSA-xrhx-7g5j-rcj5 IPv6 deny-rule bypass / GHSA-3hrh-pfw6-9m5x Set-Cookie
+  # injection / GHSA-f577-qrjj-4474 JWT scheme / GHSA-2gcr-mfcq-wcc3 mount
+  # prefix; transitive via @modelcontextprotocol/sdk, fixed in 4.12.21
+  'hono': '4.12.23'
   'ip-address': '10.1.1'
   # CVE-2026-... node-forge prototype-pollution-class advisories #55/#57/#59/#61
   'node-forge': '1.4.0'
