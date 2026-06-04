@@ -43,7 +43,8 @@ const depscoreInputSchema = Type.Object({
       }),
       depname: Type.String({ description: 'The name of the dependency' }),
       version: Type.String({
-        description: "The version of the dependency, use 'unknown' if not known",
+        description:
+          "The version of the dependency, use 'unknown' if not known",
         default: 'unknown',
       }),
     }),
@@ -76,6 +77,22 @@ export function buildPackageComponents(
     }
     return { purl }
   })
+}
+
+export function defineDepscoreTool(): ToolSpec {
+  return {
+    name: 'depscore',
+    title: 'Dependency Score Tool',
+    description:
+      "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+    inputSchema: depscoreInputSchema,
+    annotations: { readOnlyHint: true },
+    handler(args, extra) {
+      const packages = args['packages'] as DepscorePackageInput[]
+      const platform = args['platform'] as string | undefined
+      return handleDepscore(packages, platform, extra.authInfo?.token)
+    },
+  }
 }
 
 // Render `Object.entries(score)` into a human-readable "k1: v1, k2: v2"
@@ -238,20 +255,4 @@ export function parseNdjsonPackageBody(
 export function parseSinglePackageBody(responseText: string): string[] {
   const jsonData = JSON.parse(responseText) as Record<string, unknown>
   return [formatScoreLine(jsonData)]
-}
-
-export function defineDepscoreTool(): ToolSpec {
-  return {
-    name: 'depscore',
-    title: 'Dependency Score Tool',
-    description:
-      "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
-    inputSchema: depscoreInputSchema,
-    annotations: { readOnlyHint: true },
-    handler(args, extra) {
-      const packages = args['packages'] as DepscorePackageInput[]
-      const platform = args['platform'] as string | undefined
-      return handleDepscore(packages, platform, extra.authInfo?.token)
-    },
-  }
 }

@@ -45,9 +45,7 @@ const threatFeedInputSchema = Type.Object({
         'Ecosystem filter, e.g. npm, pypi, gem, maven, golang, nuget, cargo, chrome, openvsx, vscode, huggingface',
     }),
   ),
-  name: Type.Optional(
-    Type.String({ description: 'Filter by package name' }),
-  ),
+  name: Type.Optional(Type.String({ description: 'Filter by package name' })),
   version: Type.Optional(
     Type.String({ description: 'Filter by package version' }),
   ),

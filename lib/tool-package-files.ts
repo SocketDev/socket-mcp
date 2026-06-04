@@ -39,28 +39,6 @@ interface PackageFileGrepArgs {
   path?: string | undefined
 }
 
-export function buildPurlForFiles(
-  ecosystem: string,
-  depname: string,
-  version: string,
-  artifactId?: string,
-  platform?: string,
-): string {
-  const qualifiers: Record<string, string> = {}
-  if (artifactId) {
-    qualifiers['artifact_id'] = artifactId
-  }
-  if (platform) {
-    qualifiers['platform'] = platform
-  }
-  return buildPurl(
-    ecosystem,
-    depname,
-    version,
-    Object.keys(qualifiers).length ? qualifiers : undefined,
-  )
-}
-
 const packageFilesInputSchema = Type.Object({
   ecosystem: Type.String({
     description:
@@ -137,71 +115,26 @@ const packageFileGrepInputSchema = Type.Object({
   ),
 })
 
-export function definePackageFilesTool(): ToolSpec {
-  return {
-    name: 'package_files',
-    title: 'Package File List Tool',
-    description:
-      "List the files published in a package using the `package_files` tool from Socket. Returns a tree of paths and sizes for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, use `package_file_contents` with one of the paths to read the file's contents.",
-    inputSchema: packageFilesInputSchema,
-    annotations: { readOnlyHint: true },
-    async handler(rawArgs, extra) {
-      const args = rawArgs as unknown as PackageFilesArgs
-      const { ecosystem, depname, version, artifactId, platform } = args
-      const purlWithQualifiers = buildPurlForFiles(
-        ecosystem ?? 'npm',
-        depname,
-        version,
-        artifactId,
-        platform,
-      )
-      logger.info(
-        {
-          tool: 'package_files',
-          ecosystem,
-          depname,
-          version,
-          artifactId,
-          platform,
-          purl: purlWithQualifiers,
-        },
-        'tool invoked',
-      )
-      const accessToken = resolveAuthToken(extra.authInfo?.token)
-      if (!accessToken) {
-        logger.error('package_files: ' + AUTH_REQUIRED_MSG)
-        return authRequiredResult()
-      }
-      try {
-        const result = await fetchFileList(purlWithQualifiers, {
-          baseUrl: SOCKET_API_BASE_URL,
-          includeHashes: true,
-          userAgent: INTERNAL_USER_AGENT,
-          authToken: accessToken,
-          onRequest: url => debug({ url }, 'file list request'),
-        })
-        if (result.fileCount === 0) {
-          return {
-            content: [
-              { type: 'text', text: `No files found for ${result.purl}` },
-            ],
-          }
-        }
-        const sizeKb = (result.totalBytes / 1024).toFixed(1)
-        const header = `${result.purl} — ${result.fileCount} files, ${sizeKb} KB`
-        return {
-          content: [{ type: 'text', text: `${header}\n${result.tree}` }],
-        }
-      } catch (e) {
-        const errorMsg = `Error fetching file list for ${purlWithQualifiers}: ${errorMessage(e)}`
-        logger.error(errorMsg)
-        return {
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
-      }
-    },
+export function buildPurlForFiles(
+  ecosystem: string,
+  depname: string,
+  version: string,
+  artifactId?: string,
+  platform?: string,
+): string {
+  const qualifiers: Record<string, string> = {}
+  if (artifactId) {
+    qualifiers['artifact_id'] = artifactId
   }
+  if (platform) {
+    qualifiers['platform'] = platform
+  }
+  return buildPurl(
+    ecosystem,
+    depname,
+    version,
+    Object.keys(qualifiers).length ? qualifiers : undefined,
+  )
 }
 
 export function definePackageFileContentsTool(): ToolSpec {
@@ -358,6 +291,73 @@ export function definePackageFileGrepTool(): ToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error grepping blob ${hash}: ${errorMessage(e)}`
+        logger.error(errorMsg)
+        return {
+          content: [{ type: 'text', text: errorMsg }],
+          isError: true,
+        }
+      }
+    },
+  }
+}
+
+export function definePackageFilesTool(): ToolSpec {
+  return {
+    name: 'package_files',
+    title: 'Package File List Tool',
+    description:
+      "List the files published in a package using the `package_files` tool from Socket. Returns a tree of paths and sizes for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, use `package_file_contents` with one of the paths to read the file's contents.",
+    inputSchema: packageFilesInputSchema,
+    annotations: { readOnlyHint: true },
+    async handler(rawArgs, extra) {
+      const args = rawArgs as unknown as PackageFilesArgs
+      const { ecosystem, depname, version, artifactId, platform } = args
+      const purlWithQualifiers = buildPurlForFiles(
+        ecosystem ?? 'npm',
+        depname,
+        version,
+        artifactId,
+        platform,
+      )
+      logger.info(
+        {
+          tool: 'package_files',
+          ecosystem,
+          depname,
+          version,
+          artifactId,
+          platform,
+          purl: purlWithQualifiers,
+        },
+        'tool invoked',
+      )
+      const accessToken = resolveAuthToken(extra.authInfo?.token)
+      if (!accessToken) {
+        logger.error('package_files: ' + AUTH_REQUIRED_MSG)
+        return authRequiredResult()
+      }
+      try {
+        const result = await fetchFileList(purlWithQualifiers, {
+          baseUrl: SOCKET_API_BASE_URL,
+          includeHashes: true,
+          userAgent: INTERNAL_USER_AGENT,
+          authToken: accessToken,
+          onRequest: url => debug({ url }, 'file list request'),
+        })
+        if (result.fileCount === 0) {
+          return {
+            content: [
+              { type: 'text', text: `No files found for ${result.purl}` },
+            ],
+          }
+        }
+        const sizeKb = (result.totalBytes / 1024).toFixed(1)
+        const header = `${result.purl} — ${result.fileCount} files, ${sizeKb} KB`
+        return {
+          content: [{ type: 'text', text: `${header}\n${result.tree}` }],
+        }
+      } catch (e) {
+        const errorMsg = `Error fetching file list for ${purlWithQualifiers}: ${errorMessage(e)}`
         logger.error(errorMsg)
         return {
           content: [{ type: 'text', text: errorMsg }],

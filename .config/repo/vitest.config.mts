@@ -1,14 +1,13 @@
 /**
- * @file Vitest configuration.
- *
- * Isolation: the fleet default is `isolate: true` — each test file gets a fresh
- * module registry + globals, so cross-file leakage (process.env, path-rewire
- * overrides, vi.mock state, nock interceptors) is impossible. Correctness by
- * default. A repo that wants the faster shared-worker mode for a known-safe
- * subset opts those files OUT by listing globs in a repo-owned
- * `.config/repo/vitest-non-isolated.json` (`{ "include": ["test/unit/pure/**"] }`).
- * When that file exists, those globs run in a second, non-isolated project and
- * the default isolated project excludes them. No file → everything isolated.
+ * @file Vitest configuration. Isolation: the fleet default is `isolate: true` —
+ *   each test file gets a fresh module registry + globals, so cross-file
+ *   leakage (process.env, path-rewire overrides, vi.mock state, nock
+ *   interceptors) is impossible. Correctness by default. A repo that wants the
+ *   faster shared-worker mode for a known-safe subset opts those files OUT by
+ *   listing globs in a repo-owned `.config/repo/vitest-non-isolated.json` (`{
+ *   "include": ["test/unit/pure/**"] }`). When that file exists, those globs
+ *   run in a second, non-isolated project and the default isolated project
+ *   excludes them. No file → everything isolated.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'

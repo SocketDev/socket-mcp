@@ -16,7 +16,11 @@ import { defineOrganizationsTool } from './tool-organizations.ts'
 import { defineThreatFeedTool } from './tool-threat-feed.ts'
 import { withToolLogging } from './tool-logging.ts'
 import type { ToolHandler } from './tool-logging.ts'
-import type { ToolCallResult, ToolHandlerExtra, ToolSpec } from './tool-types.ts'
+import type {
+  ToolCallResult,
+  ToolHandlerExtra,
+  ToolSpec,
+} from './tool-types.ts'
 import { VERSION } from './version.ts'
 
 export interface ToolErrorResult {
@@ -53,11 +57,10 @@ export function authRequiredResult(): ToolErrorResult {
 
 /**
  * Build the canonical set of tool specs. Each tool ships its own
- * `define*Tool()` factory so the data + handler stay co-located; this
- * function just collects them. Order here is the order clients see in
- * `tools/list`.
+ * `define*Tool()` factory so the data + handler stay co-located; this function
+ * just collects them. Order here is the order clients see in `tools/list`.
  */
-function buildToolSpecs(): ToolSpec[] {
+export function buildToolSpecs(): ToolSpec[] {
   return [
     defineDepscoreTool(),
     defineOrganizationsTool(),
@@ -73,11 +76,11 @@ function buildToolSpecs(): ToolSpec[] {
  * Build a configured low-level `Server` instance with every Socket tool
  * registered. Used for stdio (single instance) and HTTP (one per session).
  *
- * Migration note: previously this used the high-level `McpServer`, which
- * bakes zod adapters into `registerTool`. The low-level `Server` accepts
- * raw JSON Schema in `Tool.inputSchema` — which is exactly what TypeBox's
- * `Type.Object({...})` produces. So every tool's input schema flows through
- * the SDK to clients verbatim; no zod, no extra validation layer here.
+ * Migration note: previously this used the high-level `McpServer`, which bakes
+ * zod adapters into `registerTool`. The low-level `Server` accepts raw JSON
+ * Schema in `Tool.inputSchema` — which is exactly what TypeBox's
+ * `Type.Object({...})` produces. So every tool's input schema flows through the
+ * SDK to clients verbatim; no zod, no extra validation layer here.
  */
 export function createConfiguredServer(): Server {
   const specs = buildToolSpecs()

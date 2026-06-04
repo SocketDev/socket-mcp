@@ -85,7 +85,7 @@ The accept/user-agent/authorization/extraHeaders-merge block is verbatim in `ale
 - **`lib/register-depscore.ts:116` + `register-alerts.ts:79`** — Auth-token resolution `authInfo?.token || getStaticApiKey()` duplicated across all 5 registrars. _Fix:_ `resolveAuthToken(authInfoToken)` in server.ts.
 - **`lib/alerts.ts:97`** — Endpoint-error message strings diverge across alerts/orgs/threat-feed/files/blob. _Fix:_ shared `buildHttpError(endpoint, response)` in http-helpers.ts.
 - **`lib/register-alerts.ts:93`** — Auth-missing path logged in depscore but silent in 4 others. _Fix:_ standardize (log in all, or none).
-- **`lib/register-alerts.ts:101`** — snake_case→camelCase filter mapping near-identical in alerts:106-116 and threat-feed:106-122. _Fix:_ extract typed `buildAlertsFilterFlags`/`buildThreatFeedFilterFlags`.
+- **`lib/register-alerts.ts:101`** — snake*case→camelCase filter mapping near-identical in alerts:106-116 and threat-feed:106-122. \_Fix:* extract typed `buildAlertsFilterFlags`/`buildThreatFeedFilterFlags`.
 - **`lib/register-depscore.ts:128`** — depscore does manual status-code handling; other registrars delegate throw-on-`!res.ok`. _Fix:_ unify on one approach (shared `fetchWithErrorHandling` or push status handling down).
 - **`lib/register-depscore.ts:137`** — depscore special-cased with raw `httpRequest` + content-type negotiation (NDJSON vs JSON) while others use higher-level modules. _Fix:_ pick one abstraction level; move NDJSON parsing to a shared parser or wrap depscore's own request.
 

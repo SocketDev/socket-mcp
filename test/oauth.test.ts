@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Socket } from 'node:net'
 import path from 'node:path'
@@ -58,10 +59,11 @@ export function assertOAuthError(
     error?: string | undefined
     error_description?: string | undefined
   }
-  expect(captured.getStatus()).toBe(expected.status)
-  expect(body.error).toBe(expected.error)
-  expect(body.error_description).toBe(expected.errorDescription)
-  expect(captured.getHeaders()['WWW-Authenticate']).toBe(
+  assert.equal(captured.getStatus(), expected.status)
+  assert.equal(body.error, expected.error)
+  assert.equal(body.error_description, expected.errorDescription)
+  assert.equal(
+    captured.getHeaders()['WWW-Authenticate'],
     `Bearer error="${expected.error}", error_description="${expected.errorDescription}", resource_metadata="${resourceMetadataUrl}"`,
   )
 }
