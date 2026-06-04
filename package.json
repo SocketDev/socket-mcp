@@ -20,6 +20,10 @@
   ],
   "type": "module",
   "main": "./dist/index.cjs",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
