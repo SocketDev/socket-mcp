@@ -34,6 +34,20 @@ const introspectionPath = '/introspect'
 // In-process introspection responses keyed by token, mirroring the
 // fixtures the upstream introspection endpoint would return.
 const mockIntrospectionResponses: Record<string, Record<string, unknown>> = {
+  'token-with-malformed-exp': {
+    active: true,
+    client_id: 'oauth-test-client',
+    // A present-but-non-numeric `exp` must fail closed — silently dropping
+    // it would treat the token as never-expiring.
+    exp: 'not-a-number',
+    scope: 'packages:list',
+  },
+  'token-with-valid-exp': {
+    active: true,
+    client_id: 'oauth-test-client',
+    exp: 4_102_444_800,
+    scope: 'packages:list',
+  },
   'token-with-wrong-scope': {
     active: true,
     client_id: 'oauth-test-client',
@@ -273,6 +287,27 @@ test('verifyAccessToken maps an active introspection to AuthInfo', async () => {
   const authInfo = await verifyAccessToken('token-without-exp', config)
   expect(authInfo?.clientId).toBe('oauth-test-client')
   expect(authInfo?.scopes).toEqual(['packages:list'])
+  // Absent exp → non-expiring token: expiresAt left off the AuthInfo.
+  expect(authInfo?.expiresAt).toBe(undefined)
+})
+
+test('verifyAccessToken preserves a valid numeric exp', async () => {
+  mockDiscovery()
+  mockIntrospection()
+  const authInfo = await verifyAccessToken('token-with-valid-exp', makeConfig())
+  expect(authInfo?.expiresAt).toBe(4_102_444_800)
+})
+
+test('verifyAccessToken fails closed on a malformed exp (never-expiring guard)', async () => {
+  mockDiscovery()
+  mockIntrospection()
+  // A present-but-unparseable exp must reject the token, not silently
+  // strip the expiry and accept it as non-expiring.
+  const authInfo = await verifyAccessToken(
+    'token-with-malformed-exp',
+    makeConfig(),
+  )
+  expect(authInfo).toBe(undefined)
 })
 
 test('authenticateRequest rejects a missing Authorization header', async () => {

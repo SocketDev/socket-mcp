@@ -365,10 +365,21 @@ export async function verifyAccessToken(
     return undefined
   }
 
-  const expiresAt =
-    typeof introspection['exp'] === 'number'
-      ? introspection['exp']
-      : Number(introspection['exp'])
+  // Resolve the token's expiry from the introspection `exp` claim. A
+  // genuinely absent `exp` means a non-expiring token (left off the
+  // returned AuthInfo). But a PRESENT-yet-malformed `exp` (a string that
+  // doesn't parse, an object, NaN) must fail CLOSED: silently dropping it
+  // would treat the token as never-expiring, so a buggy/compromised
+  // introspection endpoint could hand out tokens that never age out.
+  const rawExp = introspection['exp']
+  let expiresAt: number | undefined
+  if (rawExp !== undefined && rawExp !== null) {
+    const parsed = typeof rawExp === 'number' ? rawExp : Number(rawExp)
+    if (!Number.isFinite(parsed)) {
+      return undefined
+    }
+    expiresAt = parsed
+  }
 
   return {
     token,
@@ -377,7 +388,7 @@ export async function verifyAccessToken(
         ? introspection['client_id']
         : 'unknown',
     scopes: splitScopes(introspection['scope']),
-    ...(Number.isFinite(expiresAt) ? { expiresAt } : {}),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
     extra: introspection,
   }
 }
