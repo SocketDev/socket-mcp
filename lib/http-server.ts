@@ -45,6 +45,24 @@ const ALLOWED_ORIGINS = [
   'https://mcp.socket-staging.dev',
 ]
 
+// Non-OAuth HTTP mode: forward a client-supplied Socket API key (sent as
+// `Authorization: Bearer <token>`) to the tool layer via `req.auth`, so
+// per-tenant tools act on the caller's behalf instead of the deploy's static
+// key. A missing or malformed header leaves `req.auth` unset, which makes
+// per-tenant tools return AUTH_REQUIRED while public tools (depscore) still
+// fall back to the static key.
+export function applyClientApiKey(req: AuthenticatedRequest): void {
+  const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
+  if (!authHeader) {
+    return
+  }
+  const [type, token] = authHeader.split(/\s+/u)
+  if ((type || '').toLowerCase() !== 'bearer' || !token) {
+    return
+  }
+  req.auth = { token, clientId: 'socket-api-key', scopes: [] }
+}
+
 // Destroy a session — close transport (best-effort) and detach the MCP
 // server. Safe to call multiple times.
 export function destroySession(
@@ -380,6 +398,8 @@ export async function routeRequest(
     if (!authResult.ok) {
       return
     }
+  } else {
+    applyClientApiKey(req as AuthenticatedRequest)
   }
 
   if (req.method === 'POST') {

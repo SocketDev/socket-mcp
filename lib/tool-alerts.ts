@@ -8,7 +8,7 @@ import {
   AUTH_REQUIRED_MSG,
   SOCKET_API_BASE_URL,
   authRequiredResult,
-  resolveAuthToken,
+  resolveScopedAuthToken,
 } from './server.ts'
 import type { ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'
@@ -105,7 +105,7 @@ export function defineAlertsTool(): ToolSpec {
         },
         'tool invoked',
       )
-      const accessToken = resolveAuthToken(extra.authInfo?.token)
+      const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
         logger.error('alerts: ' + AUTH_REQUIRED_MSG)
         return authRequiredResult()

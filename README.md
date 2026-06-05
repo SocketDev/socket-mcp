@@ -350,8 +350,8 @@ Search a single file from a package for lines matching a JavaScript regular expr
 
 How the server resolves a token depends on the transport:
 
-- **stdio mode** reads one token at startup from the environment and uses it for every request. Set `SOCKET_API_TOKEN`. The server also accepts these aliases, in priority order: `SOCKET_API_TOKEN` → `SOCKET_API_KEY` → `SOCKET_CLI_API_TOKEN` → `SOCKET_CLI_API_KEY` → `SOCKET_SECURITY_API_TOKEN` → `SOCKET_SECURITY_API_KEY`. `SOCKET_API_TOKEN` is canonical; `SOCKET_API_KEY` is the alias most local setups already export.
-- **HTTP mode** prefers a per-request OAuth token from the client and falls back to the startup token when no OAuth token is present.
+- **stdio mode** reads one token at startup from the environment and uses it for every request. Set `SOCKET_API_TOKEN`. The server also accepts these aliases, in priority order: `SOCKET_API_TOKEN` → `SOCKET_API_KEY` → `SOCKET_CLI_API_TOKEN` → `SOCKET_CLI_API_KEY` → `SOCKET_SECURITY_API_TOKEN` → `SOCKET_SECURITY_API_KEY`. `SOCKET_API_TOKEN` is canonical; `SOCKET_API_KEY` is the alias most local setups already export. Because the process belongs to one user, this token is yours and scopes every tool to your account.
+- **HTTP mode** scopes the organization tools to the caller, never to the server's own token. Send your Socket API token as an `Authorization: Bearer <token>` header on each request, or use an OAuth access token when the server runs OAuth. The server uses that per-request token for the Socket API calls it makes on your behalf. A shared deployment never answers `organizations`, `alerts`, `threat_feed`, or `package_files` with the operator's data: when a request carries no token, those tools return the auth-required error. `depscore` alone may fall back to the server's startup token, since package scores are the same for every caller.
 
 Generate a token from the [Socket dashboard](https://socket.dev/) under API tokens, then export it before launching the server:
 
