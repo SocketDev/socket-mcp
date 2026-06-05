@@ -278,70 +278,70 @@ This tool needs a Socket API token. See [Authentication for organization-scoped 
 
 List the latest security alerts for one Socket organization: supply-chain, vulnerability, quality, license, and maintenance issues across the org's monitored packages. Backed by `GET /v0/orgs/{org_slug}/alerts`. Results are paginated; pass the previous response's `endCursor` as `cursor` to fetch the next page.
 
-| Parameter       | Type    | Required | Default | Description                                                                                  |
-| --------------- | ------- | -------- | ------- | -------------------------------------------------------------------------------------------- |
-| `org_slug`      | String  | ✅ Yes   | -       | Organization slug (get it from the `organizations` tool)                                     |
-| `severity`      | String  | No       | -       | Comma-separated subset of `low,medium,high,critical`                                         |
-| `status`        | String  | No       | -       | `open` or `cleared`                                                                          |
-| `category`      | String  | No       | -       | Comma-separated subset of `supplyChainRisk,maintenance,quality,license,vulnerability`        |
-| `artifact_type` | String  | No       | -       | Comma-separated ecosystems: `npm,pypi,gem,maven,golang,nuget,cargo,chrome,openvsx`           |
-| `artifact_name` | String  | No       | -       | Restrict to a single package name                                                            |
-| `alert_type`    | String  | No       | -       | Comma-separated Socket alert types (e.g. `usesEval,unmaintained`)                            |
-| `repo_slug`     | String  | No       | -       | Comma-separated repository slugs                                                             |
-| `per_page`      | Integer | No       | `100`   | Results per page (1–5000)                                                                    |
-| `cursor`        | String  | No       | -       | Pagination cursor — the `endCursor` from a previous response                                 |
+| Parameter       | Type    | Required | Default | Description                                                                           |
+| --------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------- |
+| `org_slug`      | String  | ✅ Yes   | -       | Organization slug (get it from the `organizations` tool)                              |
+| `severity`      | String  | No       | -       | Comma-separated subset of `low,medium,high,critical`                                  |
+| `status`        | String  | No       | -       | `open` or `cleared`                                                                   |
+| `category`      | String  | No       | -       | Comma-separated subset of `supplyChainRisk,maintenance,quality,license,vulnerability` |
+| `artifact_type` | String  | No       | -       | Comma-separated ecosystems: `npm,pypi,gem,maven,golang,nuget,cargo,chrome,openvsx`    |
+| `artifact_name` | String  | No       | -       | Restrict to a single package name                                                     |
+| `alert_type`    | String  | No       | -       | Comma-separated Socket alert types (e.g. `usesEval,unmaintained`)                     |
+| `repo_slug`     | String  | No       | -       | Comma-separated repository slugs                                                      |
+| `per_page`      | Integer | No       | `100`   | Results per page (1–5000)                                                             |
+| `cursor`        | String  | No       | -       | Pagination cursor — the `endCursor` from a previous response                          |
 
 #### threat_feed
 
 Look up items in a Socket organization's threat feed: packages recently flagged as malware, typosquats, obfuscated code, and similar. Backed by `GET /v0/orgs/{org_slug}/threat-feed`. The response carries a `nextPageCursor`; pass it as `cursor` to page forward.
 
-| Parameter           | Type    | Required | Default        | Description                                                                                                |
-| ------------------- | ------- | -------- | -------------- | ---------------------------------------------------------------------------------------------------------- |
-| `org_slug`          | String  | ✅ Yes   | -              | Organization slug (get it from the `organizations` tool)                                                   |
-| `filter`            | String  | No       | `mal`          | Threat category: `mal` (malware), `vuln`, `typ` (typosquat), `obf` (obfuscated), `mjo`, `kes`, `spy`, etc. |
-| `ecosystem`         | String  | No       | -              | Ecosystem: `npm`, `pypi`, `gem`, `maven`, `golang`, `nuget`, `cargo`, `chrome`, `openvsx`, `huggingface`   |
-| `name`              | String  | No       | -              | Filter by package name                                                                                     |
-| `version`           | String  | No       | -              | Filter by package version                                                                                  |
-| `is_human_reviewed` | Boolean | No       | `false`        | Only return human-reviewed items                                                                           |
-| `sort`              | String  | No       | `updated_at`   | Sort field: `id`, `created_at`, `updated_at`                                                               |
-| `direction`         | String  | No       | `desc`         | Sort direction: `asc`, `desc`                                                                              |
-| `updated_after`     | String  | No       | -              | ISO timestamp; only items updated after this                                                               |
-| `created_after`     | String  | No       | -              | ISO timestamp; only items created after this                                                               |
-| `per_page`          | Integer | No       | `30`           | Results per page (1–100)                                                                                    |
-| `cursor`            | String  | No       | -              | Pagination cursor — the `nextPageCursor` from a previous response                                          |
+| Parameter           | Type    | Required | Default      | Description                                                                                                |
+| ------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `org_slug`          | String  | ✅ Yes   | -            | Organization slug (get it from the `organizations` tool)                                                   |
+| `filter`            | String  | No       | `mal`        | Threat category: `mal` (malware), `vuln`, `typ` (typosquat), `obf` (obfuscated), `mjo`, `kes`, `spy`, etc. |
+| `ecosystem`         | String  | No       | -            | Ecosystem: `npm`, `pypi`, `gem`, `maven`, `golang`, `nuget`, `cargo`, `chrome`, `openvsx`, `huggingface`   |
+| `name`              | String  | No       | -            | Filter by package name                                                                                     |
+| `version`           | String  | No       | -            | Filter by package version                                                                                  |
+| `is_human_reviewed` | Boolean | No       | `false`      | Only return human-reviewed items                                                                           |
+| `sort`              | String  | No       | `updated_at` | Sort field: `id`, `created_at`, `updated_at`                                                               |
+| `direction`         | String  | No       | `desc`       | Sort direction: `asc`, `desc`                                                                              |
+| `updated_after`     | String  | No       | -            | ISO timestamp; only items updated after this                                                               |
+| `created_after`     | String  | No       | -            | ISO timestamp; only items created after this                                                               |
+| `per_page`          | Integer | No       | `30`         | Results per page (1–100)                                                                                   |
+| `cursor`            | String  | No       | -            | Pagination cursor — the `nextPageCursor` from a previous response                                          |
 
 #### package_files
 
 List the files published in a package: a tree of paths and sizes for any package on a supported ecosystem. Use it to inspect what a dependency ships before installing it. Each entry prints a blob `hash` that `package_file_contents` and `package_file_grep` consume.
 
-| Parameter    | Type   | Required | Default | Description                                                                            |
-| ------------ | ------ | -------- | ------- | -------------------------------------------------------------------------------------- |
-| `ecosystem`  | String | No       | `npm`   | `npm`, `pypi`, `gem`, `cargo`, `maven`, `golang`, `nuget`, `chrome`, `openvsx`         |
-| `depname`    | String | ✅ Yes   | -       | Package name (e.g. `lodash`, `@babel/core`, `org.springframework:spring-core`)         |
-| `version`    | String | ✅ Yes   | -       | Package version                                                                        |
-| `artifactId` | String | No       | -       | Per-version disambiguator (PyPI filename, Maven artifact id, NuGet asset)              |
+| Parameter    | Type   | Required | Default | Description                                                                             |
+| ------------ | ------ | -------- | ------- | --------------------------------------------------------------------------------------- |
+| `ecosystem`  | String | No       | `npm`   | `npm`, `pypi`, `gem`, `cargo`, `maven`, `golang`, `nuget`, `chrome`, `openvsx`          |
+| `depname`    | String | ✅ Yes   | -       | Package name (e.g. `lodash`, `@babel/core`, `org.springframework:spring-core`)          |
+| `version`    | String | ✅ Yes   | -       | Package version                                                                         |
+| `artifactId` | String | No       | -       | Per-version disambiguator (PyPI filename, Maven artifact id, NuGet asset)               |
 | `platform`   | String | No       | -       | Platform qualifier for per-OS/arch artifacts (e.g. openvsx `linux-x64`, `darwin-arm64`) |
 
 #### package_file_contents
 
 Read a single file from a package. Pass the `hash` printed next to an entry in `package_files` output. Returns up to 1 MB of UTF-8 text; binary files return metadata only.
 
-| Parameter | Type   | Required | Default | Description                                            |
-| --------- | ------ | -------- | ------- | ------------------------------------------------------ |
-| `hash`    | String | ✅ Yes   | -       | Blob hash from `package_files`                         |
+| Parameter | Type   | Required | Default | Description                                             |
+| --------- | ------ | -------- | ------- | ------------------------------------------------------- |
+| `hash`    | String | ✅ Yes   | -       | Blob hash from `package_files`                          |
 | `path`    | String | No       | -       | File path, for display only; does not affect the lookup |
 
 #### package_file_grep
 
 Search a single file from a package for lines matching a JavaScript regular expression, returning matches with line numbers (grep -n style). The file is fetched once per session and cached, so repeated greps on the same hash skip the network.
 
-| Parameter         | Type    | Required | Default | Description                                            |
-| ----------------- | ------- | -------- | ------- | ------------------------------------------------------ |
-| `hash`            | String  | ✅ Yes   | -       | Blob hash from `package_files`                         |
+| Parameter         | Type    | Required | Default | Description                                             |
+| ----------------- | ------- | -------- | ------- | ------------------------------------------------------- |
+| `hash`            | String  | ✅ Yes   | -       | Blob hash from `package_files`                          |
 | `pattern`         | String  | ✅ Yes   | -       | JavaScript regular expression (plain literals work too) |
-| `caseInsensitive` | Boolean | No       | `false` | Match case-insensitively                               |
-| `contextLines`    | Integer | No       | `0`     | Lines of context before and after each match (0–5)     |
-| `maxMatches`      | Integer | No       | `100`   | Cap on matching lines returned (1–500)                 |
+| `caseInsensitive` | Boolean | No       | `false` | Match case-insensitively                                |
+| `contextLines`    | Integer | No       | `0`     | Lines of context before and after each match (0–5)      |
+| `maxMatches`      | Integer | No       | `100`   | Cap on matching lines returned (1–500)                  |
 | `path`            | String  | No       | -       | File path, for display only; does not affect the lookup |
 
 ### Authentication for organization-scoped tools
