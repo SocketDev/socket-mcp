@@ -40,6 +40,21 @@ const SESSION_TTL_MS = 30 * 60 * 1000
 // destroyed.
 const REAP_INTERVAL_MS = 60_000
 
+// Cap the buffered request body. readPostBody accumulates the whole body
+// in memory before JSON.parse, so an unbounded body is a single-request
+// heap-exhaustion DoS — reachable on the HTTP transport before auth. 4 MB
+// is far above any legitimate MCP JSON-RPC frame.
+const MAX_POST_BODY_BYTES = 4 * 1024 * 1024
+
+// Thrown by readPostBody when the body exceeds MAX_POST_BODY_BYTES, so the
+// caller can answer 413 instead of a generic 500.
+export class PayloadTooLargeError extends Error {
+  constructor(limitBytes: number) {
+    super(`Request body exceeds the ${limitBytes}-byte limit`)
+    this.name = 'PayloadTooLargeError'
+  }
+}
+
 const ALLOWED_ORIGINS = [
   'https://mcp.socket.dev',
   'https://mcp.socket-staging.dev',
@@ -146,6 +161,17 @@ export async function handlePost(
   try {
     body = await readPostBody(req)
   } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      logger.error(error.message)
+      if (!res.headersSent) {
+        writeJson(res, 413, {
+          jsonrpc: '2.0',
+          error: { code: -32_600, message: 'Request body too large' },
+          id: undefined,
+        })
+      }
+      return
+    }
     logger.error(`Error reading POST body: ${error}`)
     if (!res.headersSent) {
       writeJson(res, 500, {
@@ -262,12 +288,21 @@ export function patchAcceptHeader(req: IncomingMessage): void {
   }
 }
 
-// Read and buffer the entire POST body to a string. Async iteration is
-// modern stream consumption — equivalent to listening for 'data' + 'end'
-// without the explicit callback wiring.
+// Read and buffer the POST body to a string, capped at MAX_POST_BODY_BYTES.
+// Async iteration is modern stream consumption — equivalent to 'data' +
+// 'end' without the callback wiring. The running byte count is measured on
+// the raw chunks (Buffer.byteLength for the string case) so multibyte
+// payloads can't slip past a char-length check; exceeding the cap throws
+// PayloadTooLargeError before more memory is committed.
 export async function readPostBody(req: IncomingMessage): Promise<string> {
   let body = ''
+  let bytes = 0
   for await (const chunk of req) {
+    bytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length
+    if (bytes > MAX_POST_BODY_BYTES) {
+      req.destroy()
+      throw new PayloadTooLargeError(MAX_POST_BODY_BYTES)
+    }
     body += typeof chunk === 'string' ? chunk : chunk.toString()
   }
   return body
