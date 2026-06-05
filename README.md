@@ -176,7 +176,7 @@ Environment variables for HTTP mode:
 | `SOCKET_OAUTH_ISSUER`                      | Set together with the two introspection vars to enable OAuth | None                                                             | OAuth issuer URL used for metadata discovery and incoming bearer-token validation.                                                                                                                                                                                                                                                                       |
 | `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                                                   | None                                                             | Client ID used for token introspection.                                                                                                                                                                                                                                                                                                                  |
 | `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                                                   | None                                                             | Client secret used for token introspection.                                                                                                                                                                                                                                                                                                              |
-| `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                                                           | `packages:list`                                                  | Space-delimited scopes required on incoming access tokens.                                                                                                                                                                                                                                                                                               |
+| `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                                                           | _(none)_                                                         | Space-delimited scopes required on incoming access tokens. When unset, no scope is enforced — any active token passes.                                                                                                                                                                                                                                   |
 | `SOCKET_API_URL`                           | No                                                           | Production Socket API URL, or localhost when `SOCKET_DEBUG=true` | Override the upstream Socket API endpoint. Useful for local development and testing.                                                                                                                                                                                                                                                                     |
 | `SOCKET_DEBUG`                             | No                                                           | `false`                                                          | Switches the default upstream Socket API endpoint to localhost when `SOCKET_API_URL` is unset.                                                                                                                                                                                                                                                           |
 | `TRUST_PROXY`                              | No                                                           | `false`                                                          | When `true`, trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a trusted reverse proxy that rewrites these headers.                                                                                                                                                                                 |
@@ -383,7 +383,7 @@ When running in HTTP mode, `GET /health` returns:
 {
   "status": "healthy",
   "service": "socket-mcp",
-  "version": "0.0.3",
+  "version": "0.0.18",
   "timestamp": "2025-06-17T20:45:22.059Z"
 }
 ```
@@ -394,7 +394,7 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 
 **Q: The public server isn't responding** — Check the URL `https://mcp.socket.dev/`, verify your MCP client configuration, restart your MCP client.
 
-**Q: Local server fails to start** — Ensure Node.js v16+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission.
+**Q: Local server fails to start** — Ensure Node.js 22+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission.
 
 **Q: Getting authentication errors with local server** — Double-check your API key is valid, ensure `packages:list` scope, regenerate if needed.
 
