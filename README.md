@@ -359,7 +359,7 @@ Generate a token from the [Socket dashboard](https://socket.dev/) under API toke
 export SOCKET_API_TOKEN="your-socket-api-token"
 ```
 
-When no token is available, these tools return: `Authentication is required. Configure SOCKET_API_TOKEN (or a legacy alias) for stdio mode or connect through OAuth-enabled HTTP mode.`
+When no token is available, these tools return: `Authentication is required. Configure SOCKET_API_TOKEN for stdio mode or connect through OAuth-enabled HTTP mode.`
 
 ### Worked example: organization details and alerts
 

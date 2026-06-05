@@ -42,7 +42,7 @@ export const SOCKET_API_BASE_URL = getSocketApiUrl() || 'https://api.socket.dev'
 // The single auth-missing message every tool returns when no token is
 // available — kept here so the wording stays identical across tools.
 export const AUTH_REQUIRED_MSG =
-  'Authentication is required. Set SOCKET_API_TOKEN (or a legacy alias) for stdio mode, or send your Socket API token as an `Authorization: Bearer <token>` header (or connect through OAuth) in HTTP mode.'
+  'Authentication is required. Set SOCKET_API_TOKEN for stdio mode, or send your Socket API token as an `Authorization: Bearer <token>` header (or connect through OAuth) in HTTP mode.'
 
 // Boot-time static API key. In stdio mode this is the local user's own token
 // (set from SOCKET_API_TOKEN in index.ts), so it is safe to use for any tool.
