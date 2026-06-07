@@ -75,7 +75,7 @@ A PreToolUse edit hook only sees what the agent is about to write. It
 cannot see arbitrary runtime stdout from a dependency (the
 test-execution vector above). That is handled by the standing CLAUDE.md instruction — treat
 such text as data, not an instruction — and by the token-minifier
-proxy / `minify-mcp-output` hook that normalize tool-result payloads.
+proxy / `minify-mcp-out` hook that normalize tool-result payloads.
 
 ## Self-exempt
 
@@ -89,8 +89,7 @@ Type the canonical phrase in a new message:
 
     Allow prompt-injection bypass
 
-Or set `SOCKET_PROMPT_INJECTION_GUARD_DISABLED=1`. Legitimate need:
-authoring this guard's fixtures, or documenting an incident in prose
-that quotes the payload.
+Legitimate need: authoring this guard's fixtures, or documenting an
+incident in prose that quotes the payload.
 
 Fails open on regex / parse errors.

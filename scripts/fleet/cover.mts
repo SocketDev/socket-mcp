@@ -15,8 +15,8 @@
 
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
+import { stripAnsi } from '@socketsecurity/lib-stable/ansi/strip'
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
 import { errorMessage } from '@socketsecurity/lib-stable/errors'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
@@ -25,23 +25,17 @@ import { printHeader } from '@socketsecurity/lib-stable/stdio/header'
 
 import type { AggregateCoverage } from './util/coverage-merge.mts'
 import { mergeCoverageFinal } from './util/coverage-merge.mts'
-import type {
-  CoverThresholds,
-  ResolvedSuite,
-} from './cover/discovery.mts'
+import type { CoverThresholds, ResolvedSuite } from './cover/discovery.mts'
 import {
   readCoverConfig,
   resolveBuildEntry,
   resolveSuites,
 } from './cover/discovery.mts'
+import { REPO_ROOT } from './paths.mts'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// This script lives at scripts/fleet/, so the repo root is two levels up.
-const rootPath = path.join(__dirname, '..', '..')
+const rootPath = REPO_ROOT
 
 const logger = getDefaultLogger()
-
-const ansiRegex = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 
 export interface SuiteResult {
   exitCode: number
@@ -86,10 +80,11 @@ export function checkThresholds(
 }
 
 // Strip ANSI codes and decorative characters (✧, ︎ variation selector, ⚡) from
-// text.
+// text. Uses the canonical lib-stable stripAnsi so there's one ANSI definition
+// fleet-wide (the test helper at test/_shared/fleet/lib/output.mts wraps the
+// same).
 export function cleanOutput(text: string): string {
-  return text
-    .replace(ansiRegex, '')
+  return stripAnsi(text)
     .replace(/(?:⚡|✧|︎)\s*/g, '')
     .trim()
 }
@@ -264,7 +259,9 @@ export async function main(): Promise<void> {
     }
     logger.log('')
   } else {
-    logger.info('No build entry (scripts/build.mts | bundle.mts) — instrumenting sources directly.')
+    logger.info(
+      'No build entry (scripts/build.mts | bundle.mts) — instrumenting sources directly.',
+    )
     logger.log('')
   }
 

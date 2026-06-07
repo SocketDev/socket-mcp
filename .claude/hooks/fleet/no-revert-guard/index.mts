@@ -15,10 +15,11 @@
 //       (e.g. "Allow no-verify bypass", "Allow lint bypass",
 //        "Allow gpg bypass").
 //   - Force push --force-with-lease (safer; aborts if remote moved) →
-//       user must type "Allow force-with-lease bypass".
-//   - Force push --force / -f (CAN silently clobber remote commits) →
-//       user must type "Allow force-push bypass". Always reach for
-//       --force-with-lease first; this is the high-friction path.
+//       user must type "Allow force-with-lease bypass" OR the stronger
+//       "Allow force-push bypass" (which subsumes the safer lease op).
+//   - Force push --force / -f, no lease (CAN silently clobber remote
+//       commits) → user must type "Allow force-push-hard bypass". Always
+//       reach for --force-with-lease first; this is the high-friction path.
 //
 // Phrase scoping: the hook reads the recent user turns from the
 // transcript (most recent N user messages). A phrase from a prior
@@ -53,6 +54,10 @@ type ToolInput = {
 type GuardCheck = {
   // Canonical phrase the user must type to bypass.
   readonly bypassPhrase: string
+  // Optional extra phrases that ALSO authorize this rule — used when a
+  // stronger-scope phrase should subsume a safer operation (e.g. the
+  // bare-force phrase authorizing the safer --force-with-lease too).
+  readonly alsoAcceptedPhrases?: readonly string[] | undefined
   // Human-readable label for the rule (logged on rejection).
   readonly label: string
   // Detector. Exactly one of `pattern` / `matches` is set:
@@ -182,10 +187,13 @@ const CHECKS: readonly GuardCheck[] = [
   {
     // --force-with-lease refuses the push if the remote moved since the
     // last fetch — safer than --force because it can't silently clobber
-    // someone else's commits. Always prefer this form. Lower-friction
-    // bypass phrase so users aren't tempted to reach for raw --force
-    // when --force-with-lease would do.
+    // someone else's commits. Always prefer this form. Its own phrase is
+    // the low-friction path; the stronger `Allow force-push bypass` also
+    // authorizes it, since lease is strictly safer than the bare force
+    // that phrase covers — so a user who typed the broader phrase isn't
+    // forced to retype a narrower one for the safer op.
     bypassPhrase: 'Allow force-with-lease bypass',
+    alsoAcceptedPhrases: ['Allow force-push bypass'],
     label: 'git push --force-with-lease',
     matches: command =>
       commandsFor(command, 'git').some(
@@ -198,13 +206,14 @@ const CHECKS: readonly GuardCheck[] = [
   },
   {
     // Raw --force / -f bypasses the lease check and CAN silently
-    // overwrite remote commits. Always reach for --force-with-lease
-    // first; this rule + bypass phrase exist for the narrow cases
-    // where the remote really should be overwritten unconditionally
-    // (recovering from corruption, force-clobbering a doomed
-    // experimental branch the user owns).
-    bypassPhrase: 'Allow force-push bypass',
-    label: 'git push --force / -f',
+    // overwrite remote commits. This is the highest-friction push path:
+    // its phrase (`Allow force-push-hard bypass`) is distinct from and
+    // NOT subsumed by the lease phrases. Reach for --force-with-lease
+    // first; bare --force is for the narrow cases where the remote really
+    // should be overwritten unconditionally (recovering from corruption,
+    // force-clobbering a doomed experimental branch the user owns).
+    bypassPhrase: 'Allow force-push-hard bypass',
+    label: 'git push --force / -f (no lease)',
     matches: command =>
       commandsFor(command, 'git').some(
         c =>
@@ -401,10 +410,17 @@ async function main(): Promise<void> {
     return
   }
 
-  // Look for the canonical bypass phrase in user turns. The match is
-  // case-sensitive and substring-based — a paraphrase doesn't count.
+  // Look for the canonical bypass phrase (or any phrase that subsumes it)
+  // in user turns. The match is case-sensitive and substring-based — a
+  // paraphrase doesn't count.
+  const acceptedPhrases = [
+    triggered.check.bypassPhrase,
+    ...(triggered.check.alsoAcceptedPhrases ?? []),
+  ]
   if (
-    bypassPhrasePresent(payload.transcript_path, triggered.check.bypassPhrase)
+    acceptedPhrases.some(phrase =>
+      bypassPhrasePresent(payload.transcript_path, phrase),
+    )
   ) {
     return
   }

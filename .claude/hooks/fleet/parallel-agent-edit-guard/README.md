@@ -44,7 +44,6 @@ All three share the `_shared/foreign-paths.mts` heuristic.
 
 - User types `Allow parallel-agent-edit bypass` in chat (case-sensitive),
   then retry — one action.
-- `SOCKET_PARALLEL_AGENT_EDIT_GUARD_DISABLED=1` in env.
 - `FLEET_SYNC=1` in env — cascade scripts run in a fresh worktree off
   `origin/main`, so there is no parallel-session hazard.
 

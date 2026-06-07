@@ -364,42 +364,6 @@ test('does NOT fire on descriptive "pre-existing X was fixed"', async () => {
   assert.strictEqual(result.stdout, '')
 })
 
-test('respects SOCKET_EXCUSE_DETECTOR_DISABLED', async () => {
-  const transcript = setupTranscript(
-    JSON.stringify({
-      type: 'assistant',
-      message: { content: 'this is pre-existing.' },
-    }) + '\n',
-  )
-  try {
-    const child = spawn(process.execPath, [HOOK], {
-      stdio: 'pipe',
-      env: { ...process.env, SOCKET_EXCUSE_DETECTOR_DISABLED: '1' },
-    })
-    child.stdin!.end(
-      JSON.stringify({ transcript_path: transcript.transcriptPath }),
-    )
-    let stderr = ''
-    let stdout = ''
-    child.process.stderr!.on('data', chunk => {
-      stderr += chunk.toString('utf8')
-    })
-    child.process.stdout!.on('data', chunk => {
-      stdout += chunk.toString('utf8')
-    })
-    const result = await new Promise<Result>(resolve => {
-      child.process.on('exit', code => {
-        resolve({ code: code ?? 0, stderr, stdout })
-      })
-    })
-    assert.strictEqual(result.code, 0)
-    assert.strictEqual(result.stderr, '')
-    assert.strictEqual(result.stdout, '')
-  } finally {
-    transcript.cleanup()
-  }
-})
-
 test('handles array-of-blocks content shape', async () => {
   const transcript = setupTranscript(
     JSON.stringify({

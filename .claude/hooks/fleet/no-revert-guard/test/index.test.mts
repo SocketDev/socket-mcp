@@ -361,13 +361,25 @@ test('python -c without file write is NOT blocked', async () => {
   assert.strictEqual(result.code, 0)
 })
 
-test('git push --force is blocked', async () => {
+test('git push --force is blocked, needs the hard phrase', async () => {
   const result = await runHook({
     tool_input: { command: 'git push --force origin main' },
     tool_name: 'Bash',
   })
   assert.strictEqual(result.code, 2)
-  assert.match(result.stderr, /Allow force-push bypass/)
+  assert.match(result.stderr, /Allow force-push-hard bypass/)
+})
+
+test('bare --force is NOT authorized by the lease phrase', async () => {
+  const result = await runHook(
+    {
+      tool_input: { command: 'git push --force origin main' },
+      tool_name: 'Bash',
+    },
+    userTurn('Allow force-with-lease bypass'),
+  )
+  assert.strictEqual(result.code, 2)
+  assert.match(result.stderr, /Allow force-push-hard bypass/)
 })
 
 test('paraphrase does not count', async () => {
@@ -571,6 +583,28 @@ test('git push --force-with-lease is blocked', async () => {
     tool_name: 'Bash',
   })
   assert.strictEqual(result.code, 2)
+})
+
+test('--force-with-lease allowed by its own phrase', async () => {
+  const result = await runHook(
+    {
+      tool_input: { command: 'git push --force-with-lease origin main' },
+      tool_name: 'Bash',
+    },
+    userTurn('Allow force-with-lease bypass'),
+  )
+  assert.strictEqual(result.code, 0)
+})
+
+test('--force-with-lease ALSO allowed by the stronger force-push phrase', async () => {
+  const result = await runHook(
+    {
+      tool_input: { command: 'git push --force-with-lease origin main' },
+      tool_name: 'Bash',
+    },
+    userTurn('Allow force-push bypass'),
+  )
+  assert.strictEqual(result.code, 0)
 })
 
 test('git push -f is blocked', async () => {

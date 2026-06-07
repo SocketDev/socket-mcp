@@ -67,3 +67,27 @@ A plain `Edit` / `Write` to a file another session has dirty silently clobbers t
 > Never run a git command that mutates state belonging to a path other than the file you just edited.
 
 Stash, add-all, checkout-branch, reset-hard, and revert-other-session's-file are the common shapes. The rule is general. If you can't explain why the command only affects files your session owns, don't run it.
+
+## Pre-commit index races — retry, don't `--no-verify`
+
+When two sessions share one `.git/`, a `git commit` can fail in pre-commit because the *other* session's git op holds the index lock or left a half-written object. The signatures:
+
+- `Unable to create '.git/index.lock': File exists` / `another git process seems to be running`
+- `error: bad object` / `fatal: unable to read tree`
+- `fatal: cannot lock ref` / `unable to write new index file`
+
+This is **not** a failure in your change — it's contention on the shared `.git/`. Incident (2026-06-04): a sibling worktree session's pre-commit kept racing the index on a dangling `_local-not-for-reuse-ci.yml` object, failing reproducibly. The wrong reflex is `git commit --no-verify`: it skips the **entire** validation chain (format, lint, tests, signing), so a real defect in your own change ships unseen too.
+
+The right recovery, in order:
+
+1. **Retry.** The lock clears the moment the other session's git op finishes. A second attempt usually succeeds.
+2. **Commit from an isolated index** so the two sessions don't share the staging area:
+   ```bash
+   TMP_IDX=$(mktemp)
+   GIT_INDEX_FILE="$TMP_IDX" git add -- path/to/your/file
+   GIT_INDEX_FILE="$TMP_IDX" git commit -o path/to/your/file -m "type(scope): …"
+   rm -f "$TMP_IDX"
+   ```
+3. **Only then**, if pre-commit is genuinely broken (not racing) AND you've verified the tree green independently (`git write-tree` clean, tests pass, oxfmt clean), `--no-verify` is the last resort — and it still needs the `Allow no-verify bypass` phrase.
+
+Nudged by `.claude/hooks/fleet/pre-commit-race-reminder/` on any `git commit --no-verify` (cascade `FLEET_SYNC=1` commits exempt).

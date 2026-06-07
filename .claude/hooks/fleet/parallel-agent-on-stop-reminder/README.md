@@ -23,9 +23,9 @@ files it never touched (a parallel agent's esbuild→rolldown migration) and nea
 investigated them as its own regression, then nearly committed them. Nothing
 warned it. This hook makes the signal visible at the turn that surfaces it.
 
-## Config
+## Bypass
 
-- Disable: `SOCKET_PARALLEL_AGENT_REMINDER_DISABLED=1`.
+No bypass — it's a reminder (exit 0), not a block.
 
 ## Related
 

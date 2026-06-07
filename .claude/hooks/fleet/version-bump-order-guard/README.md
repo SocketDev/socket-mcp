@@ -17,7 +17,6 @@ The gate half front-runs the two pre-release checks cheap enough to run synchron
 ## Bypass
 
 - Type `Allow version-bump-order bypass` in a recent user message (also accepts `Allow version bump order bypass` / `Allow versionbumporder bypass`), or
-- Set `SOCKET_VERSION_BUMP_ORDER_GUARD_DISABLED=1` (whole guard), or
 - Set `SOCKET_VERSION_BUMP_SKIP_GATE=1` (gate half only — when the gate is being run out-of-band but ordering is fine).
 
 ## Test

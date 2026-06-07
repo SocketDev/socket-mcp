@@ -54,7 +54,7 @@ Skipping Step 1 means Step 3 propagates a SHA whose dependency graph still pins 
 
 ```bash
 # Mode 1: propagate wheelhouse template SHA
-node .claude/skills/cascading-fleet/lib/cascade-template.mts <template-sha>
+node .claude/skills/fleet/cascading-fleet/lib/cascade-template.mts <template-sha>
 ```
 
 The script reads the fleet-repo list from `lib/fleet-repos.txt` (single source of truth), iterates, and writes a per-repo result line to stdout. Output also tees to `/tmp/cascade-<sha>.log` for post-hoc inspection.

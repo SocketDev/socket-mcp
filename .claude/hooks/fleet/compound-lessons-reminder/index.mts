@@ -33,7 +33,6 @@
 //   2. A `**Why:**` line in the current turn's written content — the
 //      canonical shape for citing the original incident.
 //
-// Disable via SOCKET_COMPOUND_LESSONS_REMINDER_DISABLED.
 
 import { existsSync } from 'node:fs'
 import path from 'node:path'
@@ -256,9 +255,6 @@ export function hasRulePromotionEvidence(
 
 async function main(): Promise<void> {
   const payloadRaw = await readStdin()
-  if (process.env['SOCKET_COMPOUND_LESSONS_REMINDER_DISABLED']) {
-    process.exit(0)
-  }
   let payload: StopPayload
   try {
     payload = JSON.parse(payloadRaw) as StopPayload

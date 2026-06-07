@@ -12,8 +12,6 @@
 // when `stop_hook_active` is set, so this can fire at most once per
 // stop chain — Claude is given one forced chance to fix or to state
 // the trade-off explicitly.
-//
-// Disabled via SOCKET_EXCUSE_DETECTOR_DISABLED env var.
 
 import { runStopReminder } from '../_shared/stop-reminder.mts'
 
@@ -44,7 +42,6 @@ export function withDeferralVerb(phraseRe: string): RegExp {
 
 await runStopReminder({
   name: 'excuse-detector',
-  disabledEnvVar: 'SOCKET_EXCUSE_DETECTOR_DISABLED',
   blocking: true,
   // Strip quoted spans so the hook doesn't self-fire when the
   // assistant *describes* the phrases it detects (e.g. a summary

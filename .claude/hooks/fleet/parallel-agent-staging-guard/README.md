@@ -37,7 +37,6 @@ Same as `parallel-agent-on-stop-reminder` — see `_shared/foreign-paths.mts`.
 - `FLEET_SYNC=1` command prefix — cascade worktrees off origin/main have no
   parallel-session hazard.
 - `Allow parallel-agent-staging bypass` in a recent user turn — one action.
-- `SOCKET_PARALLEL_AGENT_STAGING_GUARD_DISABLED=1` — disable entirely.
 
 Fails open on hook bugs (exit 0 + stderr log).
 

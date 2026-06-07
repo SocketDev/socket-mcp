@@ -14,7 +14,7 @@
  *   foo` → `node_modules/.bin/foo` (best-effort: assumes the tool is an
  *   installed dep). Allowed exceptions (skipped):
  *
- *   - The literal `npx` inside a comment with `socket-hook: allow npx` — the
+ *   - The literal `npx` inside a comment with `socket-lint: allow npx` — the
  *     canonical bypass marker, used by the lockdown skill spec.
  *   - The literal `pnpm dlx` inside a comment justifying a soak-time bypass
  *     (rare; case-by-case).
@@ -31,12 +31,12 @@ const PATTERNS = [
   // before `pnpm` and `pnx ` is matched before `pnpm`. Each entry
   // is [match-prefix, replacement-prefix, label].
   ['pnpm dlx ', 'node_modules/.bin/', 'pnpm dlx'],
-  ['yarn dlx ', 'node_modules/.bin/', 'yarn dlx'], // socket-hook: allow npx
-  ['npx ', 'node_modules/.bin/', 'npx'], // socket-hook: allow npx
+  ['yarn dlx ', 'node_modules/.bin/', 'yarn dlx'], // socket-lint: allow npx
+  ['npx ', 'node_modules/.bin/', 'npx'], // socket-lint: allow npx
   ['pnx ', 'node_modules/.bin/', 'pnx'],
 ]
 
-const COMMENT_BYPASS_RE = /socket-hook:\s*allow\s+npx/ // socket-hook: allow npx
+const COMMENT_BYPASS_RE = /socket-lint:\s*allow\s+npx/ // socket-lint: allow npx
 
 /**
  * @type {import('eslint').Rule.RuleModule}
@@ -91,7 +91,7 @@ const rule = {
 
     /**
      * Skip when the surrounding source has the canonical bypass comment
-     * (`socket-hook: allow npx`) on the same or an adjacent line.
+     * (`socket-lint: allow npx`) on the same or an adjacent line.
      */
     function hasBypassComment(node: AstNode) {
       const before = sourceCode.getCommentsBefore(node)

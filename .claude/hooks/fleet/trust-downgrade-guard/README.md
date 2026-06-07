@@ -44,15 +44,9 @@ to force a lockfile refresh past a stale-entry rejection, disabling package-
 takeover protection to make a command succeed. CLAUDE.md "Never weaken a
 supply-chain trust gate" states the rule; this hook enforces it.
 
-## Config
-
-- Disable: `SOCKET_TRUST_DOWNGRADE_GUARD_DISABLED=1` — note this env var is
-  itself a persisted downgrade; it exists only for this hook's test harness and
-  emergency wedged-session recovery.
-
 ## Related
 
-- `minimum-release-age-guard` / `soak-exclude-date-annotation-guard` — the soak side.
+- `minimum-release-age-guard` / `soak-exclude-date-guard` — the soak side.
 - `check-new-deps` — Socket-scores new deps at edit time.
 - `release-workflow-guard` — the single-use-bypass pattern this mirrors.
 - CLAUDE.md → "Never weaken a supply-chain trust gate".
