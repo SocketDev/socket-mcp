@@ -25,9 +25,9 @@ Reports are ephemeral artifacts, not version-controlled deliverables. The fleet
 report under `.claude/reports/` is untracked by default. Writing one to
 `docs/reports/`, a bare `reports/`, or a package `docs/` would commit it.
 
-**Incident (2026-06-05):** the scanning-quality skill defaulted to
-`reports/scanning-quality-*.md` (a committable path); the operator requires
-reports under `.claude/reports/`. Same convention + threat model as
+**Why:** a report generator that defaults to a `reports/<name>.md` path writes
+into a committable tree, so the ephemeral artifact rides into version control;
+the canonical home is `.claude/reports/`. Same convention + threat model as
 `plan-location-guard` for `.claude/plans/`.
 
 ## Action

@@ -39,10 +39,10 @@ specific version and re-resolving** — never by disabling the policy.
 
 ## Why
 
-Incident 2026-05-27: an agent ran `pnpm install --config.trustPolicy=trust-all`
-to force a lockfile refresh past a stale-entry rejection, disabling package-
-takeover protection to make a command succeed. CLAUDE.md "Never weaken a
-supply-chain trust gate" states the rule; this hook enforces it.
+An agent that runs `pnpm install --config.trustPolicy=trust-all` to force a
+lockfile refresh past a stale-entry rejection disables package-takeover
+protection to make a command succeed. CLAUDE.md "Never weaken a supply-chain
+trust gate" states the rule; this hook enforces it.
 
 ## Related
 

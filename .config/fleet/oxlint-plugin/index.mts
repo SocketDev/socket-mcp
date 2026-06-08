@@ -19,6 +19,7 @@ import noCachedForOnIterable from './rules/no-cached-for-on-iterable.mts'
 import noConsolePreferLogger from './rules/no-console-prefer-logger.mts'
 import noDefaultExport from './rules/no-default-export.mts'
 import noDynamicImportOutsideBundle from './rules/no-dynamic-import-outside-bundle.mts'
+import noEs2023ArrayMethodsBelowNode20 from './rules/no-es2023-array-methods-below-node20.mts'
 import noEslintBiomeConfigRef from './rules/no-eslint-biome-config-ref.mts'
 import noFetchPreferHttpRequest from './rules/no-fetch-prefer-http-request.mts'
 import noFileScopeOxlintDisable from './rules/no-file-scope-oxlint-disable.mts'
@@ -28,6 +29,7 @@ import noLoggerNewlineLiteral from './rules/no-logger-newline-literal.mts'
 import noNpxDlx from './rules/no-npx-dlx.mts'
 import noPlaceholders from './rules/no-placeholders.mts'
 import noPlatformSpecificImport from './rules/no-platform-specific-import.mts'
+import noProcessChdir from './rules/no-process-chdir.mts'
 import noProcessCwdInScriptsHooks from './rules/no-process-cwd-in-scripts-hooks.mts'
 import noPromiseRace from './rules/no-promise-race.mts'
 import noPromiseRaceInLoop from './rules/no-promise-race-in-loop.mts'
@@ -37,6 +39,7 @@ import noStructuredClonePreferJson from './rules/no-structured-clone-prefer-json
 import noSyncRmInTestLifecycle from './rules/no-sync-rm-in-test-lifecycle.mts'
 import noTopLevelAwait from './rules/no-top-level-await.mts'
 import noUnderscoreIdentifier from './rules/no-underscore-identifier.mts'
+import noUseStrictInEsm from './rules/no-use-strict-in-esm.mts'
 import noVitestEmptyTest from './rules/no-vitest-empty-test.mts'
 import noVitestFocusedTests from './rules/no-vitest-focused-tests.mts'
 import noVitestIdenticalTitle from './rules/no-vitest-identical-title.mts'
@@ -70,7 +73,9 @@ import preferStaticTypeImport from './rules/prefer-static-type-import.mts'
 import preferTypeboxSchema from './rules/prefer-typebox-schema.mts'
 import preferUndefinedOverNull from './rules/prefer-undefined-over-null.mts'
 import preferWindowsTestHelpers from './rules/prefer-windows-test-helpers.mts'
+import requireAsyncIifeEntry from './rules/require-async-iife-entry.mts'
 import socketApiTokenEnv from './rules/socket-api-token-env.mts'
+import sortArrayLiterals from './rules/sort-array-literals.mts'
 import sortBooleanChains from './rules/sort-boolean-chains.mts'
 import sortEqualityDisjunctions from './rules/sort-equality-disjunctions.mts'
 import sortNamedImports from './rules/sort-named-imports.mts'
@@ -99,6 +104,7 @@ const plugin = {
     'no-console-prefer-logger': noConsolePreferLogger,
     'no-default-export': noDefaultExport,
     'no-dynamic-import-outside-bundle': noDynamicImportOutsideBundle,
+    'no-es2023-array-methods-below-node20': noEs2023ArrayMethodsBelowNode20,
     'no-eslint-biome-config-ref': noEslintBiomeConfigRef,
     'no-fetch-prefer-http-request': noFetchPreferHttpRequest,
     'no-file-scope-oxlint-disable': noFileScopeOxlintDisable,
@@ -108,6 +114,7 @@ const plugin = {
     'no-npx-dlx': noNpxDlx,
     'no-placeholders': noPlaceholders,
     'no-platform-specific-import': noPlatformSpecificImport,
+    'no-process-chdir': noProcessChdir,
     'no-process-cwd-in-scripts-hooks': noProcessCwdInScriptsHooks,
     'no-promise-race': noPromiseRace,
     'no-promise-race-in-loop': noPromiseRaceInLoop,
@@ -117,6 +124,7 @@ const plugin = {
     'no-sync-rm-in-test-lifecycle': noSyncRmInTestLifecycle,
     'no-top-level-await': noTopLevelAwait,
     'no-underscore-identifier': noUnderscoreIdentifier,
+    'no-use-strict-in-esm': noUseStrictInEsm,
     'no-vitest-empty-test': noVitestEmptyTest,
     'no-vitest-focused-tests': noVitestFocusedTests,
     'no-vitest-identical-title': noVitestIdenticalTitle,
@@ -150,7 +158,9 @@ const plugin = {
     'prefer-typebox-schema': preferTypeboxSchema,
     'prefer-undefined-over-null': preferUndefinedOverNull,
     'prefer-windows-test-helpers': preferWindowsTestHelpers,
+    'require-async-iife-entry': requireAsyncIifeEntry,
     'socket-api-token-env': socketApiTokenEnv,
+    'sort-array-literals': sortArrayLiterals,
     'sort-boolean-chains': sortBooleanChains,
     'sort-equality-disjunctions': sortEqualityDisjunctions,
     'sort-named-imports': sortNamedImports,

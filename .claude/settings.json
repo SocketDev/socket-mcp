@@ -1,4 +1,15 @@
 {
+  "env": {
+    "//": [
+      "CLAUDE_CODE_NO_FLICKER works around a Claude Code TUI bug where",
+      "streamed assistant text overprints tool-output blocks and corrupts",
+      "scrollback (worst in long sessions with rapid Bash + subagents on",
+      "macOS/iTerm2). Search the claude-code issue tracker for 'rendering",
+      "overlap scrollback'. settings.json is strict JSON (no JSONC/JSON5),",
+      "so this is a dummy '//' key — Claude Code ignores unknown keys."
+    ],
+    "CLAUDE_CODE_NO_FLICKER": "1"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -178,7 +189,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/immutable-release-pattern-guard/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/immutable-release-guard/index.mts"
           },
           {
             "type": "command",
@@ -262,10 +273,6 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/concurrent-cargo-build-guard/index.mts"
-          },
-          {
-            "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/default-branch-guard/index.mts"
           },
           {
@@ -279,6 +286,14 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-blind-keychain-read-guard/index.mts"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-clipboard-access-guard/index.mts"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-screenshot-guard/index.mts"
           },
           {
             "type": "command",
@@ -326,7 +341,15 @@
           },
           {
             "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-shell-injection-bypass-guard/index.mts"
+          },
+          {
+            "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-tail-install-out-guard/index.mts"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-vitest-double-dash-guard/index.mts"
           },
           {
             "type": "command",
@@ -395,6 +418,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/broken-hook-detector/index.mts",
             "timeout": 8
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/copy-on-select-hint-reminder/index.mts",
+            "timeout": 4
           },
           {
             "type": "command",
@@ -470,7 +498,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dirty-worktree-on-stop-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dirty-worktree-stop-reminder/index.mts"
           },
           {
             "type": "command",

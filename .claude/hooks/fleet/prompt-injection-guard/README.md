@@ -21,15 +21,14 @@ vendored upstream, READMEs, fixtures, fetched web pages, CI logs. Any
 of those is an injection surface. An attacker or hostile maintainer can
 embed a directive aimed at the agent rather than the human.
 
-**Real incident (2026-06-02):** a widely-used testing library shipped a
-message printed at test-execution time that addressed an AI agent
-directly — telling it not to use the library, to disregard its previous
-instructions, and to ignore the test results (an earlier revision told
-the agent to delete the tests and code). The text was wrapped in ANSI
-erase-line sequences that clear the line in a human's terminal while the
-raw bytes still reach any process parsing the stream — a directive
-hidden from the human but visible to the machine. (We don't name the
-project; the _shape_ is what the guard keys on.)
+**The shape this guards against:** a dependency ships a message printed
+at test-execution time that addresses an AI agent directly — telling it
+not to use the library, to disregard its previous instructions, to
+ignore the test results, or to delete the tests and code. The text is
+wrapped in ANSI erase-line sequences that clear the line in a human's
+terminal while the raw bytes still reach any process parsing the
+stream — a directive hidden from the human but visible to the machine.
+The _shape_ is what the guard keys on, not any one library.
 
 ## What it blocks
 

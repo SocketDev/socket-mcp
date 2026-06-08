@@ -14,17 +14,17 @@ upstream source, READMEs, test fixtures, fetched web pages, CI logs. Any of
 those is an injection surface. An attacker (or a hostile maintainer) can embed a
 directive aimed at the agent rather than the human.
 
-**Real incident (2026-06-02):** a widely-used testing library shipped a message
-printed to stdout at _test-execution time_ that addressed an AI agent directly
+**Example shape:** a widely-used testing library ships a message printed to
+stdout at _test-execution time_ that addresses an AI agent directly
 — telling it not to use the library, to disregard its previous instructions,
-and to ignore the test results (an earlier revision instructed the agent to
-delete the tests and code outright). The text was wrapped in ANSI escape
+and to ignore the test results (a harsher variant instructs the agent to
+delete the tests and code outright). The text is wrapped in ANSI escape
 sequences
 (`[2K\r[2K\r`) that **clear the line in a human's terminal** while
 the raw bytes still reach any process (an agent) parsing the stream — a
-directive hidden from the human but visible to the machine. The library later
-gated the behavior behind an opt-out flag, but the injection attempt is the
-point: a dependency tried to hijack the agent reading its output. (We don't name
+directive hidden from the human but visible to the machine. Even gated behind an
+opt-out flag, the injection attempt is the point: a dependency tries to hijack
+the agent reading its output. (We don't name
 the project; a fleet surface isn't the place to single out an upstream, and the
 _shape_ is what matters — see [Public-surface hygiene](public-surface-hygiene.md).)
 
@@ -137,17 +137,16 @@ holds no secrets and changes nothing. A scheduled release bot holds secrets and
 changes state but reads no untrusted input. The dangerous shape is all three
 together.
 
-### The /proc env-exfil incident
+### The /proc env-exfil shape
 
-**Real incident (Microsoft Security, 2026-06-05):** a `claude-code-action`
-workflow could be steered by a prompt-injected issue into reading
-`/proc/self/environ` through the Read tool. The Read tool ran in-process (no
-sandbox, no env scrubbing), so the unscrubbed `ANTHROPIC_API_KEY` was readable;
-the injection then laundered the key past GitHub's secret scanner by stripping
-the `sk-ant-` prefix before exfiltrating it via `WebFetch` / the GitHub MCP
-tool. Anthropic blocked sensitive `/proc` reads in Claude Code 2.1.128. The
-shape is what matters: untrusted input + in-process secret read + outbound tool
-= exfiltration. `proc-environ-exfil-guard` blocks authoring a read of
+**Example shape:** a `claude-code-action` workflow can be steered by a
+prompt-injected issue into reading `/proc/self/environ` through the Read tool. If
+the Read tool runs in-process (no sandbox, no env scrubbing), the unscrubbed
+`ANTHROPIC_API_KEY` is readable; the injection then launders the key past
+GitHub's secret scanner by stripping the `sk-ant-` prefix before exfiltrating it
+via `WebFetch` / the GitHub MCP tool. The shape is what matters: untrusted input
++ in-process secret read + outbound tool = exfiltration.
+`proc-environ-exfil-guard` blocks authoring a read of
 `/proc/*/environ` or `/proc/*/cmdline` (the secret + argv harvest paths) in any
 file we write, regardless of host OS, since it matches the attempt to author
 such a read, not a Linux runtime.

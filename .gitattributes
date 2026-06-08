@@ -8,6 +8,7 @@
 .claude/commands/fleet linguist-generated=true
 .claude/hooks/fleet linguist-generated=true
 .claude/skills/fleet linguist-generated=true
+.claude/workflows linguist-generated=true
 .config/fleet/.markdownlint-cli2.jsonc linguist-generated=true
 .config/fleet/.prettierignore linguist-generated=true
 .config/fleet/markdownlint-rules linguist-generated=true
@@ -25,6 +26,7 @@
 .config/repo/rolldown/lib-stub.mts linguist-generated=true
 .config/repo/vitest.config.mts linguist-generated=true
 .config/socket-wheelhouse-schema.json linguist-generated=true
+.editorconfig linguist-generated=true
 .git-hooks linguist-generated=true
 .github/dependabot.yml linguist-generated=true
 .npmrc linguist-generated=true

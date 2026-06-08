@@ -85,13 +85,14 @@ const CLEANUP_SCRIPT = path.join(
   'cleanup-stranded.mts',
 )
 
-// Prepend the active Node version's bin dir to PATH so the `node` invoked by
-// the wheelhouse CLI matches the operator's expected toolchain (avoids the
-// pre-commit hook's "wrong Node" fallback). Honors NVM_BIN when set; otherwise
-// leaves PATH alone so a Volta / homebrew / system Node still resolves.
-if (process.env['NVM_BIN']) {
-  process.env['PATH'] = `${process.env['NVM_BIN']}:${process.env['PATH'] || ''}`
-}
+// Prepend the RUNNING node's own bin dir so the `node` (and corepack-managed
+// pnpm) spawned by the cascade matches the toolchain that launched this script.
+// Do NOT use NVM_BIN — it can point at a DIFFERENT Node whose corepack pnpm is
+// an old version (e.g. v22's pnpm 11.0.0), which then fails a downstream repo's
+// `packageManager: pnpm@11.5.x` version check and makes the cascade's `pnpm
+// install` abort — silently committing without the reconciled lockfile.
+const NODE_BIN_DIR = path.dirname(process.execPath)
+process.env['PATH'] = `${NODE_BIN_DIR}:${process.env['PATH'] || ''}`
 
 if (!existsSync(FLEET_REPOS_FILE)) {
   logger.error(`fleet-repos.txt not found at ${FLEET_REPOS_FILE}`)

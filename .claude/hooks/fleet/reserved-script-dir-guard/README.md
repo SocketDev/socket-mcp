@@ -27,9 +27,9 @@ An Edit/Write whose `file_path` is under one of these `scripts/` dirs:
 
 `scripts/` is two canonical tiers (`fleet`, `repo`) plus feature dirs named for
 their job. A dir called `build`/`dist`/etc. overloads a reserved meaning and
-reads ambiguously. Incident 2026-06-03: socket-lib's `scripts/build/cli.mts`
-(the rolldown build runner) collided with the `build` script + `dist/` output;
-renamed to `scripts/bundle/`.
+reads ambiguously. A rolldown build runner parked at `scripts/build/cli.mts`
+collides with the `build` package.json script + the `dist/` output dir; name it
+for its job (`scripts/bundle/`) so the segment stops overloading.
 
 ## Bypass
 

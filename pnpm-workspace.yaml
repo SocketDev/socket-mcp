@@ -83,93 +83,23 @@ minimumReleaseAgeExclude:
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - '@stuie/*'
-  # published: 2026-05-19 | removable: 2026-05-26
-  - 'npm-run-all2@9.0.0'
   - '@redwoodjs/agent-ci'
   - 'dtu-github-actions'
   - '@socketdev/*'
   - 'ecc-agentshield'
   - 'sfw'
   - 'socket-*'
-  - '@redwoodjs/agent-ci@0.16.2'
-  - 'dtu-github-actions@0.16.2'
-  # published: 2026-05-22 | removable: 2026-05-29
-  - 'shell-quote@1.8.4'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - 'compromise@14.15.1'
   # untracked@1.6.1 — Kikobeats/untracked, dev-only tool for autogenerating
   # `.dockerignore` from package.json + the curated blacklist. semver
   # override above pins the transitive update-notifier → semver-diff
   # to a provenance-attested version.
   # published: 2026-06-03 | removable: 2026-06-10
   - 'untracked@1.6.1'
-  # published: 2026-05-21 | removable: 2026-05-28
-  - 'vite@8.0.14'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - 'vitest@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/coverage-v8@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/expect@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/mocker@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/pretty-format@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/runner@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/snapshot@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/spy@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/ui@4.1.6'
-  # published: 2026-05-11 | removable: 2026-05-18
-  - '@vitest/utils@4.1.6'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - 'rolldown@1.0.3'
-  # published: 2026-05-13 | removable: 2026-05-20
-  - '@rolldown/pluginutils@1.0.1'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-android-arm64@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-darwin-arm64@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-darwin-x64@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-freebsd-x64@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-arm-gnueabihf@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-arm64-gnu@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-arm64-musl@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-ppc64-gnu@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-s390x-gnu@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-x64-gnu@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-linux-x64-musl@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-openharmony-arm64@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-wasm32-wasi@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-win32-arm64-msvc@1.0.3'
-  # published: 2026-05-27 | removable: 2026-06-03
-  - '@rolldown/binding-win32-x64-msvc@1.0.3'
-  # published: 2026-05-26 | removable: 2026-06-02
-  - '@oxc-project/types@0.133.0'
   - 'shell-quote'
   - '@ultrathink/*'
   - '@yuku-parser/*'
   # security fix for GHSA-ph9p-34f9-6g65; bypassing soak to land the patch now
-  # published: 2026-05-26 | removable: 2026-06-02
-  - 'tmp@0.2.6'
   - '@socketoverride/*'
-  # published: 2025-09-23 | removable: 2025-09-30
-  - 'playwright-core@1.55.1'
 
 pmOnFail: error
 resolutionMode: highest

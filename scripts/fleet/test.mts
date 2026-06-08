@@ -25,13 +25,42 @@
 
 // prefer-async-spawn: sync-required — top-level CLI runner; entire
 // flow is sync (test runner invocation + exit-code aggregation).
-import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import type { SpawnSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
 const logger = getDefaultLogger()
+
+// Anchor on the script's own location, not process.cwd() (unstable in scripts/
+// per `no-process-cwd-in-scripts-hooks`): the canonical runner lives at
+// <repo>/scripts/fleet/test.mts, so the repo root is two directories up.
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+)
+
+// Resolve the vitest binary from the repo-root node_modules/.bin instead of
+// `pnpm exec vitest` (fleet `no-pm-exec-guard`: `pnpm exec` is banned for its
+// wrapper overhead — call the bin directly).
+const VITEST_BIN = path.join(
+  repoRoot,
+  'node_modules',
+  '.bin',
+  WIN32 ? 'vitest.cmd' : 'vitest',
+)
+
+// Root package.json marks a monorepo workspace. When the full suite runs in a
+// workspace that has no root vitest config, a bare root `vitest run` discovers
+// every package's config — including build artifacts + templates — and runs
+// them without the per-package env wrappers (e.g. INLINED_* injection), which
+// fails or hangs. Delegate to the per-package `test:unit` scripts instead.
+const ROOT_WORKSPACE_MANIFEST = 'pnpm-workspace.yaml'
 
 // The fleet-canonical vitest config lives at .config/repo/vitest.config.mts in
 // single-package repos. A monorepo may have no root config — its configs live
@@ -116,8 +145,8 @@ function runVitest(vitestArgs: string[], label: string): number {
     ? ['--config', ROOT_VITEST_CONFIG]
     : []
   const r = spawnSync(
-    'pnpm',
-    ['exec', 'vitest', ...vitestArgs, ...configArgs],
+    VITEST_BIN,
+    [...vitestArgs, ...configArgs],
     // Windows shell-shim rationale: see useShell at file top.
     { shell: useShell, stdio },
   )
@@ -129,7 +158,38 @@ function runVitest(vitestArgs: string[], label: string): number {
   return 0
 }
 
+function runWorkspaceTests(): number {
+  log('Test scope: all (workspace per-package test:unit)')
+  // `pnpm -r run` (recursive run, not the banned `pnpm exec`) invokes each
+  // package's own `test:unit`, so every package runs under its configured
+  // env wrapper. Packages without the script are skipped.
+  const r = spawnSync(
+    'pnpm',
+    ['-r', '--workspace-concurrency=1', 'run', 'test:unit'],
+    { shell: useShell, stdio },
+  )
+  if (r.status !== 0) {
+    log('Tests failed')
+    return 1
+  }
+  log('All tests passed')
+  return 0
+}
+
+// A workspace with no root vitest config keeps its config + env wrappers (e.g.
+// INLINED_* injection) per package. Root-level `vitest run` / `vitest related`
+// / `vitest --changed` all bypass those wrappers, so any scoped run there fails
+// or hangs. In that layout every scope delegates to per-package `test:unit`;
+// the per-file related/changed filtering vitest would do at the root is the
+// optimization that breaks, and a per-package full run is the safe trade.
+function isDelegatedWorkspace(): boolean {
+  return !existsSync(ROOT_VITEST_CONFIG) && existsSync(ROOT_WORKSPACE_MANIFEST)
+}
+
 function runAll(): number {
+  if (isDelegatedWorkspace()) {
+    return runWorkspaceTests()
+  }
   return runVitest(['run'], 'all')
 }
 
@@ -161,6 +221,13 @@ function main(): void {
 
   if (files.length === 0) {
     log(`No ${mode} files; skipping tests.`)
+    return
+  }
+
+  // No-root-config workspace: root-level scoped vitest bypasses per-package
+  // env wrappers, so delegate every scope to per-package test:unit.
+  if (isDelegatedWorkspace()) {
+    process.exitCode = runWorkspaceTests()
     return
   }
 

@@ -24,13 +24,13 @@ LOUD warning with PAUSE WORK directive.
 
 ## Why
 
-Incident 2026-06-04, socket-lib: a session re-read
-`src/paths/packages.ts` to add `findUpPackageJson`, found the file
-already contained the function (in a broken-imports, mid-flight state)
-because another agent had added it elsewhere. The existing parallel-agent
-hooks (`edit-guard`, `staging-guard`, `on-stop-reminder`) covered Writes,
-git ops, and Stop-time dirty paths but NOT the removal-of-read-files
-signal. This hook closes that gap.
+When two sessions share one `.git/` checkout, a session can re-read a
+file it touched to add a helper, only to find the file already contains
+that helper (in a broken-imports, mid-flight state) because another agent
+added it elsewhere. The other parallel-agent hooks (`edit-guard`,
+`staging-guard`, `on-stop-reminder`) cover Writes, git ops, and Stop-time
+dirty paths but NOT the removal-of-read-files signal. This hook closes
+that gap.
 
 ## Companion hooks
 

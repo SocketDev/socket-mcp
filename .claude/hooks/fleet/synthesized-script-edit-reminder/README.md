@@ -24,12 +24,12 @@ cascaded fleet repo there is no manifest, so the hook is a silent no-op.
 
 ## Why
 
-Past incident (2026-06-06): a check rename left `doctor:auth` in
-`CANONICAL_SCRIPT_BODIES` pointing at a deleted file; the fix had to land in the
-manifest, but a direct `package.json` edit silently reverted on the next
-cascade. The companion `scripts/fleet/check/script-paths-resolve.mts` catches the
-resulting dangling path at commit time; this reminder steers the edit to the
-right surface before it happens.
+When a check rename leaves a `CANONICAL_SCRIPT_BODIES` entry pointing at a
+deleted file, the fix has to land in the manifest — a direct `package.json` edit
+silently reverts on the next cascade. The companion
+`scripts/fleet/check/script-paths-resolve.mts` catches the resulting dangling
+path at commit time; this reminder steers the edit to the right surface before
+it happens.
 
 ## Bypass
 

@@ -42,5 +42,6 @@ Fails open on hook bugs (exit 0 + stderr log).
 
 ## Why
 
-Incident 2026-05-27, socket-lib — see `parallel-agent-on-stop-reminder`. The
-reminder surfaces the signal; this guard refuses the destructive action.
+When two sessions share one `.git/` checkout, a broad-stage or destructive git
+op sweeps up the other's in-flight work — see `parallel-agent-on-stop-reminder`.
+The reminder surfaces the signal; this guard refuses the destructive action.

@@ -18,10 +18,10 @@ A path is **foreign** when all hold (see `_shared/foreign-paths.mts`):
 
 ## Why
 
-Incident 2026-05-27, socket-lib: a session running `pnpm run check` saw ~6 dirty
-files it never touched (a parallel agent's esbuild→rolldown migration) and nearly
-investigated them as its own regression, then nearly committed them. Nothing
-warned it. This hook makes the signal visible at the turn that surfaces it.
+When two sessions share one `.git/` checkout, a session running `pnpm run check`
+can see dirty files it never touched (a parallel agent's in-flight migration) and
+mistake them for its own regression — then commit them. Nothing warns it. This
+hook makes the signal visible at the turn that surfaces it.
 
 ## Bypass
 
@@ -31,7 +31,7 @@ No bypass — it's a reminder (exit 0), not a block.
 
 - `parallel-agent-staging-guard` — PreToolUse block on destructive git ops while
   foreign paths exist (the enforcement half).
-- `dirty-worktree-on-stop-reminder` — the broader "you left the worktree dirty"
+- `dirty-worktree-stop-reminder` — the broader "you left the worktree dirty"
   reminder this is modeled on.
 - `overeager-staging-guard` — commit-time block on staging unfamiliar files.
 - CLAUDE.md → "Parallel Claude sessions".

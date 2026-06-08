@@ -38,6 +38,15 @@ const steps: Array<() => boolean> = [
   // CLAUDE.md doc integrity: every cited hook + socket/ rule must exist (catches
   // stale citations after a rename/removal — the reverse of new-hook-claude-md-guard).
   () => run('node', ['scripts/fleet/check/claude-md-citations-resolve.mts']),
+  // Hook-registry doc integrity: every `- \`<name>\`` bullet in
+  // docs/claude.md/fleet/hook-registry.md names a real .claude/hooks/fleet/<name>/
+  // dir. CLAUDE.md defers its full hook list to the registry, so a stale/renamed
+  // bullet points readers at policy that doesn't exist. Stale bullets fail;
+  // undocumented hooks are reported, not enforced (many are internal tooling).
+  () => run('node', ['scripts/fleet/check/hook-registry-is-current.mts']),
+  // Global Claude config stays hardened (copyOnSelect: false → no TUI OSC-52
+  // clipboard banner). setup/claude-config.mts sets it; this catches drift.
+  () => run('node', ['scripts/fleet/check/claude-config-is-hardened.mts']),
   // Cost routing: every mutating (fix) skill must declare a model: tier so
   // mechanical work runs cheap. See docs/claude.md/fleet/skill-model-routing.md.
   () => run('node', ['scripts/fleet/check/mutating-skills-have-model.mts']),
@@ -55,6 +64,13 @@ const steps: Array<() => boolean> = [
   // error-message-quality-reminder Stop hook — shares the classifier so the two
   // can't drift. Reporting candidates the human rewrites; never auto-fixed.
   () => run('node', ['scripts/fleet/check/error-messages-are-thorough.mts']),
+  // Rule citations are generic (CLAUDE.md "Compound lessons into rules"): a
+  // `**Why:**`/incident line in fleet rule prose (CLAUDE.md, docs/claude.md/
+  // fleet, SKILL.md, hook READMEs) must be a timeless example, not a dated log
+  // — no ISO dates, version deltas, percentages, or commit SHAs (they age into
+  // a changelog + leak detail in a fleet-duplicated file). Commit-time twin of
+  // the dated-citation-reminder hook; shares the matcher so the two can't drift.
+  () => run('node', ['scripts/fleet/check/rule-citations-are-generic.mts']),
   // Naming consistency: every check basename reads as an ASSERTION (states the
   // invariant it guarantees — paths-are-canonical, lock-step-refs-resolve), so
   // the check/ dir reads as a spec. A bare-topic name (paths, provenance) fails.
@@ -77,6 +93,20 @@ const steps: Array<() => boolean> = [
   // script leaves the doc instruction dead. Past incident (2026-06-06):
   // setup-repo/SKILL.md cited 3 setup scripts that didn't exist.
   () => run('node', ['scripts/fleet/check/doc-references-resolve.mts']),
+  // Every external-tools.json / bundle-tools.json must match the shared
+  // TypeBox schema (scripts/fleet/lib/external-tools-schema.mts). These files
+  // pin tool versions + integrities; an unvalidated shape drift surfaces only
+  // at runtime as an undefined-at-runtime throw mid-build/install. Past
+  // incident: a drifted tool entry left an INLINED_* env var empty and hung a
+  // pre-commit test run.
+  () => run('node', ['scripts/fleet/check/external-tools-are-valid.mts']),
+  // researching-recency SKILL.md must quote the engine's output markers
+  // verbatim (badge, evidence envelope, footer fences) so the model's
+  // pass-through/synthesis instructions match what the engine emits.
+  () =>
+    run('node', [
+      'scripts/fleet/check/researching-recency-contract-is-current.mts',
+    ]),
   () => run('pnpm', ['exec', 'tsgo', '--noEmit', '-p', 'tsconfig.check.json']),
   // Path-hygiene check (1 path, 1 reference). Mantra-driven gate;
   // see .claude/skills/path-guard/ + .claude/hooks/fleet/path-guard/.

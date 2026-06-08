@@ -31,6 +31,25 @@ test('"lint is clean" with no lint run → hit', () => {
   assert.equal(hits[0]!.label, 'lint passes')
 })
 
+test('"verified the popup" with no render run → hit', () => {
+  const hits = findUnbackedClaims('Verified the popup looks correct.', [
+    'pnpm run build',
+    'pnpm run check',
+  ])
+  assert.equal(hits.length, 1)
+  assert.equal(hits[0]!.label, 'render verified')
+})
+
+test('a build/bundle success does NOT back a render claim → hit', () => {
+  // The exact failure mode this rule exists for: claiming the UI is verified
+  // on the strength of a green build, with no actual render this session.
+  const hits = findUnbackedClaims('The build succeeds, so the UI renders correctly.', [
+    'pnpm run build',
+  ])
+  const renderHit = hits.find(h => h.label === 'render verified')
+  assert.ok(renderHit, 'expected a render-verified hit')
+})
+
 // ── backed claim → no hit ───────────────────────────────────────
 
 test('"tests pass" backed by a vitest run → no hit', () => {
@@ -54,6 +73,13 @@ test('"typechecks" backed by tsgo → no hit', () => {
 
 test('"lint passes" backed by `pnpm run check` → no hit', () => {
   const hits = findUnbackedClaims('Lint passes.', ['pnpm run check --all'])
+  assert.equal(hits.length, 0)
+})
+
+test('render claim backed by a screenshot render → no hit', () => {
+  const hits = findUnbackedClaims('Verified the popup renders correctly.', [
+    'node .claude/skills/fleet/rendering-chromium-to-png/screenshot.mts file://popup.html?preview --out p.png',
+  ])
   assert.equal(hits.length, 0)
 })
 

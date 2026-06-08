@@ -87,6 +87,21 @@ export const CLAIM_RULES: readonly ClaimRule[] = [
     ],
     hint: 'run `pnpm run lint` / `pnpm run check` or qualify the claim',
   },
+  {
+    label: 'render verified',
+    // A self-claim that the UI / popup / page was visually checked — "verified
+    // the popup", "the UI renders correctly", "looks good on screen", "rendered
+    // to PNG", "visually verified". Backed ONLY by an actual render this session.
+    claim:
+      /\b(?:visually verif(?:y|ied)|verif(?:y|ied)\b[^.!?\n]{0,30}\b(?:popup|render|ui\b|screen|pixels?)|(?:popup|ui|render(?:ed|s)?|page|screen)\b[^.!?\n]{0,30}\b(?:looks? (?:good|correct|right)|renders? (?:correctly|fine)|verified))\b/i,
+    backedBy: [
+      /\bscreenshot\.mts\b/,
+      /\brendering-chromium-to-png\b/,
+      /\bplaywright\b/,
+      /\bchromium\b/,
+    ],
+    hint: 'render the page to a PNG (rendering-chromium-to-png / screenshot.mts) and Read the pixels this session, or qualify the claim — bundle/build success is not visual verification',
+  },
 ]
 
 interface StopPayload {
