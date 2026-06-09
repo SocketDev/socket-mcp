@@ -8,19 +8,19 @@ The CLAUDE.md `### Tooling` section is the short list. This file is the full set
 
 ## No `npx` / `dlx`
 
-NEVER use `npx`, `pnpm dlx`, or `yarn dlx`. Use `pnpm exec <package>` or `pnpm run <script>` # socket-hook: allow npx
+NEVER use `npx`, `pnpm dlx`, or `yarn dlx`. Use `pnpm exec <package>` or `pnpm run <script>` # socket-lint: allow npx
 
 ## Docs lead with pnpm
 
-User-facing install commands in fenced code blocks must show the pnpm form first (`pnpm install <pkg>`, `pnpm add <pkg>`). npm / yarn fallbacks are fine but come after, or in a separate block introduced as a fallback. The pre-commit `scanDocsPnpmFirst` scanner emits a warning (not a hard fail) for `.md` / `.mdx` blocks that lead with npm or yarn without a pnpm leader. Suppress per-block with `socket-hook: allow pnpm-first` (HTML comment above the fence or any line inside it).
+User-facing install commands in fenced code blocks must show the pnpm form first (`pnpm install <pkg>`, `pnpm add <pkg>`). npm / yarn fallbacks are fine but come after, or in a separate block introduced as a fallback. The pre-commit `scanDocsPnpmFirst` scanner emits a warning (not a hard fail) for `.md` / `.mdx` blocks that lead with npm or yarn without a pnpm leader. Suppress per-block with `socket-lint: allow pnpm-first` (HTML comment above the fence or any line inside it).
 
 ## New dependencies + soak
 
 Every new dep added to `package.json` runs a Socket-score check at edit time. Low-scoring deps block (enforced by `.claude/hooks/fleet/check-new-deps/`). The 7-day `minimumReleaseAge` soak is malware protection. Never add to `pnpm-workspace.yaml` `minimumReleaseAge.exclude[]` (bypass `Allow soak-time bypass`, alias `Allow minimumReleaseAge bypass`, for emergency CVE patches; enforced by `.claude/hooks/fleet/minimum-release-age-guard/`).
 
-Every per-package soak-bypass entry (the `'pkg@1.2.3'` exact-pin form) MUST carry a `# published: YYYY-MM-DD | removable: YYYY-MM-DD` annotation as the LAST comment line above the bullet. `published` is the version's npm publish date; `removable` is `published + 7d` so a periodic cleanup can drop entries that no longer need the bypass (enforced by `.claude/hooks/fleet/soak-exclude-date-annotation-guard/` at edit time + `scripts/check-soak-exclude-dates.mts` at commit time).
+Every per-package soak-bypass entry (the `'pkg@1.2.3'` exact-pin form) MUST carry a `# published: YYYY-MM-DD | removable: YYYY-MM-DD` annotation as the LAST comment line above the bullet. `published` is the version's npm publish date; `removable` is `published + 7d` so a periodic cleanup can drop entries that no longer need the bypass (enforced by `.claude/hooks/fleet/soak-exclude-date-guard/` at edit time + `scripts/fleet/check/soak-excludes-have-dates.mts` at commit time).
 
-Vitest `include` globs must not match `node:test` files. Mismatched runners produce confusing "no test suite found" errors (enforced by `.claude/hooks/fleet/vitest-include-vs-node-test-guard/`).
+Vitest `include` globs must not match `node:test` files. Mismatched runners produce confusing "no test suite found" errors (enforced by `.claude/hooks/fleet/vitest-vs-node-test-guard/`).
 
 ## Bundler
 
@@ -155,3 +155,13 @@ warning), has no GH-secret access, no concurrency groups, and a simplified
 job-`if` evaluator. Useful for the self-contained `ci.yml` jobs (lint /
 type / test matrix), not the provenance/release reusable workflows. Repos
 that adopt it pin the version in their own `external-tools.json`.
+
+## npm 2FA registry ops
+
+`npm deprecate` / `publish` / `access` / `owner` / `unpublish` / `dist-tag`
+require a one-time password from an authenticator, and npm only prompts for
+it on an **interactive TTY**. The `!` / headless channel has no TTY, so the
+prompt is swallowed and the command dies with `EOTP`. Tell the user to run
+the op in a **real terminal** where the prompt can appear; fall back to
+`--otp=<code>` only when no TTY is available and the user supplies a fresh
+code. Reminder hook: `.claude/hooks/fleet/npm-otp-flow-reminder/`.

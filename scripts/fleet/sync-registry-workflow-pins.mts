@@ -3,27 +3,27 @@
  *   the SHA socket-registry itself pins. A fleet repo's pinned SHA can become
  *   unreachable from socket-registry's `origin/main` — orphaned for any of
  *   several reasons (a superseded cascade commit, a rebased/amended branch,
- *   history cleanup) — and GitHub's `uses:` resolver then 404s it with "workflow
- *   was not found" (incident 2026-06-03: ci.yml@a3f89d93, an orphaned commit,
- *   broke CI fleet-wide). The fix is independent of the cause: repin to whatever
- *   reachable SHA socket-registry currently declares. The source of truth for
- *   "the reachable SHA for reusable workflow <w>" is socket-registry's own
- *   `.github/workflows/_local-not-for-reuse-<w>.yml` — the local caller it uses
- *   to self-test, always pinned to a live commit. This script reads those
- *   `_local-*` pins and repins every `SocketDev/socket-registry/.github/workflows/<w>.yml@<sha>`
- *   line in this repo's workflows to match (with the canonical
- *   `# main (YYYY-MM-DD)` comment).
- *
- *   Usage:
- *     node scripts/fleet/sync-registry-workflow-pins.mts            # report drift, exit 1 if any
- *     node scripts/fleet/sync-registry-workflow-pins.mts --fix      # rewrite pins in place
- *     node scripts/fleet/sync-registry-workflow-pins.mts --quiet    # suppress the clean-state line
+ *   history cleanup) — and GitHub's `uses:` resolver then 404s it with
+ *   "workflow was not found" (incident 2026-06-03: ci.yml@a3f89d93, an orphaned
+ *   commit, broke CI fleet-wide). The fix is independent of the cause: repin to
+ *   whatever reachable SHA socket-registry currently declares. The source of
+ *   truth for "the reachable SHA for reusable workflow <w>" is
+ *   socket-registry's own `.github/workflows/_local-not-for-reuse-<w>.yml` —
+ *   the local caller it uses to self-test, always pinned to a live commit. This
+ *   script reads those `_local-*` pins and repins every
+ *   `SocketDev/socket-registry/.github/workflows/<w>.yml@<sha>` line in this
+ *   repo's workflows to match (with the canonical `# main (YYYY-MM-DD)`
+ *   comment). Usage: node scripts/fleet/sync-registry-workflow-pins.mts #
+ *   report drift, exit 1 if any node
+ *   scripts/fleet/sync-registry-workflow-pins.mts --fix # rewrite pins in place
+ *   node scripts/fleet/sync-registry-workflow-pins.mts --quiet # suppress the
+ *   clean-state line.
  */
 
 // prefer-async-spawn: sync-required — top-level CLI; sequential gh fetches +
 // file rewrites with exit-code aggregation.
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -32,6 +32,35 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { REPO_ROOT } from './paths.mts'
 
 const logger = getDefaultLogger()
+
+// git context vars a hook (or a parent git invocation) exports. Any git command
+// we run against a DIFFERENT repo via `-C` must drop these, or it will operate
+// on the ambient repo's index/objects/worktree instead — under a pre-commit
+// hook, `GIT_INDEX_FILE`/`GIT_DIR` point at THIS repo, corrupting a sibling-repo
+// or temp-repo git op ("invalid object … Error building trees").
+const GIT_CONTEXT_VARS = [
+  'GIT_DIR',
+  'GIT_INDEX_FILE',
+  'GIT_WORK_TREE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR',
+  'GIT_NAMESPACE',
+  'GIT_CEILING_DIRECTORIES',
+  'GIT_PREFIX',
+] as const
+
+/**
+ * A copy of process.env with the inherited git-context vars stripped, so a git
+ * command run against another repo via `-C` resolves that repo's own git dir.
+ */
+export function gitEnvForOtherRepo(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  for (let i = 0, { length } = GIT_CONTEXT_VARS; i < length; i += 1) {
+    delete env[GIT_CONTEXT_VARS[i]!]
+  }
+  return env
+}
 
 const REGISTRY = 'SocketDev/socket-registry'
 // The reusable workflows a fleet repo references from socket-registry. Each has
@@ -55,16 +84,17 @@ export function pinLineRe(workflow: string): RegExp {
 
 /**
  * Locate a sibling socket-registry checkout next to this repo, or `undefined`
- * when absent. A path lookup (not an import) is unavoidable: the goal is to read
- * another repo's on-disk workflow files, which no package import exposes.
+ * when absent. A path lookup (not an import) is unavoidable: the goal is to
+ * read another repo's on-disk workflow files, which no package import exposes.
  * socket-registry is public, so the API fallback in `readLocalPin` covers the
  * no-checkout case. (The reverse — socket-registry syncing the PRIVATE
- * wheelhouse — must stay local-only; there is no API fallback for a private repo.)
+ * wheelhouse — must stay local-only; there is no API fallback for a private
+ * repo.)
  */
 export function findRegistryCheckout(
   repoRoot: string = REPO_ROOT,
 ): string | undefined {
-  // socket-hook: allow cross-repo -- locating a sibling checkout by path is the function's purpose.
+  // socket-lint: allow cross-repo -- locating a sibling checkout by path is the function's purpose.
   const sibling = path.join(path.dirname(repoRoot), 'socket-registry')
   return existsSync(path.join(sibling, '.github', 'workflows'))
     ? sibling
@@ -93,8 +123,8 @@ export function parseLocalPin(
  * Read `_local-not-for-reuse-<workflow>.yml` from a sibling checkout AT
  * `origin/main`, never from the working tree. This is the orphan guard: a
  * behind/dirty/detached working tree can hold a `_local` pin that points at a
- * since-orphaned SHA, and repinning the fleet to THAT would re-break CI. The pin
- * `_local` declares on `origin/main` is reachable-by-construction (the same
+ * since-orphaned SHA, and repinning the fleet to THAT would re-break CI. The
+ * pin `_local` declares on `origin/main` is reachable-by-construction (the same
  * cascade that advances the workflows updates `_local` in the same commit), so
  * reading it at the ref — after refreshing the remote-tracking ref — yields a
  * SHA we can trust. Returns undefined when there's no checkout, no remote ref,
@@ -119,13 +149,13 @@ export function readLocalPinFromGit(
     spawnSync(
       'git',
       ['-C', registryCheckout, 'fetch', '--quiet', 'origin', 'main'],
-      {},
+      { env: gitEnvForOtherRepo() },
     )
   }
   const r = spawnSync(
     'git',
     ['-C', registryCheckout, 'show', `origin/main:${relPath}`],
-    {},
+    { env: gitEnvForOtherRepo() },
   )
   if (r.status !== 0) {
     return undefined
@@ -134,12 +164,13 @@ export function readLocalPinFromGit(
 }
 
 /**
- * Read the pin socket-registry's `_local-not-for-reuse-<workflow>.yml` declares.
- * Source order, each yielding a reachable SHA by construction:
- *   1. sibling checkout at `origin/main` (offline-friendly, no rate limit), via
- *      `readLocalPinFromGit` — the orphan guard, reads the ref not the worktree;
- *   2. the GitHub contents API at `main` (no checkout, or no remote ref).
- * Returns undefined when no source yields the file/pin.
+ * Read the pin socket-registry's `_local-not-for-reuse-<workflow>.yml`
+ * declares. Source order, each yielding a reachable SHA by construction:
+ *
+ * 1. Sibling checkout at `origin/main` (offline-friendly, no rate limit), via
+ *    `readLocalPinFromGit` — the orphan guard, reads the ref not the worktree;
+ * 2. The GitHub contents API at `main` (no checkout, or no remote ref). Returns
+ *    undefined when no source yields the file/pin.
  */
 export function readLocalPin(
   workflow: string,
@@ -157,7 +188,12 @@ export function readLocalPin(
   const relPath = `.github/workflows/_local-not-for-reuse-${workflow}.yml`
   const r = spawnSync(
     'gh',
-    ['api', `repos/${REGISTRY}/contents/${relPath}?ref=main`, '--jq', '.content'],
+    [
+      'api',
+      `repos/${REGISTRY}/contents/${relPath}?ref=main`,
+      '--jq',
+      '.content',
+    ],
     {},
   )
   if (r.status !== 0) {
@@ -196,6 +232,11 @@ export interface PinDrift {
   wantedSha: string
 }
 
+export interface ReconcilePinsOptions {
+  // When true, rewrite drifted pins in place; otherwise report-only.
+  fix?: boolean | undefined
+}
+
 /**
  * Rewrite (or, in report mode, collect) every registry-reusable pin in `files`
  * to match `pins`. Returns the drift it found (whether or not it was fixed).
@@ -203,8 +244,12 @@ export interface PinDrift {
 export function reconcilePins(
   files: readonly string[],
   pins: ReadonlyMap<string, RegistryPin>,
-  fix: boolean,
+  options?: ReconcilePinsOptions | undefined,
 ): PinDrift[] {
+  const { fix = false } = {
+    __proto__: null,
+    ...options,
+  } as ReconcilePinsOptions
   const drift: PinDrift[] = []
   for (let i = 0, { length } = files; i < length; i += 1) {
     const file = files[i]!
@@ -285,7 +330,7 @@ function main(): void {
   }
 
   const files = listWorkflowFiles(REPO_ROOT)
-  const drift = reconcilePins(files, pins, fix)
+  const drift = reconcilePins(files, pins, { fix })
 
   if (!drift.length) {
     if (!quiet) {

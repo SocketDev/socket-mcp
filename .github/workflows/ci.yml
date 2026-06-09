@@ -1,3 +1,10 @@
+# ─── BEGIN fleet-canonical (managed by socket-wheelhouse sync) ──
+# Managed by socket-wheelhouse. Don't edit this block locally — edit
+# template/.github/workflows/ci.yml upstream and re-cascade via `pnpm run sync`.
+# The `jobs:` section is BELOW the END marker: the `ci:` reusable-workflow call
+# (its `uses:` SHA is managed separately by the registry-pin cascade) plus any
+# repo-owned jobs. The sync preserves everything below the END marker.
+# See scripts/repo/sync-scaffolding/checks/workflow-fleet-block.mts.
 name: ⚡ CI
 
 # Dependencies:
@@ -17,8 +24,9 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+# ─── END fleet-canonical ────────────────────────────────────────
 
 jobs:
   ci:
     name: Run CI Pipeline
-    uses: SocketDev/socket-registry/.github/workflows/ci.yml@1710ff0c384b95e23651b84da9f90f90e7c32e52 # main (2026-05-28)
+    uses: SocketDev/socket-registry/.github/workflows/ci.yml@4069dfc8c54c0b6ffa43924857e6b89296370efe # main (2026-06-09)

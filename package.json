@@ -59,12 +59,12 @@
     "server-stdio:debug": "SOCKET_DEBUG=1 SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./index.ts",
     "server-http": "MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./index.ts",
     "server-http:debug": "SOCKET_DEBUG=1 MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./index.ts",
-    "check:paths": "node scripts/fleet/check-paths.mts",
+    "check:paths": "node scripts/fleet/check/paths-are-canonical.mts",
     "security": "node scripts/fleet/security.mts",
     "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
     "lockstep": "node scripts/fleet/lockstep.mts",
     "lockstep:emit-schema": "node scripts/fleet/lockstep-emit-schema.mts",
-    "ci:local": "agent-ci run --all"
+    "ci:local": "agent-ci run --all --quiet --pause-on-failure --github-token"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^1.2.0",

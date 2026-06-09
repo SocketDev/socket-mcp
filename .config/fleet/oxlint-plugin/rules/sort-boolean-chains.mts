@@ -79,6 +79,45 @@ const rule = {
       return all.length > 0
     }
 
+    // A `&&`/`||` chain is safe to reorder ONLY when its result is consumed as
+    // a boolean test (truthiness only). In a VALUE position
+    // (`const x = a && b`, `return a && b`, a call arg) `&&`/`||` yields a
+    // SPECIFIC operand, so reordering changes the value: `(c && a && b)` is `0`
+    // but `(a && b && c)` is `null`. Walk out through same-operator parents and
+    // `!`, then require a boolean-test consumer.
+    function isInBooleanContext(node: AstNode): boolean {
+      let cur = node
+      let parent = cur.parent
+      while (parent) {
+        // `!chain` coerces to boolean regardless of what consumes the result,
+        // so the operand order only affects truthiness — safe to reorder.
+        if (parent.type === 'UnaryExpression' && parent.operator === '!') {
+          return true
+        }
+        // Enclosing `&&`/`||` — the chain's value flows up; keep walking so the
+        // OUTER consumer decides (e.g. `if (x && (a && b))`).
+        if (parent.type === 'LogicalExpression') {
+          cur = parent
+          parent = cur.parent
+          continue
+        }
+        if (
+          (parent.type === 'IfStatement' ||
+            parent.type === 'WhileStatement' ||
+            parent.type === 'DoWhileStatement' ||
+            parent.type === 'ConditionalExpression') &&
+          parent.test === cur
+        ) {
+          return true
+        }
+        if (parent.type === 'ForStatement' && parent.test === cur) {
+          return true
+        }
+        return false
+      }
+      return false
+    }
+
     function checkChain(rootNode: AstNode): void {
       // Top-level filter: only check the OUTERMOST `&&` or `||` of a chain.
       const parent = rootNode.parent
@@ -87,6 +126,10 @@ const rule = {
         parent.type === 'LogicalExpression' &&
         parent.operator === rootNode.operator
       ) {
+        return
+      }
+      // Only reorder when the chain is a boolean test, never a value.
+      if (!isInBooleanContext(rootNode)) {
         return
       }
 

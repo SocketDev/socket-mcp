@@ -68,11 +68,26 @@ test('allows node_modules/.bin and pnpm run', async () => {
   }
 })
 
-test('does not false-match a non-exec pnpm subcommand or substring', async () => {
+test('blocks the fetch+execute forms: npx / pnpm dlx / yarn dlx', async () => {
   for (const cmd of [
-    'pnpm dlx execa',
+    'npx cowsay hi',
+    'pnpm dlx execa echo',
+    'yarn dlx prettier --check .',
+    'cd packages/x && npx tsx run.ts',
+  ]) {
+    // eslint-disable-next-line no-await-in-loop -- serial subprocess calls
+    const { code, stderr } = await runHook(cmd)
+    assert.equal(code, 2, `expected block for: ${cmd}`)
+    assert.ok(stderr.includes('no-pm-exec-guard'), `stderr for: ${cmd}`)
+  }
+})
+
+test('does not false-match an exec/dlx substring inside other tokens', async () => {
+  for (const cmd of [
     'echo "pnpm exec is banned"',
+    'echo "do not run npx here"',
     'pnpm run exec-tests',
+    'node_modules/.bin/dlx-lookalike',
   ]) {
     // eslint-disable-next-line no-await-in-loop -- serial subprocess calls
     const { code } = await runHook(cmd)

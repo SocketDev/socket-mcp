@@ -1,18 +1,22 @@
 # Sorting reference
 
-Sort lists alphanumerically (literal byte order, ASCII before letters). This is a
-**universal** rule: any block of sibling items, in any file type, gets sorted
-unless there's a documented ordering reason. When you touch an unsorted block,
-**fully re-sort it**. Don't append the new entry and leave the rest unsorted.
+Sort lists alphanumerically (natural order: case-insensitive and numeric-aware).
+This is a **universal** rule: any block of sibling items, in any file type, gets
+sorted unless there's a documented ordering reason. When you touch an unsorted
+block, **fully re-sort it**. Don't append the new entry and leave the rest unsorted.
 
 ## What "alphanumeric" means here
 
-1. **ASCII byte order**, not natural/numeric order. `'name-10'` sorts **before**
-   `'name-2'`. Stable across Node versions and machines.
-2. **Case-sensitive.** `'Z' < 'a'` (uppercase first). Raw `<` comparison, not
-   `localeCompare`.
-3. **No locale-aware collation.** No `Intl.Collator`, no `numeric: true`.
-4. **Whole-token comparison**, not character-class buckets.
+The one canonical comparator is `naturalCompare` from
+`@socketsecurity/lib/sorts/natural`. Every `socket/sort-*` rule and the
+`alpha-sort-reminder` hook delegate to it, so all surfaces agree.
+
+1. **Natural numeric order.** `'name-2'` sorts **before** `'name-10'` (the
+   embedded number is compared as a number, not character by character).
+2. **Case-insensitive.** `'apple'`, `'Mango'`, `'zebra'` (a lowercase word is
+   not forced behind an uppercase one). Capitalization is a tiebreak, not the
+   primary key.
+3. **Whole-token comparison**, not character-class buckets.
 
 These are the exact semantics every `socket/sort-*` lint rule uses.
 
@@ -27,7 +31,7 @@ These are the exact semantics every `socket/sort-*` lint rule uses.
   module scope (and inside `export const` / `export default`) sort
   alphanumerically. Exception: `__proto__: null` always comes first, ahead of
   any data key. Object literals that are position-bearing (HTTP header order,
-  protocol field order) opt out with `// socket-hook: allow object-property-order`.
+  protocol field order) opt out with `// socket-lint: allow object-property-order`.
   Enforced by `socket/sort-object-literal-properties`.
 - **Method / function placement**: within a module, sort top-level functions
   alphabetically. Private functions (lowercase / un-exported) sort first,
@@ -43,7 +47,7 @@ These are the exact semantics every `socket/sort-*` lint rule uses.
   Capturing, non-capturing, and named-capture groups all follow the rule.
   Auto-fixable when every alternative is a simple literal. Order-bearing
   alternations (rare; markup parsers where `<!--|-->` would silently mismatch if
-  reordered) append `// socket-hook: allow regex-alternation-order`. Enforced by
+  reordered) append `// socket-lint: allow regex-alternation-order`. Enforced by
   `socket/sort-regex-alternations`.
 - **String-equality disjunctions**: `x === 'a' || x === 'b' || x === 'c'` reads
   with the comparand strings in alpha order. The De Morgan dual
@@ -59,7 +63,7 @@ These are the exact semantics every `socket/sort-*` lint rule uses.
   Members are interchangeable at the type level; alpha order makes "which values
   can this take?" answerable without scanning. Position-bearing unions (a
   discriminator where order encodes priority) append
-  `// socket-hook: allow union-order`. _(Rule planned; see Roadmap.)_
+  `// socket-lint: allow union-order`. _(Rule planned; see Roadmap.)_
 
 ## Where to sort: non-code surfaces (hook-reminded, manual)
 
@@ -116,7 +120,7 @@ one unsorted that did costs a merge conflict later.
 | Surface                                                              | Plan                                                                           |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `export { … }` lists                                                 | `socket/sort-named-exports` — mirror `sort-named-imports`.                     |
-| TS string-literal unions                                             | `socket/sort-union-members` — with `// socket-hook: allow union-order` escape. |
+| TS string-literal unions                                             | `socket/sort-union-members` — with `// socket-lint: allow union-order` escape. |
 | Module-scope const arrays                                            | `socket/sort-array-literals` — skip position-bearing arrays.                   |
 | Independent switch-case branches                                     | future rule; skip fall-through / early-return chains.                          |
 | `.claude/settings.json` permission lists, `external-tools.json` keys | sync-scaffolding sort check.                                                   |

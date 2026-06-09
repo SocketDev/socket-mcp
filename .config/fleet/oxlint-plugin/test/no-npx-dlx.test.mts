@@ -17,7 +17,7 @@ describe('socket/no-npx-dlx', () => {
         { name: 'pnpm run', code: 'const cmd = "pnpm run lint"\n' },
         {
           name: 'commented opt-out',
-          code: 'const cmd = "npx foo" // socket-hook: allow npx\n',
+          code: 'const cmd = "npx foo" // socket-lint: allow npx\n',
         },
       ],
       invalid: [
