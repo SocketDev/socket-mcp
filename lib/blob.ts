@@ -57,6 +57,12 @@ export async function fetchBlob(
   hash: string,
   options: FetchBlobOptions,
 ): Promise<BlobResult> {
+  // `hash` is user-supplied (the package_file_contents MCP arg). An empty
+  // string makes `hash[0]` undefined, silently selecting the raw-blob
+  // branch below and issuing a doomed fetch; reject it up front instead.
+  if (!hash) {
+    throw new Error('fetchBlob requires a non-empty blob hash')
+  }
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
 
   let buf: Uint8Array

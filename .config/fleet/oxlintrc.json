@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "import"],
-  "jsPlugins": ["./oxlint-plugin/index.mts"],
+  "jsPlugins": ["../oxlint-plugin/index.mts"],
   "categories": {
     "correctness": "error",
     "suspicious": "error"
@@ -25,6 +25,7 @@
     "socket/no-inline-logger": "error",
     "socket/no-logger-newline-literal": "error",
     "socket/no-npx-dlx": "error",
+    "socket/no-package-manager-auto-update-reenable": "error",
     "socket/no-placeholders": "error",
     "socket/no-platform-specific-import": "error",
     "socket/no-process-chdir": "error",
@@ -72,6 +73,7 @@
     "socket/prefer-undefined-over-null": "error",
     "socket/prefer-windows-test-helpers": "error",
     "socket/require-async-iife-entry": "error",
+    "socket/require-regex-comment": "error",
     "socket/socket-api-token-env": "error",
     "socket/sort-array-literals": "error",
     "socket/sort-boolean-chains": "error",
@@ -207,7 +209,7 @@
     "**/*.tsbuildinfo",
     "#fleet-canonical-begin (managed by socket-wheelhouse sync)",
     "**/.claude/**",
-    "**/.config/fleet/oxlint-plugin/**",
+    "**/.config/oxlint-plugin/**",
     "**/.config/rolldown/**",
     "**/.git-hooks/**",
     "**/.pnpm-store/**",

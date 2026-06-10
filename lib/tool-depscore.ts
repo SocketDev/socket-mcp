@@ -103,6 +103,11 @@ export function formatScoreEntries(score: Record<string, unknown>): string {
     .filter(([key]) => key !== 'overall' && key !== 'uuid')
     .map(([key, value]) => {
       const numValue = Number(value)
+      if (!Number.isFinite(numValue)) {
+        // A non-numeric score field would render the literal "NaN";
+        // pass the raw value through instead.
+        return `${key}: ${value}`
+      }
       const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
       return `${key}: ${displayValue}`
     })

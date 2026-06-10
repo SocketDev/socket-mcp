@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  formatScoreEntries,
   formatScoreLine,
   parseNdjsonPackageBody,
   parseSinglePackageBody,
@@ -83,5 +84,29 @@ describe('parseSinglePackageBody', () => {
     const result = parseSinglePackageBody(body)
     expect(result).toHaveLength(1)
     expect(result[0]).toContain('pkg:pypi/requests@2.31.0:')
+  })
+})
+
+describe('formatScoreEntries', () => {
+  test('renders sub-1 scores as percentages and skips overall/uuid', () => {
+    const out = formatScoreEntries({
+      overall: 0.5,
+      uuid: 'abc',
+      quality: 0.9,
+      supplyChain: 0.42,
+    })
+    expect(out).toBe('quality: 90, supplyChain: 42')
+  })
+
+  test('passes through values above 1 unchanged', () => {
+    expect(formatScoreEntries({ vulnerabilities: 3 })).toBe(
+      'vulnerabilities: 3',
+    )
+  })
+
+  test('passes a non-numeric value through raw instead of rendering NaN', () => {
+    const out = formatScoreEntries({ quality: 'n/a', supplyChain: 0.9 })
+    expect(out).toBe('quality: n/a, supplyChain: 90')
+    expect(out).not.toContain('NaN')
   })
 })

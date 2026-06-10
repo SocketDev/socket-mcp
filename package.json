@@ -25,7 +25,7 @@
     "provenance": true
   },
   "scripts": {
-    "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/install-git-hooks.mts",
+    "prepare": "node scripts/fleet/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
     "postpublish": "npm run clean",
     "publish": "node scripts/fleet/publish.mts",
