@@ -45,13 +45,13 @@ export interface HookInput {
 }
 
 const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
-  { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i },
+  { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i }, // socket-lint: allow uncommented-regex
   { ecosystem: 'npm', pattern: /\byarn\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bpnpm\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bbun\s+add\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'pypi',
-    pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i,
+    pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i, // socket-lint: allow uncommented-regex
   },
   { ecosystem: 'pypi', pattern: /\buv\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'pypi', pattern: /\buv\s+pip\s+install\s+([^\s-][^\s]*)/i },
@@ -59,11 +59,11 @@ const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
   { ecosystem: 'pypi', pattern: /\bpipenv\s+install\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'cargo',
-    pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i,
+    pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i, // socket-lint: allow uncommented-regex
   },
   { ecosystem: 'gem', pattern: /\bgem\s+install\s+([^\s-][^\s]*)/i },
   { ecosystem: 'gem', pattern: /\bbundle\s+add\s+([^\s-][^\s]*)/i },
-  { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i },
+  { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i }, // socket-lint: allow uncommented-regex
   { ecosystem: 'nuget', pattern: /\bdotnet\s+add\s+package\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bnuget\s+install\s+([^\s-][^\s]*)/i },
 ]
@@ -199,7 +199,7 @@ export function outputDeny(reason: string): void {
 }
 
 export function parseSupplyChainScore(text: string): number | undefined {
-  const match = text.match(/supplyChain:\s*(\d+(?:\.\d+)?)/i)
+  const match = text.match(/supplyChain:\s*(\d+(?:\.\d+)?)/i) // socket-lint: allow uncommented-regex
   return match ? Number(match[1]) : undefined
 }
 

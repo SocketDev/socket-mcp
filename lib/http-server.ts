@@ -1,3 +1,7 @@
+// max-file-lines: transport — HTTP transport module: session lifecycle,
+// request routing (GET/POST/DELETE), and the post-body size guard are one
+// cohesive unit that reads top-to-bottom; splitting would scatter the
+// request path across files.
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
