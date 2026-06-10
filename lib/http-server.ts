@@ -13,12 +13,12 @@ import {
 } from './http-helpers.ts'
 import { logger } from './logger.ts'
 import {
-  OAUTH_PROTECTED_RESOURCE_METADATA_PATH,
   authenticateRequest,
   buildProtectedResourceMetadata,
   getProtectedResourceMetadataUrl,
   isOauthEnabled,
   loadOAuthMetadata,
+  OAUTH_PROTECTED_RESOURCE_METADATA_PATH,
 } from './oauth.ts'
 import type { AuthenticatedRequest } from './oauth.ts'
 import { VERSION } from './version.ts'
@@ -26,7 +26,7 @@ import { VERSION } from './version.ts'
 // Per-session record. Both transport and server must persist for the
 // session lifetime — storing the server prevents GC from reclaiming it
 // before subsequent RPC calls.
-interface Session {
+export interface Session {
   transport: StreamableHTTPServerTransport
   server: Server
   lastActivity: number

@@ -23,19 +23,19 @@ export interface FetchBlobOptions {
 
 const DEFAULT_MAX_BYTES = 1024 * 1024 // 1 MB
 
-interface ChunkedManifest {
+export interface ChunkedManifest {
   _version?: string | undefined
   size?: number | undefined
   chunks?: unknown | undefined
   offset?: unknown | undefined
 }
 
-interface RawFetchResult {
+export interface RawFetchResult {
   bytes: Uint8Array
   contentType: string | undefined
 }
 
-interface ChunkedFetchResult {
+export interface ChunkedFetchResult {
   // Concatenated chunk bytes, possibly less than `totalSize` when stopped
   // early at maxBytes.
   bytes: Uint8Array

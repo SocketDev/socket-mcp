@@ -6,9 +6,9 @@ import { logger } from './logger.ts'
 import { fetchOrganizations } from './organizations.ts'
 import {
   AUTH_REQUIRED_MSG,
-  SOCKET_API_BASE_URL,
   authRequiredResult,
   resolveScopedAuthToken,
+  SOCKET_API_BASE_URL,
 } from './server.ts'
 import type { ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'

@@ -9,15 +9,15 @@ import { debug, logger } from './logger.ts'
 import { buildPurl } from './purl.ts'
 import {
   AUTH_REQUIRED_MSG,
-  SOCKET_API_BASE_URL,
   authRequiredResult,
   resolveScopedAuthToken,
+  SOCKET_API_BASE_URL,
 } from './server.ts'
 import type { ToolSpec } from './tool-types.ts'
 
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
 
-interface PackageFilesArgs {
+export interface PackageFilesArgs {
   ecosystem?: string | undefined
   depname: string
   version: string
@@ -25,12 +25,12 @@ interface PackageFilesArgs {
   platform?: string | undefined
 }
 
-interface PackageFileContentsArgs {
+export interface PackageFileContentsArgs {
   hash: string
   path?: string | undefined
 }
 
-interface PackageFileGrepArgs {
+export interface PackageFileGrepArgs {
   hash: string
   pattern: string
   caseInsensitive?: boolean | undefined

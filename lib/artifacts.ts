@@ -9,7 +9,7 @@ export interface ArtifactData {
   [key: string]: unknown
 }
 
-type PlatformPattern = RegExp
+export type PlatformPattern = RegExp
 
 const PLATFORM_PATTERNS: Record<string, PlatformPattern[]> = {
   'darwin-arm64': [/macosx.*arm64/i],

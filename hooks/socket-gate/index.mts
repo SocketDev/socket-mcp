@@ -36,9 +36,9 @@ const MCP_URL = 'https://mcp.socket.dev/'
 const SUPPLY_CHAIN_THRESHOLD = 20
 const REQUEST_TIMEOUT_MS = 10_000
 
-type Ecosystem = 'npm' | 'pypi' | 'cargo' | 'gem' | 'golang' | 'nuget'
+export type Ecosystem = 'npm' | 'pypi' | 'cargo' | 'gem' | 'golang' | 'nuget'
 
-interface HookInput {
+export interface HookInput {
   session_id: string
   tool_name: string
   tool_input: Record<string, unknown> | string

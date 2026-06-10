@@ -61,18 +61,18 @@ export interface FetchFileListOptions {
   onRequest?: ((url: string) => void) | undefined
 }
 
-interface RawFileEntry {
+export interface RawFileEntry {
   path?: unknown | undefined
   type?: unknown | undefined
   size?: unknown | undefined
   hash?: unknown | undefined
 }
 
-interface RawFileListResponse {
+export interface RawFileListResponse {
   files?: RawFileEntry[] | undefined
 }
 
-interface TreeNode {
+export interface TreeNode {
   name: string
   isFile: boolean
   size?: number | undefined
