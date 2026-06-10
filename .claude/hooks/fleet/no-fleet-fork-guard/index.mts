@@ -52,6 +52,7 @@ import { errorMessage } from '@socketsecurity/lib-stable/errors'
 import { isDirSync } from '@socketsecurity/lib-stable/fs/inspect'
 
 import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
+import { isWheelhouseRoot } from '../_shared/wheelhouse-root.mts'
 
 type ToolInput = {
   tool_input?:
@@ -152,6 +153,22 @@ function hasFleetBlockMarkers(absPath: string): boolean {
   }
 }
 
+// Per-repo marker files: listed in the manifest's EXPECTED_FILES (presence
+// required, CONTENT VARIES per repo), NOT IDENTICAL_FILES (byte-identical
+// canonical). Every repo's socket-wheelhouse.json carries its own repoName /
+// layout / native / kind — editing it downstream is normal per-repo work, not a
+// canonical fork. Without this exemption the parent-dir-under-template rule in
+// isCanonicalRelativePath marks `.config/socket-wheelhouse.json` canonical
+// (because template/.config/ exists), false-blocking legitimate marker edits.
+const PER_REPO_MARKER_PATHS: readonly string[] = [
+  '.config/socket-wheelhouse.json',
+  '.socket-wheelhouse.json',
+]
+
+export function isPerRepoMarkerPath(rel: string): boolean {
+  return PER_REPO_MARKER_PATHS.includes(rel.replace(/\\/g, '/'))
+}
+
 export function isCanonicalRelativePath(
   rel: string,
   repoRoot?: string | undefined,
@@ -224,7 +241,28 @@ async function main(): Promise<number> {
 
   const relToRepo = path.relative(repoRoot, absPath)
 
+  // Per-repo marker files carry per-repo content (EXPECTED_FILES, not
+  // IDENTICAL_FILES) — editing them downstream is expected, not a fork.
+  if (isPerRepoMarkerPath(relToRepo)) {
+    return 0
+  }
+
   if (!isCanonicalRelativePath(relToRepo, repoRoot)) {
+    return 0
+  }
+
+  // Wheelhouse-own-README allowance: the wheelhouse's OWN root README.md is
+  // authored repo content (`# socket-wheelhouse`, real badges, the Fleet-axes
+  // prose), NOT a cascade copy of `template/README.md` — that template file is
+  // the `<REPO_NAME>` placeholder fresh repos adopt, a DIFFERENT file. The
+  // cascade synthesizes each downstream README from the placeholder + per-repo
+  // data; it never overwrites the wheelhouse's own. So in the wheelhouse repo
+  // (identified by the `template/CLAUDE.md` marker), editing root README.md is
+  // legitimate authoring, not a downstream fork. Downstream repos still hit the
+  // guard (they have no `template/`, so `isCanonicalRelativePath` already
+  // returned false above for them anyway — this only matters in the wheelhouse).
+  const relNormalized = relToRepo.replace(/\\/g, '/')
+  if (relNormalized === 'README.md' && isWheelhouseRoot(repoRoot)) {
     return 0
   }
 
@@ -273,7 +311,7 @@ async function main(): Promise<number> {
       `If you genuinely need to bypass (e.g. emergency hotfix that`,
       `can't wait for cascade), the user must type \`${BYPASS_PHRASE}\``,
       `verbatim in a recent user turn. Reference:`,
-      `docs/claude.md/no-local-fork-canonical.md`,
+      `docs/agents.md/no-local-fork-canonical.md`,
       ``,
     ].join('\n'),
   )

@@ -4,7 +4,7 @@
   "title": "socket-wheelhouse per-repo config",
   "description": "Per-repo socket-wheelhouse config. Two valid locations: `.config/socket-wheelhouse.json` (primary) or `.socket-wheelhouse.json` at the repo root (alternative). Both are first-class — pick the location that fits your repo's convention.",
   "type": "object",
-  "required": ["schemaVersion", "repoName", "layout", "native"],
+  "required": ["schemaVersion", "repoName", "repo", "build"],
   "properties": {
     "$schema": {
       "description": "JSON Schema reference for editor autocompletion. Conventionally `./socket-wheelhouse-schema.json` — both the config and its schema live side-by-side in `.config/`.",
@@ -17,42 +17,67 @@
     },
     "repoName": {
       "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "Canonical repo basename (e.g. `socket-lib`, `ultrathink`). Used for layout / native-independent exemptions like the oxlint `socket-lib` carve-out.",
+      "description": "Canonical repo basename (e.g. `socket-lib`, `ultrathink`). Used for shape-independent exemptions like the oxlint `socket-lib` carve-out.",
       "type": "string"
     },
-    "layout": {
-      "description": "Package layout. `single-package` = one `package.json` at root, no `packages/`. `monorepo` = pnpm workspaces under `packages/`.",
-      "anyOf": [
-        {
-          "const": "single-package",
-          "type": "string"
-        },
-        {
-          "const": "monorepo",
-          "type": "string"
+    "repo": {
+      "description": "Repo shape.",
+      "additionalProperties": false,
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "description": "Package layout. `single-package` = one `package.json` at root, no `packages/`. `monorepo` = pnpm workspaces under `packages/`.",
+          "anyOf": [
+            {
+              "const": "single-package",
+              "type": "string"
+            },
+            {
+              "const": "monorepo",
+              "type": "string"
+            }
+          ]
         }
-      ]
+      }
     },
-    "native": {
-      "description": "Native-binary supply-chain role. `none` = pure-npm publish path. `consumer` = pulls prebuilt binaries from a sibling producer. `producer` = ships native artifacts via GH releases. `both` = consumes one set, produces another. (Per-language ports live in `lockstep.json` `lang-parity` rows, not here.)",
-      "anyOf": [
-        {
-          "const": "none",
-          "type": "string"
+    "build": {
+      "description": "How the repo is built + released. Drives the release-checksums file cascade + CI breadth. `from: github-release` repos are native producers (socket-btm); `from: npm-registry` + non-`js` type wrap prebuilt native bits (socket-bin/socket-addon); `type: js` is a plain package.",
+      "additionalProperties": false,
+      "type": "object",
+      "required": ["from", "type"],
+      "properties": {
+        "from": {
+          "description": "Release source/target. `npm-registry` = published as an npm package. `github-release` = raw artifacts attached to a GitHub Release.",
+          "anyOf": [
+            {
+              "const": "npm-registry",
+              "type": "string"
+            },
+            {
+              "const": "github-release",
+              "type": "string"
+            }
+          ]
         },
-        {
-          "const": "consumer",
-          "type": "string"
-        },
-        {
-          "const": "producer",
-          "type": "string"
-        },
-        {
-          "const": "both",
-          "type": "string"
+        "type": {
+          "description": "Artifact kind. `js` = plain JS package. `addon` = `.node` native addon. `binary` = a native binary (executable or wasm module — wasm is a binary format, so it lives here, not its own value).",
+          "anyOf": [
+            {
+              "const": "js",
+              "type": "string"
+            },
+            {
+              "const": "addon",
+              "type": "string"
+            },
+            {
+              "const": "binary",
+              "type": "string"
+            }
+          ]
         }
-      ]
+      }
     },
     "hooks": {
       "description": "Git-hook opt-ins.",

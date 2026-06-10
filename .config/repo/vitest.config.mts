@@ -22,7 +22,7 @@ const isCoverageEnabled =
 
 // Repo opt-out: globs that are safe to run in the faster non-isolated pool.
 const NON_ISOLATED_CONFIG = '.config/repo/vitest-non-isolated.json'
-function readNonIsolatedGlobs(): string[] {
+export function readNonIsolatedGlobs(): string[] {
   if (!existsSync(NON_ISOLATED_CONFIG)) {
     return []
   }
@@ -55,7 +55,8 @@ export default defineConfig({
     include: ['test/**/*.test.{js,ts,mjs,mts,cjs}'],
     // Vitest treats `test/**` as `**/test/**`, so without an explicit
     // exclude it picks up every nested `test/` directory in the repo
-    // — including the `.git-hooks/test/`, `.config/fleet/oxlint-plugin/test/`,
+    // — including the `.git-hooks/test/`, the oxlint plugin's per-rule
+    // `.config/oxlint-plugin/fleet/<id>/test/` suites,
     // and `scripts/**/test/` suites that run under `node --test`, not
     // vitest. Those tests use `import { test } from 'node:test'` and
     // produce zero vitest suites, which vitest reports as failures.
@@ -74,7 +75,7 @@ export default defineConfig({
       '**/test/fixtures/**',
       '**/.{idea,git,cache,output,temp}/**',
       '.git-hooks/**',
-      '.config/fleet/oxlint-plugin/test/**',
+      '.config/oxlint-plugin/**',
       'scripts/**/test/**',
       '.claude/hooks/**/test/**',
       'template/**',
@@ -131,7 +132,7 @@ export default defineConfig({
     coverage: {
       enabled: isCoverageEnabled,
       provider: 'v8',
-      reporter: ['text', 'json', 'html', 'lcov', 'clover'],
+      reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'clover'],
       exclude: [
         '**/*.config.*',
         '**/node_modules/**',

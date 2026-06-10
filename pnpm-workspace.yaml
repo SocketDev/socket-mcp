@@ -34,7 +34,8 @@ catalog:
   'oxfmt': 0.48.0
   'oxlint': 1.63.0
   'playwright-core': 1.55.1
-  'rolldown': 1.0.3
+  'regjsparser': 0.13.1
+  'rolldown': 1.1.0
   'shell-quote': 1.8.4
   'taze': 19.11.0
   'untracked': 1.6.1
@@ -93,13 +94,33 @@ minimumReleaseAgeExclude:
   # `.dockerignore` from package.json + the curated blacklist. semver
   # override above pins the transitive update-notifier → semver-diff
   # to a provenance-attested version.
-  # published: 2026-06-03 | removable: 2026-06-10
-  - 'untracked@1.6.1'
   - 'shell-quote'
   - '@ultrathink/*'
   - '@yuku-parser/*'
   # security fix for GHSA-ph9p-34f9-6g65; bypassing soak to land the patch now
   - '@socketoverride/*'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-darwin-arm64@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-darwin-x64@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-freebsd-x64@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-linux-arm-gnu@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-linux-arm-musl@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-linux-arm64-gnu@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-linux-arm64-musl@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-linux-x64-gnu@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-linux-x64-musl@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-win32-arm64@0.5.31'
+  # published: 2026-06-09 | removable: 2026-06-16
+  - '@yuku-parser/binding-win32-x64@0.5.31'
 
 pmOnFail: error
 resolutionMode: highest

@@ -33,12 +33,31 @@ const ENTRY_RE =
   /^\s*-\s*['"]?((?:@[^@/'"\s]+\/)?[^@'"\s]+)@([^'"\s]+)['"]?\s*$/
 const GLOB_ENTRY_RE = /^\s*-\s*['"]?[^'"\s]*\*[^'"\s]*['"]?\s*$/
 const BARE_NAME_ENTRY_RE = /^\s*-\s*['"]?[^@'"\s]+['"]?\s*$/
+// A `/*` glob trusts a WHOLE scope's future releases without a soak — only
+// safe for SOCKET-OWNED scopes (we control what publishes there). The
+// allowlist: the `@socket*` family, the `socket-*` repo prefix, the
+// Socket-owned project scopes `@stuie` / `@ultrathink`, and the in-repo
+// workspace-member path globs (`packages/*`, `.claude/hooks/**`,
+// `.config/oxlint-plugin/**`, `template/**`) which aren't npm packages at all.
+// A THIRD-PARTY scope glob (e.g. `@yuku-parser/*`) must instead pin concrete
+// members `@scope/pkg@version` — a blanket scope-bypass would admit any future
+// publish under someone else's scope.
+const SOCKET_OWNED_GLOB_RE =
+  /^\s*-\s*['"]?(?:@socket[^/'"\s]*\/\*|socket-\*|@stuie\/\*|@ultrathink\/\*|(?:template\/)?\.claude\/[^'"\s]*\*|(?:template\/)?\.config\/[^'"\s]*\*|packages\/\*|template\/\*)['"]?\s*$/
+// First-party Socket binary tools whose soak-exclude is a bare name BY DESIGN:
+// they ship as GitHub-release binaries (e.g. `sfw` = Socket Firewall,
+// `github:SocketDev/sfw-free`), not versioned npm packages, so there's no
+// `@version` to pin — the integrity model is the binary download + sha256, not
+// npm-registry trust. The bare-name analogue of the Socket-owned glob
+// exemption. A versioned npm package (e.g. `ecc-agentshield`,
+// `pkg:npm/ecc-agentshield@1.4.0`) is NOT first-party-exempt — it must pin.
+const FIRST_PARTY_BARE_NAMES = new Set(['sfw'])
 const ANNOTATION_RE =
   /^\s*#\s+published:\s+(\d{4}-\d{2}-\d{2})\s+\|\s+removable:\s+(\d{4}-\d{2}-\d{2})\s*$/
 const ALLOW_MARKER = '# socket-lint: allow soak-exclude-no-date-annotation'
 
 export interface Finding {
-  kind: 'missing' | 'stale'
+  kind: 'missing' | 'stale' | 'unpinned'
   line: number
   name: string
   version: string
@@ -62,14 +81,48 @@ export function scan(text: string, todayISO: string): Finding[] {
       inBlock = false
       continue
     }
-    const m = ENTRY_RE.exec(line)
-    if (!m) {
-      continue
-    }
     if (line.includes(ALLOW_MARKER)) {
       continue
     }
-    if (GLOB_ENTRY_RE.test(line) || BARE_NAME_ENTRY_RE.test(line)) {
+    // A glob entry is exempt ONLY when it's a Socket-owned scope (or an in-repo
+    // workspace path). A third-party scope glob (`@yuku-parser/*`) is a
+    // blanket-bypass of someone else's future releases — flag it like a bare
+    // name so it gets pinned to concrete members.
+    if (GLOB_ENTRY_RE.test(line)) {
+      if (SOCKET_OWNED_GLOB_RE.test(line)) {
+        continue
+      }
+      const globName = /^\s*-\s*['"]?([^'"\s]+)['"]?\s*$/.exec(line)?.[1] ?? '<unknown>'
+      findings.push({
+        kind: 'unpinned',
+        line: i + 1,
+        name: globName,
+        version: '<none>',
+      })
+      continue
+    }
+    // A concrete (non-glob) entry MUST be version-pinned: `name@version`. A bare
+    // name pins no version, so the soak-bypass leaks to every future release of
+    // the package — exactly the gap a dated `# published:/removable:` annotation
+    // is supposed to scope. Flag it.
+    if (BARE_NAME_ENTRY_RE.test(line)) {
+      const bareName = /^\s*-\s*['"]?([^'"\s]+)['"]?\s*$/.exec(line)?.[1] ?? '<unknown>'
+      // First-party Socket binary tools (sfw, …) ship as versionless GitHub
+      // releases — exempt, like the glob entries. A versioned npm package
+      // still must pin.
+      if (FIRST_PARTY_BARE_NAMES.has(bareName)) {
+        continue
+      }
+      findings.push({
+        kind: 'unpinned',
+        line: i + 1,
+        name: bareName,
+        version: '<none>',
+      })
+      continue
+    }
+    const m = ENTRY_RE.exec(line)
+    if (!m) {
       continue
     }
     const name = m[1] ?? '<unknown>'
@@ -136,6 +189,7 @@ function main(): void {
   const findings = scan(content, todayISO)
   const missing = findings.filter(f => f.kind === 'missing')
   const stale = findings.filter(f => f.kind === 'stale')
+  const unpinned = findings.filter(f => f.kind === 'unpinned')
 
   if (stale.length > 0 && fix) {
     // Promote: the soak cleared, so the bypass is no longer needed.
@@ -183,7 +237,27 @@ function main(): void {
       `\nEach per-package soak-bypass needs the canonical annotation directly above the bullet:\n` +
         `  # published: <YYYY-MM-DD> | removable: <YYYY-MM-DD>\n` +
         `  - 'pkg@1.2.3'\n` +
-        `\nReference: docs/claude.md/fleet/tooling.md "Soak time".\n`,
+        `\nReference: docs/agents.md/fleet/tooling.md "Soak time".\n`,
+    )
+    process.exit(1)
+  }
+
+  if (unpinned.length > 0) {
+    process.stderr.write(
+      `[check-soak-excludes-have-dates] ${unpinned.length} unpinned third-party ` +
+        `soak-exclude entr${unpinned.length === 1 ? 'y' : 'ies'} (bare name, no ` +
+        `\`@version\`):\n`,
+    )
+    for (let i = 0, { length } = unpinned; i < length; i += 1) {
+      const f = unpinned[i]!
+      process.stderr.write(`  line ${f.line}: ${f.name}\n`)
+    }
+    process.stderr.write(
+      `\nA concrete soak-exclude must pin the exact version, so the bypass can't ` +
+        `leak to a future release:\n` +
+        `  - 'pkg@1.2.3'   not   - 'pkg'\n` +
+        `First-party scope globs (\`@scope/*\`, \`socket-*\`) are exempt.\n` +
+        `Reference: docs/agents.md/fleet/tooling.md "Soak time".\n`,
     )
     process.exit(1)
   }
