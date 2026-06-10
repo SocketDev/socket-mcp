@@ -265,4 +265,4 @@ Hooks under `.claude/hooks/fleet/<name>/` (fleet-canonical); host-repo-only hook
 
 socket-mcp is the **Socket MCP server** — exposes Socket scanning + Socket.dev API to MCP-aware clients (Claude Desktop, Cursor). Stdio-framed JSON-RPC; log to **stderr** only (`getDefaultLogger()`), never `console.log`. Tool descriptions are wire contract — bumping breaks clients. Tests `*.test.ts` co-located with sources; **never** `--` before test paths (runs ALL).
 
-Layout / commands / MCP semantics / testing detail in [`docs/claude.md/repo/architecture.md`](docs/claude.md/repo/architecture.md).
+Layout / commands / MCP semantics / testing detail in [`docs/agents.md/repo/architecture.md`](docs/agents.md/repo/architecture.md).
