@@ -1,5 +1,7 @@
 packages:
   - .claude/hooks/*
+  - '.config/oxlint-plugin'
+  - '.config/oxlint-plugin/fleet/*'
 allowBuilds:
   cpu-features: false
   esbuild: true
@@ -24,22 +26,22 @@ catalog:
   '@types/node': 24.9.2
   '@types/shell-quote': 1.7.5
   '@typescript/native-preview': 7.0.0-dev.20260510.1
-  '@vitest/coverage-v8': 4.1.6
-  '@vitest/ui': 4.1.6
+  '@vitest/coverage-v8': 4.1.8
+  '@vitest/ui': 4.1.8
   'dtu-github-actions': 0.16.2
   'ecc-agentshield': 1.4.0
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
-  'npm-run-all2': 9.0.0
+  'npm-run-all2': 9.0.1
   'oxfmt': 0.48.0
   'oxlint': 1.63.0
-  'playwright-core': 1.55.1
+  'playwright-core': 1.60.0
   'regjsparser': 0.13.1
   'rolldown': 1.1.0
   'shell-quote': 1.8.4
-  'taze': 19.11.0
+  'taze': 19.14.1
   'untracked': 1.6.1
-  'vitest': 4.1.6
+  'vitest': 4.1.8
 enablePrePostScripts: true
 
 # Force every consumer of Socket's own packages to resolve through the
@@ -121,6 +123,7 @@ minimumReleaseAgeExclude:
   - '@yuku-parser/binding-win32-arm64@0.5.31'
   # published: 2026-06-09 | removable: 2026-06-16
   - '@yuku-parser/binding-win32-x64@0.5.31'
+  - 'socket'
 
 pmOnFail: error
 resolutionMode: highest
