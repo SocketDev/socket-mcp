@@ -20,20 +20,44 @@ const isCoverageEnabled =
   envAsBoolean(process.env['COVERAGE']) ||
   process.argv.some(arg => arg.includes('coverage'))
 
-// Repo opt-out: globs that are safe to run in the faster non-isolated pool.
-const NON_ISOLATED_CONFIG = '.config/repo/vitest-non-isolated.json'
+// One repo-tunable vitest config, resolved fleet-default + repo-override (the
+// same shape as .config/{fleet,repo}/git-authors.json):
+//   nonIsolated     — globs safe to run in the faster non-isolated pool.
+//   nodeTestExclude — extra node:test homes to exclude from vitest discovery
+//                     (e.g. `tools/**/test/**` for a `node --test` tool corpus).
+//                     prefer-vitest-guard reads the SAME key so its allowlist
+//                     and this exclude never drift.
+// Array values from both tiers are concatenated (a repo extends, never shrinks,
+// the fleet defaults). Replaces the former vitest-non-isolated.json +
+// vitest-extra-exclude.json sidecars.
+export interface VitestRepoConfig {
+  nonIsolated?: string[] | undefined
+  nodeTestExclude?: string[] | undefined
+}
 export function readNonIsolatedGlobs(): string[] {
-  if (!existsSync(NON_ISOLATED_CONFIG)) {
-    return []
+  return resolveVitestKey('nonIsolated')
+}
+export function readVitestConfigTier(file: string): VitestRepoConfig {
+  if (!existsSync(file)) {
+    return {}
   }
   try {
-    const parsed = JSON.parse(readFileSync(NON_ISOLATED_CONFIG, 'utf8')) as {
-      include?: string[] | undefined
-    }
-    return Array.isArray(parsed.include) ? parsed.include : []
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as VitestRepoConfig
+    return parsed && typeof parsed === 'object' ? parsed : {}
   } catch {
-    return []
+    return {}
   }
+}
+export function repoNodeTestExcludeGlobs(): string[] {
+  return resolveVitestKey('nodeTestExclude')
+}
+export function resolveVitestKey(key: keyof VitestRepoConfig): string[] {
+  const fleet = readVitestConfigTier('.config/fleet/vitest.json')[key]
+  const repo = readVitestConfigTier('.config/repo/vitest.json')[key]
+  return [
+    ...(Array.isArray(fleet) ? fleet : []),
+    ...(Array.isArray(repo) ? repo : []),
+  ].filter(g => typeof g === 'string')
 }
 const nonIsolatedGlobs = readNonIsolatedGlobs()
 
@@ -79,6 +103,10 @@ export default defineConfig({
       'scripts/**/test/**',
       '.claude/hooks/**/test/**',
       'template/**',
+      // Repo-tunable node:test homes (e.g. `tools/**/test/**`) from the
+      // `nodeTestExclude` key of .config/{fleet,repo}/vitest.json. The same key
+      // feeds prefer-vitest-guard's allowlist so the two never drift.
+      ...repoNodeTestExcludeGlobs(),
     ],
     // Some repos in the fleet (scaffolding-only, hook-only, etc.) ship
     // this config but don't yet have a `test/` directory — vitest's
