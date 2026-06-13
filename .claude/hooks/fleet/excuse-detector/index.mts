@@ -13,9 +13,9 @@
 // stop chain — Claude is given one forced chance to fix or to state
 // the trade-off explicitly.
 
-import { runStopReminder } from '../_shared/stop-nudge.mts'
+import { runStopReminder } from '../_shared/stop-reminder.mts'
 
-import type { ReminderHit } from '../_shared/stop-nudge.mts'
+import type { ReminderHit } from '../_shared/stop-reminder.mts'
 
 // Deferral-verb fragment shared by every bare-phrase pattern that
 // the assistant might quote descriptively in a summary. Phrases

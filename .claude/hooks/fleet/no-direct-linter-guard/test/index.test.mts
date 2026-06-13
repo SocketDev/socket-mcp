@@ -90,9 +90,7 @@ test('allows pnpm run lint / fix / check / format (the wrappers)', async () => {
 })
 
 test('allows a scripts/fleet/* wrapper invocation', async () => {
-  const { code } = await runHook(
-    'node scripts/fleet/check/foreign-linters-are-absent.mts',
-  )
+  const { code } = await runHook('node scripts/fleet/check/only-oxlint-oxfmt.mts')
   assert.equal(code, 0)
 })
 

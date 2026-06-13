@@ -72,7 +72,7 @@ When a member repo errors that a canonical artifact is "not found" / "missing" /
 node scripts/repo/sync-scaffolding/cli.mts --target <repo> --fix
 ```
 
-Never debug or hand-patch the member's copy of code that's byte-copied from the wheelhouse. The `cascade-first-triage-nudge` hook nudges this when the failure shape looks like a missing canonical artifact.
+Never debug or hand-patch the member's copy of code that's byte-copied from the wheelhouse. The `cascade-first-triage-reminder` hook nudges this when the failure shape looks like a missing canonical artifact.
 
 ## Composite-file exception: CLAUDE.md is part-canonical, part-repo
 

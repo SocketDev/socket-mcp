@@ -19,6 +19,7 @@ import noBareCryptoNamedUsage from './fleet/no-bare-crypto-named-usage/index.mts
 import noBareSpawnChildprocAccess from './fleet/no-bare-spawn-childproc-access/index.mts'
 import noBooleanTrapParam from './fleet/no-boolean-trap-param/index.mts'
 import noCachedForOnIterable from './fleet/no-cached-for-on-iterable/index.mts'
+import noCommentGlobStarSlash from './fleet/no-comment-glob-star-slash/index.mts'
 import noConsolePreferLogger from './fleet/no-console-prefer-logger/index.mts'
 import noDefaultExport from './fleet/no-default-export/index.mts'
 import noDynamicImportOutsideBundle from './fleet/no-dynamic-import-outside-bundle/index.mts'
@@ -109,6 +110,7 @@ const plugin = {
     'no-bare-spawn-childproc-access': noBareSpawnChildprocAccess,
     'no-boolean-trap-param': noBooleanTrapParam,
     'no-cached-for-on-iterable': noCachedForOnIterable,
+    'no-comment-glob-star-slash': noCommentGlobStarSlash,
     'no-console-prefer-logger': noConsolePreferLogger,
     'no-default-export': noDefaultExport,
     'no-dynamic-import-outside-bundle': noDynamicImportOutsideBundle,

@@ -7,7 +7,7 @@
 //
 // The fleet rule (CLAUDE.md "Judgment & self-evaluation" → "Verify before you
 // claim"): never assert a check passed without a tool call this session that ran
-// it. The Stop-time `stop-claim-verify-nudge` nudges at turn-end; this is the
+// it. The Stop-time `stop-claim-verify-reminder` nudges at turn-end; this is the
 // hard half — it stops the unverified claim from LANDING in a commit/push.
 //
 // DRY: detection (findUnbackedClaims / sessionBashCommands / CLAIM_RULES) is the

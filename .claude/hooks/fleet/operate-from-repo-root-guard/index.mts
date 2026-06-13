@@ -18,7 +18,7 @@
 //     path, `/tmp`, `-` (cd back), `~`, `$VAR`, or `..`-escapes (leaving
 //     the repo). Those aren't "cd into a subpackage to run pnpm".
 // Cwd drift from a bare `cd` (without a chained pm) is the
-// avoid-cd-nudge's concern, not this guard's.
+// avoid-cd-reminder's concern, not this guard's.
 //
 // Bypass: `Allow repo-root bypass`. Fail-open on hook bugs.
 

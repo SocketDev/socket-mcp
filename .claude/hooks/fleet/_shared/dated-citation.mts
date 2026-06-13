@@ -1,6 +1,6 @@
 /**
  * @file Shared "is this rule rationale a dated incident log?" matcher. The
- *   dated-citation-nudge (PreToolUse, nudges at edit time) and the
+ *   dated-citation-reminder (PreToolUse, nudges at edit time) and the
  *   rule-citations-are-generic check (`check --all`, blocks committed prose)
  *   both gate on the same definition, so the two surfaces never drift on what
  *   counts as a too-specific citation.

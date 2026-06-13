@@ -14,6 +14,7 @@
     "socket/no-bare-spawn-childproc-access": "error",
     "socket/no-boolean-trap-param": "error",
     "socket/no-cached-for-on-iterable": "error",
+    "socket/no-comment-glob-star-slash": "error",
     "socket/no-console-prefer-logger": "error",
     "socket/no-default-export": "error",
     "socket/no-dynamic-import-outside-bundle": "error",
@@ -167,18 +168,6 @@
   },
   "overrides": [
     {
-      "files": ["**/packages/npm/**"],
-      "rules": {
-        "socket/max-file-lines": "off",
-        "socket/no-console-prefer-logger": "off",
-        "socket/no-inline-logger": "off",
-        "socket/no-logger-newline-literal": "off",
-        "socket/options-param-naming": "off",
-        "socket/prefer-undefined-over-null": "off",
-        "unicorn/no-null": "off"
-      }
-    },
-    {
       "files": [
         "**/scripts/**",
         "**/test/**",
@@ -218,8 +207,6 @@
     "**/patches",
     "**/test/fixtures",
     "**/test/packages",
-    "**/third_party/**",
-    "**/upstream/**",
     "**/vendor/**",
     "**/wasm_exec.js",
     "**/*.d.ts",

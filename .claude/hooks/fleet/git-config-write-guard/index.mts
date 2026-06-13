@@ -261,7 +261,7 @@ const PLACEHOLDER_IDENTITY_ISSUE =
 
 // The placeholder-email patterns + isPlaceholderEmail live in
 // `_shared/git-identity.mts` (one source, shared with
-// git-identity-drift-nudge). TEST_EMAIL_PATTERNS aliases them so the scan
+// git-identity-drift-reminder). TEST_EMAIL_PATTERNS aliases them so the scan
 // below reads unchanged.
 const TEST_EMAIL_PATTERNS: readonly RegExp[] = PLACEHOLDER_EMAIL_PATTERNS
 

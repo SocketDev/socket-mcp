@@ -34,7 +34,7 @@ or changing a cascaded hook/rule.
     scan. Before extraction the parser was copy-pasted across no-revert-guard /
     no-fleet-fork-guard / excuse-detector.
   - `foreign-paths.mts` — shared parallel-agent heuristic (`readTouchedPaths` +
-    `listForeignDirtyPaths`) used by parallel-agent-on-stop-nudge,
+    `listForeignDirtyPaths`) used by parallel-agent-on-stop-reminder,
     parallel-agent-staging-guard, and overeager-staging-guard.
   - `payload.mts` — canonical types for the PreToolUse JSON payload (`tool_name`,
     `tool_input`). Provides `ToolCallPayload`, `ToolInput`, and `readCommand` /
@@ -50,30 +50,30 @@ or changing a cascaded hook/rule.
     out per category; `ALL_TOKEN_KEY_PATTERNS` is the default union.
   - `wheelhouse-root.mts` — walks up from cwd to find the socket-wheelhouse
     checkout. Used by the user-global wheelhouse-dispatch hook so wheelhouse-only
-    hooks (new-hook-claude-md-guard, drift-check-nudge) can fire from any
+    hooks (new-hook-claude-md-guard, drift-check-reminder) can fire from any
     fleet-repo session. Must cascade since the dispatcher imports it via the
     resolved wheelhouse path.
-  - `stop-nudge.mts` — shared scaffold for the Stop-hook reminder family.
+  - `stop-reminder.mts` — shared scaffold for the Stop-hook reminder family.
     Provides a `runStopReminder(config)` that handles stdin parse, code-fence
     stripping, pattern sweep, and stderr emit. Must cascade alongside the
     reminder hooks or imports fail at hook startup.
   - `_shared/acorn/` — shared acorn-wasm parser for hooks that need structural
-    JS/TS parsing (error-message-quality-nudge relies on `findThrowNew`). The
+    JS/TS parsing (error-message-quality-reminder relies on `findThrowNew`). The
     `.wasm` blob + bindgen + sync wrapper must cascade as a unit.
 
 ## Reminder family (Stop hooks)
 
 Stop hooks that emit informational stderr (never block) when the most-recent
-assistant turn matches a pattern. All share `_shared/stop-nudge.mts`. Listed
+assistant turn matches a pattern. All share `_shared/stop-reminder.mts`. Listed
 in `.claude/settings.json` under the Stop block; missing any breaks every Stop
 hook in the repo. Members include comment-tone, perfectionist,
-parallel-agent-on-stop-nudge, squash-history-nudge,
-stale-process-sweeper, sweep-ds-store, auth-rotation-nudge, excuse-detector,
-dont-blame-user-nudge (BLOCKING), no-orphaned-staging, dirty-worktree-stop,
-dont-stop-mid-queue-nudge, drift-check-nudge, plan-review-nudge,
-commit-pr-nudge, pointer-comment-nudge, path-regex-normalize-nudge,
-prefer-rebase-over-revert-nudge, public-surface-nudge,
-enterprise-push-property-nudge.
+parallel-agent-on-stop-reminder, squash-history-reminder,
+stale-process-sweeper, sweep-ds-store, auth-rotation-reminder, excuse-detector,
+dont-blame-user-reminder (BLOCKING), no-orphaned-staging, dirty-worktree-stop,
+dont-stop-mid-queue-reminder, drift-check-reminder, plan-review-reminder,
+commit-pr-reminder, pointer-comment-reminder, path-regex-normalize-reminder,
+prefer-rebase-over-revert-reminder, public-surface-reminder,
+enterprise-push-property-reminder.
 
 ## Guards + blockers
 
@@ -122,7 +122,7 @@ phrase (where one exists):
   `@socketsecurity/lib/<subpath>` instead.
 - **gitmodules-comment-guard** — PreToolUse(Edit|Write) reminder ensuring each
   `[submodule]` has a `# name-version` annotation.
-- **lock-step-ref-nudge** — PreToolUse(Edit|Write) breadcrumb for malformed
+- **lock-step-ref-reminder** — PreToolUse(Edit|Write) breadcrumb for malformed
   `Lock-step` comment shapes + stale opted-in references. Spec:
   `docs/agents.md/fleet/parser-comments.md` §5–6.
 - **logger-guard** — PreToolUse(Edit|Write) refusing direct stream writes
@@ -137,13 +137,13 @@ phrase (where one exists):
   in `FLEET_REPO_NAMES`.
 - **no-experimental-strip-types-guard** — PreToolUse(Bash) refusing
   `--experimental-strip-types` (stable since Node 22.6, default-on in 24+).
-- **prefer-rebase-over-revert-nudge** — PreToolUse(Bash) reminder nudging toward
+- **prefer-rebase-over-revert-reminder** — PreToolUse(Bash) reminder nudging toward
   `git reset --soft` / `git rebase -i` when `git revert` targets an unpushed commit.
 - **no-meta-comments-guard** — PreToolUse(Edit|Write) refusing task/plan/removed-code
   comments (`// Plan:`, `// As requested`, `// removed X`).
 - **no-disable-lint-rule-guard** — PreToolUse(Edit|Write) refusing `"rule": "off"`/`"warn"`.
   Bypass: `Allow disable-lint-rule bypass`.
-- **extension-build-current-nudge** — PreToolUse(Bash) reminder pairing
+- **extension-build-current-reminder** — PreToolUse(Bash) reminder pairing
   trusted-publisher-extension `src/**` commits with a build. Bypass:
   `Allow extension-build-current bypass`.
 - **no-file-scope-oxlint-disable-guard** — PreToolUse(Edit|Write) refusing
@@ -153,7 +153,7 @@ phrase (where one exists):
 - **no-orphaned-staging** — Stop reminder listing staged-uncommitted paths.
 - **overeager-staging-guard** — PreToolUse(Bash) refusing `git add` far from a
   commit step. Every repo MUST ship the dir (settings.json `Bash` matcher load contract).
-- **private-name-nudge** — PreToolUse(Bash) refusing literal personal identifiers
+- **private-name-reminder** — PreToolUse(Bash) refusing literal personal identifiers
   (canonical list at `.claude/private-names.json`).
 - **new-hook-claude-md-guard** — PreToolUse(Edit|Write) refusing a new
   `.claude/hooks/<name>/index.mts` unless CLAUDE.md cites `(enforced by …)`.

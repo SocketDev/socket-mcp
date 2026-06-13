@@ -33,14 +33,14 @@ export type CodifySurface =
   | 'agents-doc'
   | 'check'
   | 'hook-guard'
-  | 'hook-nudge'
+  | 'hook-reminder'
   | 'lint-rule'
 
 export const CODIFY_SURFACES: ReadonlySet<CodifySurface> = new Set([
   'agents-doc',
   'check',
   'hook-guard',
-  'hook-nudge',
+  'hook-reminder',
   'lint-rule',
 ] as const)
 
@@ -70,7 +70,7 @@ export const SURFACE_TIER: Readonly<
   check: 'sonnet',
   // New hook dir + full ceremony. Real authoring; Opus depth pays back.
   'hook-guard': 'opus',
-  'hook-nudge': 'opus',
+  'hook-reminder': 'opus',
   // New oxlint rule (AST visitor) + rule test + plugin registration. The
   // deepest authoring surface — reasoning over the AST shape to match.
   'lint-rule': 'opus',
@@ -137,7 +137,7 @@ export const SURFACE_GUIDANCE: Readonly<Record<CodifySurface, string>> = {
   - Register it in scripts/fleet/check.mts as \`() => run('node', ['scripts/fleet/check/<name>.mts'])\` with a 2-4 line comment naming the discipline + the motivating incident generically (no dates/SHAs — the dated-citation rule).
   - Write a thorough test/ alongside if the check has non-trivial pure logic (a dead-export fixture that fails + a clean one that passes).
 </conventions>`,
-  'hook-guard': `Author a new BLOCKING hook at .claude/hooks/{fleet,repo}/<name>-guard/ (a -guard BLOCKS; if it only nudges, use hook-nudge instead — never both for one concern).
+  'hook-guard': `Author a new BLOCKING hook at .claude/hooks/{fleet,repo}/<name>-guard/ (a -guard BLOCKS; if it only nudges, use hook-reminder instead — never both for one concern).
 
 <ceremony>
   1. BEFORE index.mts: add the \`(\`.claude/hooks/<name>-guard/\`)\` citation to the matching CLAUDE.md rule line — the new-hook-claude-md-guard requires the citation to exist first.
@@ -148,9 +148,9 @@ export const SURFACE_GUIDANCE: Readonly<Record<CodifySurface, string>> = {
   6. test/index.test.mts: node:test (NOT vitest) + node:assert/strict. Cover both arms (blocks on the bad shape, passes the good shape, honors the bypass phrase, fails open on a malformed payload). Run with \`node scripts/repo/run-hook-tests.mts <name>-guard\`.
   Block exit code 2; pass/fail-open exit 0.
 </ceremony>`,
-  'hook-nudge': `Author a new NON-BLOCKING hook at .claude/hooks/{fleet,repo}/<name>-nudge/ (a -nudge NUDGES, exit 0 always; if it should BLOCK, use hook-guard instead). Same ceremony as a guard (CLAUDE.md citation first, shared helpers, entrypoint guard, README, package.json/tsconfig, settings wiring, node:test test) with two differences:
+  'hook-reminder': `Author a new NON-BLOCKING hook at .claude/hooks/{fleet,repo}/<name>-reminder/ (a -reminder NUDGES, exit 0 always; if it should BLOCK, use hook-guard instead). Same ceremony as a guard (CLAUDE.md citation first, shared helpers, entrypoint guard, README, package.json/tsconfig, settings wiring, node:test test) with two differences:
   - It writes its nudge to stderr and ALWAYS exits 0 — it never blocks the turn.
-  - A Stop-event reminder must exit DETERMINISTICALLY (no lingering stdin listeners / timers); end main() with an explicit resolve and run it behind the entrypoint guard. Reuse ../_shared/stop-nudge.mts (runStopReminder) when the nudge fires on Stop.`,
+  - A Stop-event reminder must exit DETERMINISTICALLY (no lingering stdin listeners / timers); end main() with an explicit resolve and run it behind the entrypoint guard. Reuse ../_shared/stop-reminder.mts (runStopReminder) when the nudge fires on Stop.`,
   'lint-rule': `Author a new oxlint rule in the fleet plugin at .config/oxlint-plugin/fleet/<rule-name>/ plus its registration and test.
 
 <conventions>

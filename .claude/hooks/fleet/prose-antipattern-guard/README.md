@@ -9,9 +9,9 @@ AI-writing antipattern.
 CLAUDE.md's "Prose authoring" rule: human-facing prose runs through the `prose`
 skill before it lands. The skill strips throat-clearing openers, "not X, it's Y"
 contrasts, em-dash chains, and vague hedging adverbs. This guard enforces it as a
-hard block at write time — it supersedes the old `prose-antipattern-nudge`
+hard block at write time — it supersedes the old `prose-antipattern-reminder`
 Stop hook (a reminder fires after the write and is ignorable; a PreToolUse block
-stops the bad prose from landing). Fleet convention: `-guard` blocks, `-nudge`
+stops the bad prose from landing). Fleet convention: `-guard` blocks, `-reminder`
 nudges — one surface per concern, never both.
 
 ## What it catches

@@ -480,7 +480,7 @@ export interface RegexLiteralSite extends CallSite {
 
 /**
  * Find every regex literal (`/pattern/flags`) in `source`. Used by the
- * path-regex-normalize-nudge rule to flag patterns that try to match both
+ * path-regex-normalize-reminder rule to flag patterns that try to match both
  * path separators inline (`[/\\]`, `[\\\\/]`). Pure regex literals only;
  * doesn't reach into `new RegExp('…')` constructor calls.
  *

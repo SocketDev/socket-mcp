@@ -50,7 +50,7 @@ is the chosen policy; tool-gating is the operator's agent config.
 
 Claude Code maintains an **agent-written** memory store at
 `~/.claude/projects/<cwd-slug>/memory/*.md` (plus a `MEMORY.md` index), discovered
-by the `memory-discovery-nudge` hook and promoted into rules by
+by the `memory-discovery-reminder` hook and promoted into rules by
 `codifying-disciplines` / `codify-rule.mts`. **Codex and OpenCode have no
 self-written memory**: each session starts fresh from the human-authored
 `AGENTS.md`. So the **shared, cross-tool "memory" is the committed AGENTS.md**

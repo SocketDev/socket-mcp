@@ -47,8 +47,6 @@
     "**/test/packages",
     "**/lockstep.schema.json",
     "**/socket-wheelhouse-schema.json",
-    "**/third_party/**",
-    "**/upstream/**",
     "**/vendor/**",
     "**/wasm_exec.js"
   ]

@@ -7,7 +7,7 @@
 // chains, vague hedging adverbs. The fleet rule (CLAUDE.md "Prose authoring",
 // .claude/skills/fleet/prose/SKILL.md): run human-facing prose through the
 // prose skill before it lands. This is the hard gate — it supersedes the old
-// prose-antipattern-nudge Stop hook (a reminder fires after the write and
+// prose-antipattern-reminder Stop hook (a reminder fires after the write and
 // is ignorable; a PreToolUse block stops the bad prose from landing at all).
 //
 // Bypass: `Allow prose-antipattern bypass` typed verbatim in a recent user
