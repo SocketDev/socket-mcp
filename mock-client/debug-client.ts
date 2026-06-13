@@ -7,7 +7,7 @@ import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 const logger = getDefaultLogger()
 
 // Simple JSON-RPC client for testing MCP server
-class SimpleJSONRPCClient {
+export class SimpleJSONRPCClient {
   private spawned: ReturnType<typeof spawn>
   private rl: readline.Interface
   private requestId = 1

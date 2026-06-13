@@ -5,15 +5,15 @@ import { errorMessage } from '@socketsecurity/lib/errors'
 import { logger } from './logger.ts'
 import {
   AUTH_REQUIRED_MSG,
-  SOCKET_API_BASE_URL,
   authRequiredResult,
   resolveAuthToken,
+  SOCKET_API_BASE_URL,
 } from './server.ts'
 import { fetchThreatFeed } from './threat-feed.ts'
 import type { ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'
 
-interface ThreatFeedArgs {
+export interface ThreatFeedArgs {
   org_slug: string
   filter?: string | undefined
   ecosystem?: string | undefined

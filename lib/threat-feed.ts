@@ -94,6 +94,7 @@ export function buildThreatFeedQuery(
 export async function fetchThreatFeed(
   options: FetchThreatFeedOptions,
 ): Promise<unknown> {
+  options = { __proto__: null, ...options } as typeof options
   const baseUrl = options.baseUrl.replace(/\/$/u, '')
   const qs = buildThreatFeedQuery(options.filters).toString()
   const url = `${baseUrl}/v0/orgs/${encodeURIComponent(options.orgSlug)}/threat-feed${qs ? `?${qs}` : ''}`

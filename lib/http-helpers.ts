@@ -42,7 +42,7 @@ export function assertSafeHttpUrl(
     throw new Error(`${label} must be http(s): ${rawUrl}`)
   }
   const host = url.hostname.toLowerCase()
-  const isLocal = host === '127.0.0.1' || host === '::1' || host === 'localhost'
+  const isLocal = host === '::1' || host === '127.0.0.1' || host === 'localhost'
   if (isLocal && allowLocalhost) {
     return url
   }
@@ -63,6 +63,7 @@ export function buildJsonApiHeaders(options: {
   authToken?: string | undefined
   extraHeaders?: Record<string, string> | undefined
 }): Record<string, string> {
+  options = { __proto__: null, ...options } as typeof options
   const headers: Record<string, string> = { accept: 'application/json' }
   if (options.userAgent) {
     headers['user-agent'] = options.userAgent

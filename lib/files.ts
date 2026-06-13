@@ -61,18 +61,18 @@ export interface FetchFileListOptions {
   onRequest?: ((url: string) => void) | undefined
 }
 
-interface RawFileEntry {
+export interface RawFileEntry {
   path?: unknown | undefined
   type?: unknown | undefined
   size?: unknown | undefined
   hash?: unknown | undefined
 }
 
-interface RawFileListResponse {
+export interface RawFileListResponse {
   files?: RawFileEntry[] | undefined
 }
 
-interface TreeNode {
+export interface TreeNode {
   name: string
   isFile: boolean
   size?: number | undefined
@@ -119,6 +119,7 @@ export async function fetchFileList(
   purlStr: string,
   options: FetchFileListOptions,
 ): Promise<FileListResult> {
+  options = { __proto__: null, ...options } as typeof options
   const baseUrl = options.baseUrl.replace(/\/$/u, '')
   const url = `${baseUrl}/v0/purl/file-list/${encodeURIComponent(purlStr)}`
 

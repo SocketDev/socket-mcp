@@ -6,14 +6,14 @@ import { fetchAlerts } from './alerts.ts'
 import { logger } from './logger.ts'
 import {
   AUTH_REQUIRED_MSG,
-  SOCKET_API_BASE_URL,
   authRequiredResult,
   resolveAuthToken,
+  SOCKET_API_BASE_URL,
 } from './server.ts'
 import type { ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'
 
-interface AlertsArgs {
+export interface AlertsArgs {
   org_slug: string
   severity?: string | undefined
   status?: 'open' | 'cleared' | undefined

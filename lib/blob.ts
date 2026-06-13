@@ -23,19 +23,19 @@ export interface FetchBlobOptions {
 
 const DEFAULT_MAX_BYTES = 1024 * 1024 // 1 MB
 
-interface ChunkedManifest {
+export interface ChunkedManifest {
   _version?: string | undefined
   size?: number | undefined
   chunks?: unknown | undefined
   offset?: unknown | undefined
 }
 
-interface RawFetchResult {
+export interface RawFetchResult {
   bytes: Uint8Array
   contentType: string | undefined
 }
 
-interface ChunkedFetchResult {
+export interface ChunkedFetchResult {
   // Concatenated chunk bytes, possibly less than `totalSize` when stopped
   // early at maxBytes.
   bytes: Uint8Array
@@ -60,6 +60,7 @@ export async function fetchBlob(
   // `hash` is user-supplied (the package_file_contents MCP arg). An empty
   // string makes `hash[0]` undefined, silently selecting the raw-blob
   // branch below and issuing a doomed fetch; reject it up front instead.
+  options = { __proto__: null, ...options } as typeof options
   if (!hash) {
     throw new Error('fetchBlob requires a non-empty blob hash')
   }
@@ -181,6 +182,7 @@ export async function fetchRawBytes(
   hash: string,
   options: FetchBlobOptions,
 ): Promise<RawFetchResult> {
+  options = { __proto__: null, ...options } as typeof options
   const url = `${options.baseUrl.replace(/\/$/u, '')}/blob/${encodeURIComponent(hash)}`
 
   const headers: Record<string, string> = {}
