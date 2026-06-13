@@ -189,7 +189,7 @@ export function outputAllow(): void {
       permissionDecision: 'allow',
     },
   })
-  process.stdout.write(payload) // socket-lint: allow (process-stdio: hook JSON protocol on stdout; a logger prefix would corrupt it)
+  process.stdout.write(payload) // socket-lint: allow (process-stdio: stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection)
 }
 
 export function outputDeny(reason: string): void {
@@ -200,7 +200,7 @@ export function outputDeny(reason: string): void {
       permissionDecisionReason: reason,
     },
   })
-  process.stdout.write(payload) // socket-lint: allow (process-stdio: hook JSON protocol on stdout; a logger prefix would corrupt it)
+  process.stdout.write(payload) // socket-lint: allow (process-stdio: stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection)
 }
 
 export function parseSupplyChainScore(text: string): number | undefined {
@@ -281,7 +281,7 @@ async function main(): Promise<void> {
     // not a hard gate — see the file header). Surface the error on stderr so
     // the failure is observable; stdout stays the allow/deny IPC channel.
     const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
-    process.stderr.write(errLine) // socket-lint: allow (process-stdio: hook stderr feedback line; emitted pre-logger)
+    process.stderr.write(errLine) // socket-lint: allow (process-stdio: stderr feedback for the harness; raw write keeps the bundled hook free of logger indirection)
     outputAllow()
   }
 }
