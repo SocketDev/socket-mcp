@@ -181,6 +181,9 @@ export function setStaticApiKey(
   value: string,
   options?: { shared?: boolean | undefined } | undefined,
 ): void {
+  const opts = { __proto__: null, ...options } as {
+    shared?: boolean | undefined
+  }
   staticApiKey = value
-  staticApiKeyShared = options?.shared ?? false
+  staticApiKeyShared = opts.shared ?? false
 }

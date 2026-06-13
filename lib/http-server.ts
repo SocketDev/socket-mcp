@@ -1,7 +1,6 @@
-// max-file-lines: transport — HTTP transport module: session lifecycle,
-// request routing (GET/POST/DELETE), and the post-body size guard are one
-// cohesive unit that reads top-to-bottom; splitting would scatter the
-// request path across files.
+// HTTP transport module: session lifecycle, request routing (GET/POST/DELETE),
+// and the post-body size guard — the cohesive request path that reads
+// top-to-bottom. Origin/CORS/Accept-header validation lives in http-origin.ts.
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
@@ -15,6 +14,11 @@ import {
   getRequestHeaderValue,
   writeJson,
 } from './http-helpers.ts'
+import {
+  patchAcceptHeader,
+  validateOriginAndHost,
+  writeCorsHeaders,
+} from './http-origin.ts'
 import { logger } from './logger.ts'
 import {
   authenticateRequest,
@@ -58,11 +62,6 @@ export class PayloadTooLargeError extends Error {
     this.name = 'PayloadTooLargeError'
   }
 }
-
-const ALLOWED_ORIGINS = [
-  'https://mcp.socket.dev',
-  'https://mcp.socket-staging.dev',
-]
 
 // Non-OAuth HTTP mode: forward a client-supplied Socket API key (sent as
 // `Authorization: Bearer <token>`) to the tool layer via `req.auth`, so
@@ -275,41 +274,6 @@ export async function handlePost(
   }
 }
 
-// Check whether an Origin URL is a localhost variant; used to allow any
-// localhost port during local development.
-export function isLocalhostOrigin(originUrl: string): boolean {
-  try {
-    const originValue = new URL(originUrl)
-    return (
-      originValue.hostname === '127.0.0.1' ||
-      originValue.hostname === 'localhost'
-    )
-  } catch {
-    return false
-  }
-}
-
-// Some MCP clients (e.g. Cursor) skip the required Accept header. The
-// SDK rejects with 406 in that case. Patch req.headers and rawHeaders so
-// downstream code sees the canonical pair.
-export function patchAcceptHeader(req: IncomingMessage): void {
-  const accept = req.headers.accept || ''
-  if (
-    accept.includes('application/json') &&
-    accept.includes('text/event-stream')
-  ) {
-    return
-  }
-  const requiredAccept = 'application/json, text/event-stream'
-  req.headers.accept = requiredAccept
-  const idx = req.rawHeaders.findIndex(h => h.toLowerCase() === 'accept')
-  if (idx !== -1) {
-    req.rawHeaders[idx + 1] = requiredAccept
-  } else {
-    req.rawHeaders.push('Accept', requiredAccept)
-  }
-}
-
 // Read and buffer the POST body to a string, capped at MAX_POST_BODY_BYTES.
 // Async iteration is modern stream consumption — equivalent to 'data' +
 // 'end' without the callback wiring. The running byte count is measured on
@@ -335,9 +299,8 @@ export async function readPostBody(req: IncomingMessage): Promise<string> {
 // the loop don't perturb iteration.
 export function reapIdleSessions(sessions: Map<string, Session>): void {
   const now = Date.now()
-  const entries = Array.from(sessions.entries())
-  for (let i = 0, { length } = entries; i < length; i += 1) {
-    const [id, session] = entries[i]!
+  // Snapshot entries so destroySession's deletes don't perturb iteration.
+  for (const [id, session] of Array.from(sessions.entries())) {
     if (now - session.lastActivity > SESSION_TTL_MS) {
       logger.info(`Reaping idle session ${id}`)
       destroySession(sessions, id)
@@ -477,43 +440,4 @@ export function startHttpServer(port: number): void {
     )
     logger.info(`Connect to: http://localhost:${port}/`)
   })
-}
-
-// Apply MCP-spec origin policy: allow localhost (any port), allowed
-// production hosts, or Origin-less same-origin requests from matching
-// Host headers.
-export function validateOriginAndHost(
-  origin: string,
-  host: string,
-  port: number,
-): boolean {
-  const allowedHosts = ALLOWED_ORIGINS.map(o => new URL(o).hostname)
-  const isAllowedHost =
-    host === `localhost:${port}` ||
-    host === `127.0.0.1:${port}` ||
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    allowedHosts.includes(host)
-  return origin
-    ? isLocalhostOrigin(origin) || ALLOWED_ORIGINS.includes(origin)
-    : isAllowedHost
-}
-
-// Wire CORS response headers when the request carried an Origin. We
-// expose Mcp-Session-Id + WWW-Authenticate explicitly because browser
-// clients can't otherwise read them.
-export function writeCorsHeaders(res: ServerResponse, origin: string): void {
-  if (!origin) {
-    return
-  }
-  res.setHeader('Access-Control-Allow-Origin', origin)
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Authorization, Content-Type, Accept, Mcp-Session-Id',
-  )
-  res.setHeader(
-    'Access-Control-Expose-Headers',
-    'Mcp-Session-Id, WWW-Authenticate',
-  )
 }
