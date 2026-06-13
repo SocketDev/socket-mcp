@@ -65,6 +65,15 @@ describe('buildPurl produces correct PURLs across all ecosystems', () => {
     ).toBe('pkg:maven/org.apache.commons/commons-lang3@3.12.0')
   })
 
+  test('composer - vendor/package namespace split per PURL spec', () => {
+    expect(buildPurl('composer', 'laravel/framework', '12.60.2')).toBe(
+      'pkg:composer/laravel/framework@12.60.2',
+    )
+    expect(buildPurl('composer', 'symfony/http-foundation', '7.4.13')).toBe(
+      'pkg:composer/symfony/http-foundation@7.4.13',
+    )
+  })
+
   test('nuget', () => {
     expect(buildPurl('nuget', 'Newtonsoft.Json', '13.0.3')).toBe(
       'pkg:nuget/Newtonsoft.Json@13.0.3',

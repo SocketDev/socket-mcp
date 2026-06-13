@@ -44,6 +44,13 @@ export function buildPurl(
     const slash = depname.indexOf('/')
     namespace = depname.slice(0, slash)
     name = depname.slice(slash + 1)
+  } else if (ecoLower === 'composer' && depname.includes('/')) {
+    // Composer packages are `vendor/package`; the vendor is the PURL
+    // namespace (e.g. `pkg:composer/laravel/framework`). Without this split
+    // the vendor folds into the name and the lookup returns no/wrong score.
+    const slash = depname.indexOf('/')
+    namespace = depname.slice(0, slash)
+    name = depname.slice(slash + 1)
   } else {
     name = depname
   }
