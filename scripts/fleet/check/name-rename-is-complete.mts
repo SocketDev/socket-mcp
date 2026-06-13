@@ -15,7 +15,7 @@
  *   is fully gone — absent as a live fleet file (a `<old>.mts` script, a
  *   `<old>/index.mts` hook dir, a `<old>.mts` lint rule) AND absent from every
  *   reference in the fleet surfaces (so nothing still points at the prior
- *   name). It's the structural twin of the `plan-review-reminder` "settle the
+ *   name). It's the structural twin of the `plan-review-nudge` "settle the
  *   shape before the cascade" nudge: the reminder fires at plan time, this
  *   fails the gate if a rename lands half-finished.
  *

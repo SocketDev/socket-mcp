@@ -60,7 +60,7 @@ Cross-repo imports go through `@socketsecurity/lib/...` and `@socketregistry/...
 
 ## Never overwrite a file another session is editing
 
-A plain `Edit` / `Write` to a file another session has dirty silently clobbers their uncommitted work — and they may clobber yours right back, edit-for-edit, until one of you stops. (When two sessions share one checkout and both keep re-writing the same source + test files, each pass reverts the other's fixes and neither change ever lands.) The `parallel-agent-edit-guard` hook blocks an Edit/Write/NotebookEdit whose target is **foreign** — dirty, not authored by this session, changed within 30 min — so the clobber is refused before it lands. Companion to `parallel-agent-staging-guard` (git-op version) + `parallel-agent-on-stop-reminder` (turn-end signal); all share `_shared/foreign-paths.mts`. When it fires: let the other session commit first, work on a different file, or use a `git worktree` for an isolated edit. Bypass (only if the other edit is abandoned): `Allow parallel-agent-edit bypass`.
+A plain `Edit` / `Write` to a file another session has dirty silently clobbers their uncommitted work — and they may clobber yours right back, edit-for-edit, until one of you stops. (When two sessions share one checkout and both keep re-writing the same source + test files, each pass reverts the other's fixes and neither change ever lands.) The `parallel-agent-edit-guard` hook blocks an Edit/Write/NotebookEdit whose target is **foreign** — dirty, not authored by this session, changed within 30 min — so the clobber is refused before it lands. Companion to `parallel-agent-staging-guard` (git-op version) + `parallel-agent-on-stop-nudge` (turn-end signal); all share `_shared/foreign-paths.mts`. When it fires: let the other session commit first, work on a different file, or use a `git worktree` for an isolated edit. Bypass (only if the other edit is abandoned): `Allow parallel-agent-edit bypass`.
 
 ## The umbrella rule
 
@@ -90,4 +90,4 @@ The right recovery, in order:
    ```
 3. **Only then**, if pre-commit is genuinely broken (not racing) AND you've verified the tree green independently (`git write-tree` clean, tests pass, oxfmt clean), `--no-verify` is the last resort — and it still needs the `Allow no-verify bypass` phrase.
 
-Nudged by `.claude/hooks/fleet/pre-commit-race-reminder/` on any `git commit --no-verify` (cascade `FLEET_SYNC=1` commits exempt).
+Nudged by `.claude/hooks/fleet/pre-commit-race-nudge/` on any `git commit --no-verify` (cascade `FLEET_SYNC=1` commits exempt).

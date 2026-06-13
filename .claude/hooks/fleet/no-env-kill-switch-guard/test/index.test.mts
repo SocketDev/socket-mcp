@@ -41,7 +41,7 @@ async function runHook(payload: Record<string, unknown>): Promise<Result> {
 // A hook index path that is NOT this guard's own dir (so the own-test exempt
 // doesn't fire).
 const HOOK_FILE =
-  '/Users/x/projects/socket-wheelhouse/template/.claude/hooks/fleet/foo-reminder/index.mts'
+  '/Users/x/projects/socket-wheelhouse/template/.claude/hooks/fleet/foo-nudge/index.mts'
 
 test('non-Edit/Write tool calls pass through', async () => {
   const result = await runHook({
@@ -57,7 +57,7 @@ test('blocks disabledEnvVar config field', async () => {
     tool_input: {
       file_path: HOOK_FILE,
       content:
-        "await runStopReminder({\n  name: 'foo-reminder',\n  disabledEnvVar: 'SOCKET_FOO_DISABLED',\n  patterns: [],\n})\n",
+        "await runStopReminder({\n  name: 'foo-nudge',\n  disabledEnvVar: 'SOCKET_FOO_DISABLED',\n  patterns: [],\n})\n",
     },
   })
   assert.strictEqual(result.code, 2)
@@ -92,7 +92,7 @@ test('allows a hook with no kill switch', async () => {
     tool_input: {
       file_path: HOOK_FILE,
       content:
-        "await runStopReminder({\n  name: 'foo-reminder',\n  patterns: [],\n})\n",
+        "await runStopReminder({\n  name: 'foo-nudge',\n  patterns: [],\n})\n",
     },
   })
   assert.strictEqual(result.code, 0)

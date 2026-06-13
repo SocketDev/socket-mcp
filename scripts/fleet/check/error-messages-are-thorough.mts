@@ -1,10 +1,10 @@
 // Fleet check — error messages are thorough (no vague-only throws).
 //
-// Commit-time complement to the `error-message-quality-reminder` Stop hook. The
+// Commit-time complement to the `error-message-quality-nudge` Stop hook. The
 // reminder grades the error-message strings in code BLOCKS the assistant wrote
 // this turn; this check grades the same shape across the COMMITTED source tree,
 // so a vague message that slipped in before the hook existed (or in a turn the
-// hook didn't see) still gets swept. Same edit-reminder + commit-check twin
+// hook didn't see) still gets swept. Same edit-nudge + commit-check twin
 // pattern as no-env-kill-switch-guard / env-kill-switches-are-absent.
 //
 // The fleet rule (CLAUDE.md "Error messages"): an error message is UI — the
@@ -72,7 +72,7 @@ const SCAN_EXTENSIONS = ['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts']
 // it), and test files (fixtures of bad messages).
 const SELF_EXEMPT_FRAGMENTS = [
   '_shared/error-message-quality',
-  'error-message-quality-reminder/',
+  'error-message-quality-nudge/',
   'check/error-messages-are-thorough',
 ]
 

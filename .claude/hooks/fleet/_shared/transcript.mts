@@ -204,7 +204,7 @@ export function countBypassPhrases(
  * as a separate string. The leading language tag (e.g. ` ```ts `) is stripped —
  * only the code lines are kept.
  *
- * Used by hooks (error-message-quality-reminder) that need to inspect the code
+ * Used by hooks (error-message-quality-nudge) that need to inspect the code
  * the assistant wrote rather than the prose around it.
  */
 export interface CodeFence {
@@ -329,7 +329,7 @@ export function readLastAssistantText(
  * Walk the transcript newest → oldest, return every tool-use event from the
  * most recent assistant turn. Returns an empty array if the transcript is
  * missing or the most recent assistant turn has no tool uses. Used by hooks
- * that gate on what the assistant just did (e.g. file-size-reminder reading
+ * that gate on what the assistant just did (e.g. file-size-nudge reading
  * Write/Edit events).
  */
 export function readLastAssistantToolUses(
@@ -358,7 +358,7 @@ export function readLastAssistantToolUses(
  * far back to walk in assistant turns; pass a small N (e.g. 5) so the scan
  * stays cheap on long transcripts. Used by hooks that compare what the
  * assistant is doing now to what it did earlier in the session — e.g.
- * compound-lessons-reminder detecting repeated edits to the same hook/skill
+ * compound-lessons-nudge detecting repeated edits to the same hook/skill
  * without rule promotion.
  */
 export function readPriorAssistantToolUses(

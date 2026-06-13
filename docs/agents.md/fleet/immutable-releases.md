@@ -66,7 +66,7 @@ These work for anyone outside the org with `gh` installed. The attestation is al
 
 ## Post-publish provenance check
 
-A Stop-hook reminder (`provenance-publish-reminder`) already checks that npm-published artifacts carry `dist.attestations` and `_npmUser.trustedPublisher`. The same hook is extended to verify GH-release-published artifacts carry a release attestation: after `chore: bump version to vX.Y.Z` + `vX.Y.Z` tag, the hook runs `gh release view <tag> --json isImmutable,...` and warns if the release isn't immutable.
+A Stop-hook reminder (`provenance-publish-nudge`) already checks that npm-published artifacts carry `dist.attestations` and `_npmUser.trustedPublisher`. The same hook is extended to verify GH-release-published artifacts carry a release attestation: after `chore: bump version to vX.Y.Z` + `vX.Y.Z` tag, the hook runs `gh release view <tag> --json isImmutable,...` and warns if the release isn't immutable.
 
 ## When the repo doesn't qualify
 

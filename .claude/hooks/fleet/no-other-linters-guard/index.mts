@@ -13,7 +13,7 @@
 //      eslint-plugin-* / @<scope>/eslint-*).
 //
 // Complements `socket/no-eslint-biome-config-ref` (which REPORTS stale string
-// refs in TS/JS source) and `scripts/fleet/check/only-oxlint-oxfmt.mts` (which
+// refs in TS/JS source) and `scripts/fleet/check/foreign-linters-are-absent.mts` (which
 // gates committed state). This is the edit-time block on the surfaces those miss
 // — config files + package.json dep blocks.
 //

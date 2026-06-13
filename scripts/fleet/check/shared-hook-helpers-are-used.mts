@@ -2,7 +2,7 @@
 //
 // The fleet's hooks DRY their common logic into
 // `.claude/hooks/fleet/_shared/*.mts` (payload parsing, transcript reading,
-// shell-command AST, stop-reminder scaffold, …). The whole point is reuse: a
+// shell-command AST, stop-nudge scaffold, …). The whole point is reuse: a
 // helper that no hook imports is dead weight in the shared layer — it inflates
 // the cascade, invites copy-paste drift ("there are two normalizers now"), and
 // rots untested. This check REPORTS each `_shared/` export that NO in-repo

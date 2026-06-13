@@ -49,7 +49,7 @@ The recovery model is symmetric. If a cascade over-applies or applies a stale va
 
 Reconcile in the same PR, or open a follow-up PR titled
 `chore(wheelhouse): cascade <thing> from <newer-repo>` and link it.
-The `drift-check-reminder` hook nags after edits to known-drift
+The `drift-check-nudge` hook nags after edits to known-drift
 surfaces.
 
 ## Cascade PR convention
@@ -70,6 +70,6 @@ sync-scaffolding tool produces this body automatically when run with
 
 ## See also
 
-- `.claude/hooks/fleet/drift-check-reminder/`
+- `.claude/hooks/fleet/drift-check-nudge/`
 - `.claude/hooks/fleet/gitmodules-comment-guard/`
 - `scripts/sync-scaffolding/`: drift detection + auto-fix tooling (canonical in socket-wheelhouse).

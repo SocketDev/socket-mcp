@@ -1,6 +1,6 @@
 /**
  * @file Unit tests for the shared error-message-quality classifier — the single
- *   grading bar consumed by error-message-quality-reminder (Stop hook) and the
+ *   grading bar consumed by error-message-quality-nudge (Stop hook) and the
  *   error-messages-are-thorough check (commit-time).
  */
 

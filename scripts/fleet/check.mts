@@ -40,7 +40,7 @@ const steps: Array<() => boolean> = [
   // dep — the committed-state gate paired with the edit-time
   // no-other-linters-guard hook. Vendored upstream (upstream/, vendor/, *-upstream)
   // is exempt; we never touch upstream tooling.
-  () => run('node', ['scripts/fleet/check/linters-are-oxlint-oxfmt-only.mts']),
+  () => run('node', ['scripts/fleet/check/foreign-linters-are-absent.mts']),
   // CLAUDE.md doc integrity: every cited hook + socket/ rule must exist (catches
   // stale citations after a rename/removal — the reverse of new-hook-claude-md-guard).
   () => run('node', ['scripts/fleet/check/claude-md-citations-resolve.mts']),
@@ -87,7 +87,7 @@ const steps: Array<() => boolean> = [
   // @actions/workflow-parser crashes on its agent-runtime jobs). The
   // agent-ci-skip-locks.mts wrapper turns that cryptic crash into an
   // informative error/skip; this gate keeps the wrapper's guard surface intact.
-  () => run('node', ['scripts/fleet/check/agent-ci-skip-locks-is-guarded.mts']),
+  () => run('node', ['scripts/fleet/check/agent-ci-lock-boundary-is-intact.mts']),
   // Cost routing twin: a programmatic AI spawn that pins a model must also pin
   // reasoning effort (CLAUDE.md token-spend). The lib makes effort optional —
   // this gate is the enforcement the optional field can't provide. Vocab per
@@ -97,8 +97,7 @@ const steps: Array<() => boolean> = [
   // @socketsecurity/lib/ai/subagent-status and the status table in
   // agent-delegation.md must list the same four states, so an orchestrator
   // reading the doc routes on a contract the code honors (code is law).
-  () =>
-    run('node', ['scripts/fleet/check/subagent-status-doc-is-current.mts']),
+  () => run('node', ['scripts/fleet/check/subagent-status-doc-matches.mts']),
   // Review-pipeline ordering is a contract: the reviewing-code skill's
   // spec-compliance pass must precede the quality passes (discovery /
   // remediation) in ALL_ROLES, so a quality review never runs on out-of-scope
@@ -139,7 +138,7 @@ const steps: Array<() => boolean> = [
   () => run('node', ['scripts/fleet/check/shared-hook-helpers-are-used.mts']),
   // Error messages are UI (CLAUDE.md "Error messages"): no bare vague-only
   // `throw new Error("invalid")` across the source tree. Commit-time twin of the
-  // error-message-quality-reminder Stop hook — shares the classifier so the two
+  // error-message-quality-nudge Stop hook — shares the classifier so the two
   // can't drift. Reporting candidates the human rewrites; never auto-fixed.
   () => run('node', ['scripts/fleet/check/error-messages-are-thorough.mts']),
   // Rule citations are generic (CLAUDE.md "Compound lessons into rules"): a
@@ -147,7 +146,7 @@ const steps: Array<() => boolean> = [
   // fleet, SKILL.md, hook READMEs) must be a timeless example, not a dated log
   // — no ISO dates, version deltas, percentages, or commit SHAs (they age into
   // a changelog + leak detail in a fleet-duplicated file). Commit-time twin of
-  // the dated-citation-reminder hook; shares the matcher so the two can't drift.
+  // the dated-citation-nudge hook; shares the matcher so the two can't drift.
   () => run('node', ['scripts/fleet/check/rule-citations-are-generic.mts']),
   // Naming consistency: every check basename reads as an ASSERTION (states the
   // invariant it guarantees — paths-are-canonical, lock-step-refs-resolve), so
@@ -158,7 +157,7 @@ const steps: Array<() => boolean> = [
   // a live file (script / hook dir / lint rule) AND unreferenced across the
   // fleet surfaces. Catches the incoherent old-and-new-coexist state a rename
   // leaves when it lands across some files but not all (the structural twin of
-  // the plan-review-reminder "settle the shape before the cascade" nudge).
+  // the plan-review-nudge "settle the shape before the cascade" nudge).
   () => run('node', ['scripts/fleet/check/name-rename-is-complete.mts']),
   // The only hook disable is the canonical "Allow <X> bypass" phrase. A
   // SOCKET_*_DISABLED env var / disabledEnvVar field / isHookDisabled() call
@@ -322,20 +321,20 @@ const steps: Array<() => boolean> = [
   // Pre-bump-wave twin of `make-coverage-badge.mts`; shares lib/coverage-badge.
   () => run('node', ['scripts/fleet/check/coverage-badge-is-current.mts']),
   // Reminder/guard duplication gate. The fleet convention: a `-guard` hook
-  // BLOCKS, a `-reminder` hook NUDGES — one surface per concern, never both.
-  // Errors when a base name has both `<base>-guard` and `<base>-reminder`
+  // BLOCKS, a `-nudge` hook NUDGES — one surface per concern, never both.
+  // Errors when a base name has both `<base>-guard` and `<base>-nudge`
   // (an exact same-concern duplicate); advisory-lists 2-segment shared-prefix
   // pairs for a human glance. Past incident (2026-06-03): a prose-antipattern
   // reminder + guard overlapped; resolved by dropping the reminder.
   () =>
     run('node', [
-      'scripts/fleet/check/hooks-have-no-guard-reminder-overlap.mts',
+      'scripts/fleet/check/hooks-have-no-guard-nudge-overlap.mts',
       '--quiet',
     ]),
   // Hook name ⟷ blocking behavior: a `-guard` must BLOCK (exitCode=2 /
-  // exit(2) / return 2 / decision:'block'), a `-reminder` must only NUDGE.
-  // Errors when a `-guard` never blocks (→ should be `-reminder`) or a
-  // `-reminder` blocks (→ should be `-guard`).
+  // exit(2) / return 2 / decision:'block'), a `-nudge` must only NUDGE.
+  // Errors when a `-guard` never blocks (→ should be `-nudge`) or a
+  // `-nudge` blocks (→ should be `-guard`).
   () =>
     run('node', ['scripts/fleet/check/hook-names-are-accurate.mts', '--quiet']),
 ]

@@ -38,7 +38,7 @@ Layered enforcement, with each layer catching what the previous one missed.
 | -------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | gh CLI token                                             | `.claude/hooks/fleet/gh-token-hygiene-guard/` 8-hour age cap | Errors when token >8h since last `gh auth login` or `gh auth refresh`. Self-recovery: `gh auth refresh` is always allowed.                                                                |
 | GitHub Actions `GITHUB_TOKEN`                            | GitHub-provided                                              | 1 hour per workflow run, scope-limited by the workflow's `permissions:` block                                                                                                             |
-| Authenticated CLIs (npm, pnpm, gcloud, docker, vault, …) | `.claude/hooks/fleet/auth-rotation-reminder/`                | Stop-hook periodically logs you out of stale long-lived sessions. `gh` is exempt from auto-logout (would break in-session work); its age check lives in `gh-token-hygiene-guard` instead. |
+| Authenticated CLIs (npm, pnpm, gcloud, docker, vault, …) | `.claude/hooks/fleet/auth-rotation-nudge/`                | Stop-hook periodically logs you out of stale long-lived sessions. `gh` is exempt from auto-logout (would break in-session work); its age check lives in `gh-token-hygiene-guard` instead. |
 
 ## Layer 4: workflow + repo audit
 
@@ -55,8 +55,8 @@ Layered enforcement, with each layer catching what the previous one missed.
 
 | Mistake                                | Hook                                                           | What it catches                                                        |
 | -------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Pushing a real customer / company name | `.claude/hooks/fleet/private-name-reminder/`                      | Real names in commits / PR text / release notes                        |
-| Linear ticket refs                     | `.claude/hooks/fleet/private-name-reminder/`                      | `SOC-123`, `ENG-456`, Linear URLs in code or PR text                   |
+| Pushing a real customer / company name | `.claude/hooks/fleet/private-name-nudge/`                      | Real names in commits / PR text / release notes                        |
+| Linear ticket refs                     | `.claude/hooks/fleet/private-name-nudge/`                      | `SOC-123`, `ENG-456`, Linear URLs in code or PR text                   |
 | External issue refs (auto-link spam)   | `.claude/hooks/fleet/no-ext-issue-ref-guard/`             | `<owner>/<repo>#<num>` in commits or PR bodies for non-SocketDev repos |
 | Empty commits                          | `.claude/hooks/fleet/no-empty-commit-guard/`                   | `git commit --allow-empty`, `cherry-pick --allow-empty`                |
 | `--no-verify` use                      | `.claude/hooks/fleet/no-revert-guard/`                         | Hook bypass via `--no-verify` without typed bypass phrase              |

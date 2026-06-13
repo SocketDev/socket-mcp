@@ -34,7 +34,7 @@
 // own test fixtures, which live outside the guarded paths anyway).
 //
 // Out-of-band drift (a dep's postinstall WRITES to these paths without a
-// Claude edit) is the companion ai-config-drift-reminder's job — this
+// Claude edit) is the companion ai-config-drift-nudge's job — this
 // hook only sees Claude's own tool calls.
 //
 // Exits: 0 allowed · 2 blocked · 0 (stderr log) fail-open on bug.

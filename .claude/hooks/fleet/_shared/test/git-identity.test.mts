@@ -1,7 +1,7 @@
 /**
  * @file Unit tests for `_shared/git-identity.mts`. Covers the pure
  *   placeholder-email classifier (the patterns shared by git-config-write-guard
- *   and git-identity-drift-reminder). The git-config-reading helpers
+ *   and git-identity-drift-nudge). The git-config-reading helpers
  *   (effectiveUserEmail / hasGlobalIdentity) shell out and are exercised through
  *   the consuming hooks' integration tests, not here.
  */

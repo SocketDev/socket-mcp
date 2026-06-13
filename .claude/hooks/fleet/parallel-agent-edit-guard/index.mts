@@ -11,7 +11,7 @@
 // Relationship to the sibling parallel-agent hooks:
 //   • parallel-agent-staging-guard — refuses git ops (add -A / stash /
 //     reset --hard / …) that sweep up or destroy foreign work.
-//   • parallel-agent-on-stop-reminder — surfaces the foreign-path signal
+//   • parallel-agent-on-stop-nudge — surfaces the foreign-path signal
 //     at turn end (informational).
 //   • THIS hook — refuses the direct file write that clobbers a foreign
 //     file before it lands. Same "foreign" heuristic

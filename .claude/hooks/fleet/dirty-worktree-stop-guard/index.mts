@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Claude Code Stop hook — dirty-worktree-stop-guard.
 //
-// renamed-from: dirty-worktree-stop-reminder
+// renamed-from: dirty-worktree-stop-nudge
 //
 // Fires at turn-end. Checks `git status --porcelain` in the harness
 // project dir. If anything is modified, untracked, or staged but

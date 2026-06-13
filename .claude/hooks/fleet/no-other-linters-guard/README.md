@@ -31,7 +31,7 @@ upstream files, and upstream ships its own tooling (out of fleet-tooling scope).
 This guard is the **edit-time block**. It complements:
 - `socket/no-eslint-biome-config-ref` — **reports** stale string refs to legacy
   tools in TS/JS source (lint rule).
-- `scripts/fleet/check/only-oxlint-oxfmt.mts` — gates **committed state** (a hard
+- `scripts/fleet/check/foreign-linters-are-absent.mts` — gates **committed state** (a hard
   gate in `check --all`).
 
 ## Fix

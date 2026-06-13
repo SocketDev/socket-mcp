@@ -225,4 +225,4 @@ it on an **interactive TTY**. The `!` / headless channel has no TTY, so the
 prompt is swallowed and the command dies with `EOTP`. Tell the user to run
 the op in a **real terminal** where the prompt can appear; fall back to
 `--otp=<code>` only when no TTY is available and the user supplies a fresh
-code. Reminder hook: `.claude/hooks/fleet/npm-otp-flow-reminder/`.
+code. Reminder hook: `.claude/hooks/fleet/npm-otp-flow-nudge/`.

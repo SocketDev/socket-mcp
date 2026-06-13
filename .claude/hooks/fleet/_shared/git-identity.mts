@@ -5,7 +5,7 @@
  *   commit authored with one is rejected by `required_signatures` even when the
  *   signature itself is valid. Two hooks key off the same set: `git-config-
  *   write-guard` auto-unsets such a LOCAL identity at SessionStart, and
- *   `git-identity-drift-reminder` warns at Stop when the EFFECTIVE identity is a
+ *   `git-identity-drift-nudge` warns at Stop when the EFFECTIVE identity is a
  *   placeholder before a push. Kept here (gate-free `_shared`) so the pattern
  *   set lives once, not copy-pasted into two hooks that would then drift.
  */

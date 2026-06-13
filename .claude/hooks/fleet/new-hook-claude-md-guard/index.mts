@@ -62,7 +62,7 @@ const BYPASS_PHRASES = [
 // covers the wheelhouse path; the optional `fleet/` or `repo/` segment
 // covers the docs-style `.claude/hooks/{fleet,repo}/<name>/` layout
 // (matches the parallel docs/agents.md/{fleet,repo}/ convention).
-// hookName is the LEAF name (e.g. `avoid-cd-reminder`), not the
+// hookName is the LEAF name (e.g. `avoid-cd-nudge`), not the
 // segment-qualified path — citations and registry refs use the full
 // canonical path (`\`.claude/hooks/fleet/<name>/\``) so the guard's
 // expectedRefs uses that path verbatim when checking.
@@ -79,7 +79,7 @@ const WHEELHOUSE_ONLY_HOOKS: ReadonlySet<string> = new Set([
   // logic + "open a chore(wheelhouse): cascade" advice only apply when authoring
   // the wheelhouse template. Wheelhouse-only in intent — kept in fleet/ for
   // dispatch reach, not for downstream policy.
-  'drift-check-reminder',
+  'drift-check-nudge',
 ])
 
 export function findCanonicalClaudeMd(

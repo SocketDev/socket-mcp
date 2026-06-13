@@ -185,8 +185,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
     if (!pretty) {
       const json = `${JSON.stringify({ repos: out }, undefined, 2)}\n`
-      // Machine-readable JSON envelope to stdout; a logger prefix would corrupt it.
-      process.stdout.write(json) // socket-lint: allow
+      process.stdout.write(json) // socket-lint: allow console -- machine JSON; logger would corrupt it
     }
     return 0
   } catch (e) {

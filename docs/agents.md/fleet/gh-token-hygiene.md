@@ -1,6 +1,6 @@
 # gh token hygiene
 
-GitHub CLI auth tokens are the highest-blast-radius credential most developers carry. The Nx Console supply-chain compromise (May 2026) exfiltrated `~/.config/gh/hosts.yml` and used the token against the GitHub API within 74 seconds of malware execution. Three layered defenses, all enforced by `.claude/hooks/fleet/gh-token-hygiene-guard/` (the 8h age cap, keychain check, and workflow-scope gate all live in this hook — `auth-rotation-reminder` handles non-gh CLIs like npm/pnpm/gcloud/docker/vault).
+GitHub CLI auth tokens are the highest-blast-radius credential most developers carry. The Nx Console supply-chain compromise (May 2026) exfiltrated `~/.config/gh/hosts.yml` and used the token against the GitHub API within 74 seconds of malware execution. Three layered defenses, all enforced by `.claude/hooks/fleet/gh-token-hygiene-guard/` (the 8h age cap, keychain check, and workflow-scope gate all live in this hook — `auth-rotation-nudge` handles non-gh CLIs like npm/pnpm/gcloud/docker/vault).
 
 ## 1. Keychain storage only
 
@@ -105,7 +105,7 @@ After this, sudo is back to its default (password only). The hook's auth flow wi
 
 ## 3. 8-hour token age cap
 
-`auth-rotation-reminder` Stop-hook tracks the gh token's issued-at timestamp (stored at `~/.claude/gh-token-issued-at`). When the token is >8 hours old, the next Stop event exits non-zero with instructions:
+`auth-rotation-nudge` Stop-hook tracks the gh token's issued-at timestamp (stored at `~/.claude/gh-token-issued-at`). When the token is >8 hours old, the next Stop event exits non-zero with instructions:
 
 ```
 gh auth refresh -h github.com

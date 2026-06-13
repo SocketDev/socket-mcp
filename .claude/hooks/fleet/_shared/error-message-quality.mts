@@ -1,7 +1,7 @@
 /**
  * @file Shared error-message-quality classifier. The single source for "is this
  *   a vague-only error message" — consumed by both
- *   `error-message-quality-reminder` (Stop hook, grades code blocks the
+ *   `error-message-quality-nudge` (Stop hook, grades code blocks the
  *   assistant wrote) and the `error-messages-are-thorough` check (commit-time,
  *   grades `throw new …Error("…")` across the committed tree). Extracted so the
  *   pattern list + grading bar live in ONE place; a tweak to either lands for

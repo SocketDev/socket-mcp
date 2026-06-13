@@ -13,7 +13,7 @@
 //   2. No AI-attribution markers anywhere in the message body
 //      ("Generated with Claude", "Co-Authored-By: Claude", 🤖 tag
 //      lines, <noreply@anthropic.com>). The Stop-hook companion
-//      commit-pr-reminder catches these at draft time; this is the
+//      commit-pr-nudge catches these at draft time; this is the
 //      commit-time defense in depth.
 //
 // Spec: https://www.conventionalcommits.org/en/v1.0.0/

@@ -56,7 +56,6 @@ export function readRoster(): string[] {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const repo of readRoster()) {
-    // Plain roster list to stdout; a logger prefix would corrupt it.
-    process.stdout.write(`${repo}\n`) // socket-lint: allow
+    process.stdout.write(`${repo}\n`)
   }
 }

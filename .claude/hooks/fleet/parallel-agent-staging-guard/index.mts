@@ -30,7 +30,7 @@
 // single shape never double-blocks with two different bypass phrases.
 //
 // Why this exists (incident 2026-05-27, socket-lib): see
-// parallel-agent-on-stop-reminder. The Stop reminder surfaces the
+// parallel-agent-on-stop-nudge. The Stop reminder surfaces the
 // signal; this guard refuses the destructive action before it lands.
 //
 // Reuses the shared shell AST parser (`_shared/shell-command.mts`) so
