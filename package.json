@@ -77,7 +77,7 @@
     "@socketsecurity/lib-stable": "npm:@socketsecurity/lib@6.0.7",
     "@socketsecurity/sdk": "catalog:",
     "@socketsecurity/sdk-stable": "catalog:",
-    "@types/node": "^24.12.4",
+    "@types/node": "^24.13.1",
     "@types/shell-quote": "catalog:",
     "@typescript/native-preview": "7.0.0-dev.20260510.1",
     "@vitest/coverage-v8": "catalog:",
