@@ -73,6 +73,9 @@ overrides:
   'path-to-regexp': '8.4.2'
   # GHSA-q8mj-m7cp-5q26 qs (transitive via express/body-parser); fixed in 6.15.2
   'qs': '6.15.2'
+  # GHSA-w7jw-789q-3m8p quote() does not escape newlines in object .op values
+  # (transitive via npm-run-all2); fixed in 1.8.4
+  'shell-quote': '1.8.4'
   # advisory #42 arbitrary file/directory write via symlink;
   # GHSA-ph9p-34f9-6g65 symlink-traversal fixed in 0.2.6
   'tmp': '0.2.6'
