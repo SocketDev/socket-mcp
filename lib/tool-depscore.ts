@@ -38,7 +38,7 @@ const depscoreInputSchema = Type.Object({
     Type.Object({
       ecosystem: Type.String({
         description:
-          'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP). See https://docs.socket.dev/docs/language-support',
+          'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP; "packagist" also accepted). See https://docs.socket.dev/docs/language-support',
         default: 'npm',
       }),
       depname: Type.String({ description: 'The name of the dependency' }),

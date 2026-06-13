@@ -74,6 +74,21 @@ describe('buildPurl produces correct PURLs across all ecosystems', () => {
     )
   })
 
+  test('composer - bare name without a vendor has no namespace', () => {
+    expect(buildPurl('composer', 'monolith', '1.0.0')).toBe(
+      'pkg:composer/monolith@1.0.0',
+    )
+  })
+
+  test('packagist - aliased to the composer PURL type', () => {
+    expect(buildPurl('packagist', 'laravel/framework', '12.60.2')).toBe(
+      'pkg:composer/laravel/framework@12.60.2',
+    )
+    expect(buildPurl('Packagist', 'symfony/http-foundation', '7.4.13')).toBe(
+      'pkg:composer/symfony/http-foundation@7.4.13',
+    )
+  })
+
   test('nuget', () => {
     expect(buildPurl('nuget', 'Newtonsoft.Json', '13.0.3')).toBe(
       'pkg:nuget/Newtonsoft.Json@13.0.3',

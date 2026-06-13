@@ -16,7 +16,10 @@ export function buildPurl(
   version: string,
   qualifiers?: Record<string, string>,
 ): string {
-  const ecoLower = ecosystem.toLowerCase()
+  // `packagist` is the registry name people reach for; the canonical PURL type
+  // is `composer`. Alias it so the composer namespace split + lookup apply.
+  const rawEcoLower = ecosystem.toLowerCase()
+  const ecoLower = rawEcoLower === 'packagist' ? 'composer' : rawEcoLower
   const type = ecoLower === 'openvsx' ? 'vscode' : ecoLower
   let namespace: string | undefined
   let name: string
