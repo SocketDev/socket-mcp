@@ -56,6 +56,6 @@ export function readRoster(): string[] {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const repo of readRoster()) {
-    process.stdout.write(`${repo}\n`)
+    process.stdout.write(`${repo}\n`) // socket-lint: allow (process-stdio: one repo per line for shell piping; a logger prefix would corrupt it)
   }
 }
