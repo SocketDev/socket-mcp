@@ -13,11 +13,11 @@ Socket MCP exposes Socket.dev's package-scoring API through the Model Context Pr
 ## ✨ Features
 
 - 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, cargo, Maven, NuGet, RubyGems, Go Modules, and more ([supported ecosystems](https://docs.socket.dev/docs/language-support))
-- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/` with no setup required
+- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; sign in once via OAuth, no self-hosting
 - 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
 - 🤖 **AI Assistant Integration** - Works seamlessly with Claude, VS Code Copilot, Cursor, and other MCP clients
 - 📊 **Batch Processing** - Check multiple dependencies in a single request
-- 🔒 **No Authentication Required** - Public server requires no API keys or registration
+- 🔒 **OAuth Sign-In** - Public server authenticates through your MCP client's OAuth flow; no API key to copy or manage
 
 🛠️ This project is in early development and rapidly evolving.
 
@@ -25,7 +25,7 @@ Socket MCP exposes Socket.dev's package-scoring API through the Model Context Pr
 
 ### Option 1: Use the public Socket MCP server (recommended)
 
-The easiest way to get started. **No API key or authentication required!** Click a button below to install in your favorite AI assistant.
+The easiest way to get started. The public server uses OAuth — your MCP client opens a browser to sign in to Socket on first connect; no API key to copy or manage. Click a button below to install in your favorite AI assistant.
 
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"url":"https://mcp.socket.dev/","type":"http"})
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D)
@@ -399,7 +399,7 @@ Always check dependency scores with the depscore tool when you add a new depende
 
 ## Claude Code Hook (Optional)
 
-The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No API key, no CLI, no registration — copy the file and wire it up.
+The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install — copy the file and wire it up; the public server signs in via OAuth on first use.
 
 Supported ecosystems and package managers:
 
