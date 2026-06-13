@@ -158,11 +158,7 @@ minimumReleaseAgeExclude:
   # published: 2026-06-08 | removable: 2026-06-15
   - '@oxfmt/binding-win32-x64-msvc@0.54.0'
 
-# CI installs pnpm from its native bin via the shared setup workflow, not
-# corepack, so the runner's pnpm differs from the `packageManager` pin (which
-# is informational). `ignore` stops pnpm's package-manager-version self-check
-# from hard-failing every command on that mismatch.
-pmOnFail: ignore
+pmOnFail: error
 resolutionMode: highest
 saveExact: true
 trustPolicy: no-downgrade
