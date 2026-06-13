@@ -10,7 +10,7 @@ import { buildPurl } from './purl.ts'
 import {
   AUTH_REQUIRED_MSG,
   authRequiredResult,
-  resolveAuthToken,
+  resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
 } from './server.ts'
 import type { ToolSpec } from './tool-types.ts'
@@ -331,7 +331,7 @@ export function definePackageFilesTool(): ToolSpec {
         },
         'tool invoked',
       )
-      const accessToken = resolveAuthToken(extra.authInfo?.token)
+      const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
         logger.error('package_files: ' + AUTH_REQUIRED_MSG)
         return authRequiredResult()

@@ -118,6 +118,9 @@ importers:
       oxlint:
         specifier: 1.63.0
         version: 1.63.0
+      regjsparser:
+        specifier: 'catalog:'
+        version: 0.13.1
       rolldown:
         specifier: 'catalog:'
         version: 1.1.0

@@ -7,7 +7,7 @@ import { fetchOrganizations } from './organizations.ts'
 import {
   AUTH_REQUIRED_MSG,
   authRequiredResult,
-  resolveAuthToken,
+  resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
 } from './server.ts'
 import type { ToolSpec } from './tool-types.ts'
@@ -23,7 +23,7 @@ export function defineOrganizationsTool(): ToolSpec {
     annotations: { readOnlyHint: true },
     async handler(_args, extra) {
       logger.info({ tool: 'organizations' }, 'tool invoked')
-      const accessToken = resolveAuthToken(extra.authInfo?.token)
+      const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
         logger.error('organizations: ' + AUTH_REQUIRED_MSG)
         return authRequiredResult()

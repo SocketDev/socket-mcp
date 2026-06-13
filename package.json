@@ -85,6 +85,7 @@
     "npm-run-all2": "^8.0.4",
     "oxfmt": "0.48.0",
     "oxlint": "1.63.0",
+    "regjsparser": "catalog:",
     "rolldown": "catalog:",
     "shell-quote": "catalog:",
     "taze": "catalog:",

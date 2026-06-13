@@ -10,6 +10,14 @@ socket-mcp is the **Socket Model Context Protocol server** — exposes Socket de
 - `lib/` — tool implementations and Socket API wrappers.
 - `artifacts.test.ts` — co-located unit tests; additional fixtures under `docs/`.
 
+## Tools
+
+Registered in `lib/server.ts` (`buildToolSpecs`); user-facing reference lives in `README.md` under "Tools exposed".
+
+- `depscore` — dependency scores; works without a token on the public server.
+- `organizations` / `alerts` / `threat_feed` — org-scoped Socket REST API; require a token resolved by `resolveAuthToken` (per-request OAuth in HTTP mode, else the boot-time static key from `setStaticApiKey`).
+- `package_files` / `package_file_contents` / `package_file_grep` — package file listing, read, and grep; `package_files` requires a token, the read/grep tools resolve a cached blob by hash.
+
 ## Commands
 
 - Install: `pnpm install`.

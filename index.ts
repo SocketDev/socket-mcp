@@ -79,7 +79,11 @@ async function main(): Promise<void> {
     }
   }
 
-  setStaticApiKey(apiKey)
+  // `shared` marks the static key as a deploy-operator key in HTTP mode, so
+  // per-tenant tools refuse to fall back to it and use the caller's
+  // per-request token instead. In stdio mode the static key is the local
+  // user's own token, so it stays usable everywhere.
+  setStaticApiKey(apiKey, { shared: useHttp })
 
   if (oauthEnabled && oauthEnabledResult) {
     try {
