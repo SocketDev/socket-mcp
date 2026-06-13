@@ -17,7 +17,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/alpha-sort-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/alpha-sort-nudge/index.mts"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/changelog-entry-shape-nudge/index.mts"
           },
           {
             "type": "command",
@@ -33,7 +37,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/claude-md-defer-detail-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/claude-md-defer-detail-nudge/index.mts"
           },
           {
             "type": "command",
@@ -81,7 +85,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/lock-step-ref-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/lock-step-ref-nudge/index.mts"
           },
           {
             "type": "command",
@@ -221,7 +225,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/consumer-grep-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/consumer-grep-nudge/index.mts"
           },
           {
             "type": "command",
@@ -246,7 +250,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/ask-suppression-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/ask-suppression-nudge/index.mts"
           }
         ]
       },
@@ -273,7 +277,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/avoid-cd-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/avoid-cd-nudge/index.mts"
           },
           {
             "type": "command",
@@ -289,7 +293,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/verify-render-pre-commit-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/verify-render-pre-commit-nudge/index.mts"
           },
           {
             "type": "command",
@@ -345,7 +349,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/pr-vs-push-default-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/pr-vs-push-default-nudge/index.mts"
           },
           {
             "type": "command",
@@ -358,6 +362,10 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-ext-issue-ref-guard/index.mts"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-direct-linter-guard/index.mts"
           },
           {
             "type": "command",
@@ -405,15 +413,15 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-verify-format-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/no-verify-format-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/pre-commit-race-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/pre-commit-race-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/prefer-rebase-over-revert-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/prefer-rebase-over-revert-nudge/index.mts"
           },
           {
             "type": "command",
@@ -421,11 +429,11 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/private-name-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/private-name-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/public-surface-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/public-surface-nudge/index.mts"
           },
           {
             "type": "command",
@@ -473,7 +481,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/copy-on-select-hint-reminder/index.mts",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/copy-on-select-hint-nudge/index.mts",
             "timeout": 4
           },
           {
@@ -503,11 +511,11 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/extension-build-current-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/extension-build-current-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/oxlint-plugin-load-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/oxlint-plugin-load-nudge/index.mts"
           }
         ]
       },
@@ -516,15 +524,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/enterprise-push-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/enterprise-push-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/stale-node-modules-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/stale-node-modules-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dirty-lockfile-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dirty-lockfile-nudge/index.mts"
           }
         ]
       }
@@ -534,39 +542,39 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/answer-questions-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/answer-questions-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/answer-status-requests-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/answer-status-requests-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/auth-rotation-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/auth-rotation-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/git-identity-drift-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/git-identity-drift-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/yakback-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/yakback-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/cascade-first-triage-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/cascade-first-triage-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/commit-pr-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/commit-pr-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/compound-lessons-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/compound-lessons-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/uncodified-lesson-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/uncodified-lesson-nudge/index.mts"
           },
           {
             "type": "command",
@@ -574,23 +582,23 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dont-blame-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dont-blame-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dont-stop-mid-queue-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dont-stop-mid-queue-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dogfood-cascade-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/dogfood-cascade-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/drift-check-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/drift-check-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/error-message-quality-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/error-message-quality-nudge/index.mts"
           },
           {
             "type": "command",
@@ -598,31 +606,31 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/file-size-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/file-size-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/path-regex-normalize-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/path-regex-normalize-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/follow-direct-imperative-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/follow-direct-imperative-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/judgment-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/judgment-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/parallel-agent-on-stop-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/parallel-agent-on-stop-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/parallel-agent-removal-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/parallel-agent-removal-nudge/index.mts"
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/plan-review-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/plan-review-nudge/index.mts"
           },
           {
             "type": "command",
@@ -634,7 +642,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/squash-history-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/squash-history-nudge/index.mts"
           },
           {
             "type": "command",
@@ -642,7 +650,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/stop-claim-verify-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/stop-claim-verify-nudge/index.mts"
           },
           {
             "type": "command",
@@ -650,7 +658,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/variant-analysis-reminder/index.mts"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/variant-analysis-nudge/index.mts"
           }
         ]
       }

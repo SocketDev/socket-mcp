@@ -86,19 +86,9 @@ minimumReleaseAgeExclude:
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - '@stuie/*'
-  - '@redwoodjs/agent-ci'
-  - 'dtu-github-actions'
   - '@socketdev/*'
-  - 'ecc-agentshield'
   - 'sfw'
-  - 'socket-*'
-  # untracked@1.6.1 — Kikobeats/untracked, dev-only tool for autogenerating
-  # `.dockerignore` from package.json + the curated blacklist. semver
-  # override above pins the transitive update-notifier → semver-diff
-  # to a provenance-attested version.
-  - 'shell-quote'
   - '@ultrathink/*'
-  - '@yuku-parser/*'
   # security fix for GHSA-ph9p-34f9-6g65; bypassing soak to land the patch now
   - '@socketoverride/*'
   # published: 2026-06-09 | removable: 2026-06-16
