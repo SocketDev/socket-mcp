@@ -8,6 +8,10 @@
     "type": "git",
     "url": "https://github.com/SocketDev/socket-mcp"
   },
+  "homepage": "https://github.com/SocketDev/socket-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/SocketDev/socket-mcp/issues"
+  },
   "bin": {
     "socket-mcp": "./dist/index.cjs"
   },
