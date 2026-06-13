@@ -3,14 +3,14 @@
   "version": "0.0.18",
   "description": "Socket MCP server for scanning dependencies",
   "keywords": [],
+  "homepage": "https://github.com/SocketDev/socket-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/SocketDev/socket-mcp/issues"
+  },
   "author": "Alexandros Kapravelos",
   "repository": {
     "type": "git",
     "url": "https://github.com/SocketDev/socket-mcp"
-  },
-  "homepage": "https://github.com/SocketDev/socket-mcp#readme",
-  "bugs": {
-    "url": "https://github.com/SocketDev/socket-mcp/issues"
   },
   "bin": {
     "socket-mcp": "./dist/index.cjs"
