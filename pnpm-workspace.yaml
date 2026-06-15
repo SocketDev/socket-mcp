@@ -182,7 +182,10 @@ minimumReleaseAgeExclude:
   # published: 2026-06-08 | removable: 2026-06-15
   - '@oxfmt/binding-win32-x64-msvc@0.54.0'
 
-pmOnFail: error
+# Transitional: warn (not error) while the socket-registry CI install chain
+# still ships pnpm 11.5.1 and this repo runs 11.6.0. Restore to error once the
+# registry reusable-workflow nested pin delivers 11.6.0.
+pmOnFail: warn
 resolutionMode: highest
 saveExact: true
 trustPolicy: no-downgrade
