@@ -18,7 +18,6 @@
   "files": [
     "CHANGELOG.md",
     "dist/index.cjs",
-    "dist/index.d.ts",
     "hooks/socket-gate",
     "package.json"
   ],
@@ -48,7 +47,6 @@
     "update": "node scripts/fleet/update.mts",
     "build": "npm run clean && run-s build:*",
     "build:bundle": "node scripts/build.mts",
-    "build:types": "tsgo -p tsconfig.dts.json",
     "build:permissions": "chmod +x ./dist/index.cjs",
     "build-mcpb": "run-s build build-mcpb:*",
     "build-mcpb:versions_match": "node scripts/check-versions.ts",
