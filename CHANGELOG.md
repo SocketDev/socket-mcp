@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.19]
+
+### Changed
+
+- Organization tools now scope their results to the authenticated caller.
+
+### Fixed
+
+- Composer package URLs parse correctly: `packagist` is accepted as a composer
+  alias, bare-name packages resolve, and the vendor namespace is split from the
+  package name.
+- The `depscore` tool no longer errors on packages with missing or non-numeric
+  score data.
+- The HTTP server limits the size of POST request bodies.
+- OAuth tokens whose introspection response carries a malformed expiry are now
+  rejected.
+
 ## [0.0.18]
 
 ### Fixed
