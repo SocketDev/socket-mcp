@@ -101,6 +101,25 @@ export function classifyMarkdownPath(absPath: string): Verdict {
     if (normalized.includes('/.github/workflows/')) {
       return { ok: true }
     }
+    // GitHub Copilot reads `.github/copilot-instructions.md` as its repo
+    // instruction file (a host-dictated name, not a human doc).
+    if (normalized.endsWith('/.github/copilot-instructions.md')) {
+      return { ok: true }
+    }
+  }
+
+  // Cross-harness agent rule adapters: each AI host reads its rules from a
+  // host-named path (Cursor, Windsurf, Cline, Kiro). These are tool config the
+  // host dictates, not human docs, so the doc-filename convention does not
+  // apply.
+  const harnessNorm = normalizePath(absPath)
+  if (
+    harnessNorm.includes('/.cursor/rules/') ||
+    harnessNorm.includes('/.windsurf/rules/') ||
+    harnessNorm.includes('/.clinerules/') ||
+    harnessNorm.includes('/.kiro/steering/')
+  ) {
+    return { ok: true }
   }
 
   const relPath = normalizePath(toRepoRelative(absPath))
@@ -224,7 +243,10 @@ export function isAtAllowedScreamingLocation(relPath: string): boolean {
     dir === 'docs' ||
     dir === 'template' ||
     dir === 'template/.claude' ||
-    dir === 'template/docs'
+    dir === 'template/docs' ||
+    dir === 'template/base' ||
+    dir === 'template/base/.claude' ||
+    dir === 'template/base/docs'
   )
 }
 
@@ -269,9 +291,15 @@ export function toRepoRelative(filePath: string): string {
   // the LAST `template/` segment so the carve-out holds for any checkout
   // location — `~/projects/<repo>`, a `/private/tmp` worktree, or CI's
   // `/home/runner/work/<repo>/<repo>/` — not only paths under `/projects/`.
+  // The fleet-canonical content now lives under the `base/` archetype layer
+  // (`template/base/...`), so peel that segment too: `template/base/CLAUDE.md`
+  // resolves to `CLAUDE.md`, exactly as the flat `template/CLAUDE.md` does.
   const templateIdx = normalized.lastIndexOf('/template/')
   if (templateIdx !== -1) {
-    return normalized.slice(templateIdx + '/template/'.length)
+    const afterTemplate = normalized.slice(templateIdx + '/template/'.length)
+    return afterTemplate.startsWith('base/')
+      ? afterTemplate.slice('base/'.length)
+      : afterTemplate
   }
   // Otherwise strip up through the recognizable repo-checkout prefix.
   // `~/projects/<repo>/` and CI's `.../work/<repo>/<repo>/` both collapse to
