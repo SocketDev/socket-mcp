@@ -211,9 +211,8 @@ async function runStaged(tag: string, dryRun: boolean): Promise<void> {
     )
   } else {
     logger.success(
-      `Staged ${pkg.name}@${pkg.version}. Run \`pnpm run publish -- --approve\` locally to promote.`,
+      `Staged ${pkg.name}@${pkg.version}. Run \`pnpm run publish -- --approve\` locally to promote — the git tag and GitHub release are created at approve time, when the package goes public.`,
     )
-    await ensureTagAndRelease(pkg)
   }
 }
 
@@ -541,6 +540,7 @@ async function runApprove(
 
   let approved = 0
   let failed = 0
+  const approvedEntries: StageListEntry[] = []
   for (const stageId of selected) {
     const args = ['stage', 'approve', stageId]
     if (otp) {
@@ -550,6 +550,10 @@ async function runApprove(
     const code = await runInherit('pnpm', args, rootPath)
     if (code === 0) {
       approved += 1
+      const entry = eligible.find(e => e.stageId === stageId)
+      if (entry) {
+        approvedEntries.push(entry)
+      }
     } else {
       failed += 1
       logger.fail(`Approve ${stageId} exited ${code}`)
@@ -561,6 +565,18 @@ async function runApprove(
     return
   }
   logger.success(`Approved ${approved} package${approved === 1 ? '' : 's'}`)
+
+  // Approve is the moment a staged package becomes public, so the git tag +
+  // GitHub release are created here rather than at --staged time. This runs
+  // locally where git, gh, and npm are all authenticated; the CI --staged step
+  // holds only an OIDC npm token (no contents:write / GH_TOKEN), so a release
+  // attempt there fails and is also premature (nothing is public yet).
+  for (const entry of approvedEntries) {
+    if (entry.name && entry.version) {
+      // eslint-disable-next-line no-await-in-loop
+      await ensureTagAndRelease({ name: entry.name, version: entry.version })
+    }
+  }
 }
 
 function readPackageJson(): { name: string; version: string } {
