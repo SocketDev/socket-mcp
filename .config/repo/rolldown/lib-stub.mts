@@ -30,10 +30,8 @@ export type LibStubOptions = {
 }
 
 export function createLibStubPlugin(options: LibStubOptions): Plugin {
-  const { stubCode = 'module.exports = {}', stubPattern } = {
-    __proto__: null,
-    ...options,
-  }
+  const opts = { __proto__: null, ...options }
+  const { stubCode = 'module.exports = {}', stubPattern } = opts
   return {
     name: 'stub-unused-lib-internals',
     load(id) {

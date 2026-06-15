@@ -62,9 +62,9 @@ export interface FileResult {
 // with their absolute 1-based line numbers.
 export function blockCommentLines(
   source: string,
-): { line: number; text: string }[] {
+): Array<{ line: number; text: string }> {
   const lines = source.split('\n')
-  const out: { line: number; text: string }[] = []
+  const out: Array<{ line: number; text: string }> = []
   let inBlock = false
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const trimmed = lines[i]!.trim()
@@ -222,7 +222,8 @@ export async function main(): Promise<void> {
     logger.success('No mangled JSDoc detected.')
     return
   }
-  for (const r of results) {
+  for (let i = 0, { length } = results; i < length; i += 1) {
+    const r = results[i]!
     logger.warn(`${r.file}: ${r.findings.length} flattened comment line(s)`)
     for (const f of r.findings) {
       logger.log(`  ${r.file}:${f.line} — ${f.reason}`)
@@ -235,7 +236,8 @@ export async function main(): Promise<void> {
     process.exitCode = 1
     return
   }
-  for (const r of results) {
+  for (let i = 0, { length } = results; i < length; i += 1) {
+    const r = results[i]!
     // eslint-disable-next-line no-await-in-loop
     const ok = await restoreFile(r.file)
     if (ok) {
