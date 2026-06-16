@@ -209,6 +209,36 @@ describe('package_file_grep tool handler', () => {
     expect(result.content[0]!.text).toMatch(/stopped at maxMatches=2/)
   })
 
+  test('prints a "--" separator between non-adjacent match groups', async () => {
+    const hash = uniqueHash()
+    const lines = ['hit', 'a', 'b', 'c', 'd', 'e', 'f', 'hit'].join('\n')
+    nock(BLOB_HOST)
+      .get(`/blob/${hash}`)
+      .reply(200, lines, { 'content-type': 'text/plain' })
+
+    const result = await definePackageFileGrepTool().handler(
+      { hash, pattern: 'hit', contextLines: 1 },
+      withToken,
+    )
+    expect(result.content[0]!.text).toMatch(/\n--\n/)
+  })
+
+  test('notes truncation when the blob exceeds the 1 MB cap', async () => {
+    const hash = uniqueHash()
+    // 1 MB + slack so blob.truncated is set; the grep still finds the match
+    // inside the retained first 1 MB.
+    const big = 'match\n' + 'x\n'.repeat(600_000)
+    nock(BLOB_HOST)
+      .get(`/blob/${hash}`)
+      .reply(200, big, { 'content-type': 'text/plain' })
+
+    const result = await definePackageFileGrepTool().handler(
+      { hash, pattern: '^match' },
+      withToken,
+    )
+    expect(result.content[0]!.text).toMatch(/searched only the first 1 MB/)
+  })
+
   test('rejects an invalid regular expression before fetching', async () => {
     const result = await definePackageFileGrepTool().handler(
       { hash: uniqueHash(), pattern: '(' },

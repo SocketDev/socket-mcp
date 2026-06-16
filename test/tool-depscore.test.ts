@@ -229,6 +229,62 @@ describe('handleDepscore', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toMatch(/No packages were found/)
   })
+
+  test('surfaces a generic non-200 status', async () => {
+    nock(API).post('/v0/purl').query(true).reply(503, 'unavailable')
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(
+      /Error processing packages: \[503\]/,
+    )
+  })
+
+  test('returns a connection error when the request throws', async () => {
+    nock(API).post('/v0/purl').query(true).replyWithError('socket hang up')
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(/Error connecting to Socket API/)
+  })
+
+  test('errors when an NDJSON body has no valid objects', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(200, 'not json\nalso not json', {
+        'content-type': 'application/x-ndjson',
+      })
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(/No valid JSON objects/)
+  })
+
+  test('handles a JSON parse failure on a single-document body', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(200, '{ broken', { 'content-type': 'application/json' })
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(
+      /Error parsing response from Socket/,
+    )
+  })
 })
 
 describe('depscore tool spec', () => {
