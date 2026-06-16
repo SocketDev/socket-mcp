@@ -103,6 +103,9 @@ overrides:
   # advisory #42 GHSA-ph9p-34f9-6g65 symlink-traversal;
   # advisory #104 GHSA-7c78-jf6q-g5cm type-confusion path traversal; fixed in 0.2.7
   'tmp': '0.2.7'
+  # GHSA-fx2h-pf6j-xcff server.fs.deny bypass / GHSA-v6wh-96g9-6wx3 NTLMv2
+  # hash disclosure (Windows); transitive via vitest, fixed in 8.0.16
+  'vite': '8.0.16'
   'zod': '3.25.76'
   'zod-to-json-schema': '3.25.1'
 
