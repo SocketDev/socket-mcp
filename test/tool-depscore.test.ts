@@ -1,11 +1,17 @@
-import { describe, expect, test } from 'vitest'
+import nock from 'nock'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import {
+  buildPackageComponents,
+  defineDepscoreTool,
   formatScoreEntries,
   formatScoreLine,
+  handleDepscore,
   parseNdjsonPackageBody,
   parseSinglePackageBody,
 } from '../lib/tool-depscore.ts'
+
+const API = 'https://api.socket.dev'
 
 describe('formatScoreLine', () => {
   test('renders a scored package with a report URL', () => {
@@ -108,5 +114,133 @@ describe('formatScoreEntries', () => {
     const out = formatScoreEntries({ quality: 'n/a', supplyChain: 0.9 })
     expect(out).toBe('quality: n/a, supplyChain: 90')
     expect(out).not.toContain('NaN')
+  })
+})
+
+describe('buildPackageComponents', () => {
+  test('strips range prefixes and defaults the ecosystem to npm', () => {
+    const components = buildPackageComponents([
+      { depname: 'express', version: '^4.18.2' },
+    ])
+    expect(components).toEqual([{ purl: 'pkg:npm/express@4.18.2' }])
+  })
+})
+
+describe('handleDepscore', () => {
+  beforeEach(() => {
+    nock.disableNetConnect()
+  })
+
+  afterEach(() => {
+    nock.cleanAll()
+    nock.enableNetConnect()
+  })
+
+  test('returns AUTH_REQUIRED when no token is resolvable', async () => {
+    const result = await handleDepscore(
+      [{ depname: 'express', version: '4.18.2' }],
+      undefined,
+      undefined,
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(/Authentication is required/)
+  })
+
+  test('renders a single-document JSON response', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(
+        200,
+        JSON.stringify({
+          type: 'npm',
+          name: 'express',
+          version: '4.18.2',
+          score: { overall: 0.9, supply_chain: 1 },
+        }),
+        { 'content-type': 'application/json' },
+      )
+
+    const result = await handleDepscore(
+      [{ ecosystem: 'npm', depname: 'express', version: '4.18.2' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toMatch(/Dependency scores:/)
+    expect(result.content[0]!.text).toMatch(/pkg:npm\/express@4.18.2/)
+  })
+
+  test('parses an NDJSON response body', async () => {
+    const body = [
+      JSON.stringify({ _type: 'meta' }),
+      JSON.stringify({
+        type: 'npm',
+        name: 'a',
+        version: '2.0.0',
+        score: { overall: 0.8 },
+      }),
+    ].join('\n')
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(200, body, { 'content-type': 'application/x-ndjson' })
+
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.content[0]!.text).toMatch(/pkg:npm\/a@2.0.0/)
+  })
+
+  test('surfaces a 401 as an auth error', async () => {
+    nock(API).post('/v0/purl').query(true).reply(401, 'nope')
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(/authentication failed \[401\]/)
+  })
+
+  test('surfaces a 403 as a permission error', async () => {
+    nock(API).post('/v0/purl').query(true).reply(403, 'denied')
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(/denied access \[403\]/)
+  })
+
+  test('reports an empty body as no packages found', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(200, '', { 'content-type': 'application/json' })
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(/No packages were found/)
+  })
+})
+
+describe('depscore tool spec', () => {
+  test('handler delegates to handleDepscore', async () => {
+    nock(API).disableNetConnect?.()
+    const spec = defineDepscoreTool()
+    expect(spec.name).toBe('depscore')
+    const result = await spec.handler(
+      { packages: [{ depname: 'x', version: '2.0.0' }] },
+      {},
+    )
+    // No token in extra and no static key -> AUTH_REQUIRED.
+    expect(result.isError).toBe(true)
   })
 })
