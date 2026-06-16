@@ -1,8 +1,11 @@
 # Socket MCP Server
 
-[![npm version](https://badge.fury.io/js/@socketsecurity%2Fmcp.svg)](https://badge.fury.io/js/@socketsecurity%2Fmcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/@socketsecurity/mcp)](https://socket.dev/npm/package/@socketsecurity/mcp)
+[![CI](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml)
+![Coverage](https://img.shields.io/badge/coverage-56%25-orange)
+
+[![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
+[![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
 
 A Model Context Protocol (MCP) server for Socket integration — lets AI assistants query dependency vulnerability scores and security metadata.
 
