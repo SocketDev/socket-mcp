@@ -100,9 +100,9 @@ overrides:
   # GHSA-w7jw-789q-3m8p quote() does not escape newlines in object .op values
   # (transitive via npm-run-all2); fixed in 1.8.4
   'shell-quote': '1.8.4'
-  # advisory #42 arbitrary file/directory write via symlink;
-  # GHSA-ph9p-34f9-6g65 symlink-traversal fixed in 0.2.6
-  'tmp': '0.2.6'
+  # advisory #42 GHSA-ph9p-34f9-6g65 symlink-traversal;
+  # advisory #104 GHSA-7c78-jf6q-g5cm type-confusion path traversal; fixed in 0.2.7
+  'tmp': '0.2.7'
   'zod': '3.25.76'
   'zod-to-json-schema': '3.25.1'
 
