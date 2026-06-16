@@ -366,7 +366,7 @@ When no token is available, these tools return an authentication-required error 
 
 ### Worked example: organization details and alerts
 
-With `SOCKET_API_KEY` (or `SOCKET_API_TOKEN`) set, ask your assistant something like "show me the open critical alerts for my Socket org". Under the hood the assistant chains two tools:
+With `SOCKET_API_TOKEN` set, ask your assistant something like "show me the open critical alerts for my Socket org". Under the hood the assistant chains two tools:
 
 1. **Discover the org slug.** Call `organizations` (no arguments). The server reads your token, calls `GET /v0/organizations`, and returns the organizations your token can see. Pick the `slug` you want, e.g. `my-org`.
 
