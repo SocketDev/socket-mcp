@@ -1,7 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { buildThreatFeedQuery, fetchThreatFeed } from '../lib/threat-feed.ts'
+import { buildThreatFeedQuery, fetchThreatFeed } from '../../lib/threat-feed.ts'
 
 const API = 'https://api.socket.dev'
 

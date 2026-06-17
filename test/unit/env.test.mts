@@ -11,7 +11,7 @@ import {
   getSocketBypassHeaderName,
   getSocketOauthRequiredScopes,
   getTrustProxy,
-} from '../lib/env.ts'
+} from '../../lib/env.ts'
 
 const TOUCHED = [
   'TEST_ENV_BOOL',

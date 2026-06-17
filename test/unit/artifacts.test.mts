@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { deduplicateArtifacts } from '../lib/artifacts.ts'
-import type { ArtifactData } from '../lib/artifacts.ts'
+import { deduplicateArtifacts } from '../../lib/artifacts.ts'
+import type { ArtifactData } from '../../lib/artifacts.ts'
 
 export function makeArtifact(
   overrides: Partial<ArtifactData> = {},

@@ -9,7 +9,7 @@ import {
   handleDepscore,
   parseNdjsonPackageBody,
   parseSinglePackageBody,
-} from '../lib/tool-depscore.ts'
+} from '../../lib/tool-depscore.ts'
 
 const API = 'https://api.socket.dev'
 
@@ -289,7 +289,7 @@ describe('handleDepscore', () => {
 
 describe('depscore tool spec', () => {
   test('handler delegates to handleDepscore', async () => {
-    nock(API).disableNetConnect?.()
+    nock.disableNetConnect()
     const spec = defineDepscoreTool()
     expect(spec.name).toBe('depscore')
     const result = await spec.handler(

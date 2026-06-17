@@ -3,7 +3,7 @@ import { brotliCompressSync, gzipSync } from 'node:zlib'
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { extractFileList, fetchFileList, renderTree } from '../lib/files.ts'
+import { extractFileList, fetchFileList, renderTree } from '../../lib/files.ts'
 
 const API = 'https://api.socket.dev'
 

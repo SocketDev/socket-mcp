@@ -6,8 +6,8 @@ import {
   definePackageFileContentsTool,
   definePackageFileGrepTool,
   definePackageFilesTool,
-} from '../lib/tool-package-files.ts'
-import type { ToolHandlerExtra } from '../lib/tool-types.ts'
+} from '../../lib/tool-package-files.ts'
+import type { ToolHandlerExtra } from '../../lib/tool-types.ts'
 
 const API = 'https://api.socket.dev'
 const BLOB_HOST = 'https://socketusercontent.com'

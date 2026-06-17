@@ -21,7 +21,7 @@ afterEach(() => {
 describe('debug', () => {
   test('forwards to logger.info when SOCKET_DEBUG is set', async () => {
     process.env['SOCKET_DEBUG'] = '1'
-    const mod = await import('../lib/logger.ts')
+    const mod = await import('../../lib/logger.ts')
     const spy = vi
       .spyOn(mod.logger, 'info')
       .mockImplementation(() => mod.logger)
@@ -31,7 +31,7 @@ describe('debug', () => {
 
   test('stays silent when SOCKET_DEBUG is unset', async () => {
     delete process.env['SOCKET_DEBUG']
-    const mod = await import('../lib/logger.ts')
+    const mod = await import('../../lib/logger.ts')
     const spy = vi
       .spyOn(mod.logger, 'info')
       .mockImplementation(() => mod.logger)

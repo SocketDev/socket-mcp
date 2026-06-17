@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { buildSocketReportUrl } from '../lib/socket-url.ts'
+import { buildSocketReportUrl } from '../../lib/socket-url.ts'
 
 describe('buildSocketReportUrl produces correct URLs across ecosystems', () => {
   test('npm unscoped', () => {

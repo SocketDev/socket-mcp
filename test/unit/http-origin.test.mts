@@ -7,7 +7,7 @@ import {
   patchAcceptHeader,
   validateOriginAndHost,
   writeCorsHeaders,
-} from '../lib/http-origin.ts'
+} from '../../lib/http-origin.ts'
 
 describe('isLocalhostOrigin', () => {
   test('accepts localhost and 127.0.0.1 on any port', () => {

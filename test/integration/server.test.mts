@@ -11,7 +11,7 @@ import {
   resolveAuthToken,
   resolveScopedAuthToken,
   setStaticApiKey,
-} from '../lib/server.ts'
+} from '../../lib/server.ts'
 
 afterEach(() => {
   // Reset module-level static-key state so cases don't leak into each other.

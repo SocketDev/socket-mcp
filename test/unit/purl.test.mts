@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { buildPurl } from '../lib/purl.ts'
+import { buildPurl } from '../../lib/purl.ts'
 
 describe('buildPurl produces correct PURLs across all ecosystems', () => {
   test('npm unscoped', () => {

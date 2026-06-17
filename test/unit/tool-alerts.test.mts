@@ -1,8 +1,8 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { defineThreatFeedTool } from '../lib/tool-threat-feed.ts'
-import type { ToolHandlerExtra } from '../lib/tool-types.ts'
+import { defineAlertsTool } from '../../lib/tool-alerts.ts'
+import type { ToolHandlerExtra } from '../../lib/tool-types.ts'
 
 const API = 'https://api.socket.dev'
 
@@ -18,9 +18,9 @@ afterEach(() => {
   nock.enableNetConnect()
 })
 
-describe('threat_feed tool handler', () => {
+describe('alerts tool handler', () => {
   test('returns AUTH_REQUIRED when no token is resolvable', async () => {
-    const result = await defineThreatFeedTool().handler(
+    const result = await defineAlertsTool().handler(
       { org_slug: 'my-org' },
       noToken,
     )
@@ -28,33 +28,34 @@ describe('threat_feed tool handler', () => {
     expect(result.content[0]!.text).toMatch(/Authentication is required/)
   })
 
-  test('forwards filters and renders the response', async () => {
+  test('forwards curated filters and renders the response', async () => {
     nock(API)
       .matchHeader('authorization', 'Bearer tok')
-      .get('/v0/orgs/my-org/threat-feed')
-      .query({ filter: 'mal', ecosystem: 'npm' })
-      .reply(200, { results: [{ id: 'a' }], nextPageCursor: 'c2' })
+      .get('/v0/orgs/my-org/alerts')
+      .query({
+        'filters.alertSeverity': 'high',
+        'filters.alertStatus': 'open',
+        per_page: '100',
+      })
+      .reply(200, { results: [{ id: 1 }] })
 
-    const result = await defineThreatFeedTool().handler(
-      { org_slug: 'my-org', filter: 'mal', ecosystem: 'npm' },
+    const result = await defineAlertsTool().handler(
+      { org_slug: 'my-org', severity: 'high', status: 'open' },
       withToken,
     )
     expect(result.isError).toBeUndefined()
     expect(JSON.parse(result.content[0]!.text)).toEqual({
-      results: [{ id: 'a' }],
-      nextPageCursor: 'c2',
+      results: [{ id: 1 }],
     })
   })
 
   test('returns an isError result on upstream failure', async () => {
-    nock(API).get('/v0/orgs/my-org/threat-feed').query(true).reply(500, 'boom')
-    const result = await defineThreatFeedTool().handler(
+    nock(API).get('/v0/orgs/my-org/alerts').query(true).reply(403, 'forbidden')
+    const result = await defineAlertsTool().handler(
       { org_slug: 'my-org' },
       withToken,
     )
     expect(result.isError).toBe(true)
-    expect(result.content[0]!.text).toMatch(
-      /Error fetching threat feed for my-org/,
-    )
+    expect(result.content[0]!.text).toMatch(/Error fetching alerts for my-org/)
   })
 })

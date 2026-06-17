@@ -1,7 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { fetchOrganizations } from '../lib/organizations.ts'
+import { fetchOrganizations } from '../../lib/organizations.ts'
 
 const API = 'https://api.socket.dev'
 

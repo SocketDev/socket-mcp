@@ -13,7 +13,7 @@ import {
   parseJsonObject,
   writeJson,
   writeOAuthError,
-} from '../lib/http-helpers.ts'
+} from '../../lib/http-helpers.ts'
 
 describe('assertSafeHttpUrl', () => {
   test('accepts a normal public https URL', () => {

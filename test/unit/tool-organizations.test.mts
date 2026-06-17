@@ -1,8 +1,8 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { defineOrganizationsTool } from '../lib/tool-organizations.ts'
-import type { ToolHandlerExtra } from '../lib/tool-types.ts'
+import { defineOrganizationsTool } from '../../lib/tool-organizations.ts'
+import type { ToolHandlerExtra } from '../../lib/tool-types.ts'
 
 const API = 'https://api.socket.dev'
 
