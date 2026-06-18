@@ -81,6 +81,31 @@ export function applyClientApiKey(req: AuthenticatedRequest): void {
   req.auth = { token, clientId: 'socket-api-key', scopes: [] }
 }
 
+// Socket API tokens carry this prefix (e.g. `sktsec_t_...`); OAuth access
+// tokens do not. We use it to recognize a raw Socket key sent over the
+// standard `Authorization: Bearer` header so it bypasses OAuth introspection.
+const SOCKET_API_KEY_PREFIX = 'sktsec_'
+
+// Recognize a Socket API key on the `Authorization: Bearer` header by its
+// `sktsec_` prefix and apply it to `req.auth`, returning true when matched.
+// Lets a caller authenticate with a raw Socket key even on an OAuth server:
+// the key skips introspection and acts on the caller's behalf, while a
+// non-prefixed token (an OAuth access token) falls through to OAuth. An
+// invalid key fails at the downstream Socket API call.
+export function applySocketApiKey(req: AuthenticatedRequest): boolean {
+  const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
+  const [type, token] = authHeader.split(/\s+/u)
+  if (
+    (type || '').toLowerCase() !== 'bearer' ||
+    !token ||
+    !token.startsWith(SOCKET_API_KEY_PREFIX)
+  ) {
+    return false
+  }
+  req.auth = { token, clientId: 'socket-api-key', scopes: [] }
+  return true
+}
+
 // Destroy a session — close transport (best-effort) and detach the MCP
 // server. Safe to call multiple times.
 export function destroySession(
@@ -391,7 +416,11 @@ export async function routeRequest(
 
   patchAcceptHeader(req)
 
-  if (isOauthEnabled()) {
+  // A `sktsec_`-prefixed Bearer token authenticates as a Socket API key in
+  // both modes; only a non-prefixed token on an OAuth server goes through
+  // introspection.
+  const hasApiKey = applySocketApiKey(req as AuthenticatedRequest)
+  if (!hasApiKey && isOauthEnabled()) {
     const authResult = await authenticateRequest(
       req as AuthenticatedRequest,
       res,
@@ -400,7 +429,7 @@ export async function routeRequest(
     if (!authResult.ok) {
       return
     }
-  } else {
+  } else if (!hasApiKey) {
     applyClientApiKey(req as AuthenticatedRequest)
   }
 

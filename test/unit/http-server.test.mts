@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   applyClientApiKey,
+  applySocketApiKey,
   destroySession,
   handleDelete,
   handleGet,
@@ -44,6 +45,25 @@ test('applyClientApiKey ignores a missing Authorization header', () => {
 test('applyClientApiKey ignores a non-bearer scheme', () => {
   const req = reqWith('Basic dXNlcjpwYXNz')
   applyClientApiKey(req)
+  expect(req.auth).toBeUndefined()
+})
+
+test('applySocketApiKey matches a sktsec_-prefixed Bearer token', () => {
+  const req = reqWith('Bearer sktsec_t_example')
+  expect(applySocketApiKey(req)).toBe(true)
+  expect(req.auth?.token).toBe('sktsec_t_example')
+  expect(req.auth?.clientId).toBe('socket-api-key')
+})
+
+test('applySocketApiKey ignores a non-prefixed Bearer token (OAuth)', () => {
+  const req = reqWith('Bearer oauth-access-token')
+  expect(applySocketApiKey(req)).toBe(false)
+  expect(req.auth).toBeUndefined()
+})
+
+test('applySocketApiKey returns false when no Authorization header', () => {
+  const req = reqWith()
+  expect(applySocketApiKey(req)).toBe(false)
   expect(req.auth).toBeUndefined()
 })
 
