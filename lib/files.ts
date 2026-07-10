@@ -1,4 +1,5 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
+import { normalizePath } from '@socketsecurity/lib/paths/normalize'
 
 import { buildJsonApiHeaders } from './http-helpers.ts'
 
@@ -6,7 +7,7 @@ export function buildTree(entries: FileListEntry[]): TreeNode {
   const root: TreeNode = { name: '', isFile: false, children: new Map() }
   for (let e = 0, { length } = entries; e < length; e += 1) {
     const entry = entries[e]!
-    const parts = entry.path.split('/').filter(Boolean)
+    const parts = normalizePath(entry.path).split('/').filter(Boolean)
     if (!parts.length) {
       continue
     }

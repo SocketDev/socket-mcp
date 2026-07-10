@@ -15,10 +15,10 @@ const PLATFORM_PATTERNS: Record<string, PlatformPattern[]> = {
   'darwin-arm64': [/macosx.*arm64/i],
   'darwin-x64': [/macosx.*x86_64/i],
   // "linux" or "manylinux" tag followed (anywhere) by an arm64 arch token.
-  'linux-arm64': [/(linux|manylinux).*(aarch64|arm64)/i],
-  'linux-x64': [/(linux|manylinux).*x86_64/i],
+  'linux-arm64': [/(?:linux|manylinux).*(?:aarch64|arm64)/i],
+  'linux-x64': [/(?:linux|manylinux).*x86_64/i],
   'win32-ia32': [/win.*win32/i],
-  'win32-x64': [/win.*(amd64|x86_64)/i],
+  'win32-x64': [/win.*(?:amd64|x86_64)/i],
 }
 
 export function artifactGroupKey(artifact: ArtifactData): string {
@@ -62,7 +62,7 @@ export function deduplicateArtifacts(
 }
 
 export function isSourceDist(release: string): boolean {
-  return /\.(tar\.bz2|tar\.gz|zip)$/i.test(release) || /sdist/i.test(release)
+  return /\.(?:tar\.bz2|tar\.gz|zip)$/i.test(release) || /sdist/i.test(release)
 }
 
 export function isUniversalWheel(release: string): boolean {
