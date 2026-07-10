@@ -7,7 +7,7 @@
  *   Pattern: socket-packageurl-js + socket-sdk-js.
  */
 
-import { chmod } from 'node:fs/promises'
+import { chmod, copyFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors'
@@ -16,7 +16,11 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
 import { buildConfigs } from '../.config/repo/rolldown.config.mts'
-import { DIST_DIR, SOCKET_GATE_BUNDLE } from './repo/paths.mts'
+import {
+  DIST_DIR,
+  SOCKET_GATE_DIST_DIR,
+  SOCKET_GATE_SRC_DIR,
+} from './repo/paths.mts'
 
 import type { RolldownOptions } from 'rolldown'
 
@@ -46,12 +50,18 @@ async function buildOne(config: RolldownOptions): Promise<void> {
 async function main(): Promise<void> {
   logger.log('Cleaning build outputs…')
   await safeDelete(DIST_DIR)
-  await safeDelete(SOCKET_GATE_BUNDLE)
 
   logger.log('Bundling with rolldown…')
   for (const config of buildConfigs) {
     await buildOne(config)
   }
+
+  // The hook README rides beside the bundle so dist/socket-gate/ is a
+  // self-documenting, copyable unit.
+  await copyFile(
+    path.join(SOCKET_GATE_SRC_DIR, 'README.md'),
+    path.join(SOCKET_GATE_DIST_DIR, 'README.md'),
+  )
 
   logger.log(`Built ${buildConfigs.length} artifact(s)`)
 }
