@@ -1,8 +1,11 @@
 # Socket MCP Server
 
-[![npm version](https://badge.fury.io/js/@socketsecurity%2Fmcp.svg)](https://badge.fury.io/js/@socketsecurity%2Fmcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/@socketsecurity/mcp)](https://socket.dev/npm/package/@socketsecurity/mcp)
+[![CI](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml)
+![Coverage](https://img.shields.io/badge/coverage-80%25-green)
+
+[![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
+[![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
 
 A Model Context Protocol (MCP) server for Socket integration — lets AI assistants query dependency vulnerability scores and security metadata.
 
@@ -351,7 +354,7 @@ Search a single file from a package for lines matching a JavaScript regular expr
 How the server resolves a token depends on the transport:
 
 - **stdio mode** reads one token at startup from the environment and uses it for every request. Set `SOCKET_API_TOKEN`. The server also accepts these aliases, in priority order: `SOCKET_API_TOKEN` → `SOCKET_API_KEY` → `SOCKET_CLI_API_TOKEN` → `SOCKET_CLI_API_KEY` → `SOCKET_SECURITY_API_TOKEN` → `SOCKET_SECURITY_API_KEY`. `SOCKET_API_TOKEN` is canonical; `SOCKET_API_KEY` is the alias most local setups already export. Because the process belongs to one user, this token is yours and scopes every tool to your account.
-- **HTTP mode** scopes the organization tools to the caller, never to the server's own token. Send your Socket API token as an `Authorization: Bearer <token>` header on each request, or use an OAuth access token when the server runs OAuth. The server uses that per-request token for the Socket API calls it makes on your behalf. A shared deployment never answers `organizations`, `alerts`, `threat_feed`, or `package_files` with the operator's data: when a request carries no token, those tools return the auth-required error. `depscore` alone may fall back to the server's startup token, since package scores are the same for every caller.
+- **HTTP mode** scopes the organization tools to the caller, never to the server's own token. Send your credential as an `Authorization: Bearer <token>` header on each request: a raw Socket API token (recognized by its `sktsec_` prefix) is used directly and works whether or not the server runs OAuth, while any other token is treated as an OAuth access token and validated through introspection when the server runs OAuth. The server uses that per-request token for the Socket API calls it makes on your behalf. A shared deployment never answers `organizations`, `alerts`, `threat_feed`, or `package_files` with the operator's data: when a request carries no token, those tools return the auth-required error. `depscore` alone may fall back to the server's startup token, since package scores are the same for every caller.
 
 Generate a token from the [Socket dashboard](https://socket.dev/) under API tokens, then export it before launching the server:
 
@@ -363,7 +366,7 @@ When no token is available, these tools return an authentication-required error 
 
 ### Worked example: organization details and alerts
 
-With `SOCKET_API_KEY` (or `SOCKET_API_TOKEN`) set, ask your assistant something like "show me the open critical alerts for my Socket org". Under the hood the assistant chains two tools:
+With `SOCKET_API_TOKEN` set, ask your assistant something like "show me the open critical alerts for my Socket org". Under the hood the assistant chains two tools:
 
 1. **Discover the org slug.** Call `organizations` (no arguments). The server reads your token, calls `GET /v0/organizations`, and returns the organizations your token can see. Pick the `slug` you want, e.g. `my-org`.
 
@@ -416,14 +419,15 @@ Supported ecosystems and package managers:
 
 **Prerequisites:** Node.js 22+.
 
-1. Copy the whole `socket-gate` directory into your hooks folder. The bundled
-   `socket-gate.cjs` is self-contained, so it runs without any dependencies
-   beside it. From a checkout, run `pnpm run build` first to produce it; from a
-   published install, copy from `node_modules/@socketsecurity/mcp/`:
+1. Copy the whole `dist/socket-gate` directory into your hooks folder. The
+   bundled `socket-gate.cjs` is self-contained, so it runs without any
+   dependencies beside it. From a checkout, run `pnpm run build` first to
+   produce it; from a published install, copy from
+   `node_modules/@socketsecurity/mcp/`:
 
 ```bash
 mkdir -p ~/.claude/hooks
-cp -R hooks/socket-gate ~/.claude/hooks/
+cp -R dist/socket-gate ~/.claude/hooks/
 ```
 
 2. Add to `~/.claude/settings.json`:
