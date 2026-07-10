@@ -1,7 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { buildAlertsQuery, fetchAlerts } from '../lib/alerts.ts'
+import { buildAlertsQuery, fetchAlerts } from '../../lib/alerts.ts'
 
 const API = 'https://api.socket.dev'
 

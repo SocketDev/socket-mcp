@@ -19,7 +19,7 @@ interface TextContent {
 }
 
 describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
-  const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
+  const serverPath = path.join(import.meta.dirname, '..', '..', 'index.ts')
   const client = new Client(
     { name: 'test-mcp-client', version: '1.0.0' },
     { capabilities: {} },

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { withToolLogging } from '../lib/tool-logging.ts'
+import { withToolLogging } from '../../lib/tool-logging.ts'
 
 describe('withToolLogging', () => {
   test('passes a successful result through unchanged', async () => {

@@ -1,7 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { fetchBlob } from '../lib/blob.ts'
+import { fetchBlob } from '../../lib/blob.ts'
 
 const HOST = 'https://socketusercontent.com'
 
