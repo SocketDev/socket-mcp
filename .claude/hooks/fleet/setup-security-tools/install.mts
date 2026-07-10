@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file User-invoked installer / health-fixer for the Socket security tools
  *   (AgentShield, SkillSpector, Zizmor, SFW, + TruffleHog/Trivy/OpenGrep/uv/
  *   janus/cdxgen/synp). Runs interactively. Differs from `index.mts` (the Stop
@@ -31,6 +31,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { findApiToken } from './lib/api-token.mts'
@@ -41,6 +42,11 @@ import {
   promptAndPersist,
   wireBridgeIntoShellRc,
 } from './lib/operator-prompts.mts'
+import {
+  findBrokenShimTargets,
+  getShimsDir,
+  stabilizeShims,
+} from './lib/shims.mts'
 
 const logger = getDefaultLogger()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -52,12 +58,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
  * no longer resolves.
  */
 export async function findBrokenShims(): Promise<string[]> {
-  const shimsDir = path.join(
-    process.env['HOME'] ?? '',
-    '.socket',
-    'sfw',
-    'shims',
-  )
+  const shimsDir = getShimsDir()
   if (!existsSync(shimsDir)) {
     return []
   }
@@ -72,14 +73,12 @@ export async function findBrokenShims(): Promise<string[]> {
     } catch {
       continue
     }
-    // Each shim has the form: exec "<dlx-path>/sfw-{free,enterprise}" ...
-    // Pull out the dlx target and check existsSync.
-    const m = content.match(/"([^"]*\/_dlx\/[^"]+\/sfw-(?:enterprise|free))"/)
-    if (!m) {
+    // Only bash shim files carry exec targets; binaries/symlinks in the same
+    // bin dir (flat racked-tool handles) have no quoted paths and skip clean.
+    if (!content.startsWith('#!')) {
       continue
     }
-    const target = m[1]!
-    if (!existsSync(target)) {
+    if (findBrokenShimTargets(content).length > 0) {
       broken.push(entry)
     }
   }
@@ -183,10 +182,20 @@ async function main(): Promise<void> {
       installers.setupCdxgen(),
       installers.setupSynp(),
     ])
+  // Stabilize any dlx-backed shims the installs above just (re)wrote: mirror
+  // their targets into the GC-stable dir and repoint the shim, so the next dlx
+  // sweep can't orphan them (the recurring broken-headroom-shim failure). Runs
+  // now, while the freshly-installed dlx sources still exist to mirror.
+  const stabilized = await stabilizeShims()
+  if (stabilized.length > 0) {
+    logger.log(
+      `Stabilized ${stabilized.length} shim(s) against dlx GC: ${stabilized.join(', ')}`,
+    )
+  }
   // Native messaging host — optional step (only runs when the lib exports it).
   // Allows the Chrome Trusted Publisher extension to call the OS keychain
   // without the user having to set SOCKET_API_TOKEN in their browser environment.
-  let nativeHostOk = true
+  const nativeHostOk = true
   try {
     const { installNativeHost, HOST_NAME } =
       await import('@socketsecurity/lib-stable/native-messaging/install')
@@ -208,7 +217,7 @@ async function main(): Promise<void> {
   logger.log(`OpenGrep:     ${opengrepOk ? 'ready' : 'FAILED'}`)
   logger.log(`SFW:          ${sfwOk ? 'ready' : 'FAILED'}`)
   logger.log(
-    `SkillSpector: ${skillspectorOk ? 'ready' : 'OPTIONAL (pipx required)'}`,
+    `SkillSpector: ${skillspectorOk ? 'ready' : 'OPTIONAL (uv required)'}`,
   )
   logger.log(`synp:         ${synpOk ? 'ready' : 'FAILED'}`)
   logger.log(`Trivy:        ${trivyOk ? 'ready' : 'FAILED'}`)
@@ -241,7 +250,7 @@ async function main(): Promise<void> {
 void __dirname
 
 main().catch((e: unknown) => {
-  const msg = e instanceof Error ? e.message : String(e)
+  const msg = errorMessage(e)
   logger.error(`setup-security-tools install: ${msg}`)
   process.exitCode = 1
 })

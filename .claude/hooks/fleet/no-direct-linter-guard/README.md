@@ -16,6 +16,13 @@ and leading env vars and never false-matches a substring. `pnpm run …` and a
 `node scripts/fleet/…` invocation pass; non-format `cargo` subcommands
 (`cargo build`, `cargo test`) pass.
 
+This is a CONVENTION guard: it consults `isFleetTarget` and fires ONLY inside a
+fleet repo. In a non-fleet repo (a sibling clone, an external checkout, a Rust
+project formatted with native `cargo fmt`) the native binary or the project's
+own script is the sanctioned path, so the guard no-ops. A fleet-rooted session
+acting on a non-fleet repo via a leading `cd <non-fleet-repo> && <formatter>` is
+judged against that repo.
+
 ## Why
 
 A bare formatter run is a double hazard. Configless `oxfmt`/`oxlint` falls back
@@ -27,7 +34,7 @@ scoping and will reformat vendored `upstream/` trees the fleet must never touch
 `dprint` are not fleet tools at all (see `no-other-linters-guard`); `cargo fmt`
 / `rustfmt` / `gofmt` reflow hand-formatted code. Reaching past the scripts
 re-introduces every one of these. The committed-state companion is
-`scripts/fleet/check/only-oxlint-oxfmt.mts`; the source-ref companion is
+`scripts/fleet/check/linters-are-oxlint-oxfmt-only.mts`; the source-ref companion is
 `socket/no-other-linters-guard`.
 
 The scripts' own internal `node_modules/.bin/oxlint` spawns are child processes,

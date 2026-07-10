@@ -9,10 +9,10 @@ signals).
 
 No API key, no CLI, no registration. Copy the directory and wire it up.
 
-This directory holds the hook source (`index.mts`) plus the bundled
-`socket-gate.cjs` that a build produces. You copy the whole directory into
-`~/.claude/hooks/` and point your settings at the `.cjs` (see
-[Copy it in](#copy-it-in)).
+The hook source (`index.mts`) lives here; a build bundles it to
+`dist/socket-gate/socket-gate.cjs` with this README beside it. You copy that
+`dist/socket-gate` directory into `~/.claude/hooks/` and point your settings at
+the `.cjs` (see [Copy it in](#copy-it-in)).
 
 ## Why
 
@@ -42,25 +42,25 @@ allows.
 
 ## Copy it in
 
-Copy the whole `socket-gate` directory into your hooks folder so the bundle and
-its docs travel together, and so you own your copy to edit. The bundled
-`socket-gate.cjs` is self-contained: rolldown inlines its one dependency
-(`@socketsecurity/lib-stable`), so it runs without a `package.json` or
-`node_modules` beside it.
+Copy the whole `dist/socket-gate` directory into your hooks folder so the
+bundle and its docs travel together, and so you own your copy to edit. The
+bundled `socket-gate.cjs` is self-contained: rolldown inlines its one
+dependency (`@socketsecurity/lib-stable`), so it runs without a `package.json`
+or `node_modules` beside it.
 
 From an installed `@socketsecurity/mcp` package:
 
 ```bash
 mkdir -p ~/.claude/hooks
-cp -R node_modules/@socketsecurity/mcp/hooks/socket-gate ~/.claude/hooks/
+cp -R node_modules/@socketsecurity/mcp/dist/socket-gate ~/.claude/hooks/
 ```
 
 From a checkout of this repo, run `pnpm run build` first to produce
-`socket-gate.cjs`, then copy:
+`dist/socket-gate`, then copy:
 
 ```bash
 pnpm run build
-cp -R hooks/socket-gate ~/.claude/hooks/
+cp -R dist/socket-gate ~/.claude/hooks/
 ```
 
 ## Wire it up

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/SocketDev/socket-wheelhouse/main/packages/build-infra/lib/external-tools-schema.json",
   "description": "Security tools for Claude Code hooks (self-contained, no external deps)",
   "tools": {
     "agentshield": {
@@ -6,43 +7,52 @@
       "purl": "pkg:npm/ecc-agentshield@1.4.0",
       "integrity": "sha512-R98OO1Ujyk2lezDLb+iQmMhF6FwTJCHajy3G4FCB6x7wkSTqR9f8+eAelC5KDzYDsGSbc0sOZvjXOOPRBtMpDg=="
     },
+    "headroom": {
+      "description": "headroom-ai — AI context-compression proxy (Anthropic backend; 60-95% token reduction on tool outputs/RAG/files/history before they reach the model). Replaces the legacy socket-token-minifier proxy. Pinned via a committed pyproject.toml + uv.lock (the [proxy] extra, no pytorch) and installed with `uv sync --locked` into the _dlx/<hash>/ store — see scripts/fleet/install-headroom.mts. Pre-1.0/Beta (the noted uv-style exception); pinned + hash-locked + soaked.",
+      "release": "uv-project",
+      "repository": "github:headroomlabs-ai/headroom",
+      "purl": "pkg:pypi/headroom-ai@0.30.0",
+      "version": "0.30.0",
+      "versionDate": "2026-07-03",
+      "notes": "Third-party (github:headroomlabs-ai/headroom)."
+    },
     "cdxgen": {
       "description": "CycloneDX SBOM generator — slim SEA binary (no bundled bun/deno; smaller + faster than the npm flavor). Consumed by `socket scan sbom`.",
-      "version": "12.4.1",
+      "version": "12.7.0",
       "repository": "github:CycloneDX/cdxgen",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "cdxgen-darwin-arm64-slim",
-          "integrity": "sha512-uR9tl7MLg8Bx14MhuR/lsVyRu0/MaAW/9jh5yy7Z9S/XsrQg/jQeFuo+MKVu23csWbXqT9dD7s+taB/JgfKmRw=="
+          "integrity": "sha512-WuQ7Ezlur9chadkJ/P4JCsqrWdhO3rCRqcxUw/IjTXsqjiPUDgimtGjwMECxyJ+m3ocsRQz3d7CgJzs+Z4cYtA=="
         },
         "darwin-x64": {
           "asset": "cdxgen-darwin-amd64-slim",
-          "integrity": "sha512-g4fJ3CDGqErA6Y549qJ7lNQ+bje37Hupy1Wm4rPbgWEEmRyEldqFBQ0YdYAB38S5TenkVpXJtW3ji9buhU6O4Q=="
+          "integrity": "sha512-gcsNvKfwKSS15rYmc3/+hD8MLZSGsj5uowmLUGZsTw2+ZC6eea9qZt07WxCQmh6NtMG3TZARf9RhIfbE1xz2Rw=="
         },
         "linux-arm64": {
           "asset": "cdxgen-linux-arm64-slim",
-          "integrity": "sha512-E8iKW9fFJKHzTZ+0JKsORCTBCMnXvXoisPtQzMqOwe672oK7p55e+187BmUJUO6wRwhHETfWQ4kXoZUecNMYDQ=="
+          "integrity": "sha512-vIZdkm3XIolj+rPdQvtIuJ9hrY4nKVh8kJBDlqdVYWLlntLKlmaF2xf1foFrbyy838Jz8e58VHA2owqG10kGag=="
         },
         "linux-arm64-musl": {
           "asset": "cdxgen-linux-arm64-musl-slim",
-          "integrity": "sha512-FTO6SmP6eE86fsDTH7yNSaeABEMS941t93FB6O7b2luFIkjNoV5kS/d3YZ2eZqtuXtGI+wDUJkg3xZGM/U+Zow=="
+          "integrity": "sha512-T2O7FsayxWdPDECxmvxwnnjBfwjPD18lNwb1QoAoKqBlS48PstGgQGu7GV9wumbxlMCGWXkch3uxFynAdFUtSw=="
         },
         "linux-x64": {
           "asset": "cdxgen-linux-amd64-slim",
-          "integrity": "sha512-DeQxOId+pfUTSpXjiQixDw68xx3WqxB+QgvDvCncOVquRRMTWGnT8206f4jxDTv/ii2p6j97QeoB9me4Ot77vQ=="
+          "integrity": "sha512-xWRoPm7g1IF1b451KSLgv+/3pHjBDhg56H3WwSe1F0YSLxhcUFacNniiRVSX+xTskch5KDszz9NO1NHbTmaaRw=="
         },
         "linux-x64-musl": {
           "asset": "cdxgen-linux-amd64-musl-slim",
-          "integrity": "sha512-N0YcXTtUTXUO0dqNVkf6PFfTslkdWG0IS/PdS0Z8tiSfwDmzjTLnAJ+XhtNmeLdUE3NS1UxdOTqL6Xq18aCZBA=="
+          "integrity": "sha512-YBe3duM/rFSOIHgshLzRd7dwpqRsuQ7P/PDyAfYNsViWJ/ubk4S1dVwGUXVn2/ZR6oWbkFNduf40gAFC4q/xjg=="
         },
         "win-arm64": {
           "asset": "cdxgen-windows-arm64-slim.exe",
-          "integrity": "sha512-c8GoYkeVSzOnFjxHHLrRLj7IU+y7cI5mcSgCS1S4KayE704WjmbeuKX811RPH/5Rh2FPbRApDqvut7Rav3YE1w=="
+          "integrity": "sha512-RGRdLBWKyf/7woAJFFQr3Nvhs75ODNOs/BKSlqmCxmrVACILeEVgSfW/sKGQIAKExbu4zxBjjIyrqUycGgry6g=="
         },
         "win-x64": {
           "asset": "cdxgen-windows-amd64-slim.exe",
-          "integrity": "sha512-OK2zTj2gSp3gAo3joVCKk1fHNfcQ5PdmCi6DIsL0XkD6PsIam3BtajMbXiuSRlnUoMcfD5zk99rOh7QscgXovQ=="
+          "integrity": "sha512-CCKxI6vMXl6p9PBYL/xbkfweeXVH0qizky3xx/ItfIMd8+NmaxOsog4lBV+O6+H60Y1rlxR0fv/u3TpaPsJMoQ=="
         }
       }
     },
@@ -53,57 +63,57 @@
     },
     "zizmor": {
       "description": "GitHub Actions security scanner",
-      "version": "v1.25.2",
+      "version": "v1.26.1",
       "repository": "github:zizmorcore/zizmor",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "zizmor-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-LUPNdfltqkBiFfPSUAWJovrH4kaqOoFQgn1ISEKc6yOmsUD1cYmKvnnsYfDP/Y1KsMua+BKNWJ3B9IMb0D1lpg=="
+          "integrity": "sha512-UfLPPdYejR8fvrFwr9Tos7LKFvqr7YcAHWZlAmeo7imYI/fIucYnCY6HeDyk2cbFUvDpQTdps6WQS1QpqCtTfQ=="
         },
         "darwin-x64": {
           "asset": "zizmor-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-M/T9PX+FRG1VvfS34T3aXXJ95DjpnsxcJV767BHYfKhmy/oUecI4v3jIwDBGnDt52oDtZTHx9H0uMVKg9NaNOA=="
+          "integrity": "sha512-SCbcEzF/zy2qNuNaocLPIUC4Wuq5GnHt0iUFve3qx6bJyFdzU6pDFZkF64dojGC7M5gAcK/4acXGPx3YnMDy/g=="
         },
         "linux-arm64": {
           "asset": "zizmor-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-SBFp8h++QWZEZ5SfkmPxElDUYy5u0JUkgbzlz90gmB3UPbKgOcYqKOn6mY1tha5+RriMmuNtZxtrAiihECMOFA=="
+          "integrity": "sha512-TkGvwt0zYdmiJ7LZmy6Bz9CdkqcuEpFKhXUK9m0MhSPxBx2gYBsrw6OxGSttMEQ3bvxdvyG6rqbnMgjyDZB1zA=="
         },
         "linux-x64": {
           "asset": "zizmor-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-FSmYWvlOzySHwlI2IkoEQNHfRU/UitumuQJc+umYyYcDr50colg0Bzio74YS19sGH41leMdXu4KJtB5XM45eUg=="
+          "integrity": "sha512-zTMERMDd3JfaRX12klj2fhZGDyrXeLkVUY1QJkCv8RRmAa9uVuH88gHOnv4CQtC5hXS7FPRJzvCVOnw38gV83g=="
         },
         "win-x64": {
           "asset": "zizmor-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-OhgPngI8gKygJFKa3VGk5y4S7KUuW5CPyBiI1WvfM58OHd5rUbdillfJeLsLhRbOMFAdigdUeZtNDyR6VPIs1A=="
+          "integrity": "sha512-Pijh/CrrOAkZzLiTr2LTHdI8d6+5Ql6B+suY6fXVmL8UVa+4Q36hHL5K67iRFz03v/V/UcrY6+dfhnmot/xfww=="
         }
       }
     },
     "sfw-free": {
       "description": "Socket Firewall (free tier)",
-      "version": "v1.12.0",
+      "version": "v1.13.1",
       "repository": "github:SocketDev/sfw-free",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "sfw-free-macos-arm64",
-          "integrity": "sha512-lwh/AIf7HXVIrE28LDfvtJqnaGb7azC+Up8Hi/c9hIfn9wMRt55misCKx9b6CjYi+d3bHladYNYPlqVtlqNpcQ=="
+          "integrity": "sha512-T6wBOJGdRVSI8577lGqRNzNd6Q+1vqKyaqGgOA8G4M5MU2vcsUnXuJTgP2MMZjUqROSXUlFL0mHguuxXT2QadQ=="
         },
         "darwin-x64": {
           "asset": "sfw-free-macos-x86_64",
-          "integrity": "sha512-iBLJ7bzrnnUPmUbN8FFzmXNYowWnahOD4DWzKYbneeCsvFa1xlHT4LaLWTysatd5npJIO7QOiRow6yw/tgjCWw=="
+          "integrity": "sha512-4G/AIY5UGU81wcepDKErY5u0nY85D8UM9nXTEPv8CR2rOV/s4IcmrkxywwZ3ipejHVQB7QmCVt0/SsqWglGikw=="
         },
         "linux-arm64": {
           "asset": "sfw-free-linux-arm64",
-          "integrity": "sha512-TZ0hzAzPyNfi1PgqU5+TzkrlBcWXZlXaSHkx1/wzIck4vlZXFQI8i7CCvWYihrJQ3zgEwVI30MmrqsJ9W7xWQw=="
+          "integrity": "sha512-FYRYR52SL+KKFldW4ogYOUnTH5OSqvtXwzGFeWi0W2x+75KZcPiGzWBbhMmh0f5QtgYLV+4qdREgmKCBEayNtA=="
         },
         "linux-x64": {
           "asset": "sfw-free-linux-x86_64",
-          "integrity": "sha512-Yuu+qoqxa0n7WIS9NMI3uuitUMoELbbUqJm3W6L2AsMJNZpVekXKmrZIhEjxWjJqvKt3mErKxK+izdP3/F+64Q=="
+          "integrity": "sha512-waLrsPG2a7EOv0XuvXDQZGgCZ4MTtOfZh8TmGbM6gn2B6Nh6HI+15jaoKdAS9wgdTyIqTuqU+O+NtVYd+kuFaA=="
         },
         "win-x64": {
           "asset": "sfw-free-windows-x86_64.exe",
-          "integrity": "sha512-tkZHeaxydBStW6SsCi5S2jLMtdj2UQ/PdZb/ch8W532UjFdZUJD0oygW/YWliK0HQkcyw5GQm2d1iZU0P/yElg=="
+          "integrity": "sha512-YYnfwR6M/PHo72LSyKtpY3bAUG4F4ckToJqGx5Fkz4rwg1+48hkxuBaF3hdxHUdHPkfO5grDyoNgXGe7FojGcg=="
         }
       },
       "ecosystems": [
@@ -118,29 +128,29 @@
     },
     "sfw-enterprise": {
       "description": "Socket Firewall (enterprise tier)",
-      "version": "v1.12.0",
+      "version": "v1.13.1",
       "repository": "github:SocketDev/firewall-release",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "sfw-macos-arm64",
-          "integrity": "sha512-G7te2xB1Q+K/k/2Wijbn96eJZUZoNFlDNKURydLBLB69Jkuc1M1lNFbqxiyP8tfOlMIBKWxRwfZyeX9ipPy4Ew=="
+          "integrity": "sha512-ZDy2C6leKyTHZFvcZZpG2eQqVzs7buk+Hs92fkaMYME829QzyxdGQVVgwEVaGJpedGdUvhksKKcvT9IynI1kxg=="
         },
         "darwin-x64": {
           "asset": "sfw-macos-x86_64",
-          "integrity": "sha512-/ogpJY01pDTEcvDPq09FNxGP5eXu4d+ab2RxT1r4he0ptfCOGOO3rQXfxTFqrOmS+OSz5RZe+4qPupM4nGriMQ=="
+          "integrity": "sha512-cm76we0sn7kqPOya/ZGQpPyhjRDyFT5lHigeT5Qso+QaPL6Cmwi0FVs2L7l63j+WR/9eYPU1WjjGOto5NbWsEQ=="
         },
         "linux-arm64": {
           "asset": "sfw-linux-arm64",
-          "integrity": "sha512-oXhTWx/I/1yZRn0ik3DL5y2/4RZqv/msJpTi6m190jBGg/x7bgqJO4uCOUJe1+iudK3bNGsYB8zs6vIJTLwA7g=="
+          "integrity": "sha512-9qPi3mobBfyq1k+pD2GDG0tZkhy16f7FXE9oGiwmwPvy5PXwnlzqEXnYld3qGsKIVwNhunev/If26oROTHbrHA=="
         },
         "linux-x64": {
           "asset": "sfw-linux-x86_64",
-          "integrity": "sha512-91W90AOLI0RBN6lsPor2wf7wUvV3hzebXf0SM7SEzVPGM76Yjwj2D5E/jtJ8LjNNE7afggUDEtgMvFSTmgnZDg=="
+          "integrity": "sha512-lu9h8UzDZt34gdCEVHBGW6goE1Ayykq413EovV5B4nG7jBK27mI0GQstzVbWXA3wWaweT39PehXGtVpdqIDGSA=="
         },
         "win-x64": {
           "asset": "sfw-windows-x86_64.exe",
-          "integrity": "sha512-GXKV67rN0XTP+2v9VTfzz84N09x9UkEItj2wmcA7pmy5YoLPF/+Z/XkVGoUHzVSTTeivbYicRLAxl8BNkoUZ6w=="
+          "integrity": "sha512-URZXauIsdUT12E2KTc4sfsxRmJm7nRJzAgM+IYGX4Xq+X0cl/eAbH5SpYIJKpsnW9csSztW9ceyPhlM+f3neIQ=="
         }
       },
       "ecosystems": [
@@ -157,127 +167,128 @@
       ]
     },
     "skillspector": {
-      "description": "NVIDIA's third-party-skill security scanner (LangGraph-based; YARA + AST + OSV.dev CVE lookups + optional LLM analysis). No PyPI release / no GH tags upstream — pinned to a git SHA on main + installed via pipx. Sibling to AgentShield: AgentShield audits the operator's .claude/ config; SkillSpector audits untrusted upstream skills before install.",
-      "release": "pipx-git",
+      "description": "NVIDIA's third-party-skill security scanner (LangGraph-based; YARA + AST + OSV.dev CVE lookups + optional LLM analysis). No PyPI release / no GH tags upstream — pinned to a git SHA on main + installed via a locked uv project (pyproject.toml + uv.lock, `uv sync --locked`; the fleet uv pin + exclude-newer make it reproducible). Sibling to AgentShield: AgentShield audits the operator's .claude/ config; SkillSpector audits untrusted upstream skills before install.",
+      "release": "uv-project",
       "repository": "github:NVIDIA/skillspector",
       "version": "2eb84478",
       "versionDate": "2026-05-18"
     },
     "trufflehog": {
-      "description": "TruffleHog — secrets scanner used by socket-basics SAST workflow.",
-      "version": "3.93.8",
+      "description": "TruffleHog — secrets scanner used by socket-basics SAST workflow. Per-platform SHA-verified; version-pinned + soaked (versionDate below) because trufflesecurity has a history of supply-chain incidents, so the pin + soak window are load-bearing.",
+      "version": "3.95.7",
+      "versionDate": "2026-03-09",
       "repository": "github:trufflesecurity/trufflehog",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
-          "asset": "trufflehog_3.93.8_darwin_arm64.tar.gz",
-          "integrity": "sha512-w/yJQPNarWECddREDtGlJg00LjVl8zPECN07BG25e4sZpcMfLny+mDWsk+6NZtif2tDAJiXKo1O31qmZGUwICw=="
+          "asset": "trufflehog_3.95.7_darwin_arm64.tar.gz",
+          "integrity": "sha512-xEvGTH5yvo/Tlf3ggbM7d8W7oakSe7EK0PpmQgNT+ay0vuc1rJWqZlIv2gynqZgni3ACg4HNkLEYwM1NaVIOWQ=="
         },
         "darwin-x64": {
-          "asset": "trufflehog_3.93.8_darwin_amd64.tar.gz",
-          "integrity": "sha512-k4i7+STzV1bFCO+ShkaAsBWLO/qID/r398V9sv0LHruDbIgqaElQw43e3i3uxcLJKv/hkGGPNpSWqZl/Zs1YOg=="
+          "asset": "trufflehog_3.95.7_darwin_amd64.tar.gz",
+          "integrity": "sha512-d++iMStj5Rl0Yj3nKxEtdV8ogM4fypnWwj1LFds6q1WVBPpyin8cTLfccytMF+jxtO+oWsMcXYCT7tqqivyfvw=="
         },
         "linux-arm64": {
-          "asset": "trufflehog_3.93.8_linux_arm64.tar.gz",
-          "integrity": "sha512-O6lRPj3UsI6pNlZiR3ADvm8QjhnYaTHPbwnc+uG7ch5hpislCHrH3TnwJc6cFYnf1sHLbcNlaSUkaUG+sQiyNg=="
+          "asset": "trufflehog_3.95.7_linux_arm64.tar.gz",
+          "integrity": "sha512-E7z7xD0qH4z0RAS+HXoCnGIanJLHDGd2Lk2gUIvIv6xIsV4acWqc2n7YCUCwa7Bcr7MpwXcYCFITMtObIMtkog=="
         },
         "linux-x64": {
-          "asset": "trufflehog_3.93.8_linux_amd64.tar.gz",
-          "integrity": "sha512-6tCvQybIeP8CqaLScH8n7RllwynXQzlGA3i9F5JJ+JJVbiLYoyPPMuu0l/2eAZVnBmsI8vsSe7cmIYWUkjQBwQ=="
+          "asset": "trufflehog_3.95.7_linux_amd64.tar.gz",
+          "integrity": "sha512-DHdj9EG9du/71D6Qy+9JnF+rCwpX4A5QfNlZ2EhKZ8BEJ5ayQBIFmS2XHABpHrtloXrXmDLQOnjuyR1KmcnwYw=="
         },
         "win-x64": {
-          "asset": "trufflehog_3.93.8_windows_amd64.tar.gz",
-          "integrity": "sha512-OD8a1bZcaoSY/7K4mmN9W7vnMYz1CxFOpW1DZr7jPq4LdyxwEu2ehDdk8xyGI7m7xiw+mkQs/c8pSNenP+lPFQ=="
+          "asset": "trufflehog_3.95.7_windows_amd64.tar.gz",
+          "integrity": "sha512-cezgMB3HeHc5b1cVZoF+eKexvxj7edmKto0H8XDFYwCOwqDJaY8WFXgoclxA+NLNW0fpvZOmXQBBefh00iEjew=="
         }
       }
     },
     "trivy": {
       "description": "Trivy — container/IaC/SBOM vuln scanner used by socket-basics.",
-      "version": "0.69.3",
+      "version": "0.72.0",
       "repository": "github:aquasecurity/trivy",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
-          "asset": "trivy_0.69.3_macOS-ARM64.tar.gz",
-          "integrity": "sha512-CIBLlZzCUwRXgOLy3Xb49ydzJbVehFuzlNwCTTmDYXjGpIzleSyAmRS22vJ1lh/J6x110Wwu0HG25v7Mt6+H7g=="
+          "asset": "trivy_0.72.0_macOS-ARM64.tar.gz",
+          "integrity": "sha512-la+mSct1JGSu08l0zx1rkEd3+mwNz7Ki6ZZg7pd0VaVlwGn5H9BlL61jCQ6Hu/06+cjlWzePwLr8rTFQ3sTOkg=="
         },
         "darwin-x64": {
-          "asset": "trivy_0.69.3_macOS-64bit.tar.gz",
-          "integrity": "sha512-noARMlxR2hlTP37YcPRoqfd9fPgBBPz6k2jB3rKVtPqg17IeN0MYXB8gKxvGdUIhUgV3xitbF4jZ2GbPfWu99g=="
+          "asset": "trivy_0.72.0_macOS-64bit.tar.gz",
+          "integrity": "sha512-pWLlO3jU+bWMwPmAzZsfzDmACOlQ/VTrPWPtGFwauTma3s4VN9GbYNQskTypT5z+uswrz9LZUkIiIZjzJTHMpw=="
         },
         "linux-arm64": {
-          "asset": "trivy_0.69.3_Linux-ARM64.tar.gz",
-          "integrity": "sha512-CP9LKXR0wMKtV4t2kT171ysHZksQ80ZrdrU2ck4cGJYw/QfTnzEDd2ePFDFmr0UFIgsqqmiEFCkl3jAeFIzV8A=="
+          "asset": "trivy_0.72.0_Linux-ARM64.tar.gz",
+          "integrity": "sha512-DGM1Gp+MkUQr5+WLuLBzn8CZ+UoIaK9ndshnao8ize9HzvzatMCTHPtcKBsbrlhCLytdL+LFc2AHcZpAOHDbTw=="
         },
         "linux-x64": {
-          "asset": "trivy_0.69.3_Linux-64bit.tar.gz",
-          "integrity": "sha512-zbqLa0Ff1RFyg6BgXbb8shwSSTDnT1dn+dFcr3hjRMwZu01Tkabnrh5ZtPoeYUuR3f2RfitaWU9LJ/yB+9EtCg=="
+          "asset": "trivy_0.72.0_Linux-64bit.tar.gz",
+          "integrity": "sha512-RMsnG3SupavwH1kKfwg9O0NbjOK/ZhBVV03/ZdNwFOoELycd0uczc/Sfza2lexzvg6aOuDg8vCOnFlYj47wZxg=="
         },
         "win-x64": {
-          "asset": "trivy_0.69.3_windows-64bit.zip",
-          "integrity": "sha512-K7FE54aVEAUNOWeG+lkrAhNgx9dfIG8PwTfqhmz/5eiPV3iyS7Gkz9b6jbM62du9OQqL+g0/fX2VrrrJSH4/mQ=="
+          "asset": "trivy_0.72.0_windows-64bit.zip",
+          "integrity": "sha512-wObi0oRWIH1rXO4OWEE8QsqvwE4Sg0Z++5D00LjvU1pqb8EwhMfY2fbatZggLvnGuzahjGyUGKbVbOxJ6b9kag=="
         }
       }
     },
     "opengrep": {
       "description": "OpenGrep — semgrep fork used by socket-basics SAST workflow.",
-      "version": "1.16.5",
+      "version": "1.25.0",
       "repository": "github:opengrep/opengrep",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "opengrep_osx_arm64",
-          "integrity": "sha512-Eehv4ZIlOO6wdrWOftdynKYWoMh3vOvwAVAQ2IXksebUdY1MVClN18woWeAMf3+W9Y4dqKfSrVQhDlrQmsO4kg=="
+          "integrity": "sha512-6kx5AS7QiVqkueDLGpo3IKztBG7W25pDbeuEb8ms6QYS0DNbeZQ+Cx1InLWGKG0nvLYvNAou4Cvaar7YjLxJVg=="
         },
         "darwin-x64": {
           "asset": "opengrep_osx_x86",
-          "integrity": "sha512-i17GIRDVW1z39L+2tC5jpND7RhdOG283NK0fK9lKybJtOaE/bR8b4lcm0KUk/udxVOlcDsM/w9+MuMtJXKHKGw=="
+          "integrity": "sha512-5HkOfHF3uifliljVI5YuiGUy5skLy1lFWP0AC6I1PY1bizG4cc1HiLtAL3dIeMuAFbNxD1T0O0Qiz3mr5LD3zg=="
         },
         "linux-arm64": {
           "asset": "opengrep_manylinux_aarch64",
-          "integrity": "sha512-DKK5JbFfEjgV809KnLSsYm9q3RYqysaY14vuo/V9FWwflxS8H9euu0JNf2xGFvXvm0a4bSSBjldkS1foTiQ7xg=="
+          "integrity": "sha512-WxR667mnNiVD0X+wXqdOOqJMmw6psfJkEAj9Qyt8DzPiYZdrA1qsThRww91Xx2g+j9TSoUshceINZ+UMm8EkvQ=="
         },
         "linux-x64": {
           "asset": "opengrep_manylinux_x86",
-          "integrity": "sha512-impvWxEdGfTYN7h9c0a3uUbGxHpSZSyF3BetGO41gdyATF1S0vVpcPNdVua2xLLlb6U99teN82dYJzc9XLRGTA=="
+          "integrity": "sha512-Xvu6egr7pR/+aTb6M6PWqa8azabIa8rpezaLltr+pAC4I/3l5AOpMnCOk2J7IQoybWgwQK/yh1BNl5Sa9qkd/w=="
         },
         "win-x64": {
           "asset": "opengrep-core_windows_x86.zip",
-          "integrity": "sha512-LvaCTQVg1OAxyvmD1TLkTd8grXckp+IBKy+PUhxv0qu58dbk/76lCxWFZJ5SHtIkQSBKHG6XQ+qdANCNyYuMGQ=="
+          "integrity": "sha512-ml3ZOtcgwEmMhcGhsIDIiw7b0mVnijo4202Hjktr7Ar4vk7dBBhBMc1HNLG+6ZfItNuj4G1GENcUpOAvZx5zRA=="
         }
       }
     },
     "uv": {
-      "description": "uv — Python package manager (Astral). Used by socket-basics for Python project bootstrap.",
-      "version": "0.10.11",
+      "description": "uv — Python package manager (Astral). Used by socket-basics for Python project bootstrap + the SkillSpector locked uv project. Pinned to the fleet-canonical 0.11.21 (matches scripts/fleet/setup/external-tools.json + _shared/uv-config.mts UV_PINNED_VERSION).",
+      "version": "0.11.26",
       "repository": "github:astral-sh/uv",
       "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "uv-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-PMc914k3+ke0GiQ8nEa8b0KBfwis75n3dHFFYhhiCt/oVbeEJBAZqGYI9E5ihvrgtGqY/+DOOMcJviuLJGPgJg=="
+          "integrity": "sha512-uE7AZyCmVqNzM/eSNgamGls0seTFl8N9eJLI1hL1YEW1QIUZkGN+08ilcBX23qOGfL1LvGRvvteuLp7yqqmCqw=="
         },
         "darwin-x64": {
           "asset": "uv-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-xKQ/6Z/mrMZUMnwSpSzx3ROkLNHC+viNZKf0C7m1NiRy/F8hl+9rLaJ/7//8VgCPg2L5gdpxqtrV39xtrgZa/g=="
+          "integrity": "sha512-L6+1xSDu2q+C49JpqG9AlpU6Z1d6S0swHNcBdTJm9YblXRUgKsRHpj1XPJ9NkvUML0YqizZjSU2X4WvrTIxOFw=="
         },
         "linux-arm64": {
           "asset": "uv-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-hHxhwXD0GA1leTq5zHcuqyO9YpuRnYI94jz/p51oFlUI+CJZrhJzya7aLf7lcQIsTbe3PCDfh3C23Dt8JfF26Q=="
+          "integrity": "sha512-AAjILCkwmVojRHw3oREb+5GsDjziTXXqwLSiTcHCINZqWnJn0DIJcd5N/6DpnIJgmAM6j/Tr/qQOAOX5uKqU+w=="
         },
         "linux-x64": {
           "asset": "uv-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-03h8yKykGXwBJBj893mQSre6J3D5WqIbylWgvv7W9EEnmE1ExiMb3SZItUwk/qrBZy5rvsoBuYYW8oyU6Jyayg=="
+          "integrity": "sha512-Lx8K0Qejg56NPeVG4eLKmaTSgsKaXxPGe3gf+RMPxWXnO7WZ+UGA2Jlg+JdibZCBBjl10mWUffgueelMK6tU8w=="
         },
         "win-x64": {
           "asset": "uv-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-XzcS4HF+W1hogkVvp5ZC3yu0vmqY+mPLCTXPeHHDl3m31MpCcxq33iTBn72zD2xRRlQSn3NJYbWdQJM/r+B8AA=="
+          "integrity": "sha512-uYK390DXAVN8+0KtPa020ufuDnjlF+CzcSPlq+TVRv/SW1hYqb382lilHqVBoBDuHou1b5qFqBJGrnkUXetdmw=="
         }
       }
     },
     "codedb": {
       "description": "codedb — justrach/codedb Zig code-intelligence MCP server. Raw-binary release assets (the asset IS the executable). Telemetry MUST stay off (CODEDB_NO_TELEMETRY=1) at install + invocation. No Windows build. Integrity verified against the upstream checksums.sha256.",
-      "version": "v0.2.5825",
+      "version": "v0.2.5827",
       "repository": "github:justrach/codedb",
       "release": "asset",
       "installDir": "wheelhouse",
@@ -289,44 +300,47 @@
       "platforms": {
         "darwin-arm64": {
           "asset": "codedb-darwin-arm64",
-          "integrity": "sha512-dlDOa6MfpQxJHMIKI5M4C+2y6X14QpEHiMmmqfyAx9zxBML0Zz5xrmf1pS4oAgZIBJn2R6nRKFS/ppkT+TA0Xg=="
+          "integrity": "sha512-A/Rg+IYbwy9Htvdec7uqu5hR6CzXWEjecdA7aTVkMg0m4qR9bBxNSbbZE8GKXdMbCa9xw4j3BftABzqAvLFx2g=="
         },
         "darwin-x64": {
           "asset": "codedb-darwin-x86_64",
-          "integrity": "sha512-bHdINGyi7A3xSeXLnh/UAFYE3Af6zgj602tL6bnsIwyb0j3r6yHb6AobecgCxD0qfUYsRRRQDbtlvJYi7aoA/A=="
+          "integrity": "sha512-fJfJb8TufaMqfW2rW3zCo6Vuuqd44NntBuj47GFZareyOy7gGmAKfeOLtFxmc2epU30w5p5/YPhkYo2B64Qocg=="
         },
         "linux-arm64": {
           "asset": "codedb-linux-arm64",
-          "integrity": "sha512-1ttAxL53tI57MqUHk33+6PHnYKEIoEgUuK8Y9mYygxPUq5LP9QG9Ja1cT3Br1E1ABcgBkb/abwsHBreEj3CMwg=="
+          "integrity": "sha512-S73ZunTy3ddsPOvurCgg5Xb5kL7/K4PAwcpduqvtg+fCj3NsTquISi4+WmxNzMVlv1Hi0g2h9AEDogAp8VzTSQ=="
         },
         "linux-x64": {
           "asset": "codedb-linux-x86_64",
-          "integrity": "sha512-fNbPFko38kdrEokWqwsR0VBLdwBthgdp4gRFc/OrJ/khD0Np2r+lfhwflJwKEPi1Eg1QJ3MAm1LwmW1vWQGOiA=="
+          "integrity": "sha512-kgdMwumxCvoYueqYc9SGjP6UxToeavjzeBmmR6EgRty5fulNvbWrjEJhSNb+4fwO6BboyrHKIai74vrYXCmyig=="
         }
       }
     },
-    "h5i": {
-      "description": "h5i — h5i-dev/h5i provenance/handoff tool. Version-templated tarballs; arm64-only darwin (no darwin-x64), like janus. Binary is telemetry-free. Integrity verified against the upstream .sha256 sidecars.",
-      "version": "v0.1.7",
-      "repository": "github:h5i-dev/h5i",
+    "actionlint": {
+      "description": "actionlint — rhysd/actionlint static linter for GitHub Actions workflow YAML. Validates action syntax, shell scripts in run: steps, expression types, and SHA-pin coverage. Used by the actionlint-on-workflow-edit hook (PostToolUse nudge) and the lint:actions CI gate.",
+      "version": "v1.7.12",
+      "repository": "github:rhysd/actionlint",
       "release": "asset",
-      "installDir": "wheelhouse",
       "platforms": {
         "darwin-arm64": {
-          "asset": "h5i-v0.1.7-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-idolWWCucz/Yp4sy5lpKSa1ePlSJGPSoUW9WYFWVnWCOE6yxMSm/Kg+W2zXnE9o4RwBtUIPihNvUDTL4OelSRQ=="
+          "asset": "actionlint_1.7.12_darwin_arm64.tar.gz",
+          "integrity": "sha512-JcjNckK6f2k4XiRij3CCrU3IhT0gwrmhycfb5VPphAA9+OWIuXrZBFVipDg4nOF+wOLWNbmTMeWYutbarzJyUw=="
+        },
+        "darwin-x64": {
+          "asset": "actionlint_1.7.12_darwin_amd64.tar.gz",
+          "integrity": "sha512-O31uSGqPSkyAnEFPvVAH+nVnZGXsnsiFr7PxvwBnYaIsPdxtyngc9sX1QbvHvI606cn27HAejgmXHwHTpqhlNg=="
         },
         "linux-arm64": {
-          "asset": "h5i-v0.1.7-aarch64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-RxhG5vZvcvArliOqUoSChlUiSZyr0pyMdZndzfXrGFesb5XJBVj3CBoszNWzJmVPCOxJ3KSogeSkNHmwJK8qZQ=="
+          "asset": "actionlint_1.7.12_linux_arm64.tar.gz",
+          "integrity": "sha512-aGKynUObYrl9Op2V4VCJDuX1oZ5hXCxHw6P6g2fDHGVShXOAEwy6mdERxFzdTBV2dlBGbHemsvi6H3TKr58uMw=="
         },
         "linux-x64": {
-          "asset": "h5i-v0.1.7-x86_64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-2/zreb6+haTjXcMbxeX2ZGnfRFYKoA2nT03ylklZkSmcEgwXnRTZ52pxLW16ZggQat9wj0FgNOc3XiM4di3tLA=="
+          "asset": "actionlint_1.7.12_linux_amd64.tar.gz",
+          "integrity": "sha512-xHa4UKU6d3eRHqKf2J4rTKqJ8i81/7HBHFquM9VEqJ4rlQULSR723PBXLYoKFaAfYdyiKHnqqlin2W8vwO9hHw=="
         },
         "win-x64": {
-          "asset": "h5i-v0.1.7-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-JUG6GXWnUfgfRawGltA97MXO4oy/xjKctwl2EKA0ICS/1fwslKkkgs2cZs8jyjKffXEZWJIhcLqJ0aKxzBVZfQ=="
+          "asset": "actionlint_1.7.12_windows_amd64.zip",
+          "integrity": "sha512-uODDGiHpqlIkrP+JYYuCe6CSG9q0s4VlGGDmizpXDTAH6AVcTjX04Cj1Ktw/DOfwHTw4viKDjR7VZvl4GD+cRg=="
         }
       }
     },

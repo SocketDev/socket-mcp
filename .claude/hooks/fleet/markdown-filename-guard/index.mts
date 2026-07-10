@@ -5,10 +5,11 @@
 // with a non-canonical filename. Per the fleet's docs convention:
 //
 //   - Allowed everywhere: README.md, LICENSE.
-//   - Allowed at root, docs/, or .claude/ (top level only): the
-//     conventional SCREAMING_CASE set (AUTHORS, CHANGELOG, CLAUDE,
-//     CODE_OF_CONDUCT, CONTRIBUTING, GOVERNANCE, MAINTAINERS,
-//     NOTICE, SECURITY, SUPPORT, etc.).
+//   - Allowed at root, docs/, .claude/ (top level only), or any
+//     package root (a directory holding package.json — npm renders
+//     these files from there): the conventional SCREAMING_CASE set
+//     (AUTHORS, CHANGELOG, CLAUDE, CODE_OF_CONDUCT, CONTRIBUTING,
+//     GOVERNANCE, MAINTAINERS, NOTICE, SECURITY, SUPPORT, etc.).
 //   - Everything else must be lowercase-with-hyphens AND placed
 //     under `docs/` or `.claude/` (at any depth).
 //
@@ -20,9 +21,9 @@
 // the set GitHub renders specially — adding more would dilute the
 // signal.
 //
-// The fleet's `scripts/validate/markdown-filenames.mts` does the
-// same check at commit time; this hook catches it earlier, at edit
-// time, so the model gets immediate feedback when it picks a wrong
+// The fleet's `scripts/fleet/check/markdown-filenames-are-canonical.mts`
+// does the same check at commit time; this hook catches it earlier, at
+// edit time, so the model gets immediate feedback when it picks a wrong
 // name.
 //
 // Exit code 2 makes Claude Code refuse the tool call.
@@ -33,15 +34,17 @@
 //
 // Fails open on hook bugs (exit 0 + stderr log).
 
+import { existsSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { withEditGuard } from '../_shared/payload.mts'
+import { isEphemeralPath } from '../_shared/ephemeral-path.mts'
+import { isFleetTarget } from '../_shared/fleet-context.mts'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
-const logger = getDefaultLogger()
+const BYPASS_PHRASE = 'Allow markdown-filename bypass'
 
 // SCREAMING_CASE files allowed at root / docs/ / .claude/ (top level).
 const ALLOWED_SCREAMING_CASE: ReadonlySet<string> = new Set([
@@ -76,6 +79,25 @@ export function classifyMarkdownPath(absPath: string): Verdict {
     return { ok: true }
   }
 
+  // Scratchpad / temp-dir drafts are not repo docs — exempt them before any
+  // naming or location rule applies.
+  if (isEphemeralPath(absPath)) {
+    return { ok: true }
+  }
+
+  // A markdown file inside a vendored-source payload tree mirrors an
+  // EXTERNAL project's layout (node-smol's additions/source-patched/doc/api,
+  // vendor/, third_party/, upstream/, …): its name and location are
+  // upstream-dictated source-tree content, not fleet docs.
+  const payloadNorm = normalizePath(absPath)
+  if (
+    /\/(?:additions\/source-patched|external|third_party|upstream|vendor)\//.test(
+      payloadNorm,
+    )
+  ) {
+    return { ok: true }
+  }
+
   // Anything under a `.claude/` segment is off-limits to doc-filename
   // rules: that tree is owned by Claude Code (auto-memory, skills,
   // hooks, settings) and each tool inside picks its own filename
@@ -101,14 +123,37 @@ export function classifyMarkdownPath(absPath: string): Verdict {
     if (normalized.includes('/.github/workflows/')) {
       return { ok: true }
     }
+    // GitHub Copilot reads `.github/copilot-instructions.md` as its repo
+    // instruction file (a host-dictated name, not a human doc).
+    if (normalized.endsWith('/.github/copilot-instructions.md')) {
+      return { ok: true }
+    }
+  }
+
+  // Cross-harness agent rule adapters: each AI host reads its rules from a
+  // host-named path (Cursor, Windsurf, Cline, Kiro). These are tool config the
+  // host dictates, not human docs, so the doc-filename convention does not
+  // apply.
+  const harnessNorm = normalizePath(absPath)
+  if (
+    harnessNorm.includes('/.cursor/rules/') ||
+    harnessNorm.includes('/.windsurf/rules/') ||
+    harnessNorm.includes('/.clinerules/') ||
+    harnessNorm.includes('/.kiro/steering/')
+  ) {
+    return { ok: true }
   }
 
   const relPath = normalizePath(toRepoRelative(absPath))
   // For docs that describe a specific code file (e.g. `smol-ffi.js.md`),
   // strip the source-file hint before validating the stem.
-  const nameWithoutExt = stripCodeFileHintExt(
-    filename.replace(/\.(MD|markdown|md)$/, ''),
-  )
+  const stemRaw = filename.replace(/\.(MD|markdown|md)$/, '')
+  const nameWithoutExt = stripCodeFileHintExt(stemRaw)
+  // A stripped hint means the stem IS a source filename, quoted verbatim
+  // (mirror docs: `version_subset.js.md` documents `version_subset.js`).
+  // Source filenames follow the source tree's convention, so lowercase
+  // underscores are fine there — renaming the doc would break the mirror.
+  const mirrorsSourceFile = nameWithoutExt !== stemRaw
 
   // README / LICENSE — anywhere.
   if (nameWithoutExt === 'LICENSE' || nameWithoutExt === 'README') {
@@ -120,11 +165,18 @@ export function classifyMarkdownPath(absPath: string): Verdict {
     if (isAtAllowedScreamingLocation(relPath)) {
       return { ok: true }
     }
+    // A package root gets the repo-root allowance: npm force-includes
+    // CHANGELOG/LICENSE/AUTHORS-style files from the directory holding
+    // package.json, so these names are ecosystem-dictated there (e.g. a
+    // workspace sub-package's CHANGELOG.md rendered on its npm page).
+    if (existsSync(path.join(path.dirname(absPath), 'package.json'))) {
+      return { ok: true }
+    }
     const lowered = filename.toLowerCase().replace(/_/g, '-')
     return {
       ok: false,
-      message: `${filename} (SCREAMING_CASE) is allowed only at the repo root, docs/, or .claude/. This path puts it deeper.`,
-      suggestion: `Either move to root / docs/ / .claude/, or rename to ${lowered}.`,
+      message: `${filename} (SCREAMING_CASE) is allowed only at the repo root, docs/, .claude/, or a package root (a directory with package.json). This path puts it deeper.`,
+      suggestion: `Either move to root / docs/ / .claude/ / the package root, or rename to ${lowered}.`,
     }
   }
 
@@ -146,8 +198,12 @@ export function classifyMarkdownPath(absPath: string): Verdict {
     }
   }
 
-  // Must be lowercase-with-hyphens.
-  if (!isLowercaseHyphenated(nameWithoutExt)) {
+  // Must be lowercase-with-hyphens (a source-mirroring stem may also carry
+  // the source file's underscores).
+  if (
+    !isLowercaseHyphenated(nameWithoutExt) &&
+    !(mirrorsSourceFile && isLowercaseSourceName(nameWithoutExt))
+  ) {
     const suggested = nameWithoutExt
       .toLowerCase()
       .replace(/[_\s]+/g, '-')
@@ -163,6 +219,7 @@ export function classifyMarkdownPath(absPath: string): Verdict {
   if (!isAtAllowedRegularLocation(relPath)) {
     return {
       ok: false,
+      /* c8 ignore next - path.posix.dirname never returns '' so the || '.' fallback is unreachable */
       message: `${filename}: per-repo docs live under docs/ or .claude/, not at ${path.posix.dirname(relPath) || '.'}.`,
       suggestion: `Move to docs/${filename} or .claude/${filename}.`,
     }
@@ -171,7 +228,7 @@ export function classifyMarkdownPath(absPath: string): Verdict {
   return { ok: true }
 }
 
-export function emitBlock(filePath: string, verdict: Verdict): void {
+export function emitBlock(filePath: string, verdict: Verdict): string {
   const lines: string[] = []
   lines.push('[markdown-filename-guard] Blocked: non-canonical doc filename.')
   lines.push(`  File:       ${filePath}`)
@@ -194,7 +251,9 @@ export function emitBlock(filePath: string, verdict: Verdict): void {
   lines.push(
     '    - Everything else: lowercase-with-hyphens, in docs/ or .claude/.',
   )
-  logger.error(lines.join('\n') + '\n')
+  lines.push('')
+  lines.push(`  Deliberate exception? Type "${BYPASS_PHRASE}".`)
+  return lines.join('\n') + '\n'
 }
 
 export function isAtAllowedRegularLocation(relPath: string): boolean {
@@ -207,7 +266,7 @@ export function isAtAllowedRegularLocation(relPath: string): boolean {
   // `packages/<pkg>/lang/<lang>/docs/<name>.md` resolve to the same "in
   // a docs/ directory" rule as repo-root docs/. Segment-equality (not
   // substring) so `foo-docs/`, `docs-old/`, `.docs/` don't match.
-  const segments = dir.split('/')
+  const segments = normalizePath(dir).split('/')
   return segments.includes('docs')
 }
 
@@ -224,12 +283,26 @@ export function isAtAllowedScreamingLocation(relPath: string): boolean {
     dir === 'docs' ||
     dir === 'template' ||
     dir === 'template/.claude' ||
+    dir === 'template/base' ||
+    dir === 'template/base/.claude' ||
+    dir === 'template/base/docs' ||
     dir === 'template/docs'
   )
 }
 
 export function isLowercaseHyphenated(nameWithoutExt: string): boolean {
   return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(nameWithoutExt)
+}
+
+/**
+ * Loose stem rule for docs that mirror a source file verbatim: lowercase
+ * segments joined by hyphens or underscores (Node internals use
+ * `version_subset.js`-style names). Only consulted when the stem carried a
+ * code-file hint extension. Underscores fold to hyphens so the base
+ * predicate stays the single shape authority.
+ */
+export function isLowercaseSourceName(nameWithoutExt: string): boolean {
+  return isLowercaseHyphenated(nameWithoutExt.replace(/_/g, '-'))
 }
 
 export function isScreamingCase(nameWithoutExt: string): boolean {
@@ -269,9 +342,15 @@ export function toRepoRelative(filePath: string): string {
   // the LAST `template/` segment so the carve-out holds for any checkout
   // location — `~/projects/<repo>`, a `/private/tmp` worktree, or CI's
   // `/home/runner/work/<repo>/<repo>/` — not only paths under `/projects/`.
+  // The fleet-canonical content now lives under the `base/` archetype layer
+  // (`template/base/...`), so peel that segment too: `template/base/CLAUDE.md`
+  // resolves to `CLAUDE.md`, exactly as the flat `template/CLAUDE.md` does.
   const templateIdx = normalized.lastIndexOf('/template/')
   if (templateIdx !== -1) {
-    return normalized.slice(templateIdx + '/template/'.length)
+    const afterTemplate = normalized.slice(templateIdx + '/template/'.length)
+    return afterTemplate.startsWith('base/')
+      ? afterTemplate.slice('base/'.length)
+      : afterTemplate
   }
   // Otherwise strip up through the recognizable repo-checkout prefix.
   // `~/projects/<repo>/` and CI's `.../work/<repo>/<repo>/` both collapse to
@@ -287,13 +366,36 @@ export function toRepoRelative(filePath: string): string {
   return filePath
 }
 
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// and fail-open on any throw.
-await withEditGuard(filePath => {
+export const check = editGuard((filePath, content, payload) => {
+  void content
   const verdict = classifyMarkdownPath(filePath)
   if (verdict.ok) {
-    return
+    return undefined
   }
-  emitBlock(filePath, verdict)
-  process.exitCode = 2
+  // The fleet doc-filename convention only governs fleet repos — an external /
+  // sibling clone (e.g. a GitHub wiki where `Home.md` is the page slug) owns
+  // its own naming.
+  if (!isFleetTarget(payload)) {
+    return undefined
+  }
+  // Only block CREATION of a new non-canonical name. Editing a file that
+  // already exists on disk — whose name predates this rule and which we are
+  // not renaming — must never be blocked.
+  if (existsSync(filePath)) {
+    return undefined
+  }
+  // Recoverable override for a deliberate exception.
+  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
+    return undefined
+  }
+  return block(emitBlock(filePath, verdict))
 })
+
+export const hook = defineHook({
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

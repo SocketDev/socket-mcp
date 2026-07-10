@@ -9,7 +9,8 @@ import process from 'node:process'
 
 import { arrayUnique } from '@socketsecurity/lib-stable/arrays/unique'
 
-import { verifyCommitSha, type Cache } from './cache.mts'
+import { verifyCommitSha } from './cache.mts'
+import type { Cache } from './cache.mts'
 import type { BareUsesScanResult, UsesIssue } from './issue-types.mts'
 import {
   BARE_USES_RE_GLOBAL,
@@ -20,6 +21,7 @@ import {
   USES_RE,
 } from './regexes.mts'
 import { validateRefReachable, validateRefShape } from './validate-ref.mts'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 // Cap the Bash command we feed to BARE_USES_RE_GLOBAL — that regex
 // has overlapping char classes ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+) that
@@ -43,9 +45,7 @@ function isPathInsideCwd(relPath: string): boolean {
   // (or an absolute path on systems where path.relative bails) is
   // enough to block traversal.
   const rel = path.relative(cwd, resolved)
-  return (
-    rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
-  )
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
 
 // Scan an arbitrary text blob (a Bash command, an inline shell-out) for
@@ -70,9 +70,12 @@ export function findBareUsesIssues(
   let m: RegExpExecArray | null
   BARE_USES_RE_GLOBAL.lastIndex = 0
   while ((m = BARE_USES_RE_GLOBAL.exec(scanInput)) !== null) {
-    const ownerRepoPath = m[1]!
-    const ref = m[2]!
-    const ownerRepo = ownerRepoPath.split('/').slice(0, 2).join('/')
+    const ownerRepoPath = m.groups!.ownerRepoPath!
+    const ref = m.groups!.ref!
+    const ownerRepo = normalizePath(ownerRepoPath)
+      .split('/')
+      .slice(0, 2)
+      .join('/')
     const shape = validateRefShape(ref)
     if (!shape.ok) {
       issues.push({ line: 0, raw: m[0]!, problem: shape.problem })
@@ -95,7 +98,7 @@ function targetWorkflowOwnerRepos(command: string): string[] {
   BASH_WORKFLOW_PATH_RE_GLOBAL.lastIndex = 0
   let pm: RegExpExecArray | null
   while ((pm = BASH_WORKFLOW_PATH_RE_GLOBAL.exec(command)) !== null) {
-    const relPath = pm[1]!
+    const relPath = pm.groups!.path!
     // Reject `..`-escape paths. The regex is prefix-anchored to
     // `.github/` but doesn't forbid `..` segments — without this
     // check, a Bash command could coerce the hook into reading any
@@ -118,8 +121,11 @@ function targetWorkflowOwnerRepos(command: string): string[] {
       if (!m) {
         continue
       }
-      const ownerRepoPath = m[1]!
-      const ownerRepo = ownerRepoPath.split('/').slice(0, 2).join('/')
+      const ownerRepoPath = m.groups!.ownerRepoPath!
+      const ownerRepo = normalizePath(ownerRepoPath)
+        .split('/')
+        .slice(0, 2)
+        .join('/')
       ownerRepos.add(ownerRepo)
     }
   }
@@ -134,7 +140,7 @@ function targetGitmodulesOwnerRepos(command: string): string[] {
   BASH_GITMODULES_PATH_RE_GLOBAL.lastIndex = 0
   let pm: RegExpExecArray | null
   while ((pm = BASH_GITMODULES_PATH_RE_GLOBAL.exec(command)) !== null) {
-    const relPath = pm[1]!
+    const relPath = pm.groups!.path!
     if (!isPathInsideCwd(relPath)) {
       continue
     }
@@ -149,7 +155,7 @@ function targetGitmodulesOwnerRepos(command: string): string[] {
       if (!m) {
         continue
       }
-      ownerRepos.add(m[1]!)
+      ownerRepos.add(m.groups!.ownerRepo!)
     }
   }
   return Array.from(ownerRepos)
@@ -176,7 +182,7 @@ export function findLoneShaIssues(
   LONE_SHA_RE_GLOBAL.lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = LONE_SHA_RE_GLOBAL.exec(command)) !== null) {
-    const sha = m[1]!.toLowerCase()
+    const sha = m.groups!.sha!.toLowerCase()
     if (seen.has(sha)) {
       continue
     }
