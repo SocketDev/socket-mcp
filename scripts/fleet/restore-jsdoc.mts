@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Detect + AI-restore JSDoc comments the formatter flattened.
  *
  *   1. PROBLEM — oxfmt's `jsdoc` formatter re-wraps description prose. Even in the
@@ -35,9 +35,11 @@ import process from 'node:process'
 
 import { AI_PROFILE } from '@socketsecurity/lib-stable/ai/profiles'
 import { spawnAiAgent } from '@socketsecurity/lib-stable/ai/spawn'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+
+import { REPO_ROOT } from './paths.mts'
 
 const logger = getDefaultLogger()
 
@@ -159,9 +161,13 @@ export async function restoreFile(file: string): Promise<boolean> {
     'glued to the end of a prose line — each is the first word of a list item.',
     'Touch only the comment. Do not change any code. After editing, stop.',
   ].join('\n')
+  // Mechanical comment re-wrapping — the floor (cheapest model, lowest effort)
+  // is exactly right; no escalation needed.
   const { exitCode, stderr } = await spawnAiAgent({
     ...AI_PROFILE.edit,
+    cwd: REPO_ROOT,
     effort: 'low',
+    model: 'claude-haiku-4-5',
     prompt,
     timeoutMs: 3 * 60 * 1000,
   })

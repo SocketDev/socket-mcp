@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Validates that commits don't contain too many files. Rules:
  *
  *   - No single commit should contain 50+ files
@@ -9,7 +9,7 @@
 
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 

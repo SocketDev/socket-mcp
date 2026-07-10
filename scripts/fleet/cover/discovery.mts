@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
@@ -20,6 +20,11 @@ const logger = getDefaultLogger()
 export const BUILD_ENTRY_CANDIDATES: readonly string[] = [
   'scripts/build.mts',
   'scripts/bundle.mts',
+  // Repo-owned build pipelines that moved under scripts/repo/ (a member that
+  // separated its bespoke build from the cascaded scripts/fleet/ — e.g.
+  // socket-lib's scripts/repo/bundle.mts). Probed last so a top-level entry
+  // still wins.
+  'scripts/repo/bundle.mts',
 ]
 
 // Standard fleet test-suite vocabulary. `shared` is the default shared-context

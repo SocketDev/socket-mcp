@@ -1,12 +1,12 @@
 /**
- * @file dev.to source adapter. Uses the keyless Forem articles API
+ * @file Dev.to source adapter. Uses the keyless Forem articles API
  *   (`dev.to/api/articles?tag=<tag>`) — there's no full-text search, so the
  *   query maps to a tag the same way Lobsters does. Maps each article to a
  *   SourceItem with reaction + comment engagement. Keyless, best-effort.
  */
 
 import { httpJson } from '@socketsecurity/lib-stable/http-request'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 
 import type {
   FetchContext,
@@ -26,7 +26,9 @@ export interface DevtoArticle {
   public_reactions_count?: number | undefined
   comments_count?: number | undefined
   tag_list?: string[] | undefined
-  user?: { name?: string | undefined; username?: string | undefined } | undefined
+  user?:
+    | { name?: string | undefined; username?: string | undefined }
+    | undefined
 }
 
 // dev.to tag slugs (no hyphens/spaces) that map from a programming query.

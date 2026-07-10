@@ -24,7 +24,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { globSync } from '@socketsecurity/lib-stable/globs/match'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
@@ -46,6 +46,11 @@ export interface FileIssue {
 export function findToolFiles(repoRoot: string): string[] {
   return globSync(['**/external-tools.json', '**/bundle-tools.json'], {
     cwd: repoRoot,
+    // `dot: true` — the security-hook tool data lives under `.claude/hooks/**`,
+    // a dot-directory `**` skips by default. Without this the check globs only
+    // non-dot trees and reports green while never seeing the `.claude/**` files
+    // (a false-green that let unmodeled fields drift in undetected).
+    dot: true,
     ignore: [
       '**/node_modules/**',
       '**/dist/**',

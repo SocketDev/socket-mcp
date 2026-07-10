@@ -1,4 +1,4 @@
-/**
+/*
  * @file Fleet check — a package's `exports` map and its public file surface
  *   agree. Two failure modes, for every non-private workspace package that
  *   declares `exports`:
@@ -177,12 +177,19 @@ export function checkPackageExports(
   }
 
   // 1. Stale exports — every target file must exist. A target into an unbuilt
-  // output dir is skipped (can't validate output that was never produced).
+  // output dir is skipped (can't validate output that was never produced), and
+  // so is a config-ignored target: an ignoreGlobs entry declares a build
+  // artifact produced OUTSIDE the output dirs (e.g. a package-root wasm/mjs
+  // materialized by a fetch step), which is equally absent in an unbuilt
+  // checkout.
   const exportedFiles = new Set<string>()
   for (const target of targets) {
     const rel = target.replace(/^\.\//, '')
     exportedFiles.add(normalizePath(rel))
     if (pointsAtUnbuiltOutput(rel)) {
+      continue
+    }
+    if (ignoreGlobs.some(g => matchesGlob(normalizePath(rel), g))) {
       continue
     }
     if (!existsSync(path.join(pkgDir, rel))) {

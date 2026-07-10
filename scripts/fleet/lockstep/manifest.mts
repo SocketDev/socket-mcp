@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { validateSchema } from '@socketsecurity/lib-stable/schema/validate'
 
@@ -48,6 +48,40 @@ export function readManifest(manifestPath: string): Manifest {
     logger.fail(`  ${loc}: ${issue.message}`)
   }
   process.exit(1)
+}
+
+/**
+ * Resolve the manifest tree's ROOT file for a repo: `<root>/lockstep.json`
+ * when present (the shim-plus-includes layout), else
+ * `<root>/.config/lockstep.json` (repos that moved root configs under
+ * .config/ without a shim — socket-btm). The harness and auto-bump both
+ * resolve through this so a config-dir migration can't strand them on a
+ * hardcoded path.
+ */
+export function resolveManifestRoot(repoRoot: string): string {
+  const atRoot = path.join(repoRoot, 'lockstep.json')
+  if (existsSync(atRoot)) {
+    return atRoot
+  }
+  return path.join(repoRoot, '.config', 'lockstep.json')
+}
+
+/**
+ * List every manifest file in the tree: the root, then each `includes[]`
+ * sub-manifest (resolved relative to the root's directory — the same
+ * resolution `loadManifestTree` uses). Consumers that must WRITE a row need
+ * the owning file, not the merged view; `auto-bump --apply` walks this list
+ * to find which file physically holds a row before rewriting it.
+ */
+export function listManifestFiles(rootManifestPath: string): string[] {
+  const rootManifest = readManifest(rootManifestPath)
+  const files = [rootManifestPath]
+  const includes = rootManifest.includes ?? []
+  const baseDir = path.dirname(rootManifestPath)
+  for (let i = 0, { length } = includes; i < length; i += 1) {
+    files.push(path.resolve(baseDir, includes[i]!))
+  }
+  return files
 }
 
 /**
