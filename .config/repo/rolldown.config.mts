@@ -21,7 +21,8 @@ import type { Plugin, RolldownOptions } from 'rolldown'
 import {
   DIST_DIR,
   REPO_ROOT,
-  SOCKET_GATE_DIR,
+  SOCKET_GATE_DIST_DIR,
+  SOCKET_GATE_SRC_DIR,
 } from '../../scripts/repo/paths.mts'
 import { createLibStubPlugin } from './rolldown/lib-stub.mts'
 
@@ -128,15 +129,16 @@ export const buildConfig: RolldownOptions = singleEntryConfig(
   '"use strict";\n/* Socket MCP — bundled with rolldown */',
 )
 
-// The optional Claude Code hook. Emitted into hooks/socket-gate/ alongside its
-// source + README so the whole directory is a self-contained unit users copy
-// recursively into ~/.claude/hooks/. Bundled because a Claude Code hook has no
-// package.json/node_modules — its @socketsecurity/lib-stable import must be
-// inlined. The shebang lets `node` / direct execution find the interpreter.
+// The optional Claude Code hook. Emitted into dist/socket-gate/ (build.mts
+// copies the hook README beside it) so the directory is a self-contained unit
+// users copy recursively into ~/.claude/hooks/. Bundled because a Claude Code
+// hook has no package.json/node_modules — its @socketsecurity/lib-stable
+// import must be inlined. The shebang lets `node` / direct execution find the
+// interpreter.
 export const socketGateConfig: RolldownOptions = singleEntryConfig(
   'socket-gate',
-  path.join(SOCKET_GATE_DIR, 'index.mts'),
-  SOCKET_GATE_DIR,
+  path.join(SOCKET_GATE_SRC_DIR, 'index.mts'),
+  SOCKET_GATE_DIST_DIR,
   '#!/usr/bin/env node\n"use strict";\n/* Socket gate hook — bundled with rolldown */',
 )
 
