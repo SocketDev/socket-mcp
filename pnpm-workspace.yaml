@@ -1,7 +1,7 @@
 packages:
   - .claude/hooks/*
-  - '.config/oxlint-plugin'
-  - '.config/oxlint-plugin/fleet/*'
+  - '.config/fleet/oxlint-plugin'
+  - '.config/fleet/oxlint-plugin/fleet/*'
 allowBuilds:
   cpu-features: false
   esbuild: true
@@ -10,38 +10,51 @@ allowBuilds:
 autoInstallPeers: true
 
 blockExoticSubdeps: true
+confirmModulesPurge: false
+managePackageManagerVersions: false
 
 catalog:
+  '@anthropic-ai/claude-code': 2.1.198
   '@redwoodjs/agent-ci': 0.16.2
   '@sinclair/typebox': 0.34.49
   '@socketregistry/packageurl-js': 1.4.2
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib': 6.0.8
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.8
+  '@socketsecurity/lib': 6.0.9
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.9
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
   '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
   '@types/mdast': 4.0.4
-  '@types/node': 24.9.2
+  '@types/node': 26.1.0
+  '@types/semver': 7.7.1
   '@types/shell-quote': 1.7.5
   '@typescript/native-preview': 7.0.0-dev.20260510.1
-  '@vitest/coverage-v8': 4.1.8
-  '@vitest/ui': 4.1.8
+  '@ultrathink/acorn.wasm': npm:@ultrathink/acorn-wasm@0.0.1
+  '@vitest/coverage-v8': 4.1.9
+  '@vitest/ui': 4.1.9
   'dtu-github-actions': 0.16.2
   'ecc-agentshield': 1.4.0
+  'magic-string': 0.30.21
+  'markdownlint-cli2': 0.23.0
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
-  'npm-run-all2': 9.0.1
-  'oxfmt': 0.48.0
-  'oxlint': 1.63.0
-  'playwright-core': 1.60.0
-  'regjsparser': 0.13.1
-  'rolldown': 1.1.0
-  'shell-quote': 1.8.4
+  'neosanitize': 0.3.0
+  'nock': 15.0.0
+  'npm-run-all2': 9.0.2
+  'oxfmt': 0.57.0
+  'oxlint': 1.72.0
+  'playwright-core': 1.61.1
+  'regjsparser': 0.13.2
+  'rolldown': 1.1.4
+  'semver': 7.8.5
+  'shell-quote': 1.9.0
+  'svgo': 4.0.1
   'taze': 19.14.1
+  'typescript': 7.0.1-rc
   'untracked': 1.6.1
-  'vitest': 4.1.8
+  'vite': 8.1.0
+  'vitest': 4.1.9
 enablePrePostScripts: true
 
 # Force every consumer of Socket's own packages to resolve through the
@@ -79,7 +92,7 @@ overrides:
   'string-width@>=5': '8.1.0'
   'update-notifier@>=4.0.0': '7.3.1'
   'uuid': '11.1.1'
-  'which@>=4': '7.0.0'
+  'which': '7.0.0'
   'wrap-ansi@>=8': '9.0.2'
   'yaml@2': '2.9.0'
 
@@ -100,9 +113,13 @@ overrides:
   # GHSA-w7jw-789q-3m8p quote() does not escape newlines in object .op values
   # (transitive via npm-run-all2); fixed in 1.8.4
   'shell-quote': '1.8.4'
-  # advisory #42 arbitrary file/directory write via symlink;
-  # GHSA-ph9p-34f9-6g65 symlink-traversal fixed in 0.2.6
-  'tmp': '0.2.6'
+  # advisory #42 GHSA-ph9p-34f9-6g65 symlink-traversal;
+  # advisory #104 GHSA-7c78-jf6q-g5cm type-confusion path traversal; fixed in 0.2.7
+  'tmp': '0.2.7'
+  # GHSA-fx2h-pf6j-xcff server.fs.deny bypass / GHSA-v6wh-96g9-6wx3 NTLMv2
+  # hash disclosure (Windows); transitive via vitest, fixed in 8.0.16
+  'vite': '8.0.16'
+  'which@>=4': '7.0.0'
   'zod': '3.25.76'
   'zod-to-json-schema': '3.25.1'
 
@@ -113,74 +130,14 @@ minimumReleaseAgeExclude:
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - '@stuie/*'
-  - '@socketdev/*'
   - 'sfw'
   - '@ultrathink/*'
   # security fix for GHSA-ph9p-34f9-6g65; bypassing soak to land the patch now
   - '@socketoverride/*'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-darwin-arm64@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-darwin-x64@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-freebsd-x64@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-linux-arm-gnu@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-linux-arm-musl@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-linux-arm64-gnu@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-linux-arm64-musl@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-linux-x64-gnu@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-linux-x64-musl@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-win32-arm64@0.5.31'
-  # published: 2026-06-09 | removable: 2026-06-16
-  - '@yuku-parser/binding-win32-x64@0.5.31'
   - 'socket'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - 'oxfmt@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-android-arm-eabi@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-android-arm64@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-darwin-arm64@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-darwin-x64@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-freebsd-x64@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-arm-gnueabihf@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-arm-musleabihf@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-arm64-gnu@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-arm64-musl@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-ppc64-gnu@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-riscv64-gnu@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-riscv64-musl@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-s390x-gnu@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-x64-gnu@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-linux-x64-musl@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-openharmony-arm64@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-win32-arm64-msvc@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-win32-ia32-msvc@0.54.0'
-  # published: 2026-06-08 | removable: 2026-06-15
-  - '@oxfmt/binding-win32-x64-msvc@0.54.0'
+  - '@sdxgen/*'
+  - 'sdxgen'
+  - 'stuie'
 
 # Transitional: warn (not error) while the socket-registry CI install chain
 # still ships pnpm 11.5.1 and this repo runs 11.6.0. Restore to error once the
