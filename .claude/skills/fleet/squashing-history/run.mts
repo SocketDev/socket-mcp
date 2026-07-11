@@ -157,6 +157,46 @@ export async function squashSingleCommit(
   return { __proto__: null, newHead } as SquashResult
 }
 
+/**
+ * Mint a single root commit whose tree is byte-identical to `tipSha`'s tree,
+ * via `git commit-tree` — pure object creation, so neither the index nor the
+ * working tree of `cwd` is touched and no worktree is needed. Signs with the
+ * user's configured key and asserts the signature verifies.
+ */
+export async function mintSquashRoot(options: {
+  readonly cwd: string
+  readonly message?: string | undefined
+  readonly tipSha: string
+}): Promise<SquashResult> {
+  const opts = { __proto__: null, ...options } as {
+    cwd: string
+    message?: string | undefined
+    tipSha: string
+  }
+  const { cwd, tipSha } = opts
+  const message = opts.message ?? 'chore: initial commit'
+  const newHead = (
+    await run('git', ['commit-tree', '-S', `${tipSha}^{tree}`, '-m', message], cwd)
+  ).stdout.trim()
+  // Integrity gate — the whole point is zero content change. A non-empty
+  // diff means the mint altered the tree; that is corruption, so exit hard.
+  const diff = await run('git', ['diff', '--ignore-submodules', newHead, tipSha], cwd, {
+    allowFailure: true,
+  })
+  if (diff.stdout.length > 0) {
+    logger.error(`minted-root diff vs ${tipSha} non-empty; aborting`)
+    logger.error(diff.stdout.split('\n').slice(0, 20).join('\n'))
+    process.exit(1)
+  }
+  const sig = (
+    await run('git', ['log', '--format=%G?', '-1', newHead], cwd)
+  ).stdout.trim()
+  if (sig !== 'G') {
+    throw new Error(`minted root not signed (got ${sig})`)
+  }
+  return { __proto__: null, newHead } as SquashResult
+}
+
 async function main(): Promise<number> {
   const src = process.argv[2]
   if (!src) {
@@ -240,6 +280,77 @@ async function main(): Promise<number> {
     await run('git', ['rev-list', '--count', `origin/${base}`], src)
   ).stdout
   header(`original ${base}`, `${origHead} (${origCount} commits)`)
+
+  // Local main is canonical in the fleet. When the local branch is AHEAD of
+  // origin (origin is its ancestor), the squash must collapse the LOCAL tree
+  // — squashing origin's stale tree would mint a root missing local work and
+  // the next push would obliterate the squash. When local and origin have
+  // DIVERGED (each has commits the other lacks), refuse loudly: reconcile
+  // forward first (merge origin into local), then re-run.
+  let localHead = ''
+  try {
+    localHead = (
+      await run('git', ['rev-parse', `refs/heads/${base}`], src)
+    ).stdout.trim()
+  } catch {}
+  const localMode = localHead !== '' && localHead !== origHead
+  if (localMode) {
+    const originIsAncestor = (
+      await run('git', ['merge-base', '--is-ancestor', origHead, localHead], src, {
+        allowFailure: true,
+      })
+    ).code === 0
+    if (!originIsAncestor) {
+      logger.error(
+        `error: local ${base} (${localHead.slice(0, 8)}) and origin/${base} ` +
+          `(${origHead.slice(0, 8)}) have DIVERGED — origin holds commits the ` +
+          `local branch lacks. Saw two lineages; wanted origin ⊆ local. ` +
+          `Fix: merge origin/${base} into ${base} (reconcile forward), verify, re-run.`,
+      )
+      return 2
+    }
+    const localCount = (
+      await run('git', ['rev-list', '--count', localHead], src)
+    ).stdout
+    header(`local ${base}`, `${localHead} (${localCount} commits, ahead of origin)`)
+
+    // Backup the LOCAL tip — it strictly contains origin.
+    logger.substep(`pushing remote backup ref: refs/heads/${backup} -> ${localHead}`)
+    await run(
+      'git',
+      ['push', '--no-verify', 'origin', `${localHead}:refs/heads/${backup}`],
+      src,
+    )
+
+    const { newHead } = await mintSquashRoot({ cwd: src, tipSha: localHead })
+    logger.success(`minted signed root ${newHead} from local ${base} tree`)
+
+    // Point the local branch at the root (tree-identical, so the working
+    // tree and index stay clean), then lease-push against origin's tip.
+    await run('git', ['update-ref', `refs/heads/${base}`, newHead, localHead], src)
+    logger.substep(`force-pushing to ${base}...`)
+    await run(
+      'git',
+      [
+        'push',
+        '--no-verify',
+        `--force-with-lease=${base}:${origHead}`,
+        'origin',
+        `${base}`,
+      ],
+      src,
+      { env: { SQUASH_HISTORY: '1' } },
+    )
+
+    logger.log('')
+    logger.success(`${repoName} squashed (local-canonical mode)`)
+    logger.substep(`new ${base}:   ${newHead}`)
+    logger.substep(`backup ref: refs/heads/${backup} -> ${localHead}`)
+    logger.substep(
+      `recover:    git fetch origin ${backup} && git push --force origin FETCH_HEAD:${base}`,
+    )
+    return 0
+  }
 
   if (origCount === '1') {
     logger.info('already a single commit — nothing to squash')

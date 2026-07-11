@@ -28,7 +28,18 @@ The runner walks 8 phases end-to-end in a sibling worktree; the primary checkout
 [`run.mts`](run.mts) for the implementation (the shared `squashSingleCommit()` engine lives there and
 is reused by `refreshing-history`).
 
-| #   | Phase           | What it does                                                                                      |
+The runner picks a mode from the local-vs-origin relationship (local main is canonical in the
+fleet):
+
+- **Local-canonical mode** (local `$BASE` is AHEAD of origin): backup-push the LOCAL tip, mint a
+  signed root from its tree via `git commit-tree` (`mintSquashRoot()` — pure object creation, no
+  worktree, the primary checkout's index/worktree are never touched), verify the tree is
+  byte-identical, point the local branch at the root, lease-push against origin's tip.
+- **Origin mode** (local == origin, or no local branch): the classic worktree flow below.
+- **Diverged** (origin holds commits local lacks): REFUSED loudly — reconcile forward (merge origin
+  into local) first, then re-run.
+
+| #   | Phase           | What it does (origin mode)                                                                        |
 | --- | --------------- | ------------------------------------------------------------------------------------------------ |
 | 1   | Pre-flight      | Resolve default branch (main → master fallback); fetch; capture orig HEAD + count.               |
 | 2   | Worktree        | Add `chore/squash` worktree at `<repo>-squash` tracking `origin/$BASE`.                           |
