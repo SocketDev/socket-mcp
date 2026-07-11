@@ -17,7 +17,7 @@
 catalog:
   # The fleet AI CLI — gh-aw workflow engine + socket-lib src/ai spawnAiAgent
   # runtime. Soaked (published 2026-06-04). Members reference it via `catalog:`.
-  '@anthropic-ai/claude-code': 2.1.198
+  '@anthropic-ai/claude-code': 2.1.201
   '@redwoodjs/agent-ci': 0.16.2
   'dtu-github-actions': 0.16.2
   '@sinclair/typebox': 0.34.49
@@ -41,7 +41,7 @@ catalog:
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'neosanitize': 0.3.0
-  'nock': 15.0.0
+  'nock': 14.0.16
   'npm-run-all2': 9.0.2
   'oxfmt': 0.57.0
   'oxlint': 1.72.0

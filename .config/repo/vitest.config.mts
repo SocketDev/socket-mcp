@@ -19,17 +19,22 @@ import { defineConfig } from 'vitest/config'
 import { GENERATED_GLOBS } from '../../scripts/fleet/constants/generated-globs.mts'
 import { resolveCoverageConfig } from '../fleet/vitest.coverage.fleet.config.mts'
 
+// Coverage is on when the COVERAGE env is set (cover.mts) or the `--coverage`
+// flag is passed. Match the FLAG, not any argv containing the substring
+// "coverage" — a nested test run whose file-path args happen to include
+// "coverage" must not silently turn coverage on and clean the shared
+// coverage/.tmp (see test.mts resolveVitestEnv).
 const isCoverageEnabled =
   envAsBoolean(process.env['COVERAGE']) ||
-  process.argv.some(arg => arg.includes('coverage'))
+  process.argv.some(arg => arg.startsWith('--coverage'))
 
 // One repo-tunable vitest config, resolved fleet-default + repo-override (the
 // same shape as .config/{fleet,repo}/git-authors.json):
-//   nonIsolated     — globs safe to run in the faster non-isolated pool.
-//   nodeTestExclude — extra node:test homes to exclude from vitest discovery
-//                     (e.g. `tools/**/test/**` for a `node --test` tool corpus).
-//                     prefer-vitest-guard reads the SAME key so its allowlist
-//                     and this exclude never drift.
+//   nonIsolated        — globs safe to run in the faster non-isolated pool.
+//   nodeTestExclude    — extra node:test homes to exclude from vitest discovery
+//                        (e.g. `tools/**/test/**` for a `node --test` tool corpus).
+//                        prefer-vitest-guard reads the SAME key so its allowlist
+//                        and this exclude never drift.
 // Array values from both tiers are concatenated (a repo extends, never shrinks,
 // the fleet defaults). Replaces the former vitest-non-isolated.json +
 // vitest-extra-exclude.json sidecars.
@@ -38,6 +43,37 @@ export interface VitestRepoConfig {
   nonIsolated?: string[] | undefined
   nodeTestExclude?: string[] | undefined
   pool?: 'forks' | 'threads' | undefined
+}
+/**
+ * Heavy external-suite / cross-impl conformance wrapper globs from the
+ * `vitest.conformanceExclude` section of the ONE per-repo settings file
+ * (.config/socket-wheelhouse.json, or the root .socket-wheelhouse.json
+ * alternative — see scripts/fleet/socket-wheelhouse-schema.mts). Excluded from
+ * the DEFAULT (unit) + cover suites so the unit pass stays inside the fleet's
+ * under-a-minute budget. A repo setting this MUST pair it with an explicit
+ * `test:conformance` runner so the tier never silently drops.
+ */
+export function readConformanceExcludeGlobs(): string[] {
+  for (const file of [
+    '.config/socket-wheelhouse.json',
+    '.socket-wheelhouse.json',
+  ]) {
+    if (!existsSync(file)) {
+      continue
+    }
+    try {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
+        vitest?: { conformanceExclude?: string[] | undefined } | undefined
+      }
+      const globs = parsed?.vitest?.conformanceExclude
+      return Array.isArray(globs)
+        ? globs.filter(g => typeof g === 'string')
+        : []
+    } catch {
+      return []
+    }
+  }
+  return []
 }
 export function readNonIsolatedGlobs(): string[] {
   return resolveVitestKey('nonIsolated')
@@ -170,6 +206,12 @@ export default defineConfig({
       // `nodeTestExclude` key of .config/{fleet,repo}/vitest.json. The same key
       // feeds prefer-vitest-guard's allowlist so the two never drift.
       ...repoNodeTestExcludeGlobs(),
+      // Heavy conformance/cross-impl wrapper globs from the settings file's
+      // `vitest.conformanceExclude` section — kept out of the default (unit)
+      // + cover suites so the unit pass stays inside the fleet's
+      // under-a-minute budget. The repo's `test:conformance` script is the
+      // explicit home that runs them.
+      ...readConformanceExcludeGlobs(),
     ],
     // Some repos in the fleet (scaffolding-only, hook-only, etc.) ship
     // this config but don't yet have a `test/` directory — vitest's
@@ -221,6 +263,13 @@ export default defineConfig({
           ],
         }
       : {}),
+    // Coverage forces serial (maxWorkers: 1). Parallel is ~2.5x faster (~236s
+    // vs the 600s cap) but currently ENOENTs coverage/.tmp/coverage-N.json — a
+    // nested vitest still cleans the shared coverage dir mid-run. Confirmed NOT
+    // a stale-node artifact (repro'd clean under the pinned 26.5.0), and NOT
+    // closed by the test.mts COVERAGE strip or the flag-precise isCoverageEnabled
+    // above. Serial hides it (the outer writes .tmp only at the end). Keep serial
+    // until the leaking spawner is bisected — serial-slow beats parallel-broken.
     fileParallelism: !isCoverageEnabled,
     maxWorkers: isCoverageEnabled
       ? 1

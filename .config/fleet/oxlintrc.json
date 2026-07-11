@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/5306f24d9e82ae36ad9c3c964f33075bc589c799/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "import"],
   "jsPlugins": ["./oxlint-plugin/index.mts"],
   "categories": {
@@ -58,7 +58,9 @@
     "socket/no-vitest-skipped-tests": "error",
     "socket/no-vitest-standalone-expect": [
       "error",
-      { "additionalTestBlockFunctions": ["cmdit"] }
+      {
+        "additionalTestBlockFunctions": ["cmdit"]
+      }
     ],
     "socket/no-which-for-local-bin": "error",
     "socket/normalize-path-before-match": "error",
@@ -245,14 +247,12 @@
     "**/scripts/fleet/**",
     "**/test/_shared/fleet/**",
     "**/test/scripts/fleet/**",
-    "**/test/unit/fleet/**",
     "**/vendor/**",
     "**/wasm_exec.js",
     "**/scripts/fleet/plugin-patches/**/*.files/**",
     "**/scripts/fleet/plugin-patches/**/*.patch",
     "**/.config/lockstep.schema.json",
     "**/.config/repo/vitest.config.mts",
-    "**/.config/socket-wheelhouse-schema.json",
     "**/packages/build-infra/lib/release-checksums/consumer.mts",
     "**/packages/build-infra/lib/release-checksums/core.mts",
     "**/packages/build-infra/lib/release-checksums/producer.mts",
