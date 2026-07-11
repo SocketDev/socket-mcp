@@ -1,7 +1,6 @@
 # Socket MCP Server
 
-[![Socket Badge](https://socket.dev/api/badge/npm/package/@socketsecurity/mcp)](https://socket.dev/npm/package/@socketsecurity/mcp)
-[![CI](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml)
+<a href="https://socket.dev/npm/package/@socketsecurity/mcp"><img src="https://socket.dev/api/badge/npm/package/@socketsecurity/mcp" alt="Socket Badge" height="20"></a>
 ![Coverage](https://img.shields.io/badge/coverage-80%25-green)
 
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
