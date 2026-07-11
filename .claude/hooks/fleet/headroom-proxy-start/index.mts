@@ -149,6 +149,12 @@ export function spawnDetached(): void {
     env: { ...process.env, HEADROOM_OUTPUT_SHAPER: '1' },
     stdio: 'ignore',
   })
+  // Best-effort start: swallow the spawn promise rejection so a missing or
+  // non-executable binary (e.g. a broken install → exit 126) fails CLOSED —
+  // main()'s health poll then reports "not healthy" and continues with the
+  // direct endpoint. Without this catch the rejection is unhandled and crashes
+  // the SessionStart hook.
+  result.catch(() => undefined)
   result.process.unref()
 }
 /* c8 ignore stop */

@@ -52,7 +52,7 @@ import {
  * through this so separator variations don't break the phrase match: only the
  * letters + their order are load-bearing.
  */
-function normalizeBypassText(text: string): string {
+export function normalizeBypassText(text: string): string {
   // NFKC: canonical-decompose + compose + compatibility-fold so
   // visually-similar variants collapse — smart quotes, full-width,
   // ligatures all map to ASCII-canonical.
@@ -83,7 +83,7 @@ function normalizeBypassText(text: string): string {
  * `nonfleet`. Regex metacharacters in the phrase (`:` targets, dots) are
  * escaped literally.
  */
-function phrasePattern(normalizedPhrase: string): RegExp {
+export function phrasePattern(normalizedPhrase: string): RegExp {
   const escaped = normalizedPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return new RegExp(escaped.replace(/ /g, ' ?'), 'g')
 }
@@ -659,11 +659,17 @@ export function readRoleText(
       continue
     }
     const pieces = extractTurnPieces(r.content)
-    if (pieces.length) {
-      // Buffer this turn's blocks together so the final reverse swaps
-      // *turn order*, not intra-turn block order.
-      out.push(pieces.join('\n'))
+    if (!pieces.length) {
+      // Tool-result carrier events share the user role but hold no author
+      // prose. They must not consume lookback slots — a lookback of "8 user
+      // turns" means 8 things the USER said, not 8 tool calls; otherwise a
+      // busy turn evicts a freshly typed bypass phrase before the very
+      // command it authorizes runs.
+      continue
     }
+    // Buffer this turn's blocks together so the final reverse swaps
+    // *turn order*, not intra-turn block order.
+    out.push(pieces.join('\n'))
     matched += 1
     if (lookback !== undefined && matched >= lookback) {
       break

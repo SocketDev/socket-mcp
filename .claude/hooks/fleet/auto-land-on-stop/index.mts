@@ -97,7 +97,15 @@ export function groupByRepo(
 
 export const check = (payload: ToolCallPayload): GuardResult => {
   // Cascade + history-squash own their own commits; never auto-land under them.
-  if (process.env['FLEET_SYNC'] || process.env['SQUASH_HISTORY']) {
+  // SOCKET_LAND_WORK_ACTIVE marks an in-flight land-work run (including the
+  // headless child its AI summarizer spawns, which inherits the env) — never
+  // auto-land re-entrantly under one, or the summarizer's Stop hook would
+  // re-trigger land-work on the same still-dirty tree.
+  if (
+    process.env['FLEET_SYNC'] ||
+    process.env['SQUASH_HISTORY'] ||
+    process.env['SOCKET_LAND_WORK_ACTIVE']
+  ) {
     return undefined
   }
   const allTouched = [...readSessionTouchedPaths(payload.transcript_path)]
