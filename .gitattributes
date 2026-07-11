@@ -154,5 +154,4 @@ scripts/fleet linguist-generated=true
 scripts/fleet/lib/registry-pin-cascade.mts linguist-generated=true
 test/_shared/fleet/lib linguist-generated=true
 test/scripts/fleet/setup.mts linguist-generated=true
-test/unit/fleet linguist-generated=true
 # </fleet-canonical>
