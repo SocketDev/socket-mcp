@@ -63,7 +63,7 @@ on:
 
 engine:
   id: claude
-  model: claude-sonnet-4-5
+  model: claude-sonnet-4-6
 
 permissions:
   contents: read
