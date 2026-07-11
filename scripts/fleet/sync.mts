@@ -332,6 +332,35 @@ export async function runSync(flags: SyncFlags): Promise<number> {
     const all = await engine.collectFindings(repoDir)
     const selected = all.filter(f => findingInScope(rules, f.category, f.file))
 
+    // FAIL LOUD on out-of-scope drift: the engine detected these findings but
+    // the chosen target's category set excludes them, so this run will not
+    // touch them. Silence here reads as "member is current" and strands the
+    // operator into hand-fixes (it did, twice, live on 2026-07-10 — a
+    // scripts/fleet check fix and a canonical vitest.config never reached
+    // members through `foundationals`). Name the skipped categories so the
+    // operator can pick the target that owns them.
+    const selectedSet = new Set(selected)
+    const skippedByCategory = new Map<string, number>()
+    for (let j = 0, alen = all.length; j < alen; j += 1) {
+      const f = all[j]!
+      if (!selectedSet.has(f)) {
+        skippedByCategory.set(
+          f.category,
+          (skippedByCategory.get(f.category) ?? 0) + 1,
+        )
+      }
+    }
+    if (skippedByCategory.size > 0) {
+      const parts = [...skippedByCategory.entries()]
+        .toSorted(([a], [b]) => (a < b ? -1 : 1))
+        .map(([cat, n]) => `${cat} x${n}`)
+      logger.warn(
+        `  ${repoName}: ${all.length - selected.length} finding(s) OUTSIDE the ` +
+          `'${flags.targets.join(', ')}' scope — NOT touched: ${parts.join(', ')}. ` +
+          `Run the target that owns them (e.g. fleet-code for the mirror payload) or 'all'.`,
+      )
+    }
+
     if (flags.check) {
       logger.log(
         `  ${repoName}: ${selected.length} would-change finding(s) in scope.`,

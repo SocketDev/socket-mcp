@@ -94,11 +94,18 @@ export function driftedSharedTools(
  */
 export function findReferenceCopy(repoRoot: string): string | undefined {
   const own = path.join(repoRoot, 'template', 'base')
-  if (existsSync(path.join(own, TOOLS_FILE)) || existsSync(path.join(repoRoot, 'template'))) {
+  if (
+    existsSync(path.join(own, TOOLS_FILE)) ||
+    existsSync(path.join(repoRoot, 'template'))
+  ) {
     const self = path.join(repoRoot, TOOLS_FILE)
     return existsSync(self) ? self : undefined
   }
-  const sibling = path.join(path.dirname(repoRoot), 'socket-wheelhouse', TOOLS_FILE)
+  const sibling = path.join(
+    path.dirname(repoRoot),
+    'socket-wheelhouse',
+    TOOLS_FILE,
+  )
   return existsSync(sibling) ? sibling : undefined
 }
 

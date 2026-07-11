@@ -206,6 +206,14 @@ export const SYNC_TARGETS: Readonly<Record<string, SyncTarget>> = {
       'fleet_dir_drift',
       'fleet_mirror_orphan',
       'missing_required',
+      // Optional canonical surfaces (OPTIONAL_IDENTICAL_FILES — loose files
+      // like .config/repo/vitest.config.mts, and opt-in dir mirrors like
+      // test/_shared/fleet/lib): byte-identical WHEN PRESENT, so their drift
+      // is part of the fleet payload. Before these were listed here, NO
+      // target (including `all`) carried them — a canonical vitest.config fix
+      // could never reach a member via named sync.
+      'optional_dir_drift',
+      'optional_drift',
       'tombstone_orphan',
       'workflow_flat_action_ref',
     ],
@@ -302,7 +310,13 @@ export const SYNC_TARGETS: Readonly<Record<string, SyncTarget>> = {
       'The full cascade — every named target. Equivalent to the unfiltered ' +
       'sync-scaffolding run.',
     scopes: ALL_SCOPES,
-    categories: [],
+    // Every known category, not only the union of named leaves: ~45
+    // categories (node_version_drift, readme_skeleton_*, package_files_*, …)
+    // have no owning leaf yet, and an `all` run that silently drops them
+    // contradicts the description above (hit live: `all --target socket-mcp`
+    // reported node_version_drift OUTSIDE the 'all' scope). Unscoped, so
+    // every finding file matches.
+    categories: [...KNOWN_CATEGORIES],
     composite: [
       'claude-md',
       'editor-config',

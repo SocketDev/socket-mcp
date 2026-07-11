@@ -28,6 +28,7 @@ import {
   versionHintFrom,
 } from '../lib/changelog.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { runCapture } from '../publish-infra/shared.mts'
 
 const logger = getDefaultLogger()
 
@@ -67,6 +68,18 @@ export function headingVersion(section: string): string | undefined {
 }
 
 /**
+ * True when a `v<version>` tag EXISTS by name, reachable or not. The fleet
+ * squash/consolidation model rewrites main under released tags, so
+ * `git describe` (reachability) can resolve an OLDER tag while the version's
+ * own tag exists off-lineage — an existing tag means the version is released
+ * and its CHANGELOG entry is historical, not pending.
+ */
+export async function releaseTagExists(version: string): Promise<boolean> {
+  const r = await runCapture('git', ['tag', '-l', `v${version}`], REPO_ROOT)
+  return r.code === 0 && r.stdout.trim() === `v${version}`
+}
+
+/**
  * The trimmed `- …` bullet lines in a section, as a normalized set.
  */
 export function bulletSet(section: string): Set<string> {
@@ -100,8 +113,9 @@ async function main(): Promise<void> {
 
   const tag = await lastReleaseTag()
   // No tag → first release; nothing to compare against. Published version
-  // (tag === v<version>) → historical, not re-validated.
-  if (!tag || tag === `v${version}`) {
+  // (tag === v<version>, or the v<version> tag exists off-lineage after a
+  // history consolidation) → historical, not re-validated.
+  if (!tag || tag === `v${version}` || (await releaseTagExists(version))) {
     return
   }
 

@@ -28,7 +28,8 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 // oxlint-disable-next-line socket/prefer-async-spawn -- sequential git plumbing; each step gates the next on exit status.
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
-import { commitMessage, groupPaths } from './land-work.mts'
+import { groupPaths } from './land-work.mts'
+import { commitMessage } from './land-work/message.mts'
 import { REPO_ROOT } from './paths.mts'
 
 const logger = getDefaultLogger()
@@ -119,7 +120,9 @@ function main(): void {
 
   const tipSubject = gitOrDie(['log', '-1', '--format=%s', orig], 'tip subject')
   const bumpTip = BUMP_SUBJECT_RE.test(tipSubject) ? orig : undefined
-  const workTip = bumpTip ? gitOrDie(['rev-parse', `${orig}~1`], 'work tip') : orig
+  const workTip = bumpTip
+    ? gitOrDie(['rev-parse', `${orig}~1`], 'work tip')
+    : orig
 
   // --no-renames keeps every rename as an explicit A+D pair so the staging
   // loop below sees the deletion side.

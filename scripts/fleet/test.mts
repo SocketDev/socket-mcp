@@ -54,6 +54,7 @@ import {
   GENERATED_GLOBS,
   isGeneratedPath,
 } from './constants/generated-globs.mts'
+import { ensurePinnedNode } from './lib/ensure-node.mts'
 
 const logger = getDefaultLogger()
 
@@ -216,6 +217,22 @@ function shouldEscalate(files: string[]): boolean {
   return false
 }
 
+// Resolve the child env for a vitest spawn, always dropping COVERAGE. Coverage
+// is owned by cover.mts, which spawns the outer vitest DIRECTLY (never via
+// test.mts), so any COVERAGE reaching test.mts belongs to a NESTED run — a
+// subprocess-spawning test re-entered test.mts (via `pnpm test` / a git hook)
+// while the outer coverage run is live. A nested vitest with coverage on would
+// clean the shared coverage/.tmp and ENOENT the outer forks' reports (the reason
+// coverage used to force `maxWorkers: 1`). test.mts never collects coverage
+// itself, so strip it and let the suite run parallel without the clobber.
+function resolveVitestEnv(
+  optsEnv: Record<string, string> | undefined,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...optsEnv }
+  delete env['COVERAGE']
+  return env
+}
+
 function runVitest(
   vitestArgs: string[],
   label: string,
@@ -235,7 +252,7 @@ function runVitest(
     {
       shell: useShell,
       stdio,
-      ...(opts.env ? { env: { ...process.env, ...opts.env } } : {}),
+      env: resolveVitestEnv(opts.env),
     },
   )
   if (r.status !== 0) {
@@ -519,6 +536,10 @@ function runFiles(files: string[]): number {
 }
 
 function main(): void {
+  // Re-exec under the pinned node when a stale PATH node (e.g. a Homebrew node
+  // in a non-interactive shell that never sourced fnm) is below the hook floor,
+  // so the vitest + hooks this spawns run on the fleet runtime.
+  ensurePinnedNode()
   const explicitFiles = fileArgs()
   if (explicitFiles.length > 0) {
     process.exitCode = runFiles(explicitFiles)

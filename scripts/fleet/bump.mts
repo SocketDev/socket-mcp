@@ -37,7 +37,7 @@ import {
   versionHintFrom,
 } from './lib/changelog.mts'
 import { REPO_ROOT } from './paths.mts'
-import { runCapture } from './publish-shared.mts'
+import { runCapture } from './publish-infra/shared.mts'
 
 import type { BumpLevel } from './lib/changelog.mts'
 

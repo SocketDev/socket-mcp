@@ -27,6 +27,11 @@
  *      but not reflected in pnpm-lock.yaml's resolved catalogs (CI's
  *      --frozen-lockfile then fails). Always runs (cheap file reads);
  *      report-only, operator runs `pnpm install`.
+ *   9. Pin-shadowed catalog entries (GAP 11) — a package.json pins a version
+ *      directly while the catalog carries the same dep, so catalog bumps
+ *      silently no-op. Auto-fixed to "catalog:" under --fix; deliberate
+ *      off-catalog pins opt out via catalogShadowIgnore: in
+ *      pnpm-workspace.yaml.
  *
  *   CLI: node scripts/fleet/doctor.mts [--fix] [--probe-install] [--probe-git]
  *        [--probe-secrets]
@@ -60,6 +65,10 @@ import {
   detectUnsignedCommits,
 } from './lib/doctor/git-gap.mts'
 import { diagnoseLockfileCatalogDrift } from './lib/doctor/lockfile-catalog-gap.mts'
+import {
+  applyPinShadowFixes,
+  diagnosePinShadowGaps,
+} from './lib/doctor/pin-shadow-gap.mts'
 import {
   formatSecretFindings,
   formatToolMissingFinding,
@@ -322,6 +331,34 @@ async function main(): Promise<void> {
       allFindings.length,
       ...allFindings.filter(f => !f.fixable),
     )
+  }
+
+  // GAP 11: direct pins shadowing catalog entries — the pin wins over the
+  // catalog, so catalog bumps silently no-op (a repo can run a stale tool
+  // version while its catalog reports current). Fix rewrites the pin to
+  // "catalog:"; the install probe below then refreshes the lockfile check.
+  const { findings: shadowFindings, fixes: shadowFixes } =
+    diagnosePinShadowGaps({ packageJsons, workspaceYaml })
+  if (shadowFixes.length > 0 && doFix) {
+    for (const shadowFix of shadowFixes) {
+      const absPath = path.join(cwd, shadowFix.path)
+      writeFileSync(
+        absPath,
+        applyPinShadowFixes({
+          content: readFileSync(absPath, 'utf8'),
+          deps: shadowFix.deps,
+        }),
+        'utf8',
+      )
+    }
+    const depCount = shadowFixes.reduce((n, f) => n + f.deps.length, 0)
+    logger.info(
+      `doctor --fix: rewrote ${depCount} pin(s) to catalog: across ${shadowFixes.length} package.json file(s) — run pnpm install to refresh the lockfile`,
+    )
+    catalogFixed = true
+    allFindings.push(...shadowFindings.filter(f => !f.fixable))
+  } else {
+    allFindings.push(...shadowFindings)
   }
 
   // GAP: lockfile ↔ catalog drift — a bumped pnpm-workspace.yaml catalog entry

@@ -27,6 +27,8 @@ import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { parsePorcelain } from './_shared/git-porcelain.mts'
+import { summarizeGroups } from './land-work/ai-summary.mts'
+import { commitMessage } from './land-work/message.mts'
 
 const logger = getDefaultLogger()
 
@@ -193,11 +195,6 @@ export function groupPaths(paths: readonly string[]): CommitGroup[] {
   return groups
 }
 
-export function commitMessage(group: CommitGroup): string {
-  const n = group.paths.length
-  return `${group.type}(${group.scope}): land ${n} ${group.scope} change${n === 1 ? '' : 's'}`
-}
-
 export interface PartitionedTree {
   readonly landable: string[]
   readonly skippedAmbiguous: string[]
@@ -332,29 +329,38 @@ function inProgressOp(cwd: string): string | undefined {
   return undefined
 }
 
-function landGroup(cwd: string, group: CommitGroup): boolean {
-  const added = git(cwd, ['add', '--', ...group.paths])
-  if (!added.ok) {
-    logger.fail(`git add failed for ${group.scope}: ${added.out.trim()}`)
-    return false
-  }
+function landGroup(
+  cwd: string,
+  group: CommitGroup,
+  aiSummary?: string,
+): boolean {
+  const message = commitMessage(group, aiSummary)
+  // `-A -- <paths>` so a DELETED path stages as a deletion — plain `git add`
+  // errors "pathspec did not match" on removed files (cascade tombstones,
+  // pruned hooks), stranding the whole group. Scoped to the pathspec, so it
+  // stays surgical (same rationale as the cascade's stagePaths). Advisory:
+  // when a path's deletion is ALREADY staged nothing on disk matches the
+  // pathspec and the add errors spuriously, while `git commit -o` below
+  // commits the named paths' working-tree state without needing the index —
+  // so a real problem surfaces as the commit failure, not the add.
+  git(cwd, ['add', '-A', '--', ...group.paths])
   const committed = git(cwd, [
     'commit',
     '-o',
     ...group.paths,
     '-S',
     '-m',
-    commitMessage(group),
+    message,
   ])
   if (!committed.ok) {
     logger.fail(`git commit failed for ${group.scope}: ${committed.out.trim()}`)
     return false
   }
-  logger.success(`landed ${commitMessage(group)}`)
+  logger.success(`landed ${message.split('\n')[0]}`)
   return true
 }
 
-export function main(cwd: string = process.cwd()): number {
+export async function main(cwd: string = process.cwd()): Promise<number> {
   const argv = process.argv.slice(2)
   const doCommit = argv.includes('--commit')
   // Non-flag args restrict landing to EXACTLY this set (repo-relative paths).
@@ -439,9 +445,16 @@ export function main(cwd: string = process.cwd()): number {
     logger.log('Re-run with --commit to land.')
     return 0
   }
+  // Mark the run so the AI summarizer's headless child — which inherits this
+  // env and loads this repo's Stop hook — never re-triggers auto-land on the
+  // still-dirty tree (auto-land-on-stop skips when this is set).
+  process.env['SOCKET_LAND_WORK_ACTIVE'] = '1'
+  // Deterministic subject + file digest always stand; the floor-tier AI summary
+  // is pure enrichment the land never waits on (empty map = digest-only body).
+  const summaries = await summarizeGroups(cwd, groups)
   let failed = 0
   for (const g of groups) {
-    if (!landGroup(cwd, g)) {
+    if (!landGroup(cwd, g, summaries.get(g.scope))) {
       failed += 1
     }
   }
@@ -449,5 +462,12 @@ export function main(cwd: string = process.cwd()): number {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  process.exitCode = main()
+  main().then(
+    code => {
+      process.exitCode = code
+    },
+    () => {
+      process.exitCode = 1
+    },
+  )
 }

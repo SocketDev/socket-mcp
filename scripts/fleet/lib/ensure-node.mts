@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+/*
+ * @file Self-heal the Node runtime for fleet CLI entrypoints. A non-interactive
+ *   shell that never sourced fnm's shell hook falls back to whatever `node`
+ *   wins PATH — often a stale Homebrew node below the floor the fleet hooks +
+ *   tooling require (the hooks assert `Node >= 25`). Rather than fail cryptic
+ *   downstream, a fleet entrypoint calls `ensurePinnedNode()` first: if the
+ *   running node is below the floor, it re-execs itself under the highest
+ *   fnm-installed node at/above the floor. A no-op on a good node (the common
+ *   case — Claude Code's own env already has fnm's node), and a no-op when no
+ *   fnm node qualifies (the run proceeds and fails loud downstream, as before).
+ */
+
+import { existsSync, readdirSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import process from 'node:process'
+
+// prefer-async-spawn: sync-required — a startup re-exec must block before the
+// entrypoint's own work runs; there is nothing to stream.
+// oxlint-disable-next-line socket/prefer-async-spawn -- startup re-exec, sync by nature.
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+
+// The hard Node major the fleet hooks assert (`Hook requires Node >= 25.0.0`).
+// A running node below this trips every hook + the tests that spawn them.
+export const NODE_FLOOR_MAJOR = 25
+
+// Env stamp set on the re-exec'd child so it never re-execs again (loop guard).
+export const REEXEC_GUARD_ENV = 'FLEET_NODE_REEXEC'
+
+// Re-exec under the pinned node when the running node is below the floor. Pure
+// decision — the runner supplies the resolved candidate + current state.
+export function nodeReexecPlan(options: {
+  alreadyReexec: boolean
+  currentMajor: number
+  floorMajor: number
+  pinnedNode: string | undefined
+}): { reexec: false } | { node: string; reexec: true } {
+  const opts = { __proto__: null, ...options } as typeof options
+  if (opts.alreadyReexec || opts.currentMajor >= opts.floorMajor) {
+    return { reexec: false }
+  }
+  if (!opts.pinnedNode) {
+    return { reexec: false }
+  }
+  return { node: opts.pinnedNode, reexec: true }
+}
+
+// Parse a version (`v26.4.0` / `26.4.0`) to its major, or undefined.
+export function majorOf(version: string): number | undefined {
+  const m = /^v?(\d+)\./.exec(version)
+  return m ? Number(m[1]) : undefined
+}
+
+// The highest node binary among fnm version-dir entries whose major is at/above
+// the floor, or undefined. Pure over the listing (testable without a real fnm).
+export function pickFnmNode(options: {
+  binOf: (version: string) => string
+  entries: readonly string[]
+  floorMajor: number
+}): string | undefined {
+  const opts = { __proto__: null, ...options } as typeof options
+  let bestMajor = -1
+  let best: string | undefined
+  for (let i = 0, { length } = opts.entries; i < length; i += 1) {
+    const entry = opts.entries[i]!
+    const major = majorOf(entry)
+    if (major === undefined || major < opts.floorMajor) {
+      continue
+    }
+    if (major > bestMajor) {
+      bestMajor = major
+      best = opts.binOf(entry)
+    }
+  }
+  return best
+}
+
+// The fnm node-versions store — honours `$FNM_DIR`, else the default layout.
+export function fnmVersionsDir(
+  env: NodeJS.ProcessEnv,
+  homeDir: string,
+): string {
+  const base = env['FNM_DIR'] || path.join(homeDir, '.local', 'share', 'fnm')
+  return path.join(base, 'node-versions')
+}
+
+// Absolute node-binary path for a fnm version-dir entry.
+function fnmBinFor(versionsDir: string, entry: string): string {
+  return path.join(versionsDir, entry, 'installation', 'bin', 'node')
+}
+
+/**
+ * Call FIRST in a fleet CLI entrypoint's `main()`. When the running node is
+ * below `NODE_FLOOR_MAJOR`, re-exec the current process under the highest
+ * fnm-installed node at/above the floor and exit with its status. No-op
+ * otherwise.
+ */
+export function ensurePinnedNode(): void {
+  const versionsDir = fnmVersionsDir(process.env, os.homedir())
+  let entries: string[] = []
+  try {
+    entries = existsSync(versionsDir) ? readdirSync(versionsDir) : []
+  } catch {
+    entries = []
+  }
+  const candidate = pickFnmNode({
+    binOf: entry => fnmBinFor(versionsDir, entry),
+    entries,
+    floorMajor: NODE_FLOOR_MAJOR,
+  })
+  const plan = nodeReexecPlan({
+    alreadyReexec: process.env[REEXEC_GUARD_ENV] === '1',
+    currentMajor: majorOf(process.versions.node) ?? 0,
+    floorMajor: NODE_FLOOR_MAJOR,
+    pinnedNode: candidate && existsSync(candidate) ? candidate : undefined,
+  })
+  if (!plan.reexec) {
+    return
+  }
+  const result = spawnSync(plan.node, process.argv.slice(1), {
+    env: { ...process.env, [REEXEC_GUARD_ENV]: '1' },
+    stdio: 'inherit',
+  })
+  process.exit(typeof result.status === 'number' ? result.status : 1)
+}

@@ -85,8 +85,6 @@ const CHECK_SCRIPT_TEST_ALLOWLIST: Record<string, string> = {
   'fleet-members-are-onboarded': 'wheelhouse-only repo check — test pending',
   'llms-txt-is-current':
     'thin wrapper — logic tested in test/unit/fleet/make-llms-txt.test.mts',
-  'sparkle-auto-update-is-disabled':
-    'thin wrapper — logic tested in test/unit/fleet/sparkle-auto-update.test.mts',
   'template-fleet-oxlint-ignore-current':
     'wheelhouse-only repo check — test pending',
 }

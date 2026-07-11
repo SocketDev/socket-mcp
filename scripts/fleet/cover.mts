@@ -13,6 +13,8 @@
  *   --summary hide the detailed v8 table, show only the summary.
  */
 
+import { existsSync, readFileSync } from 'node:fs'
+import { performance } from 'node:perf_hooks'
 import process from 'node:process'
 
 import { stripAnsi } from '@socketsecurity/lib-stable/ansi/strip'
@@ -28,13 +30,17 @@ import {
 import { printHeader } from '@socketsecurity/lib-stable/stdio/header'
 
 import type { AggregateCoverage } from './util/coverage-merge.mts'
-import { mergeCoverageFinal } from './util/coverage-merge.mts'
+import {
+  MissingTierCoverageError,
+  mergeCoverageFinal,
+} from './util/coverage-merge.mts'
 import type { CoverThresholds, ResolvedSuite } from './cover/discovery.mts'
 import {
   readCoverConfig,
   resolveBuildEntry,
   resolveSuites,
 } from './cover/discovery.mts'
+import { ensurePinnedNode } from './lib/ensure-node.mts'
 import { REPO_ROOT } from './paths.mts'
 
 const rootPath = REPO_ROOT
@@ -129,6 +135,63 @@ export async function runQuiet(
       stderr: (err['stderr'] as string) || (err['message'] as string) || '',
     }
   }
+}
+
+// Fleet default wall-clock budget for the unit suites: under a minute
+// (operator directive 2026-07-10). Repos tune via `vitest.unitBudgetMs` in
+// .config/socket-wheelhouse.json.
+const DEFAULT_UNIT_BUDGET_MS = 60_000
+
+/**
+ * The unit-suite wall-clock budget from the per-repo settings file
+ * (`vitest.unitBudgetMs`), falling back to the fleet default. Fail-open: a
+ * missing or torn settings file yields the default.
+ */
+export function resolveUnitBudgetMs(): number {
+  for (const file of [
+    '.config/socket-wheelhouse.json',
+    '.socket-wheelhouse.json',
+  ]) {
+    if (!existsSync(file)) {
+      continue
+    }
+    try {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
+        vitest?: { unitBudgetMs?: number | undefined } | undefined
+      }
+      const ms = parsed?.vitest?.unitBudgetMs
+      return typeof ms === 'number' && ms >= 1000 ? ms : DEFAULT_UNIT_BUDGET_MS
+    } catch {
+      return DEFAULT_UNIT_BUDGET_MS
+    }
+  }
+  return DEFAULT_UNIT_BUDGET_MS
+}
+
+/**
+ * Loud report-only budget warning (What / Where / Saw vs wanted / Fix). Stays
+ * a warning until the fleet conforms, then ratchets to a hard failure.
+ */
+export function warnIfOverBudget(suiteMs: number, budgetMs: number): boolean {
+  if (suiteMs <= budgetMs) {
+    return false
+  }
+  logger.warn(
+    `[cover] unit suites exceeded the wall-clock budget: ${(suiteMs / 1000).toFixed(1)}s > ${(budgetMs / 1000).toFixed(0)}s.`,
+  )
+  logger.warn(
+    '  Fleet rule: unit tests conclude in under a minute. Move heavy external-suite /',
+  )
+  logger.warn(
+    '  cross-impl / built-artifact tests to the conformance tier: list their globs under',
+  )
+  logger.warn(
+    '  `vitest.conformanceExclude` in .config/socket-wheelhouse.json and pair them with a',
+  )
+  logger.warn(
+    '  `test:conformance` runner script. Tune the budget via `vitest.unitBudgetMs`.',
+  )
+  return true
 }
 
 export function parseTypeCoveragePercent(output: string): number | undefined {
@@ -285,6 +348,10 @@ export function displayCodeCoverage(
 }
 
 export async function main(): Promise<void> {
+  // Re-exec under the pinned node when a stale PATH node (below the hook floor)
+  // is active, so the coverage vitest + the hooks it spawns run on the fleet
+  // runtime instead of failing "Hook requires Node >= 25".
+  ensurePinnedNode()
   const { values } = parseArgs({
     options: {
       'code-only': { type: 'boolean', default: false },
@@ -375,10 +442,12 @@ export async function main(): Promise<void> {
         logger.log('')
       }
     } else {
+      const suiteStart = performance.now()
       const { combined, isolatedResult, mainResult } = await runTestSuites(
         mainVitestArgs,
         isolatedVitestArgs,
       )
+      warnIfOverBudget(performance.now() - suiteStart, resolveUnitBudgetMs())
       exitCode = combined.exitCode
 
       const mainOutput = cleanOutput(mainResult.stdout + mainResult.stderr)
@@ -395,13 +464,33 @@ export async function main(): Promise<void> {
         typeCoveragePercent = parseTypeCoveragePercent(typeCoverageOutput)
       }
 
+      // Disabled seam (#213 step 1): strict-tier enforcement. A suite that ran
+      // must have produced its tier's coverage-final.json; a dropped tier
+      // silently narrows the merge and over-reports (a false-green). Gated OFF
+      // by default — the 'shared' tier always runs, 'isolated' only when its
+      // suite is resolved. Flip on with FLEET_COVER_STRICT_TIERS=1 once a
+      // supervised `cover` run confirms the wheelhouse emits every resolved
+      // tier; step 2 promotes this gate into `.config/repo/cover.json`.
+      const expectedTiers =
+        process.env['FLEET_COVER_STRICT_TIERS'] === '1'
+          ? ['shared', ...(isolatedSuite ? ['isolated'] : [])]
+          : undefined
       let aggregateCoverage: AggregateCoverage | undefined
       try {
-        aggregateCoverage = await mergeCoverageFinal({ rootPath, logger })
+        aggregateCoverage = await mergeCoverageFinal({
+          expectedTiers,
+          logger,
+          rootPath,
+        })
       } catch (e) {
-        logger.warn(
-          `Could not compute aggregate coverage: ${e instanceof Error ? e.message : 'Unknown error'}`,
-        )
+        if (e instanceof MissingTierCoverageError) {
+          logger.error(`Coverage tier dropped: ${errorMessage(e)}`)
+          exitCode = exitCode === 0 ? 1 : exitCode
+        } else {
+          logger.warn(
+            `Could not compute aggregate coverage: ${errorMessage(e)}`,
+          )
+        }
       }
 
       displayCodeCoverage(mainOutput, combinedOutput, aggregateCoverage, {

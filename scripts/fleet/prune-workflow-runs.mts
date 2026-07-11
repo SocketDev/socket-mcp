@@ -26,7 +26,7 @@ import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from './paths.mts'
-import { runCapture } from './publish-shared.mts'
+import { runCapture } from './publish-infra/shared.mts'
 
 const logger = getDefaultLogger()
 

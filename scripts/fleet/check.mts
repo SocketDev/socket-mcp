@@ -504,6 +504,14 @@ const steps: Array<() => boolean> = [
   // the .md body — catches a prompt edited without `gh aw compile`. Pure
   // node, no gh-aw dependency; vacuous pass with no agentic workflows.
   () => run('node', ['scripts/fleet/check/gh-aw-locks-are-current.mts']),
+  // gh-aw agentic workflows: any explicit `engine.model` frontmatter pin is a
+  // canonical model id (KNOWN_MODELS: pricing registry + AI_TIER). Catches a
+  // workflow left on a stale id (claude-sonnet-4-5) after the tier moved — the
+  // "same role, two model strings" drift the ai-spawns gate can't see.
+  () =>
+    run('node', [
+      'scripts/fleet/check/gh-aw-workflow-models-are-canonical.mts',
+    ]),
   // The fleet-owned local-agent egress allowlist (.config/fleet/egress-
   // allowlist.json) is a SUBSET of gh-aw's expanded firewall allowDomains — the
   // hosts CI's agent firewall already trusts. One-directional containment (fleet

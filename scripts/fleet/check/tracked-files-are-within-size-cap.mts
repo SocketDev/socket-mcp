@@ -155,10 +155,7 @@ export async function scanDirectory(
   // A `.git` entry below the root marks a nested checkout (submodule
   // working tree) — foreign surface sized by its upstream, never this
   // repo's tracked content. Don't descend.
-  if (
-    dir !== rootDir &&
-    entries.some(e => e.name === '.git')
-  ) {
+  if (dir !== rootDir && entries.some(e => e.name === '.git')) {
     return violations
   }
   for (const entry of entries) {
@@ -208,16 +205,12 @@ export function filterGitIgnored(
   if (violations.length === 0) {
     return violations
   }
-  const result = spawnSync(
-    'git',
-    ['check-ignore', '--stdin', '-z'],
-    {
-      cwd: rootDir,
-      input: violations.map(v => v.file).join('\0'),
-      stdio: 'pipe',
-      stdioString: true,
-    },
-  )
+  const result = spawnSync('git', ['check-ignore', '--stdin', '-z'], {
+    cwd: rootDir,
+    input: violations.map(v => v.file).join('\0'),
+    stdio: 'pipe',
+    stdioString: true,
+  })
   // Exit 0 = some ignored, 1 = none ignored, 128 = error (fail-open).
   if (result.status !== 0 && result.status !== 1) {
     return violations

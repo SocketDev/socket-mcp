@@ -150,6 +150,32 @@ const LintSchema = Type.Object(
 )
 
 // ---------------------------------------------------------------------------
+// Vitest block — test-suite tuning the canonical vitest config reads.
+// ---------------------------------------------------------------------------
+
+const VitestSchema = Type.Object(
+  {
+    conformanceExclude: Type.Optional(
+      Type.Array(Type.String(), {
+        description:
+          'Heavy external-suite / cross-impl conformance wrapper globs excluded from the DEFAULT (unit) + cover suites, keeping the unit pass inside the fleet under-a-minute budget. A repo setting this MUST pair it with an explicit `test:conformance` runner so the tier never silently drops.',
+      }),
+    ),
+    unitBudgetMs: Type.Optional(
+      Type.Number({
+        minimum: 1000,
+        description:
+          'Wall-clock budget for the unit test suites under cover.mts, in milliseconds. Fleet default 60000 (under a minute). A suite exceeding the budget gets a loud report-only warning pointing at conformanceExclude; the gate ratchets to a hard failure once the fleet conforms.',
+      }),
+    ),
+  },
+  {
+    description:
+      'Tuning for the canonical vitest config (.config/repo/vitest.config.mts).',
+  },
+)
+
+// ---------------------------------------------------------------------------
 // Workflows block — GitHub Actions opt-ins.
 // ---------------------------------------------------------------------------
 
@@ -459,7 +485,8 @@ const PrebakeEntrySchema = Type.Object(
       description: 'Image name. Toolchain-named, not output-named.',
     }),
     status: Type.Union([Type.Literal('active'), Type.Literal('planned')], {
-      description: '`active` = built + pushed today; `planned` = designed only.',
+      description:
+        '`active` = built + pushed today; `planned` = designed only.',
     }),
     from: Type.String({
       description:
@@ -481,10 +508,9 @@ const PrebakeEntrySchema = Type.Object(
       description: 'Toolchains/packages this layer adds on top of `from`.',
     }),
     libc: Type.Optional(
-      Type.Array(
-        Type.Union([Type.Literal('glibc'), Type.Literal('musl')]),
-        { description: 'libc variants built.' },
-      ),
+      Type.Array(Type.Union([Type.Literal('glibc'), Type.Literal('musl')]), {
+        description: 'libc variants built.',
+      }),
     ),
     platforms: Type.Optional(
       Type.Array(Type.String(), {
@@ -572,6 +598,7 @@ export const SocketWheelhouseConfigSchema = Type.Object(
     hooks: Type.Optional(HooksSchema),
     scripts: Type.Optional(ScriptsSchema),
     lint: Type.Optional(LintSchema),
+    vitest: Type.Optional(VitestSchema),
     workflows: Type.Optional(WorkflowsSchema),
     claude: Type.Optional(ClaudeSchema),
     workspace: Type.Optional(WorkspaceSchema),
@@ -592,3 +619,4 @@ export const SocketWheelhouseConfigSchema = Type.Object(
 export type SocketWheelhouseConfig = Static<typeof SocketWheelhouseConfigSchema>
 export type Repo = Static<typeof RepoSchema>
 export type Build = Static<typeof BuildSchema>
+export type Vitest = Static<typeof VitestSchema>
