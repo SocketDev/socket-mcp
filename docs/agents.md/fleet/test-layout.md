@@ -12,7 +12,7 @@ There is no `test/fleet/` and no cascaded test tier.
 ## Homes
 
 | Test of… | Lives in |
-|---|---|
+| --- | --- |
 | Fleet **scripts** (`scripts/fleet/**`) | `test/repo/{unit,integration}/**` |
 | Wheelhouse **hooks / lint-rules / git-hooks** | `test/repo/{unit,integration,e2e}/**` |
 | Repo-specific host-owned code | `test/repo/**` |

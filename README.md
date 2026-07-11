@@ -51,8 +51,8 @@ The easiest way to get started. The public server uses OAuth — your MCP client
 }
 ```
 
-3. Save the configuration and restart Claude Desktop.
-4. Now you can ask Claude "Check the security score for express version 4.18.2".
+1. Save the configuration and restart Claude Desktop.
+2. Now you can ask Claude "Check the security score for express version 4.18.2".
 
 For Claude Code:
 
@@ -429,7 +429,7 @@ mkdir -p ~/.claude/hooks
 cp -R dist/socket-gate ~/.claude/hooks/
 ```
 
-2. Add to `~/.claude/settings.json`:
+1. Add to `~/.claude/settings.json`:
 
 ```json
 {
