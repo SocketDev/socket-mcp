@@ -14,7 +14,7 @@ confirmModulesPurge: false
 managePackageManagerVersions: false
 
 catalog:
-  '@anthropic-ai/claude-code': 2.1.198
+  '@anthropic-ai/claude-code': 2.1.201
   '@redwoodjs/agent-ci': 0.16.2
   '@sinclair/typebox': 0.34.49
   '@socketregistry/packageurl-js': 1.4.2
@@ -155,3 +155,8 @@ trustPolicyExclude:
   - 'ast-v8-to-istanbul@1.0.2'
   - 'compromise@14.15.0'
   - 'undici-types@6.21.0'
+
+# nock 15 (msw-interceptors rewrite) stops intercepting the oauth introspection
+# mocks — deliberate hold-back at 14.0.10 until the corpus migrates (#339 family).
+catalogShadowIgnore:
+  - 'nock'
