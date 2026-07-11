@@ -98,7 +98,7 @@
     "mdast-util-from-markdown": "catalog:",
     "micromark": "catalog:",
     "neosanitize": "catalog:",
-    "nock": "14.0.10",
+    "nock": "catalog:",
     "npm-run-all2": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
