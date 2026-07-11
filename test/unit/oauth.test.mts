@@ -152,15 +152,20 @@ export function mockDiscovery(): void {
 }
 
 // Mock the RFC 7662 introspection endpoint, replying based on the posted
-// token the same way the old local mock-issuer server did.
+// token. nock 15 emits the scope's 'request' event (with the raw body
+// string) before playback, so the token is captured there and the reply
+// function stays zero-arg — a 2-arg reply function gets util.promisify'd
+// under nock 15 and hangs forever.
 export function mockIntrospection(): void {
-  nock(issuerBaseUrl)
-    .post(introspectionPath)
-    .reply((_uri, requestBody) => {
-      const token = new URLSearchParams(String(requestBody)).get('token')
-      const response = token ? mockIntrospectionResponses[token] : undefined
-      return [200, JSON.stringify(response || { active: false })]
-    })
+  let token: string | null = null
+  const scope = nock(issuerBaseUrl)
+  scope.on('request', (_req, _interceptor, body) => {
+    token = new URLSearchParams(String(body)).get('token')
+  })
+  scope.post(introspectionPath).reply(() => {
+    const response = token ? mockIntrospectionResponses[token] : undefined
+    return [200, JSON.stringify(response || { active: false })]
+  })
 }
 
 const resourceMetadataUrl = `https://resource.example.test${protectedResourceMetadataPath}`
