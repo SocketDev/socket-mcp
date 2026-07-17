@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox'
 
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 

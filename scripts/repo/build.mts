@@ -10,17 +10,17 @@
 import { chmod, copyFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
-import { buildConfigs } from '../.config/repo/rolldown.config.mts'
+import { buildConfigs } from '../../.config/repo/rolldown.config.mts'
 import {
   DIST_DIR,
   SOCKET_GATE_DIST_DIR,
   SOCKET_GATE_SRC_DIR,
-} from './repo/paths.mts'
+} from './paths.mts'
 
 import type { RolldownOptions } from 'rolldown'
 

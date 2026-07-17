@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Clean script with configurable directory exclusions
-# Usage: ./scripts/clean.sh [options]
+# Usage: ./scripts/repo/clean.sh [options]
 # Options:
 #   --dry-run    Show what would be deleted without actually deleting
 #   --verbose    Show detailed output

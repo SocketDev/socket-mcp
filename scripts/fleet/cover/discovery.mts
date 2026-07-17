@@ -15,10 +15,10 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 const logger = getDefaultLogger()
 
 // The repo-root-relative build entry candidates, in precedence order. Most
-// repos ship scripts/build.mts; some name it scripts/bundle.mts after the
+// repos ship scripts/repo/build.mts; some name it scripts/bundle.mts after the
 // build→bundle rename.
 export const BUILD_ENTRY_CANDIDATES: readonly string[] = [
-  'scripts/build.mts',
+  'scripts/repo/build.mts',
   'scripts/bundle.mts',
   // Repo-owned build pipelines that moved under scripts/repo/ (a member that
   // separated its bespoke build from the cascaded scripts/fleet/ — e.g.

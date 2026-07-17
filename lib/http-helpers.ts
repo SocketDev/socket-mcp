@@ -1,7 +1,7 @@
 import readline from 'node:readline'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { getTrustProxy } from './env.ts'
 import { logger } from './logger.ts'

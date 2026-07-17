@@ -198,7 +198,7 @@ export function resolveTestRunner(
  * lands fleet-wide.
  *
  * Bundler invocations in the fleet are driven from a per-repo
- * `scripts/build.mts` that imports the bundler API directly (not via `pnpm
+ * `scripts/repo/build.mts` that imports the bundler API directly (not via `pnpm
  * exec`), so this resolver returns the binary name only — the caller picks
  * which API surface to import.
  */

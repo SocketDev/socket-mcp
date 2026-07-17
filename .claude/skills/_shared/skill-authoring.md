@@ -160,7 +160,7 @@ import {
 const result = await runResolved(resolveLinter({ mode: 'check' }), { cwd })
 ```
 
-The resolver gives us a clean migration path: when rolldown goes fleet-wide, we change `resolveBundler()` to return `['rolldown']` instead of `['esbuild']` — every per-repo `scripts/build.mts` that consults the resolver picks up the swap. Per-repo migration to consume the resolver lands repo-by-repo so we don't bundle bundler-swap risk into a 12-repo cascade.
+The resolver gives us a clean migration path: when rolldown goes fleet-wide, we change `resolveBundler()` to return `['rolldown']` instead of `['esbuild']` — every per-repo `scripts/repo/build.mts` that consults the resolver picks up the swap. Per-repo migration to consume the resolver lands repo-by-repo so we don't bundle bundler-swap risk into a 12-repo cascade.
 
 ## References
 

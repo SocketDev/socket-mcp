@@ -1,6 +1,6 @@
 import { Type } from '@sinclair/typebox'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { getOrFetchBlob } from './blob-cache.ts'
 import { getSocketInternalUserAgent } from './env.ts'

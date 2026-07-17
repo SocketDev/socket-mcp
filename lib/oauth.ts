@@ -5,7 +5,7 @@ import {
   getSocketOauthRequiredScopes,
 } from './env.ts'
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'

@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs'
 import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 
 const MCP_URL = 'https://mcp.socket.dev/'
 const SUPPLY_CHAIN_THRESHOLD = 20

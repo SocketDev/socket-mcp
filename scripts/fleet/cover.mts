@@ -666,7 +666,7 @@ export async function main(): Promise<void> {
     logger.log('')
   } else {
     logger.info(
-      'No build entry (scripts/build.mts | bundle.mts) — instrumenting sources directly.',
+      'No build entry (scripts/repo/build.mts | bundle.mts) — instrumenting sources directly.',
     )
     logger.log('')
   }
