@@ -150,7 +150,7 @@ Most other MCP clients:
 {
   "mcpServers": {
     "socket-mcp": {
-    "command": "npx", // socket-lint: allow npx
+      "command": "npx", // socket-lint: allow npx
       "args": ["@socketsecurity/mcp@latest"],
       "env": {
         "SOCKET_API_TOKEN": "your-api-token-here"
