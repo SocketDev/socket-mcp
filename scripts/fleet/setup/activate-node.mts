@@ -5,7 +5,7 @@
  *   set up only in an INTERACTIVE rc (`~/.zshrc`), so a non-interactive shell
  *   (a CI step, an editor task, an agent's Bash tool) never sources fnm and
  *   falls back to whatever node wins PATH — e.g. a Homebrew node below the fleet
- *   floor, which then trips "Hook requires Node >= 25". This:
+ *   floor, which then trips "Hook requires Node >= 24". This:
  *     1. installs the `.node-version` pin via fnm (idempotent),
  *     2. makes it the fnm default,
  *     3. idempotently ensures `~/.zshenv` (sourced by EVERY zsh, unlike
@@ -25,6 +25,7 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -105,6 +106,6 @@ async function main(): Promise<void> {
   logger.log('Open a new shell (or `source ~/.zshenv`) to pick up the pin.')
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   void main()
 }

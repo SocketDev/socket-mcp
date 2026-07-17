@@ -17,22 +17,30 @@ export interface StageListEntry {
   stageId?: string | undefined
   // sha1 hex npm recorded for the staged tarball. `pnpm stage list --json` is
   // the ONLY pre-approve source of the server-side digest — a staged version is
-  // not in the public packument, so fetchVersionTrustInfo can't see it. The
-  // field name is unverified without a live staged run; readStagedShasum probes
-  // the known shapes and the gate fails LOUD (never silently skips) when none
-  // resolve.
+  // not in the public packument, so fetchVersionTrustInfo can't see it. Live
+  // pnpm emits it top-level as `shasum` (verified against a real staged run);
+  // readStagedShasum keeps the `dist.shasum` probe as a fallback and the gate
+  // fails LOUD (never silently skips) when none resolve.
   shasum?: string | undefined
 }
 
-export function readPackageJson(): { name: string; version: string } {
+export function readPackageJson(): {
+  name: string
+  version: string
+  repository?: string | { url?: string | undefined } | undefined
+} {
   const raw = readFileSync(path.join(rootPath, 'package.json'), 'utf8')
-  return JSON.parse(raw) as { name: string; version: string }
+  return JSON.parse(raw) as {
+    name: string
+    version: string
+    repository?: string | { url?: string | undefined } | undefined
+  }
 }
 
 /**
- * Extract the staged tarball's sha1 from a `pnpm stage list --json` entry. The
- * field name is UNVERIFIED without a live staged run — probe the plausible
- * shapes (top-level `shasum`, then `dist.shasum`). Returns undefined when none
+ * Extract the staged tarball's sha1 from a `pnpm stage list --json` entry.
+ * Live pnpm emits top-level `shasum` (verified against a real staged run);
+ * `dist.shasum` stays as a fallback probe. Returns undefined when none
  * resolve; the pre-approve gate then fails LOUD (never silently skips) so a
  * field-name drift surfaces as a hard stop, not a false-green. (`integrity` is
  * sha512 — a different axis — so it is not reduced to sha1 here.)
@@ -50,10 +58,84 @@ export function readStagedShasum(entry: {
   return undefined
 }
 
+// A raw `pnpm stage list --json` entry across the shapes we've seen: live
+// pnpm emits `{ id, packageName, version, shasum, … }`; the older keyed-map
+// shape used `{ stageId, name, … }`.
+interface RawStageEntry {
+  dist?: { shasum?: unknown | undefined } | undefined
+  id?: unknown
+  name?: unknown
+  packageName?: unknown
+  shasum?: unknown
+  stageId?: unknown
+  version?: unknown
+}
+
+function normalizeStageEntry(raw: RawStageEntry): StageListEntry | undefined {
+  const stageId =
+    typeof raw.id === 'string' && raw.id
+      ? raw.id
+      : typeof raw.stageId === 'string' && raw.stageId
+        ? raw.stageId
+        : undefined
+  if (!stageId) {
+    return undefined
+  }
+  const name =
+    typeof raw.packageName === 'string' && raw.packageName
+      ? raw.packageName
+      : typeof raw.name === 'string' && raw.name
+        ? raw.name
+        : undefined
+  return {
+    name,
+    shasum: readStagedShasum(raw),
+    stageId,
+    version: typeof raw.version === 'string' ? raw.version : undefined,
+  }
+}
+
 /**
- * Resolve all currently-staged packages by parsing `pnpm stage list --json`.
- * The output's first balanced JSON object is the keyed map `<name>@<version>` →
- * entry; we flatten the values and drop entries without a stageId (defensive).
+ * Parse `pnpm stage list --json` output into normalized entries. Live pnpm
+ * (verified against a real staged run) emits an ARRAY of
+ * `{ id, packageName, version, shasum, … }`; the older keyed-map shape
+ * (`{ '<name>@<version>': { stageId, name, … } }`) is kept as a fallback.
+ * Entries that don't resolve a stage id are dropped (defensive). Pure —
+ * exported for tests.
+ */
+export function parseStageListJson(stdout: string): StageListEntry[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(stdout.trim())
+  } catch {
+    const json = extractFirstJson(stdout)
+    if (!json) {
+      return []
+    }
+    try {
+      parsed = JSON.parse(json)
+    } catch {
+      return []
+    }
+  }
+  const rawEntries: Array<RawStageEntry | undefined> = Array.isArray(parsed)
+    ? (parsed as Array<RawStageEntry | undefined>)
+    : parsed && typeof parsed === 'object'
+      ? (Object.values(parsed) as Array<RawStageEntry | undefined>)
+      : []
+  const result: StageListEntry[] = []
+  for (const raw of rawEntries) {
+    const entry = raw ? normalizeStageEntry(raw) : undefined
+    if (entry) {
+      result.push(entry)
+    }
+  }
+  return result
+}
+
+/**
+ * Resolve all currently-staged packages by running `pnpm stage list --json`
+ * and normalizing the output (see parseStageListJson).
  */
 export async function listStagedPackages(): Promise<StageListEntry[]> {
   const { stdout } = await runCapture(
@@ -61,25 +143,7 @@ export async function listStagedPackages(): Promise<StageListEntry[]> {
     ['stage', 'list', '--json'],
     rootPath,
   )
-  const json = extractFirstJson(stdout)
-  if (!json) {
-    return []
-  }
-  try {
-    const parsed = JSON.parse(json) as Record<
-      string,
-      StageListEntry | undefined
-    >
-    const result: StageListEntry[] = []
-    for (const entry of Object.values(parsed)) {
-      if (entry?.stageId) {
-        result.push({ ...entry, shasum: readStagedShasum(entry) })
-      }
-    }
-    return result
-  } catch {
-    return []
-  }
+  return parseStageListJson(stdout)
 }
 
 /**

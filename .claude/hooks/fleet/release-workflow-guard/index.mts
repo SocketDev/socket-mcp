@@ -136,7 +136,6 @@ export const triggers: readonly string[] = ['dispatches', 'workflow']
 // instead the test "is this phrase present AFTER my last dispatch
 // of this workflow" answers it. See `findUnclaimedBypassPhrase`.
 const BYPASS_PHRASE_PREFIX = 'Allow workflow-dispatch bypass:'
-const BYPASS_LOOKBACK_USER_TURNS = 8
 
 /**
  * Build the canonical phrase variants that authorize ONE dispatch of
@@ -292,7 +291,11 @@ export function dispatchLedgerRemaining(
         // count across needles instead of summing, or a single phrase
         // would mint multiple credits.
         let occurrences = 0
-        for (let j = 0, needlesLength = needles.length; j < needlesLength; j += 1) {
+        for (
+          let j = 0, needlesLength = needles.length;
+          j < needlesLength;
+          j += 1
+        ) {
           const matched = haystack.match(phrasePattern(needles[j]!))
           if (matched && matched.length > occurrences) {
             occurrences = matched.length
@@ -849,7 +852,6 @@ export const check = bashGuard((command, payload) => {
     }
     return undefined
   }
-
 
   // Per-trigger phrase bypass. The user types
   // `Allow workflow-dispatch bypass: <workflow>` verbatim — one

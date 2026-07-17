@@ -1,14 +1,11 @@
 #!/usr/bin/env node
 /*
  * @file Self-heal the Node runtime for fleet CLI entrypoints. A non-interactive
- *   shell that never sourced fnm's shell hook falls back to whatever `node`
- *   wins PATH — often a stale Homebrew node below the floor the fleet hooks +
- *   tooling require (the hooks assert `Node >= 25`). Rather than fail cryptic
- *   downstream, a fleet entrypoint calls `ensurePinnedNode()` first: if the
- *   running node is below the floor, it re-execs itself under the highest
- *   fnm-installed node at/above the floor. A no-op on a good node (the common
- *   case — Claude Code's own env already has fnm's node), and a no-op when no
- *   fnm node qualifies (the run proceeds and fails loud downstream, as before).
+ *   shell can run the entrypoint under the repo-pinned Node while still
+ *   carrying a PATH that resolves child `#!/usr/bin/env node` launchers to a
+ *   stale Homebrew/system binary. `ensurePinnedNode()` puts the running Node's
+ *   directory first for every child and re-execs a below-floor process under
+ *   an installed qualifying fnm Node. The fleet runtime floor is Node 24.
  */
 
 import { existsSync, readdirSync } from 'node:fs'
@@ -21,9 +18,9 @@ import process from 'node:process'
 // oxlint-disable-next-line socket/prefer-async-spawn -- startup re-exec, sync by nature.
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
-// The hard Node major the fleet hooks assert (`Hook requires Node >= 25.0.0`).
+// The hard Node major the fleet hooks assert (`Hook requires Node >= 24.0.0`).
 // A running node below this trips every hook + the tests that spawn them.
-export const NODE_FLOOR_MAJOR = 25
+export const NODE_FLOOR_MAJOR = 24
 
 // Env stamp set on the re-exec'd child so it never re-execs again (loop guard).
 export const REEXEC_GUARD_ENV = 'FLEET_NODE_REEXEC'
@@ -44,6 +41,35 @@ export function nodeReexecPlan(options: {
     return { reexec: false }
   }
   return { node: opts.pinnedNode, reexec: true }
+}
+
+/**
+ * Clone an environment with the selected executable's directory first on
+ * PATH. Existing copies of that directory are removed so repeated calls stay
+ * idempotent. The case-insensitive key lookup preserves Windows' conventional
+ * `Path` spelling and removes duplicate PATH-key variants before spawn.
+ */
+export function envWithExecutableFirst(options: {
+  delimiter?: string | undefined
+  env: NodeJS.ProcessEnv
+  executablePath: string
+}): NodeJS.ProcessEnv {
+  const opts = { __proto__: null, ...options } as typeof options
+  const next = { ...opts.env }
+  const pathKeys = Object.keys(next).filter(key => key.toLowerCase() === 'path')
+  const pathKey = pathKeys[0] ?? 'PATH'
+  const delimiter = opts.delimiter ?? path.delimiter
+  const executableDir = path.dirname(opts.executablePath)
+  const entries = String(next[pathKey] ?? '')
+    .split(delimiter)
+    .filter(
+      entry => entry && path.resolve(entry) !== path.resolve(executableDir),
+    )
+  for (let i = 1, { length } = pathKeys; i < length; i += 1) {
+    delete next[pathKeys[i]!]
+  }
+  next[pathKey] = [executableDir, ...entries].join(delimiter)
+  return next
 }
 
 // Parse a version (`v26.4.0` / `26.4.0`) to its major, or undefined.
@@ -93,8 +119,9 @@ function fnmBinFor(versionsDir: string, entry: string): string {
 /**
  * Call FIRST in a fleet CLI entrypoint's `main()`. When the running node is
  * below `NODE_FLOOR_MAJOR`, re-exec the current process under the highest
- * fnm-installed node at/above the floor and exit with its status. No-op
- * otherwise.
+ * fnm-installed node at/above the floor and exit with its status. When the
+ * current process already qualifies, align child PATH resolution with
+ * `process.execPath` before returning.
  */
 export function ensurePinnedNode(): void {
   const versionsDir = fnmVersionsDir(process.env, os.homedir())
@@ -116,10 +143,23 @@ export function ensurePinnedNode(): void {
     pinnedNode: candidate && existsSync(candidate) ? candidate : undefined,
   })
   if (!plan.reexec) {
+    const alignedEnv = envWithExecutableFirst({
+      env: process.env,
+      executablePath: process.execPath,
+    })
+    const pathKey =
+      Object.keys(alignedEnv).find(key => key.toLowerCase() === 'path') ??
+      'PATH'
+    process.env['PATH'] = alignedEnv[pathKey]!
     return
   }
+  const childEnv = envWithExecutableFirst({
+    env: process.env,
+    executablePath: plan.node,
+  })
+  childEnv[REEXEC_GUARD_ENV] = '1'
   const result = spawnSync(plan.node, process.argv.slice(1), {
-    env: { ...process.env, [REEXEC_GUARD_ENV]: '1' },
+    env: childEnv,
     stdio: 'inherit',
   })
   process.exit(typeof result.status === 'number' ? result.status : 1)

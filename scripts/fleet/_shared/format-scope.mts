@@ -199,7 +199,10 @@ export function filterFormatIgnored(
   const regs = parseIgnoreGlobs(body).map(ignoreGlobToRegExp)
   return files.filter(f => {
     const unix = f.replaceAll('\\', '/')
-    if (unix.startsWith('template/')) {
+    // template/** stays gated (the canon every mirror is cut from) — except
+    // generated _dispatch artifacts (rolldown bundle + maker-written table),
+    // whose bytes the generators own, not the formatter.
+    if (unix.startsWith('template/') && !unix.includes('/_dispatch/')) {
       return true
     }
     return !regs.some(r => r.test(unix))

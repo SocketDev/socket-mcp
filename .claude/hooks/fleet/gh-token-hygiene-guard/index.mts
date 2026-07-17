@@ -16,9 +16,12 @@
 //      github.com block before checking, so a keyring-backed
 //      github.enterprise.com login can't mask a file-backed github.com.
 //
-//   2. 8-HOUR TOKEN AGE CAP. The hook stamps ~/.claude/gh-token-issued-at
-//      on `gh auth login` / `gh auth refresh` and blocks every non-auth
-//      `gh` command once the token is >8h old. Self-recovery:
+//   2. 8-HOUR IDLE TIMEOUT. The hook stamps ~/.claude/gh-token-issued-at on
+//      `gh auth login` / `gh auth refresh` AND on every allowed `gh` command
+//      (each use is activity), then blocks non-auth `gh` only once the token
+//      has sat IDLE — no gh command — for >8h. Active use (pushing, API
+//      calls) keeps resetting the clock, so a busy session never trips it;
+//      only genuine inactivity counts toward the timeout. Self-recovery:
 //      `gh auth refresh -h github.com` is always allowed (re-stamps).
 //
 //   3. WORKFLOW SCOPE ON-DEMAND, PHRASE-GATED. The `workflow` scope grants
@@ -57,11 +60,13 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import type { GuardBlock, GuardResult } from '../_shared/guard.mts'
 import { findInvocation, parseCommands } from '../_shared/shell-command.mts'
+import { spawnTimeoutMs } from '../_shared/spawn-timeout.mts'
 import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
 // Pre-flight trigger for the dispatcher: skip importing this guard unless the
@@ -80,7 +85,7 @@ const TOKEN_ISSUED_AT_FILE = path.join(
   '.claude',
   'gh-token-issued-at',
 )
-const TOKEN_TTL_MS = 8 * 60 * 60 * 1000 // 8 hours
+const TOKEN_TTL_MS = 8 * 60 * 60 * 1000 // 8 hours IDLE (reset on each gh use)
 
 interface GhAuthStatus {
   storage: 'keyring' | 'file' | 'unknown'
@@ -128,12 +133,13 @@ export const check = bashGuard((command, payload): GuardResult => {
   // (or hit the network timeout).
   if (!isAuthMaintenanceCommand(command) && !isTokenFresh()) {
     return fail(
-      'gh-token-hygiene-guard: gh token is >8h old (and live probe failed)',
+      'gh-token-hygiene-guard: gh token idle >8h (and live probe failed)',
       [
-        'The fleet enforces an 8-hour cap on gh token age. The hook',
-        'probed `gh api user` to self-heal a stale stamp; the probe',
-        "didn't return 200, so the token is genuinely expired or",
-        'unreachable.',
+        'The fleet enforces an 8-hour IDLE timeout on the gh token — it',
+        'trips only after no gh command for 8h (active use keeps resetting',
+        'the clock). The hook probed `gh api user` to self-heal a stale',
+        "stamp; the probe didn't return 200, so the token is genuinely",
+        'expired or unreachable.',
         '',
         'Refresh:',
         '  gh auth refresh -h github.com',
@@ -340,19 +346,53 @@ function isWorkflowScopeRefresh(command: string): boolean {
   })
 }
 
+// A `gh auth refresh` whose `-r`/`--remove-scopes` value names `workflow`.
+// Parser-confirmed like its isWorkflowScopeRefresh sibling — a quoted
+// "gh auth refresh -r workflow" in a heredoc or message body is not a
+// revoke.
 function isWorkflowScopeRevoke(command: string): boolean {
-  return (
-    /\bgh\s+auth\s+refresh\b/.test(command) &&
-    // A `-r`/`--remove-scopes` flag followed (within the same command segment,
-    // before any `| ; &`) by the `workflow` scope name.
-    /(?:^|\s)(?:-r|--remove-scopes)\b[^|;&]*\bworkflow\b/.test(command)
-  )
+  return parseCommands(command).some(c => {
+    if (
+      c.binary !== 'gh' ||
+      !c.args.includes('auth') ||
+      !c.args.includes('refresh')
+    ) {
+      return false
+    }
+    for (let i = 0, { length } = c.args; i < length; i += 1) {
+      const a = c.args[i]!
+      // Inline form: `--remove-scopes=workflow` or `-rworkflow`.
+      if (/^(?:-r|--remove-scopes)\b.*workflow\b/.test(a)) {
+        return true
+      }
+      if (a === '-r' || a === '--remove-scopes') {
+        const value = c.args[i + 1]
+        if (value && /\bworkflow\b/.test(value)) {
+          return true
+        }
+      }
+    }
+    return false
+  })
 }
 
+// Self-recovery commands that must run even when the age-block is active —
+// otherwise the user is locked out. Parser-confirmed `gh auth <verb>` so a
+// quoted mention can't exempt an unrelated stale-token command.
 function isAuthMaintenanceCommand(command: string): boolean {
-  // Self-recovery commands that must run even when the age-block
-  // is active. Otherwise the user is locked out.
-  return /\bgh\s+auth\s+(?:login|logout|refresh|status)\b/.test(command)
+  return parseCommands(command).some(c => {
+    if (c.binary !== 'gh') {
+      return false
+    }
+    const verbs = c.args.filter(a => !a.startsWith('-'))
+    return (
+      verbs[0] === 'auth' &&
+      (verbs[1] === 'login' ||
+        verbs[1] === 'logout' ||
+        verbs[1] === 'refresh' ||
+        verbs[1] === 'status')
+    )
+  })
 }
 
 // 2020-01-01T00:00:00Z in epoch ms. Any stamp file value below this is
@@ -386,10 +426,15 @@ function isTokenFresh(): boolean {
       return true
     }
     if (Date.now() - recorded < TOKEN_TTL_MS) {
+      // Idle-based: this gh command IS activity, so reset the idle clock to
+      // now. Only genuine inactivity (no gh command for TOKEN_TTL_MS)
+      // advances toward the block — active pushing / API use never counts
+      // against the timeout.
+      recordTokenIssuedAt()
       return true
     }
-    // Stamp says expired. Self-heal: the user may have refreshed in a
-    // side shell (so the PreToolUse-driven pre-stamp never fired). Probe
+    // Stamp says idle past the timeout. Self-heal: the user may have used gh
+    // in a side shell (so the PreToolUse-driven re-stamp never fired). Probe
     // the token directly via a cheap unauthenticated-rate-limit API call.
     // If gh accepts it (exit 0), the token IS fresh; re-stamp and
     // proceed. If gh rejects it (exit non-zero / 401), the stamp was
@@ -410,7 +455,9 @@ function isTokenFresh(): boolean {
 // blackout doesn't hang the hook.
 function probeTokenValid(): boolean {
   const result = spawnSync('gh', ['api', 'user', '--jq', '.login'], {
+    shell: WIN32,
     stdio: 'pipe',
+    // win-timeout: network — bounded `gh api` call; keep it fixed, don't scale by platform.
     timeout: 5000,
   })
   return result.status === 0
@@ -426,10 +473,15 @@ function recordTokenIssuedAt(): void {
 }
 
 function readGhAuthStatus(): GhAuthStatus {
+  // `gh auth status` is a LOCAL keyring read (no network); spawnTimeoutMs keeps
+  // it tight on POSIX but gives win32 headroom for cmd.exe spawn latency. Too
+  // tight and a slow-but-alive gh is killed → empty output → this reads it as
+  // "gh absent" and fail-opens, silently skipping the storage check.
   const r = spawnSync('gh', ['auth', 'status'], {
+    shell: WIN32,
     stdio: 'pipe',
     stdioString: true,
-    timeout: 5000,
+    timeout: spawnTimeoutMs(5000),
   })
   const text = String(r.stdout ?? '') + String(r.stderr ?? '')
   if (!text) {

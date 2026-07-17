@@ -34,6 +34,7 @@ import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -460,6 +461,6 @@ export function runCheck(repoRoot: string, fix = false): number {
   return 1
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   process.exit(runCheck(REPO_ROOT, process.argv.includes('--fix')))
 }

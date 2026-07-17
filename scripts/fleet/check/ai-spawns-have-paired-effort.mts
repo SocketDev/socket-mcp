@@ -38,9 +38,10 @@
 // enforcement layer the optional fields can't provide.
 //
 // This check fails `check --all` when a scanned callsite (a) omits model or
-// effort, or (b) escalates a literal above the floor with no adjacent comment.
-// Exit codes: 0 — every AI spawn pins both and justifies any escalation;
-// 1 — at least one does not.
+// effort, (b) pins a literal (model, effort) pair off the canonical AI_TIER
+// ladder row for that tier model, or (c) escalates a literal above the floor
+// with no adjacent comment. Exit codes: 0 — every AI spawn pins both, matches
+// the ladder, and justifies any escalation; 1 — at least one does not.
 //
 // Usage: node scripts/fleet/check/ai-spawns-have-paired-effort.mts [--quiet]
 
@@ -56,6 +57,8 @@ import {
   FLOOR_EFFORT,
   FLOOR_MODEL,
   KNOWN_MODELS,
+  isAdaptiveOnlyModel,
+  ladderRowForModel,
 } from '../lib/known-models.mts'
 import { REPO_ROOT } from '../paths.mts'
 
@@ -269,6 +272,29 @@ export function scanSpawnCalls(
         index: callStart,
         detail: `${callKind(isSpawnHelper)} pins an unknown model '${modelLit}' — not in the canonical registry (scripts/fleet/constants/model-pricing.json) or AI_TIER. A stale/renamed id or a typo; use a current model id.`,
       })
+    }
+    // LADDER-PAIR rule: a literal Claude TIER model must ride with its
+    // canonical AI_TIER row effort — (haiku, low), (sonnet, medium),
+    // (opus, high). An off-row pair (`claude-haiku-4-5` + `high`) mismatches
+    // model and effort in one of the two directions the token-spend rule names,
+    // and no justifying comment legalizes it: pick the tier whose ROW matches
+    // the job instead. Adaptive-only models (fable / mythos) take no effort
+    // knob at all — the fable-spawns gate owns that surface, so they're
+    // skipped here. Non-tier models (codex / open-weight ids) have no ladder
+    // row and are left to the pin-both + known-model rules.
+    if (
+      modelLit !== undefined &&
+      effortLit !== undefined &&
+      !isAdaptiveOnlyModel(modelLit)
+    ) {
+      const row = ladderRowForModel(modelLit)
+      if (row && effortLit !== row.effort) {
+        hits.push({
+          index: callStart,
+          detail: `${callKind(isSpawnHelper)} pins an off-ladder pair (model '${modelLit}', effort '${effortLit}'). The canonical AI_TIER row for the ${row.tier} tier is (model '${row.model}', effort '${row.effort}'). Use effort '${row.effort}', or move to the tier whose row matches the job.`,
+        })
+        continue
+      }
     }
     const modelEscalates = modelLit !== undefined && modelLit !== FLOOR_MODEL
     const effortEscalates =

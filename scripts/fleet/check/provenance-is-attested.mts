@@ -29,7 +29,6 @@
  *   ones that didn't.
  */
 
-import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
@@ -37,6 +36,7 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { fetchVersionTrustInfo } from '../publish-infra/npm/registry.mts'
 import type { RegistryVersionInfo } from '../publish-infra/npm/registry.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -189,7 +189,7 @@ export function compareSemverDesc(a: string, b: string): number {
   return 0
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(e)
     process.exitCode = 1

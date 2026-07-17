@@ -18,6 +18,7 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { REPO_ROOT } from './paths.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -72,6 +73,36 @@ export function expectedSchemaUrl(sha: string): string {
   return `https://raw.githubusercontent.com/oxc-project/oxc/${sha}/${SCHEMA_PATH}`
 }
 
+export type SchemaPinDecision =
+  | { current: string; kind: 'drift'; next: string }
+  | { current: string; kind: 'match' }
+  | { kind: 'out-of-scope' }
+  | { kind: 'unparseable' }
+
+// Classify a single oxlintrc.json against the expected schema URL: `unparseable`
+// (bad JSON), `out-of-scope` (no `$schema` or a non-oxc one), `match` (already
+// pinned to the expected URL), or `drift` (an oxc `$schema` at a different ref).
+// Pure — the per-file decision the writer/`--check` loop acts on.
+export function planSchemaPin(
+  raw: string,
+  expected: string,
+): SchemaPinDecision {
+  let parsed: { $schema?: string }
+  try {
+    parsed = JSON.parse(raw) as { $schema?: string }
+  } catch {
+    return { kind: 'unparseable' }
+  }
+  const current = parsed.$schema
+  if (!current || !SCHEMA_URL_RE.test(current)) {
+    return { kind: 'out-of-scope' }
+  }
+  if (current === expected) {
+    return { current, kind: 'match' }
+  }
+  return { current, kind: 'drift', next: expected }
+}
+
 function main(): number {
   const check = process.argv.includes('--check')
 
@@ -107,34 +138,28 @@ function main(): number {
     }
     seen += 1
     const raw = readFileSync(abs, 'utf8')
-    let parsed: { $schema?: string }
-    try {
-      parsed = JSON.parse(raw) as { $schema?: string }
-    } catch {
+    const decision = planSchemaPin(raw, expected)
+    if (decision.kind === 'unparseable') {
       logger.fail(
         `${rel} is not parseable JSON — fix the syntax error before pinning its $schema.`,
       )
       drift += 1
       continue
     }
-    const current = parsed.$schema
-    if (!current || !SCHEMA_URL_RE.test(current)) {
-      // A non-oxc $schema (or none at all) is out of scope for this pin.
-      continue
-    }
-    if (current === expected) {
+    // A non-oxc $schema (or none at all) is out of scope for this pin.
+    if (decision.kind === 'out-of-scope' || decision.kind === 'match') {
       continue
     }
     if (check) {
       logger.fail(
         `${rel} $schema drifts from the installed oxlint ${version}: ` +
-          `saw ${current}; wanted ${expected} (tag oxlint_v${version}). ` +
+          `saw ${decision.current}; wanted ${expected} (tag oxlint_v${version}). ` +
           'Fix: run `node scripts/fleet/sync-oxlint-schema-pin.mts`.',
       )
       drift += 1
       continue
     }
-    writeFileSync(abs, raw.replace(current, expected), 'utf8')
+    writeFileSync(abs, raw.replace(decision.current, expected), 'utf8')
     logger.success(
       `${rel}: $schema pinned to oxlint_v${version} (${sha.slice(0, 12)})`,
     )
@@ -153,6 +178,6 @@ function main(): number {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main()
 }

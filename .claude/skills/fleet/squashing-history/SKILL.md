@@ -1,6 +1,6 @@
 ---
 name: squashing-history
-description: Squashes all commits on the repo's default branch (main, falling back to master) to a single conventional-commit "chore: initial commit" with backup branch, integrity verification, and user confirmation before force push. Use when cleaning history or preparing for fresh start.
+description: Squash default-branch history to one conventional initial commit with backup, verification, and confirmed force-push.
 user-invocable: true
 allowed-tools: AskUserQuestion, Bash(node:*), Bash(git:*)
 model: claude-haiku-4-5

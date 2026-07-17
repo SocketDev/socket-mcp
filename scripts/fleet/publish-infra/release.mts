@@ -54,6 +54,37 @@ export function extractChangelogSection(version: string): string {
 }
 
 /**
+ * Default (npm) release-asset packer: `pnpm pack` the tarball in this same run
+ * (the bytes the registry received) + write a `checksums.txt` (sha1 + sha512),
+ * returning both paths. Returns an empty array (with a warning) when the pack
+ * fails, so the release still lands without assets. Extracted so
+ * `ensureTagAndRelease` can accept an alternate packer without changing the npm
+ * behavior.
+ */
+async function defaultPackAssets(pkg: {
+  name: string
+  version: string
+}): Promise<string[]> {
+  const packed = await runCapture('pnpm', ['pack'], rootPath)
+  const tarballName = `${pkg.name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`
+  const tarballPath = path.join(rootPath, tarballName)
+  if (packed.code !== 0 || !existsSync(tarballPath)) {
+    logger.warn(`pnpm pack failed (${packed.code}); releasing without assets.`)
+    return []
+  }
+  const bytes = readFileSync(tarballPath)
+  const sha1 = crypto.createHash('sha1').update(bytes).digest('hex')
+  const sha512 = crypto.createHash('sha512').update(bytes).digest('base64')
+  const checksumsPath = path.join(rootPath, 'checksums.txt')
+  writeFileSync(
+    checksumsPath,
+    `sha1: ${sha1}  ${tarballName}\nsha512-base64: ${sha512}  ${tarballName}\n`,
+  )
+  logger.log(`Tarball sha1 ${sha1} (compare with the npm staged shasum).`)
+  return [tarballPath, checksumsPath]
+}
+
+/**
  * Post-publish: make the git tag + GitHub release exist for this version.
  * Tag-if-missing (push tolerated when the remote already has it); the release
  * body is the version's CHANGELOG section; the release ships IMMUTABLE via the
@@ -64,11 +95,24 @@ export function extractChangelogSection(version: string): string {
  *
  * A failure here exits non-zero so the gap is visible, but the registry write
  * has already succeeded — the operator fixes the tag/release, not the publish.
+ *
+ * `options.packAssets` generalizes the release asset packing off npm: when
+ * provided it is called to produce the asset file paths (the cargo tier passes
+ * a packer that returns `[cratePath, checksumsPath]`); when omitted the exact
+ * `pnpm pack` behavior is kept, so the npm path is unchanged.
  */
-export async function ensureTagAndRelease(pkg: {
-  name: string
-  version: string
-}): Promise<void> {
+export async function ensureTagAndRelease(
+  pkg: {
+    name: string
+    version: string
+  },
+  options?: {
+    packAssets?: (() => Promise<string[]>) | undefined
+  },
+): Promise<void> {
+  const opts = { __proto__: null, ...options } as {
+    packAssets?: (() => Promise<string[]>) | undefined
+  }
   const tagName = `v${pkg.version}`
   const tagCheck = await runCapture(
     'git',
@@ -101,26 +145,11 @@ export async function ensureTagAndRelease(pkg: {
   const notesFile = path.join(os.tmpdir(), `release-notes-${pkg.version}.md`)
   writeFileSync(notesFile, extractChangelogSection(pkg.version))
 
-  // Pack with the same toolchain in the same run as the publish — these are
-  // the bytes the registry received (pnpm packs for both stage + direct).
-  const packed = await runCapture('pnpm', ['pack'], rootPath)
-  const tarballName = `${pkg.name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`
-  const tarballPath = path.join(rootPath, tarballName)
-  const assets: string[] = []
-  if (packed.code === 0 && existsSync(tarballPath)) {
-    const bytes = readFileSync(tarballPath)
-    const sha1 = crypto.createHash('sha1').update(bytes).digest('hex')
-    const sha512 = crypto.createHash('sha512').update(bytes).digest('base64')
-    const checksumsPath = path.join(rootPath, 'checksums.txt')
-    writeFileSync(
-      checksumsPath,
-      `sha1: ${sha1}  ${tarballName}\nsha512-base64: ${sha512}  ${tarballName}\n`,
-    )
-    assets.push(tarballPath, checksumsPath)
-    logger.log(`Tarball sha1 ${sha1} (compare with the npm staged shasum).`)
-  } else {
-    logger.warn(`pnpm pack failed (${packed.code}); releasing without assets.`)
-  }
+  // Pack the release assets: a caller-supplied packer (the cargo tier's
+  // `.crate` + checksums) when provided, else the default `pnpm pack` (npm).
+  const assets = opts.packAssets
+    ? await opts.packAssets()
+    : await defaultPackAssets(pkg)
 
   // Immutable-release pattern: create as draft, upload assets, then undraft.
   // A single-call create would race the Sigstore attestation.

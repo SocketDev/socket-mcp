@@ -73,7 +73,13 @@
     "sync-oxlint-rules": "node scripts/fleet/sync-oxlint-rules.mts",
     "sync-package-manager-pins": "node scripts/fleet/sync-package-manager-pins.mts",
     "doctor": "node scripts/fleet/doctor.mts",
-    "gen:llms-txt": "node scripts/fleet/make-llms-txt.mts --no-ai"
+    "gen:llms-txt": "node scripts/fleet/make-llms-txt.mts --no-ai",
+    "setup:brew": "node scripts/fleet/setup/setup-brew.mts",
+    "setup:go": "node scripts/fleet/setup/setup-go.mts",
+    "setup:mcp": "node scripts/fleet/setup/setup-mcp.mts",
+    "setup:python": "node scripts/fleet/setup/setup-python.mts",
+    "setup:refero": "node scripts/fleet/setup/setup-refero.mts",
+    "setup:rust": "node scripts/fleet/setup/setup-rust.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^1.2.0",
@@ -93,6 +99,8 @@
     "@typescript/native-preview": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
+    "c8": "catalog:",
+    "chrome-devtools-mcp": "catalog:",
     "magic-string": "catalog:",
     "markdownlint-cli2": "catalog:",
     "mdast-util-from-markdown": "catalog:",
@@ -114,7 +122,7 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=24",
     "npm": ">=12.0.0",
     "pnpm": ">=11.0.5"
   },

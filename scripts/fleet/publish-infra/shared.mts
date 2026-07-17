@@ -34,16 +34,51 @@ export function runInherit(
   cwd: string,
 ): Promise<number> {
   return new Promise((resolve, reject) => {
-    const { process: child } = spawn(cmd, args, {
+    const childPromise = spawn(cmd, args, {
       cwd,
       shell: WIN32,
       stdio: 'inherit',
     })
+    // v6 lib-stable spawn returns an enriched Promise that rejects on
+    // non-zero exit. We resolve with the exit code below, so swallow the
+    // rejection (same treatment as runCapture) — otherwise a non-zero child
+    // resolves the code here AND kills the process moments later with an
+    // unhandled rejection.
+    void childPromise.catch(() => undefined)
+    const child = childPromise.process
     child.on('error', reject)
     child.on('exit', code => {
       resolve(code ?? 0)
     })
   })
+}
+
+/**
+ * Like runInherit, but guarantees the child sees a TTY. pnpm's registry
+ * web-OTP challenge refuses non-interactive stdio
+ * (ERR_PNPM_OTP_NON_INTERACTIVE) instead of opening the browser, so
+ * agent-driven `pnpm stage approve` / `reject` calls wrap the command in
+ * `script(1)`'s pseudo-terminal. Passthrough when stdio is already a TTY, and
+ * on Windows (no script(1) there — Windows runs stay interactive-only).
+ */
+export function runInheritTty(
+  cmd: string,
+  args: string[],
+  cwd: string,
+): Promise<number> {
+  if (process.stdin.isTTY || WIN32) {
+    return runInherit(cmd, args, cwd)
+  }
+  if (process.platform === 'darwin') {
+    // BSD script: `script -q /dev/null <cmd> <args…>` runs cmd directly.
+    return runInherit('script', ['-q', '/dev/null', cmd, ...args], cwd)
+  }
+  // util-linux script: the command goes through `-c` as a single shell
+  // string — single-quote each arg (POSIX '\'' escape for embedded quotes).
+  const quoted = [cmd, ...args]
+    .map(a => `'${a.replace(/'/g, `'\\''`)}'`)
+    .join(' ')
+  return runInherit('script', ['-qec', quoted, '/dev/null'], cwd)
 }
 
 /**

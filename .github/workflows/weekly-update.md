@@ -143,7 +143,7 @@ Two schedules share this workflow. The cadence for this run is
 
 2. Build the project if it has a `build` script, then run its tests:
 
-   ```
+   ```bash
    pnpm run build   # skip if the repo has no build script
    pnpm test
    ```

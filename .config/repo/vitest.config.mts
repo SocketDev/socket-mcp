@@ -45,16 +45,25 @@ export interface VitestRepoConfig {
   pool?: 'forks' | 'threads' | undefined
 }
 /**
- * Heavy external-suite / cross-impl conformance wrapper globs from the
- * `vitest.conformanceExclude` section of the ONE per-repo settings file
- * (.config/socket-wheelhouse.json, or the root .socket-wheelhouse.json
- * alternative — see scripts/fleet/socket-wheelhouse-schema.mts). Excluded from
- * the DEFAULT (unit) + cover suites so the unit pass stays inside the fleet's
- * under-a-minute budget. A repo setting this MUST pair it with an explicit
- * `test:conformance` runner so the tier never silently drops.
+ * Test LANES — a SPEED category, orthogonal to test TYPE (unit/integration/e2e)
+ * — from the `vitest.lanes` section of the canonical per-repo settings file
+ * (.config/repo/socket-wheelhouse.json; see paths.mts's resolver order for the
+ * fallbacks). `slow` = heavy suites (subprocess-per-case, e.g. hook integration
+ * specs); `mid` = isolated in-process suites (env-mutating / vi.mock /
+ * fs-heavy); `fast` = the implicit complement (pure in-process). The runner's
+ * `--lane <fast|mid|slow>` flag (scripts/fleet/test.mts) selects one, and bare
+ * `pnpm test` defaults to `fast` for a quick local loop. The lane filter is
+ * INERT under coverage and for an unset FLEET_LANE (an --all / scoped / cover
+ * run), so coverage + CI run EVERY lane — the split shapes only the fast local
+ * feedback loop and never removes a suite from the gate.
  */
-export function readConformanceExcludeGlobs(): string[] {
+export interface VitestLanes {
+  mid?: string[] | undefined
+  slow?: string[] | undefined
+}
+export function readVitestLanes(): VitestLanes {
   for (const file of [
+    '.config/repo/socket-wheelhouse.json',
     '.config/socket-wheelhouse.json',
     '.socket-wheelhouse.json',
   ]) {
@@ -63,17 +72,21 @@ export function readConformanceExcludeGlobs(): string[] {
     }
     try {
       const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
-        vitest?: { conformanceExclude?: string[] | undefined } | undefined
+        vitest?: { lanes?: VitestLanes | undefined } | undefined
       }
-      const globs = parsed?.vitest?.conformanceExclude
-      return Array.isArray(globs)
-        ? globs.filter(g => typeof g === 'string')
-        : []
+      const lanes = parsed?.vitest?.lanes
+      const clean = (a: unknown): string[] =>
+        Array.isArray(a)
+          ? a.filter((g): g is string => typeof g === 'string')
+          : []
+      return lanes && typeof lanes === 'object'
+        ? { mid: clean(lanes.mid), slow: clean(lanes.slow) }
+        : {}
     } catch {
-      return []
+      return {}
     }
   }
-  return []
+  return {}
 }
 export function readNonIsolatedGlobs(): string[] {
   return resolveVitestKey('nonIsolated')
@@ -92,13 +105,33 @@ export function readVitestConfigTier(file: string): VitestRepoConfig {
 export function repoNodeTestExcludeGlobs(): string[] {
   return resolveVitestKey('nodeTestExclude')
 }
-export function resolveMaxWorkers(): number | undefined {
+export function resolveFallbackMaxWorkers(): number {
+  if (getCI()) {
+    return 4
+  }
+  return isCoverageEnabled ? 8 : 16
+}
+export function resolveConfiguredMaxWorkers(): number | undefined {
   const fleet = readVitestConfigTier('.config/fleet/vitest.json').maxWorkers
   const repo = readVitestConfigTier('.config/repo/vitest.json').maxWorkers
   const candidates = [fleet, repo].filter(
     (v): v is number => typeof v === 'number' && v > 0,
   )
   return candidates.length > 0 ? Math.min(...candidates) : undefined
+}
+export function capMaxWorkers(
+  configuredMaxWorkers: number | undefined,
+  fallbackMaxWorkers: number,
+): number {
+  return configuredMaxWorkers === undefined
+    ? fallbackMaxWorkers
+    : Math.min(configuredMaxWorkers, fallbackMaxWorkers)
+}
+export function resolveMaxWorkers(): number {
+  return capMaxWorkers(
+    resolveConfiguredMaxWorkers(),
+    resolveFallbackMaxWorkers(),
+  )
 }
 export function resolvePool(): 'forks' | 'threads' {
   const fleet = readVitestConfigTier('.config/fleet/vitest.json').pool
@@ -115,6 +148,21 @@ export function resolveVitestKey(key: keyof VitestRepoConfig): string[] {
   ].filter(g => typeof g === 'string')
 }
 const nonIsolatedGlobs = readNonIsolatedGlobs()
+
+// Lane resolution. The runner sets FLEET_LANE (bare `pnpm test` → 'fast'); the
+// filter is inert under coverage and for an unset lane, so --all / scoped /
+// cover runs traverse every lane (nothing is cut from the gate).
+const vitestLanes = readVitestLanes()
+const slowLaneGlobs = vitestLanes.slow ?? []
+const midLaneGlobs = vitestLanes.mid ?? []
+const activeLane = process.env['FLEET_LANE']
+const laneFilterActive =
+  !isCoverageEnabled &&
+  (activeLane === 'fast' || activeLane === 'mid' || activeLane === 'slow')
+// A lane's dir globs → test-file include patterns (`--lane mid|slow` runs ONLY
+// that lane; a trailing `/**` becomes `/**/*.test.{…}`).
+const laneToTestGlobs = (globs: string[]): string[] =>
+  globs.map(g => `${g.replace(/\/\*+$/, '')}/**/*.test.{js,ts,mjs,mts,cjs}`)
 
 export default defineConfig({
   test: {
@@ -143,24 +191,20 @@ export default defineConfig({
       'test/scripts/fleet/setup.mts',
       'test/scripts/repo/setup.mts',
     ].filter(p => existsSync(p)),
-    include: [
-      // `**/`-anchored so a monorepo's nested `packages/<name>/test/**` trees
-      // are discovered from this one root config, same as GENERATED_GLOBS
-      // below — no per-package vitest config or test script needed. A bare
-      // `test/**/*.test...` (no leading `**/`) only anchors at the repo root,
-      // silently missing every sub-package's tests (each `vitest run <file>`
-      // scoped to a nested package returns "No test files found", and a
-      // full-suite run "passes" having executed zero of them).
-      '**/test/**/*.test.{js,ts,mjs,mts,cjs}',
-      // In-place canonical-test mode: also discover the template copies so
-      // `pnpm test template/base/…` (which sets FLEET_TEST_TEMPLATE=1) can run
-      // one before the cascade. The matching exclude of `template/**` is lifted
-      // under the same flag; a normal run keeps both, so template never runs
-      // twice in the full suite.
-      ...(process.env['FLEET_TEST_TEMPLATE'] === '1'
-        ? ['template/base/test/**/*.test.{js,ts,mjs,mts,cjs}']
-        : []),
-    ],
+    // `--lane mid|slow` runs ONLY that lane (include = its globs); every other
+    // run (bare-fast, --all, scoped, cover) uses the full-suite glob and lets
+    // the exclude below drop the fast-lane's mid+slow. `**/`-anchored so a
+    // monorepo's nested `packages/<name>/test/**` trees are discovered from this
+    // one root config — a bare `test/**/*.test...` only anchors at the repo
+    // root, silently missing every sub-package's tests (each scoped `vitest run`
+    // returns "No test files found" and a full run "passes" having executed
+    // zero of them).
+    include:
+      laneFilterActive && activeLane === 'mid'
+        ? laneToTestGlobs(midLaneGlobs)
+        : laneFilterActive && activeLane === 'slow'
+          ? laneToTestGlobs(slowLaneGlobs)
+          : ['**/test/**/*.test.{js,ts,mjs,mts,cjs}'],
     // Vitest treats `test/**` as `**/test/**`, so without an explicit
     // exclude it picks up every nested `test/` directory in the repo
     // — including the `.git-hooks/test/`, the oxlint plugin's per-rule
@@ -185,13 +229,14 @@ export default defineConfig({
       '.config/fleet/oxlint-plugin/**',
       'scripts/**/test/**',
       '.claude/hooks/**/test/**',
-      // `template/**` holds the CANONICAL copies; the cascaded LIVE copies are
-      // what the suite runs, so template is excluded to avoid double-running
-      // byte-identical files. `pnpm test template/base/…` sets
-      // FLEET_TEST_TEMPLATE=1 to lift this one exclude and verify a canonical
-      // test IN PLACE before the cascade — the blessed fast path
-      // (scripts/fleet/test.mts). A full/scoped run never sets the flag.
-      ...(process.env['FLEET_TEST_TEMPLATE'] === '1' ? [] : ['template/**']),
+      // Ephemeral git worktrees (sub-agent / companion sessions) carry a full
+      // checkout — their test copies would pollute the primary's discovery and
+      // fail against code the primary has already moved past.
+      '**/.claude/worktrees/**',
+      // `template/**` holds CANONICAL non-test sources (the cascaded LIVE
+      // copies are what the suite runs); live test/repo is the sole test
+      // authoring home, so template is excluded unconditionally.
+      'template/**',
       // `test/isolated/**` is the isolated SUITE's turf — its own forks / longer
       // -timeout config (`vitest.config.isolated.mts`), run as a separate suite
       // by cover.mts. Exclude it from this shared suite ONLY when the repo ships
@@ -206,12 +251,14 @@ export default defineConfig({
       // `nodeTestExclude` key of .config/{fleet,repo}/vitest.json. The same key
       // feeds prefer-vitest-guard's allowlist so the two never drift.
       ...repoNodeTestExcludeGlobs(),
-      // Heavy conformance/cross-impl wrapper globs from the settings file's
-      // `vitest.conformanceExclude` section — kept out of the default (unit)
-      // + cover suites so the unit pass stays inside the fleet's
-      // under-a-minute budget. The repo's `test:conformance` script is the
-      // explicit home that runs them.
-      ...readConformanceExcludeGlobs(),
+      // Fast lane (`--lane fast`, the bare `pnpm test` default) skips the mid +
+      // slow lane globs (heavy/isolated suites) for a quick local loop. Inert
+      // under coverage and for an unset lane, so --all + cover + CI still run
+      // every suite (see readVitestLanes). `--lane mid|slow` scopes via the
+      // include above instead, so no exclusion is applied for them here.
+      ...(laneFilterActive && activeLane === 'fast'
+        ? [...midLaneGlobs, ...slowLaneGlobs]
+        : []),
     ],
     // Some repos in the fleet (scaffolding-only, hook-only, etc.) ship
     // this config but don't yet have a `test/` directory — vitest's
@@ -263,19 +310,23 @@ export default defineConfig({
           ],
         }
       : {}),
-    // Coverage forces serial (maxWorkers: 1). Parallel is ~2.5x faster (~236s
-    // vs the 600s cap) but currently ENOENTs coverage/.tmp/coverage-N.json — a
-    // nested vitest still cleans the shared coverage dir mid-run. Confirmed NOT
-    // a stale-node artifact (repro'd clean under the pinned 26.5.0), and NOT
-    // closed by the test.mts COVERAGE strip or the flag-precise isCoverageEnabled
-    // above. Serial hides it (the outer writes .tmp only at the end). Keep serial
-    // until the leaking spawner is bisected — serial-slow beats parallel-broken.
-    fileParallelism: !isCoverageEnabled,
-    maxWorkers: isCoverageEnabled
-      ? 1
-      : (resolveMaxWorkers() ?? (getCI() ? 4 : 16)),
-    testTimeout: 10_000,
-    hookTimeout: 10_000,
+    // Keep coverage file-parallel. Worker setup removes the already-consumed
+    // COVERAGE flag before test code runs, so a nested Vitest child cannot turn
+    // coverage back on and clean the outer run's shared .tmp reports. Ordinary
+    // Node children still inherit NODE_V8_COVERAGE for subprocess merging.
+    // Local coverage caps at 8 workers because this spawn-heavy suite saturates
+    // there; 16 workers add filesystem/process contention. Ordinary local tests
+    // retain 16 workers, while CI matches its 4 available cores.
+    maxWorkers: resolveMaxWorkers(),
+    // Coverage runs with V8 instrumentation that spawned children inherit, so
+    // spawn-heavy tests (hook integration specs launch a node child per case)
+    // legitimately exceed 10s there. CI gets a 60s budget unconditionally:
+    // 2-core runners × parallel workers starve spawn-per-case suites
+    // (RuleTester spawns one oxlint child per case) — the 10s/30s ceilings
+    // killed lint-rule suites mid-queue on every OS while the same files pass
+    // locally.
+    testTimeout: getCI() ? 60_000 : isCoverageEnabled ? 30_000 : 10_000,
+    hookTimeout: getCI() ? 60_000 : isCoverageEnabled ? 30_000 : 10_000,
     bail: getCI() ? 1 : 0,
     // Coverage shape comes from the fleet base merged with the repo-owned
     // `.config/repo/coverage.json` overlay (include replace, exclude

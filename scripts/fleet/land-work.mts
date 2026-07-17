@@ -20,15 +20,21 @@
 
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
+import {
+  GENERATED_PATTERNS,
+  isBothTouched,
+  isGenerated,
+  isUnmerged,
+} from '../../.claude/hooks/fleet/_shared/landable.mts'
 import { parsePorcelain } from './_shared/git-porcelain.mts'
 import { summarizeGroups } from './land-work/ai-summary.mts'
 import { commitMessage } from './land-work/message.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -254,53 +260,12 @@ function git(cwd: string, args: readonly string[]): GitRun {
   }
 }
 
-/**
- * True for a porcelain status that marks an UNMERGED (conflicted) path:
- * any `U`, or the both-added/both-deleted pairs `AA`/`DD`. Never auto-commit
- * one — an unresolved conflict must be resolved by a human, not landed. Pure.
- */
-export function isUnmerged(status: string): boolean {
-  return status.includes('U') || status === 'AA' || status === 'DD'
-}
-
-/**
- * True when a porcelain status shows BOTH an index change AND a worktree change
- * (e.g. `MM`, `AM`, `RM`): the staged blob and the on-disk file differ, so a
- * `git add` before commit would fold in whatever is unstaged — possibly a
- * concurrent session's hunks to a file both touched. The auto-lander skips
- * these (surfaces for manual review) rather than blend authorship. `??`
- * (untracked) is not both-touched. Pure.
- */
-export function isBothTouched(status: string): boolean {
-  const index = status[0] ?? ' '
-  const worktree = status[1] ?? ' '
-  return index !== ' ' && index !== '?' && worktree !== ' ' && worktree !== '?'
-}
-
-// Tracked-but-generated paths that live inside source areas yet are never
-// hand-authored — a formatter/build/lockfile step writes them. The auto-lander
-// must not commit them just because they're dirty in a source dir.
-const GENERATED_PATTERNS = [
-  /(?:^|\/)pnpm-lock\.yaml$/,
-  /(?:^|\/)_dispatch\/bundle\.cjs$/,
-  /(?:^|\/)(?:build|dist|coverage|coverage-isolated)\//,
-]
-
-/**
- * True for a tracked-but-generated path (lockfile, hook bundle, build/coverage
- * output) that sits in a source area but is machine-written, not authored.
- * Pure.
- */
-export function isGenerated(p: string): boolean {
-  const np = normalizePath(p)
-  for (let i = 0, { length } = GENERATED_PATTERNS; i < length; i += 1) {
-    const re = GENERATED_PATTERNS[i]!
-    if (re.test(np)) {
-      return true
-    }
-  }
-  return false
-}
+// The landable-vs-skip classification (isGenerated / isUnmerged / isBothTouched)
+// is the single source in _shared/landable.mts — dirty-worktree-stop-guard reads
+// the SAME definitions so a path the lander skips is never one the guard demands
+// a human commit. Re-exported here so land-work's own callers/tests keep their
+// import site.
+export { GENERATED_PATTERNS, isBothTouched, isGenerated, isUnmerged }
 
 /**
  * The in-progress git operation ('rebase' | 'merge' | 'cherry-pick'), or
@@ -461,7 +426,7 @@ export async function main(cwd: string = process.cwd()): Promise<number> {
   return failed === 0 ? 0 : 1
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().then(
     code => {
       process.exitCode = code

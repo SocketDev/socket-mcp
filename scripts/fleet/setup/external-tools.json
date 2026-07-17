@@ -1,40 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/SocketDev/socket-wheelhouse/main/packages/build-infra/lib/external-tools-schema.json",
-  "description": "Build/release tools the from-scratch bootstrap (setup-tools.mjs) installs before pnpm: pnpm itself, Socket Firewall (free + enterprise SKUs), and codedb. Shape is the shared { tools: { <name>: ToolEntry } } container validated by scripts/fleet/lib/external-tools-schema.mts.",
+  "description": "Build/release tools the from-scratch bootstrap (setup-tools.mjs) installs before pnpm: pnpm itself and Socket Firewall (free + enterprise SKUs). Shape is the shared { tools: { <name>: ToolEntry } } container validated by scripts/fleet/lib/external-tools-schema.mts.",
   "tools": {
-    "codedb": {
-      "notes": [
-        "codedb is a Zig code-intelligence MCP server (justrach/codedb). Each platform asset is a RAW executable (codedb-<os>-<arch>), not a tarball — install copies it directly and chmod +x. setup-tools.mjs installs it to rack/codedb/<version>/codedb with a telemetry-off bin/codedb shim (CODEDB_NO_TELEMETRY=1, always — the documented opt-out).",
-        "v0.2.5825 published 2026-06-12, inside the 7-day minimumReleaseAge soak, so the pin rides a dated soakBypass (auto-disarms at removable). Each asset's sha512 was verified against the upstream checksums.sha256 before hashing. darwin-x64 maps to codedb-darwin-x86_64, linux-x64 to codedb-linux-x86_64."
-      ],
-      "description": "Zig code-intelligence MCP server (indexes a repo for fast code search)",
-      "repository": "github:justrach/codedb",
-      "version": "0.2.5825",
-      "soakBypass": {
-        "version": "0.2.5825",
-        "published": "2026-06-12",
-        "removable": "2026-06-19"
-      },
-      "release": "asset",
-      "platforms": {
-        "darwin-arm64": {
-          "asset": "codedb-darwin-arm64",
-          "integrity": "sha512-dlDOa6MfpQxJHMIKI5M4C+2y6X14QpEHiMmmqfyAx9zxBML0Zz5xrmf1pS4oAgZIBJn2R6nRKFS/ppkT+TA0Xg=="
-        },
-        "darwin-x64": {
-          "asset": "codedb-darwin-x86_64",
-          "integrity": "sha512-bHdINGyi7A3xSeXLnh/UAFYE3Af6zgj602tL6bnsIwyb0j3r6yHb6AobecgCxD0qfUYsRRRQDbtlvJYi7aoA/A=="
-        },
-        "linux-arm64": {
-          "asset": "codedb-linux-arm64",
-          "integrity": "sha512-1ttAxL53tI57MqUHk33+6PHnYKEIoEgUuK8Y9mYygxPUq5LP9QG9Ja1cT3Br1E1ABcgBkb/abwsHBreEj3CMwg=="
-        },
-        "linux-x64": {
-          "asset": "codedb-linux-x86_64",
-          "integrity": "sha512-fNbPFko38kdrEokWqwsR0VBLdwBthgdp4gRFc/OrJ/khD0Np2r+lfhwflJwKEPi1Eg1QJ3MAm1LwmW1vWQGOiA=="
-        }
-      }
-    },
     "pnpm": {
       "notes": [
         "pnpm publishes 7 platform-native binaries: linux-{x64,arm64}{,-musl}, darwin-arm64, win-{x64,arm64}. Verified against v11.8.0 (2026-06-18).",
@@ -171,18 +138,24 @@
     },
     "janus": {
       "notes": [
-        "janus (divmain/janus) — single-binary utility some Socket workflows opt into (NOT a security tool). PROMOTED here from the setup-security-tools external-tools.json so the bootstrap reads ONE canonical tool list (the security-tools installer + the `janus` launcher both read this entry — 1 path 1 reference). GitHub release tarball; install-janus.mjs SRI-verifies + racks it with a bin/janus shim. darwin-arm64 only for now (other platforms as upstream ships builds). Past soak (1.23.1 long-established) — no soakBypass.",
-        "Version is stored bare (1.23.1); the installer prepends the `v` tag prefix, matching sfw/codedb/fff."
+        "janus (divmain/janus) — single-binary utility some Socket workflows opt into (NOT a security tool). PROMOTED here from the setup-security-tools external-tools.json so the bootstrap reads ONE canonical tool list (the security-tools installer + the `janus` launcher both read this entry — 1 path 1 reference). GitHub release tarball; install-janus.mjs SRI-verifies + racks it with a bin/janus shim. darwin-arm64 ONLY (divmain/janus ships one platform; the installer + launcher no-op with a clear hint on every other platform — add platforms as upstream builds them).",
+        "Version is stored bare (1.23.2); the installer prepends the `v` tag prefix, matching sfw/codedb/fff.",
+        "1.23.2 published 2026-07-11, inside the 7-day minimumReleaseAge soak, so it rides a dated soakBypass (published + removable, auto-disarms + is cleaned out of the exclude at `removable` — the same dated-soak-exclusion shape pnpm deps use). update-external-tools.mts will auto-bump janus once past soak; the bypass just clears the current fresh pin. Known-publisher GitHub-release binary; the sha512 SRI was computed from the downloaded asset bytes."
       ],
       "description": "janus — divmain/janus single-binary utility (pinned, SRI-verified)",
       "repository": "github:divmain/janus",
-      "version": "1.23.1",
+      "version": "1.23.2",
       "release": "asset",
       "binaryName": "janus",
+      "soakBypass": {
+        "version": "1.23.2",
+        "published": "2026-07-11",
+        "removable": "2026-07-18"
+      },
       "platforms": {
         "darwin-arm64": {
           "asset": "janus-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-GkFaJcv3BkVAsOhEiijIDPbHNNo5d3mOwTfDMeuMAIt0ZaA7s5m/NDeWHTffCOhCwrJwJXWQK8RhbpkYmmI3xQ=="
+          "integrity": "sha512-QVqXJHdeKylgE8KQQB2hEATqKZaB1ZGB4gnWZ8vDEK/1f2zQ3XI6k3Y0yTuSvRqGL88w0L80Q17RyXgTlSdPfA=="
         }
       }
     },

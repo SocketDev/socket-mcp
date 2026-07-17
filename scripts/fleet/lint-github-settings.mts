@@ -48,6 +48,7 @@ import type {
   Finding,
   RepoApiPayload,
 } from './lint-github-settings-types.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 // Inline path equivalent of the wheelhouse template's paths.mts helper.
 // `lint-github-settings.mts` cascades into fleet repos whose per-package
@@ -74,7 +75,7 @@ const CACHE_FILE = path.join(
 // timeframe for "things we don't need to re-verify constantly."
 const TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-function parseFlags(): CliFlags {
+export function parseFlags(): CliFlags {
   const argv = process.argv.slice(2)
   return {
     fix: argv.includes('--fix'),
@@ -87,14 +88,23 @@ function parseFlags(): CliFlags {
  * Read a fresh cache entry, or undefined if absent/stale/malformed. Stale is
  * decided by `verifiedAt + ttl < now`. Malformed entries (parse error, missing
  * fields, wrong repo) are treated as absent — the next run will rewrite them.
+ * `options.cacheFile` defaults to the real fleet cache path; a test points it
+ * at a fixture file instead.
  */
-function readCache(repo: string): CacheEntry | undefined {
-  if (!existsSync(CACHE_FILE)) {
+export function readCache(
+  repo: string,
+  options?: { cacheFile?: string | undefined } | undefined,
+): CacheEntry | undefined {
+  const opts = { __proto__: null, ...options } as {
+    cacheFile?: string | undefined
+  }
+  const cacheFile = opts.cacheFile ?? CACHE_FILE
+  if (!existsSync(cacheFile)) {
     return undefined
   }
   let raw: string
   try {
-    raw = readFileSync(CACHE_FILE, 'utf8')
+    raw = readFileSync(cacheFile, 'utf8')
   } catch {
     return undefined
   }
@@ -117,14 +127,22 @@ function readCache(repo: string): CacheEntry | undefined {
   return entry
 }
 
-function writeCache(entry: CacheEntry): void {
-  if (!existsSync(NODE_MODULES_CACHE_DIR)) {
-    mkdirSync(NODE_MODULES_CACHE_DIR, { recursive: true })
+export function writeCache(
+  entry: CacheEntry,
+  options?: { cacheFile?: string | undefined } | undefined,
+): void {
+  const opts = { __proto__: null, ...options } as {
+    cacheFile?: string | undefined
   }
-  writeFileSync(CACHE_FILE, JSON.stringify(entry, null, 2) + '\n')
+  const cacheFile = opts.cacheFile ?? CACHE_FILE
+  const cacheDir = path.dirname(cacheFile)
+  if (!existsSync(cacheDir)) {
+    mkdirSync(cacheDir, { recursive: true })
+  }
+  writeFileSync(cacheFile, JSON.stringify(entry, null, 2) + '\n')
 }
 
-function applyFixes(repo: string, findings: readonly Finding[]): number {
+export function applyFixes(repo: string, findings: readonly Finding[]): number {
   const patchable = findings.filter(f => f.fixable && f.fixPatch)
   if (patchable.length === 0) {
     return 0
@@ -152,7 +170,7 @@ function applyFixes(repo: string, findings: readonly Finding[]): number {
   return patchable.length
 }
 
-function printReport(
+export function printReport(
   findings: readonly Finding[],
   repo: string,
   { json }: { json: boolean },
@@ -209,7 +227,14 @@ function printReport(
   )
 }
 
-function main(): number {
+export function main(
+  options?: { cacheFile?: string | undefined } | undefined,
+): number {
+  const opts = { __proto__: null, ...options } as {
+    cacheFile?: string | undefined
+  }
+  const cacheFile = opts.cacheFile ?? CACHE_FILE
+
   // CI bypass — settings audits are local-run only. See header comment.
   if (process.env['CI'] === 'true') {
     process.stdout.write(
@@ -229,7 +254,7 @@ function main(): number {
 
   // Cache hit shortcut (unless --force or --fix).
   if (!flags.force && !flags.fix) {
-    const cached = readCache(repo)
+    const cached = readCache(repo, { cacheFile })
     if (cached?.pass) {
       const ageHours = Math.round(
         (Date.now() - Date.parse(cached.verifiedAt)) / 3_600_000,
@@ -304,15 +329,20 @@ function main(): number {
   // way so the 7-day TTL is honored; the next run will re-check.
   const errors = findings.filter(f => f.severity === 'error')
   const pass = errors.length === 0
-  writeCache({
-    verifiedAt: new Date().toISOString(),
-    repo,
-    pass,
-    ttl: TTL_MS,
-    findings,
-  })
+  writeCache(
+    {
+      verifiedAt: new Date().toISOString(),
+      repo,
+      pass,
+      ttl: TTL_MS,
+      findings,
+    },
+    { cacheFile },
+  )
 
   return pass ? 0 : 1
 }
 
-process.exit(main())
+if (isMainModule(import.meta.url)) {
+  process.exit(main())
+}

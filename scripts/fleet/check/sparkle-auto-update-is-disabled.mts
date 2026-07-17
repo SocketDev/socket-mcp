@@ -19,7 +19,6 @@
  */
 
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
@@ -27,6 +26,7 @@ import {
   auditSparkleApps,
   SPARKLE_DISABLE_KEYS,
 } from '../../../.claude/hooks/fleet/_shared/sparkle-auto-update.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -69,6 +69,6 @@ export function main(): void {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

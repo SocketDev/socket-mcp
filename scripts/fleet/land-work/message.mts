@@ -1,11 +1,9 @@
 /**
  * @file Commit-message composition for land-work's grouped auto-commits.
- *
  *   Split out of land-work.mts to stay under the file-size cap. commitMessage
  *   is pure — both land-work.mts (the auto-lander) and consolidate-commits.mts
  *   (the regroup tool) share this one engine, and it is unit-tested without a
  *   working tree.
- *
  *   Layout: a deterministic Conventional-Commit SUBJECT naming the touched
  *   sub-areas, then a per-directory file digest a reader scans in `git log`.
  *   The optional `aiSummary` (from land-work/ai-summary.mts, floor-tier) is a

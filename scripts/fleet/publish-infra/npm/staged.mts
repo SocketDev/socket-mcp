@@ -4,9 +4,13 @@
  *   promoting a staged package to public.
  */
 
-import { existsSync } from 'node:fs'
+import crypto from 'node:crypto'
+import { existsSync, promises as fs } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import type {
   HashSource,
@@ -18,9 +22,11 @@ import {
 } from '../../lib/verify-release-hashes.mts'
 import { ensureTagAndRelease } from '../release.mts'
 import { logger, rootPath, runCapture, runInherit } from '../shared.mts'
+import { withPinnedReadme } from './pin-readme.mts'
 import { isAlreadyPublished } from './registry.mts'
 import type { StageListEntry } from './shared.mts'
 import { isStagingExpected, readPackageJson } from './shared.mts'
+import { tarExecutable } from '../../_shared/tar-executable.mts'
 
 /**
  * `--staged` mode: stage this package's tarball.
@@ -68,7 +74,15 @@ export async function runStaged(
     // touching the registry.
     args.push('--dry-run')
   }
-  const code = await runInherit('pnpm', args, rootPath)
+  // Pin the README's relative asset URLs to the release tag for the packed
+  // tarball only (restored right after) so the npm page's badge is immutable +
+  // matches this version instead of a moving HEAD ref. The same bracket wraps
+  // the --approve verify pack (defaultPackTarball) so the integrity gate sees
+  // identical bytes.
+  const code = await withPinnedReadme(
+    { repository: pkg.repository, rootPath, version: pkg.version },
+    () => runInherit('pnpm', args, rootPath),
+  )
   if (code !== 0) {
     logger.fail(`pnpm stage publish exited ${code}`)
     process.exitCode = code
@@ -146,7 +160,12 @@ export async function runDirect(
   if (dryRun) {
     args.push('--dry-run')
   }
-  const code = await runInherit('pnpm', args, rootPath)
+  // Pin the README to the release tag for the published tarball only (see
+  // runStaged).
+  const code = await withPinnedReadme(
+    { repository: pkg.repository, rootPath, version: pkg.version },
+    () => runInherit('pnpm', args, rootPath),
+  )
   if (code !== 0) {
     logger.fail(`pnpm publish exited ${code}`)
     process.exitCode = code
@@ -172,10 +191,108 @@ export async function defaultPackTarball(
   name: string,
   version: string,
 ): Promise<string | undefined> {
-  const packed = await runCapture('pnpm', ['pack'], rootPath)
+  // Same README-pin bracket as runStaged, so the approve-time verify pack is
+  // byte-identical to the staged tarball (the integrity gate compares them).
+  const packed = await withPinnedReadme(
+    { repository: readPackageJson().repository, rootPath, version },
+    () => runCapture('pnpm', ['pack'], rootPath),
+  )
   const tarballName = `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`
   const tarballPath = path.join(rootPath, tarballName)
   return packed.code === 0 && existsSync(tarballPath) ? tarballPath : undefined
+}
+
+/**
+ * Download the staged tarball for `stageId` into a fresh temp dir and return
+ * its path (undefined on failure). The download endpoint requires the same
+ * npm auth as the rest of the stage API.
+ */
+export async function defaultDownloadStagedTarball(
+  stageId: string,
+): Promise<string | undefined> {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'socket-staged-dl-'))
+  const dl = await runCapture('pnpm', ['stage', 'download', stageId], tmpDir)
+  if (dl.code !== 0) {
+    return undefined
+  }
+  const entries = await fs.readdir(tmpDir)
+  const tgz = entries.find(e => e.endsWith('.tgz'))
+  return tgz ? path.join(tmpDir, tgz) : undefined
+}
+
+// Relative path → sha1-of-content for every file under `dir` (sorted walk).
+async function hashDirContents(dir: string): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  const entries = await fs.readdir(dir, {
+    recursive: true,
+    withFileTypes: true,
+  })
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue
+    }
+    const abs = path.join(entry.parentPath, entry.name)
+    const rel = normalizePath(path.relative(dir, abs))
+    // eslint-disable-next-line no-await-in-loop
+    const bytes = await fs.readFile(abs)
+    result.set(rel, crypto.createHash('sha1').update(bytes).digest('hex'))
+  }
+  return result
+}
+
+/**
+ * Compare two tarballs by EXTRACTED CONTENT (per-file sha1 over relative
+ * paths). The tarball-level sha1 embeds the gzip envelope — platform + tool
+ * metadata that legitimately differs between CI (linux) and a local pack
+ * (macOS) even when every shipped byte is identical — so content equality is
+ * the honest integrity axis. Returns a human-readable detail on mismatch.
+ */
+export async function compareExtractedTarballs(
+  tarA: string,
+  tarB: string,
+): Promise<{ equal: boolean; detail: string }> {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'socket-tar-cmp-'))
+  try {
+    const dirA = path.join(tmpDir, 'a')
+    const dirB = path.join(tmpDir, 'b')
+    await fs.mkdir(dirA)
+    await fs.mkdir(dirB)
+    for (const [tar, dir] of [
+      [tarA, dirA],
+      [tarB, dirB],
+    ] as const) {
+      // eslint-disable-next-line no-await-in-loop
+      const untar = await runCapture(
+        tarExecutable(),
+        ['-xzf', tar, '-C', dir],
+        tmpDir,
+      )
+      if (untar.code !== 0) {
+        return { detail: `tar -xzf ${tar} exited ${untar.code}`, equal: false }
+      }
+    }
+    const hashesA = await hashDirContents(dirA)
+    const hashesB = await hashDirContents(dirB)
+    const diffs: string[] = []
+    for (const [rel, hash] of hashesA) {
+      const other = hashesB.get(rel)
+      if (other === undefined) {
+        diffs.push(`only in first: ${rel}`)
+      } else if (other !== hash) {
+        diffs.push(`content differs: ${rel}`)
+      }
+    }
+    for (const rel of hashesB.keys()) {
+      if (!hashesA.has(rel)) {
+        diffs.push(`only in second: ${rel}`)
+      }
+    }
+    return diffs.length === 0
+      ? { detail: `${hashesA.size} file(s) byte-identical`, equal: true }
+      : { detail: diffs.slice(0, 10).join('; '), equal: false }
+  } finally {
+    await fs.rm(tmpDir, { force: true, recursive: true })
+  }
 }
 
 /**
@@ -187,11 +304,18 @@ export async function defaultPackTarball(
  * release exists pre-approve — ensureTagAndRelease runs post-approve). Fails
  * LOUD and returns false on any mismatch OR when the staged shasum can't be
  * resolved — the caller drops the entry. Never returns true on missing
- * evidence. `pack` + `hashLocalTarball` are injectable for tests.
+ * evidence. Tarball sha1s embed the gzip envelope (platform metadata that
+ * differs between CI linux packs and local macOS packs), so a sha1 mismatch
+ * falls back to downloading the staged tarball and comparing EXTRACTED
+ * CONTENTS per-file — equality there is the honest integrity axis. `pack`,
+ * `hashLocalTarball`, and `downloadStagedTarball` are injectable for tests.
  */
 export async function verifyStagedEntry(
   entry: StageListEntry,
   options?: {
+    downloadStagedTarball?:
+      | ((stageId: string) => Promise<string | undefined>)
+      | undefined
     hashLocalTarball?: ((filePath: string) => TarballDigest) | undefined
     packTarball?:
       | ((name: string, version: string) => Promise<string | undefined>)
@@ -199,6 +323,9 @@ export async function verifyStagedEntry(
   },
 ): Promise<boolean> {
   const opts = { __proto__: null, ...options } as {
+    downloadStagedTarball?:
+      | ((stageId: string) => Promise<string | undefined>)
+      | undefined
     hashLocalTarball?: ((filePath: string) => TarballDigest) | undefined
     packTarball?:
       | ((name: string, version: string) => Promise<string | undefined>)
@@ -206,6 +333,8 @@ export async function verifyStagedEntry(
   }
   const hashLocal = opts.hashLocalTarball ?? hashTarball
   const packTarball = opts.packTarball ?? defaultPackTarball
+  const downloadStaged =
+    opts.downloadStagedTarball ?? defaultDownloadStagedTarball
   const { name, shasum: stagedShasum, stageId, version } = entry
   if (!name || !version || !stageId) {
     logger.fail(
@@ -241,15 +370,40 @@ export async function verifyStagedEntry(
   ]
   const comparison = compareHashSources(sources)
   if (!comparison.ok) {
-    logger.fail(
-      `Pre-approve verify FAILED for ${name}@${version}.\n` +
-        `  Where: comparing local pack vs npm staging (${comparison.algorithm ?? 'shasum'}).\n` +
-        `  Saw vs wanted: ${comparison.reason ?? 'digests differ'}\n` +
-        `    local pack:  ${local.shasum}\n` +
-        `    npm staging: ${stagedShasum}\n` +
-        `  Fix: reject the staged publish (pnpm stage reject ${stageId}) and re-stage — never approve a divergent artifact.`,
+    // The tarball sha1 covers the gzip envelope too — CI (linux) and a local
+    // pack (macOS) legitimately wrap identical contents differently. Fall
+    // back to comparing what actually ships: the extracted files.
+    logger.log(
+      `Tarball sha1 differs for ${name}@${version} (envelope is platform-` +
+        `sensitive); downloading the staged tarball to compare contents…`,
     )
-    return false
+    const stagedTarball = await downloadStaged(stageId)
+    if (!stagedTarball) {
+      logger.fail(
+        `Pre-approve verify FAILED for ${name}@${version}.\n` +
+          `  Where: tarball sha1 mismatch AND the staged tarball could not be downloaded for a content compare.\n` +
+          `    local pack:  ${local.shasum}\n` +
+          `    npm staging: ${stagedShasum}\n` +
+          `  Fix: check npm auth (pnpm stage download ${stageId}), or reject + re-stage. Not approving unverified bytes.`,
+      )
+      return false
+    }
+    const contents = await compareExtractedTarballs(stagedTarball, tarballPath)
+    if (!contents.equal) {
+      logger.fail(
+        `Pre-approve verify FAILED for ${name}@${version}.\n` +
+          `  Where: comparing staged vs local pack EXTRACTED CONTENTS (after tarball sha1 mismatch).\n` +
+          `  Saw vs wanted: ${contents.detail}\n` +
+          `    local pack:  ${local.shasum}\n` +
+          `    npm staging: ${stagedShasum}\n` +
+          `  Fix: reject the staged publish (pnpm stage reject ${stageId}) and re-stage — never approve a divergent artifact.`,
+      )
+      return false
+    }
+    logger.success(
+      `Verified ${name}@${version}: staged contents byte-identical to the local pack (${contents.detail}); only the gzip envelope differs.`,
+    )
+    return true
   }
   logger.log(
     `Verified ${name}@${version}: local pack sha1 matches npm staging (${comparison.algorithm}).`,

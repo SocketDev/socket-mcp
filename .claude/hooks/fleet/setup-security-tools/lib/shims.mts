@@ -31,10 +31,10 @@ export const CORE_SHIM_COMMANDS = ['cargo', 'npm', 'pnpm', 'uv'] as const
  */
 export function findBrokenShimTargets(content: string): string[] {
   const broken: string[] = []
-  const quoted = content.matchAll(/"(?<target>\/[^"]+)"/g)
+  const quoted = content.matchAll(/"(?<target>[^"]+)"/g)
   for (const match of quoted) {
     const target = match.groups!['target']!
-    if (target.includes('$')) {
+    if (target.includes('$') || !path.isAbsolute(target)) {
       continue
     }
     if (!existsSync(target)) {
@@ -108,9 +108,13 @@ function dlxRootOf(target: string): string | undefined {
  */
 export function findDlxBackedTargets(content: string): string[] {
   const targets: string[] = []
-  for (const match of content.matchAll(/"(?<target>\/[^"]+)"/g)) {
+  for (const match of content.matchAll(/"(?<target>[^"]+)"/g)) {
     const target = match.groups!['target']!
-    if (!target.includes('$') && isDlxTarget(target)) {
+    if (
+      !target.includes('$') &&
+      path.isAbsolute(target) &&
+      isDlxTarget(target)
+    ) {
       targets.push(target)
     }
   }

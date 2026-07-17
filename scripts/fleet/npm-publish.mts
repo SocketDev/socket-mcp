@@ -11,8 +11,12 @@
  *   order:
  *
  *   1. `--otp <code>` flag (CI / scripted use).
- *   2. Interactive `password` prompt (lib/stdio/prompts).
- *   3. Empty prompt input → pnpm's per-call web-OTP flow (registry challenge opens
+ *   2. `--yes` with no `--otp` → skip the prompt; the registry challenge drives
+ *      pnpm's web-OTP flow directly (browser window to npmjs.com per approve
+ *      call) — the agent-driveable path: no TTY needed, the human authenticates
+ *      in the browser.
+ *   3. Interactive `password` prompt (lib/stdio/prompts).
+ *   4. Empty prompt input → pnpm's per-call web-OTP flow (registry challenge opens
  *      a browser window to npmjs.com per approve call). --direct Classic
  *      single-step `pnpm publish` — uploads + makes public in one call, no
  *      stage/approve. Escape hatch for environments where the stage endpoint is
@@ -41,15 +45,24 @@
  *   step, and the approve flow).
  */
 
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
+import { getCI } from '@socketsecurity/lib-stable/env/ci'
 
 import { runApprove } from './publish-infra/npm/approve.mts'
+import {
+  fetchPublishedVersion,
+  findPublishedBaseSha,
+  rebaseOntoPublishedBase,
+  syncFromOriginMain,
+} from './publish-infra/reconcile.mts'
 import { resolveBumpScript, runBump } from './publish-infra/npm/bump.mts'
 import {
   isStagingExpected,
+  parseStageListJson,
   readStagedShasum,
 } from './publish-infra/npm/shared.mts'
 import {
@@ -61,12 +74,14 @@ import {
   ensureTagAndRelease,
   extractChangelogSection,
 } from './publish-infra/release.mts'
-import { logger } from './publish-infra/shared.mts'
+import { logger, rootPath } from './publish-infra/shared.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 export {
   ensureTagAndRelease,
   extractChangelogSection,
   isStagingExpected,
+  parseStageListJson,
   readStagedShasum,
   resolveBumpScript,
   verifyStagedEntry,
@@ -80,22 +95,23 @@ async function main(): Promise<void> {
       direct: { default: false, type: 'boolean' },
       'dry-run': { default: false, type: 'boolean' },
       help: { default: false, type: 'boolean' },
+      'no-reconcile': { default: false, type: 'boolean' },
+      'no-scan': { default: false, type: 'boolean' },
       otp: { type: 'string' },
       'release-as': { type: 'string' },
       staged: { default: false, type: 'boolean' },
       tag: { default: 'latest', type: 'string' },
+      yes: { default: false, type: 'boolean' },
     },
     allowPositionals: false,
     strict: false,
   })
 
-  if (
-    values['help'] ||
-    (!values['staged'] && !values['approve'] && !values['direct'])
-  ) {
+  if (values['help']) {
     logger.log(
-      'Usage: pnpm publish --staged | --approve | --direct [--dry-run] [--otp <code>]',
+      'Usage: pnpm publish [--staged | --approve | --direct] [--dry-run] [--otp <code>] [--yes]',
     )
+    logger.log('  (no mode → --staged, the default publish path)')
     logger.log('')
     logger.log(
       '  --staged             CI: upload to npm staging via OIDC (recommended)',
@@ -115,6 +131,27 @@ async function main(): Promise<void> {
     logger.log(
       '  --otp <code>         pre-supply 2FA (skips OTP prompt on --approve)',
     )
+    logger.log(
+      '  --yes                approve all staged non-interactively; with no',
+    )
+    logger.log(
+      '                       --otp, 2FA runs in the browser (web-OTP)',
+    )
+    logger.log(
+      '  --no-scan            skip the pre-approve Socket full-scan gate',
+    )
+    logger.log(
+      '  --no-reconcile       local: skip the once-published reconcile (rebase',
+    )
+    logger.log(
+      '                       our commits onto the newly-published base + ff-pull',
+    )
+    logger.log(
+      '                       origin main). Runs by DEFAULT after --approve',
+    )
+    logger.log(
+      '                       (fails loud on conflict); CI --staged never does.',
+    )
     logger.log('  --tag <tag>          dist-tag for --staged (default: latest)')
     logger.log(
       '  --bump               CI: bump version + CHANGELOG, commit via the',
@@ -125,7 +162,7 @@ async function main(): Promise<void> {
     logger.log(
       '  --release-as <lvl>   force bump level major|minor|patch (with --bump)',
     )
-    process.exitCode = values['help'] ? 0 : 1
+    process.exitCode = 0
     return
   }
 
@@ -133,31 +170,62 @@ async function main(): Promise<void> {
     Boolean,
   ).length
   if (modes > 1) {
-    logger.fail('Pass exactly one of --staged / --approve / --direct.')
+    logger.fail('Pass at most one of --staged / --approve / --direct.')
     process.exitCode = 1
     return
   }
+  // Default to staged — the safest publish path (server-side rejectable before
+  // anything goes public). A bare `pnpm publish` uploads to staging.
+  const mode = values['direct']
+    ? 'direct'
+    : values['approve']
+      ? 'approve'
+      : 'staged'
 
   const dryRun = !!values['dry-run']
   const otpFromFlag =
     typeof values['otp'] === 'string' ? values['otp'] : undefined
   const releaseAs =
     typeof values['release-as'] === 'string' ? values['release-as'] : undefined
+  // Reconcile is the DEFAULT once published (local, not a flag — a flag is
+  // forgotten and local main drifts from the release). Gated OFF in CI:
+  // `--staged` runs on a clean OIDC checkout and must never touch git.
+  // `--no-reconcile` is the deliberate local opt-out.
+  const reconcile = !getCI() && !values['no-reconcile']
   // CI release path: `--staged --bump` bumps + commits (via the release App)
   // before staging, so the publish targets the bumped tree.
   if (values['bump']) {
     await runBump({ dryRun, releaseAs })
   }
-  if (values['staged']) {
+  if (mode === 'staged') {
     await runStaged(String(values['tag']), { dryRun })
-  } else if (values['direct']) {
+  } else if (mode === 'direct') {
     await runDirect(String(values['tag']), { dryRun })
   } else {
-    await runApprove({ dryRun, otpFromFlag })
+    await runApprove({
+      dryRun,
+      noScan: !!values['no-scan'],
+      otpFromFlag,
+      yes: !!values['yes'],
+    })
+    // Reconcile ONCE PUBLISHED: approve just made the version public and the
+    // release App pushed its bump to origin. Rebase our remaining local commits
+    // onto that freshly-published base, then ff-pull so local main matches the
+    // now-updated origin. Fail-loud on a conflict — never guess a lineage.
+    if (reconcile && !dryRun) {
+      const pkgName = String(
+        JSON.parse(readFileSync(path.join(rootPath, 'package.json'), 'utf8'))
+          .name,
+      )
+      const published = await fetchPublishedVersion(pkgName)
+      const baseSha = await findPublishedBaseSha(rootPath, published)
+      await rebaseOntoPublishedBase(rootPath, baseSha)
+      await syncFromOriginMain(rootPath)
+    }
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(e)
     process.exitCode = 1

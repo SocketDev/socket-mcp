@@ -29,12 +29,12 @@ import {
   spawnSync,
 } from '@socketsecurity/lib-stable/process/spawn/child'
 import { appendFileSync, existsSync } from 'node:fs'
-import http from 'node:http'
 import path from 'node:path'
 import process from 'node:process'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { getSocketAppDir } from '@socketsecurity/lib-stable/paths/socket'
+import { isHookEntrypoint } from '../_shared/entrypoint.mts'
 
 const logger = getDefaultLogger()
 
@@ -104,7 +104,13 @@ interface ProbeOutcome {
  * treated as not-healthy. Fail-closed at this layer keeps the env-var write
  * conditional on actual liveness.
  */
-export function probeHealth(): Promise<ProbeOutcome> {
+export async function probeHealth(): Promise<ProbeOutcome> {
+  // Lazy: loading node:http binds the native HTTPParser at module-eval, and
+  // V8's --build-snapshot refuses to serialize those Foreign handles
+  // (CheckGlobalAndEternalHandles fatal). Importing inside the probe keeps
+  // the hook snapshot-eligible; the deserialized process loads http on the
+  // first actual health check. Mirrors the lib's getHttp() lazy accessor.
+  const http = await import('node:http')
   return new Promise(resolve => {
     const req = http.get(HEALTH_URL, { timeout: PROBE_TIMEOUT_MS }, res => {
       /* c8 ignore start - statusCode is always defined for real HTTP responses; ?? 0 is a defensive fallback */
@@ -301,7 +307,7 @@ async function main(): Promise<void> {
 // imports this module for its pure helpers (else the proxy-reap side effects
 // fire on import inside the node --test runner).
 /* c8 ignore next - entrypoint guard only fires when the script is run directly */
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (isHookEntrypoint(import.meta.url)) {
   /* c8 ignore start - direct-invocation body: logger + process.exit only reachable when run as a CLI */
   main().catch(e => {
     logger.fail(`headroom-proxy-start hook error: ${String(e)}`)

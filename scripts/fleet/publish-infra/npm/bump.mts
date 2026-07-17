@@ -105,4 +105,14 @@ export async function runBump(options: {
   logger.success(
     `[bump] ${version} committed ${sha.slice(0, 7)} via the release App.`,
   )
+  // Rebuild AFTER the reset: the workflow's pre-build ran on the PRE-bump
+  // tree, and `git reset --hard` leaves the gitignored dist/ untouched — so
+  // without this the publish packs stale bytes (a staged artifact once
+  // shipped with the `X.Y.Z-prerelease` hint version baked into dist/). The
+  // staged artifact must be built from the exact bump commit it claims.
+  logger.log('[bump] rebuilding dist/ from the bump commit…')
+  const rebuild = await runInherit('pnpm', ['run', 'build'], rootPath)
+  if (rebuild !== 0) {
+    throw new Error(`[bump] post-bump rebuild exited ${rebuild}`)
+  }
 }

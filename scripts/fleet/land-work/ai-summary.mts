@@ -1,18 +1,15 @@
 /**
  * @file AI-assisted below-the-fold summaries for auto-landed commits.
- *
  *   land-work composes each grouped commit's deterministic SUBJECT + per-
  *   directory file digest (land-work/message.mts, always). This module adds the
  *   optional value-add: ONE floor-tier AI call per auto-land that reads the
  *   grouped diffs and returns a high-level "what & why" for each multi-file
  *   group, which land-work inserts below the fold, above the digest.
- *
  *   Code-first-then-AI: this is the residue the deterministic composer cedes.
  *   Every failure path — no claude CLI, model unavailable/overloaded, a
  *   non-zero exit, unparseable output, the LAND_WORK_NO_AI opt-out — returns an
  *   empty map and the commit keeps its deterministic body. The AI never gates a
  *   land.
- *
  *   Recursion: land-work sets SOCKET_LAND_WORK_ACTIVE for its run, which the
  *   headless child inherits (spawnAiAgent forwards process.env), so the child's
  *   own auto-land-on-stop hook no-ops — the read-only profile also lets it
@@ -83,10 +80,12 @@ function buildPrompt(cwd: string, groups: readonly CommitGroup[]): string {
 }
 
 /**
- * Parse the model's stdout into a scope→summary map. Tolerates an accidental
- * ``` fence; drops anything that isn't a plain string keyed by a known scope;
+ * Parse the model's stdout into a scope→summary map. Tolerates an accidental.
+ *
+ * ```fence;
  * collapses whitespace and caps length. Never throws — a bad payload yields an
  * empty map (the caller then keeps the deterministic body). Pure.
+ * ```
  */
 export function parseSummaries(
   stdout: string,
@@ -110,7 +109,10 @@ export function parseSummaries(
   const known = new Set(scopes)
   for (const [key, value] of Object.entries(parsed)) {
     if (known.has(key) && typeof value === 'string') {
-      const clean = value.replace(/\s+/g, ' ').trim().slice(0, MAX_SUMMARY_CHARS)
+      const clean = value
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_SUMMARY_CHARS)
       if (clean) {
         out.set(key, clean)
       }
@@ -159,5 +161,8 @@ export async function summarizeGroups(
   if (result.exitCode !== 0 || result.unavailable || result.overloaded) {
     return new Map()
   }
-  return parseSummaries(result.stdout, multi.map(g => g.scope))
+  return parseSummaries(
+    result.stdout,
+    multi.map(g => g.scope),
+  )
 }

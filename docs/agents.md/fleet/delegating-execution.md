@@ -2,7 +2,7 @@
 
 For non-trivial work, planning and review are big-brain jobs; execution and follow-up are floor jobs bounded by the written plan. The four-phase cycle:
 
-```
+```text
 plan → execute → review → follow-up
 ```
 
@@ -67,4 +67,4 @@ files → full CI.)
 - `scripts/fleet/check/ai-spawns-have-paired-effort.mts` — scans `.claude/workflows/**/*.js` agent() calls (extended to cover the workflow glob).
 - `scripts/fleet/check/fable-spawns-have-opus-fallback.mts` — verifies no direct Fable spawn omits the refusal check.
 - `scripts/fleet/check/mutating-skills-have-model.mts` — verifies the skill frontmatter declares `model:`.
-- `test/unit/fleet/delegating-execution.test.mts` — unit matrix for the full phase × sensitivity table.
+- `test/repo/unit/delegating-execution.test.mts` — unit matrix for the full phase × sensitivity table.

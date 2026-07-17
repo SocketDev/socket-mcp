@@ -16,7 +16,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
@@ -29,6 +28,7 @@ import {
 } from '../lib/changelog.mts'
 import { REPO_ROOT } from '../paths.mts'
 import { runCapture } from '../publish-infra/shared.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -207,7 +207,7 @@ function fail(message: string): void {
   process.exitCode = 1
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(e)
     // Fail-open: a crash in the check must not block an otherwise-valid push.

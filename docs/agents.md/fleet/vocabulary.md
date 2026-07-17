@@ -8,7 +8,7 @@ instruction the moment the phrase appears — no clarifying question needed.
 - **"commit as you go"** — make **surgical commits as you go**: `git commit -o <named-paths>` (or `git add <file>` then commit named paths), never `git add -A` / `.` / a broad sweep. Commit each logical chunk as it completes; don't batch.
 - **"land it"** — commit to the **LOCAL** default branch (`main`, falling back to `master`). Land = a local commit on main; it does NOT push to origin. Pushing to a shared trunk is a separate, explicitly-authorized step (gated by `push-protected-branch-guard`), never implied by "land". Not a side branch.
 - **"consolidate commits"** — regroup the commits since the previous bump (or a named base) into **logical commits**, one per concern, with a `chore: bump version to X.Y.Z` tip kept LAST. Run `node scripts/fleet/consolidate-commits.mts` (the `consolidating-commits` skill). It never means squash-to-one; that is `squashing-history`.
-- **"update <socket-pkg>" / "use <socket-pkg>"** — for any socket package (`socket-lib`, `socket-registry`, `socket-sdk-js`, …), this **includes the `-stable` alias form** (`@socketsecurity/lib-stable`, `@socketsecurity/registry-stable`, …). The bare name is shorthand for the package in all its consumed forms.
+- **"update `<socket-pkg>`" / "use `<socket-pkg>`"** — for any socket package (`socket-lib`, `socket-registry`, `socket-sdk-js`, …), this **includes the `-stable` alias form** (`@socketsecurity/lib-stable`, `@socketsecurity/registry-stable`, …). The bare name is shorthand for the package in all its consumed forms.
 
 ## Writing
 
@@ -17,3 +17,13 @@ instruction the moment the phrase appears — no clarifying question needed.
 ## Operational
 
 - **A dirty / stale `pnpm-lock.yaml` is not a blocker** — it's regenerable. Run `pnpm i` (or `pnpm run update` then `pnpm i`) when it matters (before a frozen-lockfile CI step or a release prep wave). Don't pause, ask, or hand-restore around lockfile dirtiness. `pnpm install --lockfile-only` is instant (no proxy) and tells you whether the lockfile is actually stale before any full install.
+
+## Task and issue references carry their name
+
+A task/issue number is a session-local pointer: "#12" means nothing to a
+reader without the task list open (including a future session). Pair every
+ref with its subject on first mention — "#12 (remove npm-run-all2)",
+"#24 (migrate wheelhouse-only scripts out of scripts/fleet)". Later mentions
+in the same paragraph may shorten once the binding is established.
+GitHub `owner/repo#N` autolinks are exempt (the repo half carries context).
+Enforced by the `named-task-refs` group in `reply-prose-nudge`.

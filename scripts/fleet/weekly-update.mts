@@ -33,11 +33,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { discoverAiAgents } from '@socketsecurity/lib-stable/ai/discover'
 import { AI_PROFILE } from '@socketsecurity/lib-stable/ai/profiles'
 import { spawnAiAgent } from '@socketsecurity/lib-stable/ai/spawn'
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 
 import type { AiEffort } from '@socketsecurity/lib-stable/ai/types'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
@@ -46,6 +46,7 @@ import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { scan } from './check/soak-excludes-have-dates.mts'
 import { PNPM_WORKSPACE_YAML, REPO_ROOT } from './paths.mts'
 import { runDeterministicChain } from './weekly-update/deterministic-chain.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -101,6 +102,7 @@ async function capture(
   try {
     const r = await spawn(cmd, [...args], {
       cwd: REPO_ROOT,
+      shell: WIN32,
       stdioString: true,
     })
     return { ok: true, out: String(r.stdout ?? '') }
@@ -129,7 +131,10 @@ export async function hasActionableUpdates(): Promise<boolean> {
   if (hasLockstep) {
     // lockstep --json exits 2 when manifests are behind.
     try {
-      await spawn('pnpm', ['run', 'lockstep', '--json'], { cwd: REPO_ROOT })
+      await spawn('pnpm', ['run', 'lockstep', '--json'], {
+        cwd: REPO_ROOT,
+        shell: WIN32,
+      })
     } catch (e) {
       if ((e as { code?: unknown | undefined }).code === 2) {
         return true
@@ -324,6 +329,6 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   void main()
 }

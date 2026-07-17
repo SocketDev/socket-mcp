@@ -7,19 +7,17 @@
  *   fails open), and the declared budget must stay at or under the cap. A bare
  *   or `run_step` (unbounded) heavy step, or a budget above the cap, re-opens
  *   the "commit hangs forever" hole this gate closes.
- *
  *   Pure core (findUnboundedHeavySteps / readBudgetSeconds) is unit-tested;
  *   main() reads the repo's own .git-hooks/fleet/pre-commit and fails loud.
- *
  *   Usage: node scripts/fleet/check/precommit-steps-are-bounded.mts [--quiet]
  */
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -126,9 +124,6 @@ function main(): void {
   }
 }
 
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
+if (isMainModule(import.meta.url)) {
   main()
 }

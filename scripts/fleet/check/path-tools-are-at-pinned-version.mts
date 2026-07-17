@@ -35,6 +35,7 @@ import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { coerce, lt, minVersion } from 'semver'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -223,8 +224,8 @@ function brewAvailable(): boolean {
  * `--fix`: bring each below-floor Homebrew tool up via `brew upgrade`, then
  * re-check. Returns the count still below floor after the attempt (0 = healed).
  * The re-check — not the brew exit code — is the gate: `brew upgrade` exits
- * non-zero when a formula is already latest, and a non-Homebrew binary (fnm/nvm)
- * may still win PATH, which the re-check catches and reports LOUD.
+ * non-zero when a formula is already latest, and a non-Homebrew binary
+ * (fnm/nvm) may still win PATH, which the re-check catches and reports LOUD.
  */
 export function runBrewFix(violations: readonly FloorViolation[]): number {
   const available = brewAvailable()
@@ -299,6 +300,6 @@ function main(): void {
   process.exitCode = 1
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main()
 }

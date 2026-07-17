@@ -99,13 +99,13 @@ build/tests are failing. Fix the failures so the update can ship.
 
 Build output (last 100 lines):
 
-```
+```text
 ${{ inputs.build-log }}
 ```
 
 Test output (last 100 lines):
 
-```
+```text
 ${{ inputs.test-log }}
 ```
 
@@ -117,7 +117,7 @@ ${{ inputs.test-log }}
 
 2. Re-run the test setup + tests to confirm green:
 
-   ```
+   ```bash
    ${{ inputs.test-setup-script }}
    ${{ inputs.test-script }}
    ```

@@ -29,6 +29,16 @@ import {
 } from 'node:fs'
 
 /**
+ * How many recent USER turns the bypass-phrase scans read by default. Small
+ * enough that a phrase typed early in a long session can't silently authorize
+ * a much-later action, large enough that interleaved tool-heavy turns don't
+ * evict a freshly typed phrase. Hooks pass this shared constant to
+ * `bypassPhrasePresent` so the fleet-wide lookback window is a single-edit
+ * change instead of a per-hook magic number.
+ */
+export const BYPASS_LOOKBACK_USER_TURNS = 8
+
+/**
  * Is any canonical bypass phrase present in a recent user turn? Substring
  * match on the separator-folded, case-folded form (see normalizeBypassText) —
  * `allow x bypass`, `Allow X bypass`, and `ALLOW X-BYPASS` all count.
@@ -481,6 +491,38 @@ export function readLastAssistantTurnText(
  * most-recent assistant turn is the parent's, this reads the parent's turn and
  * the gate is unchanged.
  */
+/**
+ * True when the most-recent assistant turn is a subagent (Task/sidechain) turn.
+ * Claude Code marks a subagent turn with `isSidechain:true` and the parent
+ * orchestrator's turns with false. A hook gating on "did a subagent do this"
+ * reads this: the newest assistant turn is the actor whose tool call is
+ * running. Returns false when the transcript is missing or has no assistant
+ * turn.
+ *
+ * Limit: this only sees turns written into THIS transcript. An inline Task
+ * subagent's turns are inlined here (`isSidechain:true`); a background/workflow
+ * subagent writes to its own transcript and never appears here, so a caller
+ * cannot attribute a background child's tool call from this alone.
+ */
+export function mostRecentAssistantIsSidechain(
+  transcriptPath: string | undefined,
+): boolean {
+  const lines = readLines(transcriptPath)
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (r?.role === 'assistant') {
+      return r.isSidechain
+    }
+  }
+  return false
+}
+
 export function readLastAssistantTextSameActor(
   transcriptPath: string | undefined,
 ): string {
@@ -745,6 +787,23 @@ export function resolveRoleAndContent(evt: unknown):
     return undefined
   }
   const e = evt as Record<string, unknown>
+  // A message the user types WHILE the assistant is working is recorded as a
+  // queued-input event, not a `role:'user'` turn:
+  // `{type:'queue-operation', operation:'enqueue', content:'<what they typed>'}`.
+  // It IS genuine user prose — the user typed it, the harness only deferred
+  // delivery — so a bypass phrase queued mid-work must count exactly like one
+  // typed at an idle prompt. Without this, a user can authorize repeatedly and
+  // be silently ignored (a lease-force-push phrase typed 4× mid-task never
+  // registered). Not injectable: only a human enqueues input, and
+  // extractTurnPieces still runs stripInjectedContext over the string, so a
+  // reminder/tool span can't ride in. Non-`enqueue` queue ops carry no author
+  // prose → skipped.
+  if (e['type'] === 'queue-operation') {
+    if (e['operation'] !== 'enqueue' || typeof e['content'] !== 'string') {
+      return undefined
+    }
+    return { content: e['content'], isSidechain: false, role: 'user' }
+  }
   const role =
     typeof e['role'] === 'string'
       ? e['role']
