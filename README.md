@@ -141,7 +141,7 @@ To run your own instance, create an API key first (only the `packages:list` perm
 Claude Code:
 
 ```sh
-claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- npx -y @socketsecurity/mcp@latest # socket-hook: allow npx
+claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- npx -y @socketsecurity/mcp@latest # socket-lint: allow npx
 ```
 
 Most other MCP clients:
@@ -150,7 +150,7 @@ Most other MCP clients:
 {
   "mcpServers": {
     "socket-mcp": {
-      "command": "npx", // socket-hook: allow npx
+    "command": "npx", // socket-lint: allow npx
       "args": ["@socketsecurity/mcp@latest"],
       "env": {
         "SOCKET_API_TOKEN": "your-api-token-here"
@@ -167,7 +167,7 @@ Most other MCP clients:
 Run the server in HTTP mode using npx:
 
 ```sh
-MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
+MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token npx @socketsecurity/mcp@latest --http # socket-lint: allow npx
 ```
 
 Environment variables for HTTP mode:
