@@ -193,7 +193,7 @@ MCP_HTTP_MODE=true \
 SOCKET_OAUTH_ISSUER=https://issuer.example.com \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_ID=your-client-id \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret \
-npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
+npx @socketsecurity/mcp@latest --http # socket-lint: allow npx
 ```
 
 Add `TRUST_PROXY=true` only when the server is deployed behind a trusted reverse proxy or load balancer that normalizes the forwarded host and protocol headers.
