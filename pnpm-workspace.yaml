@@ -1,7 +1,7 @@
 packages:
-  - .claude/hooks/*
   - '.config/fleet/oxlint-plugin'
   - '.config/fleet/oxlint-plugin/fleet/*'
+  - '.claude/hooks/fleet/*'
 allowBuilds:
   cpu-features: false
   esbuild: true
