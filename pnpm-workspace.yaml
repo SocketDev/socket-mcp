@@ -15,7 +15,7 @@ managePackageManagerVersions: false
 
 catalog:
   '@anthropic-ai/claude-code': 2.1.201
-  '@redwoodjs/agent-ci': 0.16.2
+  '@redwoodjs/agent-ci': 0.17.1
   '@sinclair/typebox': 0.34.50
   '@socketregistry/packageurl-js': 1.4.2
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
@@ -36,9 +36,9 @@ catalog:
   'c8': 11.0.0
   'chrome-devtools-mcp': 1.5.0
   'compromise': 14.15.1
-  'dtu-github-actions': 0.16.2
+  'dtu-github-actions': 0.17.1
   'ecc-agentshield': 1.4.0
-  'magic-string': 0.30.21
+  'magic-string': 1.0.0
   'markdownlint-cli2': 0.23.0
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
@@ -141,6 +141,12 @@ minimumReleaseAgeExclude:
   - '@sdxgen/*'
   - 'sdxgen'
   - 'stuie'
+  # published: 2026-07-14 | removable: 2026-07-21
+  - '@redwoodjs/agent-ci@0.17.1'
+  # published: 2026-07-14 | removable: 2026-07-21
+  - 'dtu-github-actions@0.17.1'
+  # published: 2026-07-16 | removable: 2026-07-23
+  - 'magic-string@1.0.0'
 
 # Transitional: warn (not error) while the socket-registry CI install chain
 # still ships pnpm 11.5.1 and this repo runs 11.6.0. Restore to error once the
