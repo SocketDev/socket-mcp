@@ -30,7 +30,7 @@
   "scripts": {
     "prepare": "node scripts/fleet/install-git-hooks.mts",
     "prepublishOnly": "npm run build",
-    "postpublish": "npm run clean",
+    "postpublish": "pnpm run clean",
     "npm:publish": "node scripts/fleet/npm-publish.mts",
     "test": "node scripts/fleet/test.mts",
     "test:e2e": "vitest run --config .config/repo/vitest.config.mts test/e2e/",
@@ -45,7 +45,7 @@
     "fix": "node scripts/fleet/fix.mts",
     "fix:all": "node scripts/fleet/fix.mts --all",
     "update": "node scripts/fleet/update.mts",
-    "build": "npm run clean && run-s build:bundle build:permissions",
+    "build": "pnpm run clean && run-s build:bundle build:permissions",
     "build:bundle": "node scripts/repo/build.mts",
     "build:permissions": "chmod +x ./dist/index.cjs",
     "build-mcpb": "run-s build build-mcpb:versions_match build-mcpb:validate build-mcpb:ensure-deps build-mcpb:mcpb-pack",
