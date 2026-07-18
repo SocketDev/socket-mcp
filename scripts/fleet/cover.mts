@@ -143,8 +143,9 @@ export async function runQuiet(
     // children stay on this exact Node, and lead PATH with the same binary dir
     // because `pnpm exec` launches local Node CLIs by name.
     const pnpmEntry = process.env['npm_execpath']
-    const command = pnpmEntry ? process.execPath : 'pnpm'
-    const commandArgs = pnpmEntry ? [pnpmEntry, ...args] : args
+    const pnpmEntryIsJavaScript = /\.(?:cjs|js|mjs)$/u.test(pnpmEntry ?? '')
+    const command = pnpmEntryIsJavaScript ? process.execPath : 'pnpm'
+    const commandArgs = pnpmEntryIsJavaScript ? [pnpmEntry!, ...args] : args
     const env = options.env ?? process.env
     const nodeBin = path.dirname(process.execPath)
     const result = await spawn(command, commandArgs, {

@@ -28,7 +28,7 @@
     "provenance": true
   },
   "scripts": {
-    "prepare": "node scripts/fleet/install-git-hooks.mts",
+    "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
     "prepublishOnly": "npm run build",
     "postpublish": "pnpm run clean",
     "npm:publish": "node scripts/fleet/publish-pipeline.mts",
@@ -111,6 +111,7 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "playwright-core": "catalog:",
+    "portless": "catalog:",
     "regjsparser": "catalog:",
     "rolldown": "catalog:",
     "semver": "catalog:",
