@@ -280,6 +280,9 @@ catalogs:
     playwright-core:
       specifier: 1.61.1
       version: 1.61.1
+    portless:
+      specifier: 0.15.4
+      version: 0.15.4
     regjsparser:
       specifier: 0.13.2
       version: 0.13.2
@@ -442,6 +445,9 @@ importers:
       playwright-core:
         specifier: 'catalog:'
         version: 1.61.1
+      portless:
+        specifier: 'catalog:'
+        version: 0.15.4
       regjsparser:
         specifier: 'catalog:'
         version: 0.13.2
@@ -4264,6 +4270,12 @@ packages:
   polka@0.5.2:
     resolution: {integrity: sha512-FVg3vDmCqP80tOrs+OeNlgXYmFppTXdjD5E7I4ET1NjvtNmQrb1/mJibybKkb/d4NA7YWAr1ojxuhpL3FHqdlw==}
 
+  portless@0.15.4:
+    resolution: {integrity: sha512-tOxEsdlDGuPHO6DPkuK3c3mMV5ctXEgVFm53Sa8nfZ2RsRGTq4By424C6z5+JWfNbd3ktR5SOd1FJBOlB1Woqg==}
+    engines: {node: '>=24'}
+    os: [darwin, linux, win32]
+    hasBin: true
+
   postcss@8.5.15:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
@@ -6747,6 +6759,8 @@ snapshots:
     dependencies:
       '@polka/url': 0.5.0
       trouter: 2.0.1
+
+  portless@0.15.4: {}
 
   postcss@8.5.15:
     dependencies:
