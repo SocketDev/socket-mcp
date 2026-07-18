@@ -138,6 +138,7 @@
     "cpu-features": false,
     "esbuild": true,
     "protobufjs": false,
+    "puppeteer": false,
     "ssh2": false
   },
   "npm-run-all2": {
