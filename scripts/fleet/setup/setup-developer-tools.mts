@@ -3,8 +3,8 @@
  * @file `setup:developer-tools` — offer a macOS-only, explicit opt-in to add
  *   the current terminal to Developer Tools. macOS applies this exemption to
  *   every process the terminal launches; it cannot be scoped to compiler
- *   output or SFW alone. The step never runs in CI or without an interactive
- *   terminal, and defaults to leaving XProtect unchanged.
+ *   output or SFW alone. On macOS CI it enables the exemption automatically;
+ *   interactive local setup defaults to enabling it.
  */
 
 import process from 'node:process'
@@ -22,10 +22,12 @@ import type {
 } from './ecosystems.mts'
 
 const logger = getDefaultLogger()
+const PRIVACY_SECURITY_SETTINGS_URL =
+  'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy'
 
 async function promptForDeveloperTools(): Promise<boolean> {
   return (await confirm({
-    default: false,
+    default: true,
     message:
       'macOS Developer Tools can speed up local compiler/test loops by ' +
       'excluding processes started by this terminal from XProtect checks. ' +
@@ -50,17 +52,15 @@ export async function setupDeveloperTools(
   if (platform !== 'darwin') {
     return skipResult(setupLogger, 'setup:developer-tools', 'non-macOS host')
   }
-  if (getCI()) {
-    return skipResult(setupLogger, 'setup:developer-tools', 'CI environment')
-  }
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+  const isCI = getCI()
+  if (!isCI && (!process.stdin.isTTY || !process.stdout.isTTY)) {
     return skipResult(
       setupLogger,
       'setup:developer-tools',
       'no interactive terminal',
     )
   }
-  if (!(await promptForDeveloperTools())) {
+  if (!isCI && !(await promptForDeveloperTools())) {
     return skipResult(
       setupLogger,
       'setup:developer-tools',
@@ -88,8 +88,18 @@ export async function setupDeveloperTools(
       skipped: false,
     }
   }
+  if (!isCI) {
+    const settings = await runCommand('open', [PRIVACY_SECURITY_SETTINGS_URL])
+    if (settings.exitCode !== 0) {
+      setupLogger.warn(
+        'Developer Tools enrollment succeeded, but System Settings could not be opened. Open System Settings → Privacy & Security → Developer Tools manually.',
+      )
+    }
+  }
   setupLogger.success(
-    'Developer Tools enrollment requested. In System Settings → Privacy & Security → Developer Tools, enable this terminal, then restart it.',
+    isCI
+      ? 'Developer Tools enrollment requested for the CI process tree.'
+      : 'Developer Tools enrollment requested. In System Settings → Privacy & Security → Developer Tools, enable this terminal, then restart it.',
   )
   return { ok: true, skipped: false }
 }

@@ -17,11 +17,11 @@ managePackageManagerVersions: false
 catalog:
   '@anthropic-ai/claude-code': 2.1.201
   '@redwoodjs/agent-ci': 0.17.1
-  '@sinclair/typebox': 0.34.50
-  '@socketregistry/packageurl-js': 1.4.2
+  '@sinclair/typebox': 0.34.52
+  '@socketregistry/packageurl-js': 1.4.4
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib': 6.0.10
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.10
+  '@socketsecurity/lib': 6.1.0
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.1.0
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
@@ -39,6 +39,7 @@ catalog:
   'compromise': 14.15.1
   'dtu-github-actions': 0.17.1
   'ecc-agentshield': 1.4.0
+  'fast-check': 4.9.0
   'magic-string': 1.0.0
   'markdownlint-cli2': 0.23.0
   'mdast-util-from-markdown': 2.0.3

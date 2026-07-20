@@ -101,6 +101,7 @@
     "@vitest/ui": "catalog:",
     "c8": "catalog:",
     "chrome-devtools-mcp": "catalog:",
+    "fast-check": "catalog:",
     "magic-string": "catalog:",
     "markdownlint-cli2": "catalog:",
     "mdast-util-from-markdown": "catalog:",
