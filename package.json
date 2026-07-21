@@ -34,6 +34,7 @@
     "npm:publish": "node scripts/fleet/publish-pipeline.mts",
     "test": "node scripts/fleet/test.mts",
     "test:e2e": "vitest run --config .config/repo/vitest.config.mts test/e2e/",
+    "test:fuzz": "node scripts/repo/fuzz.mts",
     "cover": "node scripts/fleet/cover.mts",
     "test:tsc": "tsgo --noEmit -p tsconfig.json",
     "lint": "node scripts/fleet/lint.mts",
@@ -97,6 +98,7 @@
     "@types/semver": "catalog:",
     "@types/shell-quote": "catalog:",
     "@typescript/native-preview": "catalog:",
+    "@vitiate/core": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
     "c8": "catalog:",
@@ -121,6 +123,7 @@
     "taze": "catalog:",
     "typescript": "catalog:",
     "untracked": "catalog:",
+    "vitiate": "catalog:",
     "vitest": "catalog:"
   },
   "devEngines": {
