@@ -1,5 +1,5 @@
 {
-  "$schema": "./lockstep.schema.json",
+  "$schema": "../fleet/lockstep.schema.json",
   "area": "socket-mcp",
   "description": "Lock-step manifest. socket-mcp ships the @socketsecurity/mcp Model Context Protocol server as a single bundled npm package with no submodule upstreams or sibling language ports \u2014 empty rows is the expected state.",
   "upstreams": {},
