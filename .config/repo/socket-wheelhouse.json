@@ -1,9 +1,14 @@
 {
-  "$schema": "../socket-wheelhouse-schema.json",
+  "$schema": "./socket-wheelhouse-schema.json",
   "schemaVersion": 1,
   "repoName": "socket-mcp",
-  "repo": { "type": "solo" },
-  "build": { "from": "npm-registry", "type": "js" },
+  "repo": {
+    "type": "solo"
+  },
+  "build": {
+    "from": "npm-registry",
+    "type": "js"
+  },
   "hooks": {
     "enablePrePush": true,
     "enableCommitMsg": true,
@@ -53,6 +58,10 @@
     "trustPolicy": "no-downgrade"
   },
   "github": {
-    "apps": ["cursor", "socket-security", "socket-trufflehog"]
+    "apps": [
+      "cursor",
+      "socket-security",
+      "socket-trufflehog"
+    ]
   }
 }
