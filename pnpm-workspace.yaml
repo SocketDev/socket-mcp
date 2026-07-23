@@ -50,7 +50,9 @@ catalog:
   'nock': 15.0.0
   'npm-run-all2': 9.0.2
   'oxfmt': 0.59.0
-  'oxlint': 1.74.0
+  'oxlint': 1.75.0
+  # oxlint-tsgolint — tsgolint sidecar for oxlint --type-aware (same oxc release train).
+  'oxlint-tsgolint': 7.0.2001
   'playwright-core': 1.61.1
   'portless': 0.15.4
   'regjsparser': 0.13.2
@@ -151,6 +153,68 @@ minimumReleaseAgeExclude:
   - 'magic-string@1.0.0'
   # published: 2026-07-16 | removable: 2026-07-23
   - 'portless@0.15.4'
+  # oxlint 1.75.0 — the linter; catalog-pinned at 1.75.0. The main package + its
+  # per-platform binding family are soak-excluded because oxlint is a
+  # known-publisher (oxc) tool and the fleet MIGRATES + SUPPORTS its plugin API
+  # (the socket/* rules are kept current with oxlint's plugin surface), so a
+  # fresh oxlint is adopted immediately rather than pinned back. The soak targets
+  # npm freshpub typosquats, not a first-party oxc release.
+  # published: 2026-07-21 | removable: 2026-07-28
+  - 'oxlint@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-android-arm-eabi@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-android-arm64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-darwin-arm64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-darwin-x64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-freebsd-x64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm-gnueabihf@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm-musleabihf@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm64-musl@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-ppc64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-riscv64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-riscv64-musl@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-s390x-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-x64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-x64-musl@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-openharmony-arm64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-win32-arm64-msvc@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-win32-ia32-msvc@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-win32-x64-msvc@1.75.0'
+  # oxlint-tsgolint — tsgolint sidecar for oxlint --type-aware (same oxc release
+  # train, same known-publisher rationale as the oxlint excludes above).
+  # published: 2026-07-21 | removable: 2026-07-28
+  - 'oxlint-tsgolint@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/darwin-arm64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/darwin-x64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/linux-arm64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/linux-x64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/win32-arm64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/win32-x64@7.0.2001'
 
 # Transitional: warn (not error) while the socket-registry CI install chain
 # still ships pnpm 11.5.1 and this repo runs 11.6.0. Restore to error once the

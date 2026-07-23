@@ -21,6 +21,13 @@
  *     type says only `foo?: T`. Mixed-codebase code does both (build options
  *     objects, JSON-derived parsed config, REST API responses) and the `|
  *     undefined` makes the contract honest.
+ *
+ *   Absorbing annotations (`?: unknown`, `?: any`): the type-aware
+ *   `typescript/no-redundant-type-constituents` rule reports `unknown |
+ *   undefined` because `unknown` absorbs `undefined` at the type level. The
+ *   fleet sides with THIS rule — the `| undefined` on an optional is explicit
+ *   convention, not redundancy — so the autofix for an absorbing annotation
+ *   also emits a per-line silence of the typescript rule.
  */
 
 /**
@@ -42,6 +49,8 @@ const rule = {
     messages: {
       missingUndefined:
         'Optional property `{{name}}` should be typed as `{{name}}?: {{type}} | undefined` to pair with `exactOptionalPropertyTypes`.',
+      missingUndefinedAbsorbing:
+        'Optional property `{{name}}` should be typed as `{{name}}?: {{type}} | undefined` to pair with `exactOptionalPropertyTypes`. The autofix also silences typescript/no-redundant-type-constituents on this line — the explicit `| undefined` is the fleet convention, not redundancy.',
     },
     schema: [],
   },
@@ -154,21 +163,47 @@ const rule = {
       }
       const name = keyName(node)
       const type = typeText(node)
+      // `unknown` / `any` absorb `undefined`, so the type-aware
+      // typescript/no-redundant-type-constituents rule would report the fixed
+      // union. The fleet sides with explicitness: keep `| undefined` and
+      // silence that rule per-line as part of the fix.
+      const absorbing =
+        ann.type === 'TSAnyKeyword' || ann.type === 'TSUnknownKeyword'
       context.report({
         node: ann,
-        messageId: 'missingUndefined',
+        messageId: absorbing ? 'missingUndefinedAbsorbing' : 'missingUndefined',
         data: { name, type },
         fix(fixer: RuleFixer) {
+          const fixes = []
+          if (absorbing && node.range) {
+            const src = context.sourceCode ?? context.getSourceCode?.()
+            const text = src?.text ?? ''
+            const lineStart = text.lastIndexOf('\n', node.range[0] - 1) + 1
+            const indent = text.slice(lineStart, node.range[0])
+            // Only a pure-whitespace prefix is a safe insertion point — a
+            // property mid-line (single-line type literal) gets the union
+            // member only, and the reader applies the silence by hand.
+            if (/^\s*$/.test(indent)) {
+              fixes.push(
+                fixer.insertTextBefore(
+                  node,
+                  `// oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.\n${indent}`,
+                ),
+              )
+            }
+          }
           // For function/constructor/intersection types we need parens
           // around the existing annotation so ` | undefined` binds to
           // the whole thing, not to the return type / last factor.
           if (needsParens(ann)) {
-            return [
+            fixes.push(
               fixer.insertTextBefore(ann, '('),
               fixer.insertTextAfter(ann, ') | undefined'),
-            ]
+            )
+          } else {
+            fixes.push(fixer.insertTextAfter(ann, ' | undefined'))
           }
-          return fixer.insertTextAfter(ann, ' | undefined')
+          return fixes
         },
       })
     }
