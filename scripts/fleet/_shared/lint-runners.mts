@@ -70,9 +70,11 @@ const DOGFOOD_LINT_PATHS = ['template']
 
 // The dogfood oxlint config is wheelhouse-only — it re-includes `template/`
 // (the fleet source), a path that exists only in the wheelhouse — so it lives
-// in `.config/repo/`, never the cascaded `.config/fleet/` tier. Absent in member
-// repos, where the dogfood pass is skipped.
+// in `.config/repo/`, never the cascaded `.config/fleet/` tier. Generated +
+// gitignored: runDogfood regenerates it via the wheelhouse generator below.
+// In member repos the generator is absent and the dogfood pass is skipped.
 const DOGFOOD_CONFIG = '.config/repo/oxlintrc.dogfood.json'
+const DOGFOOD_CONFIG_GENERATOR = 'scripts/repo/gen/dogfood-oxlint-config.mts'
 
 /**
  * The CLI-derived context the runners close over. Built once in lint.mts from
@@ -281,7 +283,7 @@ export function createLintRunners(context: LintRunnerContext): LintRunners {
   // FORMAT_MAX_PASSES), so a one-pass non-idempotency residual never reaches the
   // verify gate; fail LOUD on genuine oscillation (a real oxfmt bug, not a
   // silent re-run). Returns 0 on success, 1 on a format error or non-convergence.
-  function runOxfmt(files?: readonly string[]): number {
+  function runOxfmt(files?: readonly string[] | undefined): number {
     const fileArgs = files === undefined ? {} : { files: [...files] }
     if (!fix) {
       const res = spawnSync(
@@ -386,11 +388,31 @@ export function createLintRunners(context: LintRunnerContext): LintRunners {
   }
 
   // Wheelhouse-self dogfood: lint the template/ tree with the dogfood config.
-  // Gated behind LINT_DOGFOOD=1 + the dogfood config existing (member repos
+  // Gated behind LINT_DOGFOOD=1 + the dogfood generator existing (member repos
   // have neither). Returns 0 on pass / skip, 1 on any dogfood violation.
   function runDogfood(): number {
-    if (process.env['LINT_DOGFOOD'] !== '1' || !existsSync(DOGFOOD_CONFIG)) {
+    if (process.env['LINT_DOGFOOD'] !== '1') {
       return 0
+    }
+    // The dogfood config is generated + gitignored — regenerate it on a fresh
+    // checkout. A repo without the generator (a member) has no dogfood
+    // surface, so the pass is a no-op there. A failed generation fails LOUD:
+    // silently skipping would false-green the dogfood gate.
+    if (!existsSync(DOGFOOD_CONFIG)) {
+      if (!existsSync(DOGFOOD_CONFIG_GENERATOR)) {
+        return 0
+      }
+      const gen = spawnSync(process.execPath, [DOGFOOD_CONFIG_GENERATOR], {
+        stdio,
+      })
+      if (gen.status !== 0 || !existsSync(DOGFOOD_CONFIG)) {
+        logger.error(
+          `Dogfood config regeneration failed: ${DOGFOOD_CONFIG} is absent ` +
+            `and \`node ${DOGFOOD_CONFIG_GENERATOR}\` did not write it. ` +
+            'Run the generator directly to see its error, then re-run the lint.',
+        )
+        return 1
+      }
     }
     if (!quiet) {
       logger.log('Running oxlint on wheelhouse-self dogfood paths…')

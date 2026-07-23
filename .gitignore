@@ -93,6 +93,9 @@ pnpm-debug.log
 **/.claude/hooks/fleet/_dispatch/node.path
 **/.claude/hooks/fleet/_dispatch/snapshot-blob.path
 **/.claude/hooks/fleet/_dispatch/snapshot-bundle.cjs
+**/.claude/hooks/fleet/_dist/acorn-bindgen.cjs
+**/.claude/hooks/fleet/_dist/acorn.wasm
+**/.claude/hooks/fleet/_dist/bundle.cjs
 **/.claude/hooks/fleet/_shared/dispatch-manifest.json
 
 # Derived cross-harness rule adapters — generated per-repo, per-platform by

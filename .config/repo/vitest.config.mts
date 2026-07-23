@@ -188,8 +188,8 @@ export default defineConfig({
     // repo/. Both are optional: vitest skips a setupFile that doesn't exist via
     // the existsSync filter so scaffolding-only repos don't error.
     setupFiles: [
-      'test/scripts/fleet/setup.mts',
-      'test/scripts/repo/setup.mts',
+      'test/fleet/scripts/setup.mts',
+      'test/repo/scripts/setup.mts',
     ].filter(p => existsSync(p)),
     // `--lane mid|slow` runs ONLY that lane (include = its globs); every other
     // run (bare-fast, --all, scoped, cover) uses the full-suite glob and lets

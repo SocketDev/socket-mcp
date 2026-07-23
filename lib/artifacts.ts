@@ -37,7 +37,7 @@ export function artifactGroupKey(artifact: ArtifactData): string {
  */
 export function deduplicateArtifacts(
   artifacts: ArtifactData[],
-  platform?: string,
+  platform?: string | undefined,
 ): ArtifactData[] {
   const groups = new Map<string, ArtifactData[]>()
 
@@ -82,7 +82,7 @@ export function matchesPlatform(release: string, platform: string): boolean {
 
 export function selectBestArtifact(
   artifacts: ArtifactData[],
-  platform?: string,
+  platform?: string | undefined,
 ): ArtifactData {
   if (artifacts.length === 1) {
     return artifacts[0]!

@@ -246,7 +246,7 @@ export class RuleTester {
     const writeFixture = (
       fixturePath: string,
       code: string,
-      tc?: ValidTestCase,
+      tc?: ValidTestCase | undefined,
     ): void => {
       mkdirSync(path.dirname(fixturePath), { recursive: true })
       writeFileSync(fixturePath, code)

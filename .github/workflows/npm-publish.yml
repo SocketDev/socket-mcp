@@ -1,13 +1,22 @@
 name: 📦 npm publish
 
-# PRESET — seeded once from template/presets/ (onboarding or first cascade),
-# then repo-owned: customize what + how THIS repo publishes. The inlined
-# per-repo replacement for the socket-registry reusable publish workflow.
+# Cascade-owned — every npm-publishing repo carries the byte-identical copy
+# (adopt by copying the template once; the sync then keeps it in lock-step;
+# member edits are reverted on the next cascade). The thin dispatch shell:
+# checkout → setup-and-install → build → scripts/fleet/npm-publish.mts, which
+# owns what + how the repo publishes.
 #
 # Default flow: manual dispatch, DRY-RUN unless `publish: true`; publishes the
 # workspace's publishable packages via the fleet staged-publish script with
 # npm provenance (OIDC trusted publishing — id-token: write, no long-lived
 # npm token).
+#
+# ORDER RULE: this workflow only STAGES — nothing is public, and NO git tag or
+# GitHub release exists yet. The tag + immutable GH release are cut LAST, by
+# the local `--approve` promote (publish-pipeline.mts / npm-publish.mts
+# --approve), only after the approved version is live on npm. The
+# github-release workflow independently refuses to cut for a version that is
+# not resolvable on the registry.
 
 on:
   workflow_dispatch:

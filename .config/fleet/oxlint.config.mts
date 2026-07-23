@@ -67,7 +67,9 @@ const fleetConfigDir = fileURLToPath(new URL('.', import.meta.url))
 /**
  * Build the fleet oxlint config object, optionally augmented for a repo.
  */
-export function config(options?: OxlintConfigOptions): Record<string, unknown> {
+export function config(
+  options?: OxlintConfigOptions | undefined,
+): Record<string, unknown> {
   const opts = { __proto__: null, ...options } as OxlintConfigOptions
   const {
     jsPlugins: baseJsPlugins,

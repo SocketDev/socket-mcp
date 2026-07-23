@@ -25,7 +25,7 @@ afterEach(() => {
 
 // Import a fresh blob-cache module (empty cache) with the cap configured. The
 // cap is read at import time, so it must be set before the dynamic import.
-async function freshCache(capBytes?: number) {
+async function freshCache(capBytes?: number | undefined) {
   if (capBytes !== undefined) {
     process.env['SOCKET_BLOB_CACHE_BYTES'] = String(capBytes)
   }

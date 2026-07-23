@@ -9,11 +9,11 @@
  *
  *   - Interface members: `interface X { foo?: string }`
  *   - Type-literal members: `type X = { foo?: string }`
- *   - Class fields with `?` and no initializer: `class X { foo?: string }` Skips:
- *   - Properties that are already `?: T | undefined` (or any union containing
- *     `undefined`).
- *   - Function parameters with `?` — convention there is different (`?` already
- *     implies optional + undefined at the call site).
+ *   - Class fields with `?` and no initializer: `class X { foo?: string }`
+ *   - Optional function parameters: `function f(foo?: string)` — including
+ *     methods, arrows, and function-typed signatures. Skips:
+ *   - Properties/params that are already `?: T | undefined` (or any union
+ *     containing `undefined`).
  *   - Mapped types (`{ [K in keyof T]?: T[K] }`) — the `?` is a transform
  *     operator, not a property declaration. Autofix appends ` | undefined` to
  *     the type annotation. Why this matters: with `exactOptionalPropertyTypes:
@@ -93,7 +93,9 @@ const rule = {
     function keyName(node: AstNode) {
       const k = node.key
       if (!k) {
-        return 'property'
+        // Optional function parameters are bare Identifiers — the name
+        // lives on the node itself, not a key.
+        return typeof node.name === 'string' ? node.name : 'property'
       }
       if (k.type === 'Identifier') {
         return k.name
@@ -208,11 +210,36 @@ const rule = {
       })
     }
 
+    /**
+     * Optional parameters (`foo?: string`) get the same treatment as optional
+     * properties: the explicit `| undefined` is the fleet convention. A param
+     * is a bare Identifier with `optional: true`; `check` reads its
+     * annotation the same way it reads a property's.
+     */
+    function checkFunctionParams(node: AstNode) {
+      const params = node.params
+      if (!Array.isArray(params)) {
+        return
+      }
+      for (const param of params) {
+        if (param.type === 'Identifier' && param.optional) {
+          check(param)
+        }
+      }
+    }
+
     return {
       TSPropertySignature: check,
       // Class fields. ESLint's TS estree calls these PropertyDefinition
       // when in a class. The `?` -> `optional: true` shape matches.
       PropertyDefinition: check,
+      ArrowFunctionExpression: checkFunctionParams,
+      FunctionDeclaration: checkFunctionParams,
+      FunctionExpression: checkFunctionParams,
+      TSConstructorType: checkFunctionParams,
+      TSDeclareFunction: checkFunctionParams,
+      TSFunctionType: checkFunctionParams,
+      TSMethodSignature: checkFunctionParams,
     }
   },
 }

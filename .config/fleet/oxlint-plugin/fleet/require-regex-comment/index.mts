@@ -46,8 +46,8 @@ import type { AstNode, RuleContext } from '../../lib/rule-types.mts'
 
 const parseRegex = regjsparser.parse as unknown as (
   source: string,
-  flags?: string,
-  opts?: object,
+  flags?: string | undefined,
+  opts?: object | undefined,
 ) => RegjsNode
 
 // Minimal shape of the regjsparser AST we walk. Node `type` is one of

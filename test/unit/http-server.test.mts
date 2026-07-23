@@ -17,7 +17,7 @@ import {
 import type { Session } from '../../lib/http-server.ts'
 import type { AuthenticatedRequest } from '../../lib/oauth.ts'
 
-function reqWith(authorization?: string): AuthenticatedRequest {
+function reqWith(authorization?: string | undefined): AuthenticatedRequest {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return {
     headers: authorization === undefined ? {} : { authorization },
@@ -143,7 +143,7 @@ function makeRes(): { res: ServerResponse; captured: CapturedRes } {
       sent = true
       return res
     },
-    end(chunk?: string) {
+    end(chunk?: string | undefined) {
       if (chunk !== undefined) {
         captured.body = chunk
       }
@@ -173,7 +173,7 @@ function plainReq(opts: {
 
 function postReq(
   body: string,
-  headers?: Record<string, string>,
+  headers?: Record<string, string> | undefined,
 ): IncomingMessage {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const req = Readable.from([body]) as unknown as IncomingMessage & {

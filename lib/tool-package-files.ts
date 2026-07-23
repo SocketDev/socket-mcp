@@ -119,8 +119,8 @@ export function buildPurlForFiles(
   ecosystem: string,
   depname: string,
   version: string,
-  artifactId?: string,
-  platform?: string,
+  artifactId?: string | undefined,
+  platform?: string | undefined,
 ): string {
   const qualifiers: Record<string, string> = {}
   if (artifactId) {

@@ -3,11 +3,11 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Bash|Edit|MultiEdit|NotebookEdit|Write",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/_dispatch/index.cjs PostToolUse"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/index.cjs PostToolUse"
           }
         ]
       }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/_dispatch/index.cjs PreToolUse"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/index.cjs PreToolUse"
           }
         ]
       },
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/_dispatch/index.cjs SessionStart"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/index.cjs SessionStart"
           }
         ]
       },
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/_dispatch/index.cjs Stop"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/fleet/index.cjs Stop"
           }
         ]
       },

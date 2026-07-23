@@ -175,7 +175,7 @@ export function resolveScopedAuthToken(
 // value is used.
 export function setStaticApiKey(
   value: string,
-  options?: { shared?: boolean | undefined },
+  options?: { shared?: boolean | undefined } | undefined,
 ): void {
   const opts = { __proto__: null, ...options } as {
     shared?: boolean | undefined

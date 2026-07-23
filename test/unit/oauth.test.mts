@@ -104,14 +104,17 @@ export function makeMockResponse(): CapturedResponse {
   let body = ''
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const res = {
-    writeHead(statusCode: number, responseHeaders?: Record<string, string>) {
+    writeHead(
+      statusCode: number,
+      responseHeaders?: Record<string, string> | undefined,
+    ) {
       status = statusCode
       if (responseHeaders) {
         headers = { ...responseHeaders }
       }
       return res
     },
-    end(chunk?: string) {
+    end(chunk?: string | undefined) {
       if (typeof chunk === 'string') {
         body += chunk
       }
@@ -128,7 +131,7 @@ export function makeMockResponse(): CapturedResponse {
 
 // Build a minimal IncomingMessage with the given Authorization header.
 export function makeRequest(
-  authorization?: string,
+  authorization?: string | undefined,
   extraHeaders: Record<string, string> = {},
 ): IncomingMessage {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.

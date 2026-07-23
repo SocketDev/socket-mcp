@@ -81,7 +81,7 @@ export function buildJsonApiHeaders(config: {
 // The Accept header pins NDJSON so the depscore handler can stream rows
 // instead of buffering a full JSON document.
 export function buildSocketHeaders(
-  accessToken?: string,
+  accessToken?: string | undefined,
 ): Record<string, string> {
   return {
     'user-agent': `socket-mcp/${VERSION}`,
@@ -220,7 +220,7 @@ export function writeOAuthError(
   statusCode: number,
   errorCode: string,
   message: string,
-  resourceMetadataUrl?: string,
+  resourceMetadataUrl?: string | undefined,
 ): void {
   const authenticateValue = resourceMetadataUrl
     ? `Bearer error="${errorCode}", error_description="${message}", resource_metadata="${resourceMetadataUrl}"`

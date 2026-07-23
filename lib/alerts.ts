@@ -39,7 +39,7 @@ export interface FetchAlertsOptions {
  */
 export function buildAlertsQuery(
   filters: AlertsFilters | undefined,
-  perPageFallback?: number,
+  perPageFallback?: number | undefined,
 ): URLSearchParams {
   const params = new URLSearchParams()
   const f = filters ?? {}

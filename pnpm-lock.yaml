@@ -791,6 +791,16 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
+  .claude/hooks/fleet/concurrent-cargo-build-guard:
+    dependencies:
+      shell-quote:
+        specifier: 1.8.4
+        version: 1.8.4
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
   .claude/hooks/fleet/consumer-grep-nudge:
     devDependencies:
       '@types/node':
@@ -978,6 +988,12 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
+  .claude/hooks/fleet/keep-working-while-waiting-nudge:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
   .claude/hooks/fleet/land-fast-nudge:
     devDependencies:
       '@socketsecurity/lib-stable':
@@ -1013,13 +1029,17 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
-  .claude/hooks/fleet/marketplace-comment-guard: {}
-
   .claude/hooks/fleet/mass-delete-guard:
     dependencies:
       shell-quote:
         specifier: 1.8.4
         version: 1.8.4
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
+  .claude/hooks/fleet/memory-codify-nudge:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1359,6 +1379,12 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
+  .claude/hooks/fleet/no-total-squash-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
   .claude/hooks/fleet/no-tsx-guard:
     devDependencies:
       '@types/node':
@@ -1528,16 +1554,6 @@ importers:
         version: 26.1.1
 
   .claude/hooks/fleet/plan-review-nudge:
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.1.1
-
-  .claude/hooks/fleet/plugin-patch-format-guard:
-    dependencies:
-      '@socketsecurity/lib-stable':
-        specifier: 'catalog:'
-        version: '@socketsecurity/lib@6.2.0(typescript@7.0.2)'
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1936,6 +1952,12 @@ importers:
   .claude/hooks/fleet/uses-sha-verify-guard: {}
 
   .claude/hooks/fleet/variant-analysis-nudge:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
+  .claude/hooks/fleet/verify-absence-claims-nudge:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
