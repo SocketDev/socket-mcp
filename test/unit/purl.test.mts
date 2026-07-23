@@ -113,13 +113,13 @@ describe('buildPurl produces correct PURLs across all ecosystems', () => {
     expect(
       buildPurl('openvsx', 'meta/pyrefly', '1.0.0', { platform: 'linux-x64' }),
     ).toBe(
-      'pkg:vscode/meta/pyrefly@1.0.0?platform=linux-x64&repository_url=https%3A%2F%2Fopen-vsx.org',
+      'pkg:vscode/meta/pyrefly@1.0.0?platform=linux-x64&repository_url=https:%2F%2Fopen-vsx.org',
     )
   })
 
   test('openvsx without platform still adds repository_url', () => {
     expect(buildPurl('openvsx', 'meta/pyrefly', '1.0.0')).toBe(
-      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https%3A%2F%2Fopen-vsx.org',
+      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https:%2F%2Fopen-vsx.org',
     )
   })
 
@@ -141,7 +141,7 @@ describe('buildPurl produces correct PURLs across all ecosystems', () => {
         repository_url: 'https://example.test',
       }),
     ).toBe(
-      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https%3A%2F%2Fexample.test',
+      'pkg:vscode/meta/pyrefly@1.0.0?repository_url=https:%2F%2Fexample.test',
     )
   })
 })
