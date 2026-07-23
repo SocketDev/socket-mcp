@@ -58,21 +58,21 @@ export function assertSafeHttpUrl(
 // threat-feed, file-list): `accept: application/json` plus optional user-agent,
 // bearer token, and caller extra headers. Shared so the four data modules
 // don't each re-spell the same header-assembly block.
-export function buildJsonApiHeaders(options: {
+export function buildJsonApiHeaders(config: {
   userAgent?: string | undefined
   authToken?: string | undefined
   extraHeaders?: Record<string, string> | undefined
 }): Record<string, string> {
-  options = { __proto__: null, ...options } as typeof options
+  config = { __proto__: null, ...config } as typeof config
   const headers: Record<string, string> = { accept: 'application/json' }
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
+  if (config.userAgent) {
+    headers['user-agent'] = config.userAgent
   }
-  if (options.authToken) {
-    headers['authorization'] = `Bearer ${options.authToken}`
+  if (config.authToken) {
+    headers['authorization'] = `Bearer ${config.authToken}`
   }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
+  if (config.extraHeaders) {
+    Object.assign(headers, config.extraHeaders)
   }
   return headers
 }
@@ -151,6 +151,7 @@ export function getRequestBaseUrl(
     forwardedHost ||
     getRequestHeaderValue(req.headers.host).trim() ||
     `localhost:${fallbackPort}`
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node's TLSSocket adds `encrypted`; probing it through a structural cast is the standard HTTPS detection.
   const socketWithTls = req.socket as { encrypted?: boolean | undefined }
   const protocol =
     forwardedProto === 'http' || forwardedProto === 'https'
@@ -188,6 +189,7 @@ export function parseJsonObject(
       throw new Error('expected a JSON object')
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
     return parsed as Record<string, unknown>
   } catch (error) {
     throw new Error(`${context} returned invalid JSON: ${errorMessage(error)}`)

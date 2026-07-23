@@ -92,16 +92,16 @@ export function buildThreatFeedQuery(
  * /v0/orgs/{org_slug}/threat-feed`. Returns the parsed JSON body untouched.
  */
 export async function fetchThreatFeed(
-  options: FetchThreatFeedOptions,
+  config: FetchThreatFeedOptions,
 ): Promise<unknown> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = options.baseUrl.replace(/\/$/u, '')
-  const qs = buildThreatFeedQuery(options.filters).toString()
-  const url = `${baseUrl}/v0/orgs/${encodeURIComponent(options.orgSlug)}/threat-feed${qs ? `?${qs}` : ''}`
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = config.baseUrl.replace(/\/$/u, '')
+  const qs = buildThreatFeedQuery(config.filters).toString()
+  const url = `${baseUrl}/v0/orgs/${encodeURIComponent(config.orgSlug)}/threat-feed${qs ? `?${qs}` : ''}`
 
-  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
+  const res = await httpRequest(url, { headers: buildJsonApiHeaders(config) })
   if (!res.ok) {
     throw new Error(`threat-feed endpoint ${res.status}: ${res.text()}`)
   }
-  return res.json<unknown>()
+  return res.json()
 }

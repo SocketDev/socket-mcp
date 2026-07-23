@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
@@ -11,22 +12,14 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.join(__dirname, '..')
 
-interface PackageJson {
-  version: string
-  [key: string]: unknown
-}
-
-interface ManifestJson {
-  version: string
-  [key: string]: unknown
-}
-
-function readJsonFile<T>(filePath: string): T {
+// oxlint-disable-next-line typescript/consistent-return -- the non-returning arm ends in process.exit(1); the analyzer cannot see the never.
+function readJsonFile(filePath: string): Record<string, unknown> {
   try {
     const content = readFileSync(filePath, 'utf8')
-    return JSON.parse(content) as T
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- both callers read a JSON object file; non-object JSON would fail their version checks anyway.
+    return JSON.parse(content) as Record<string, unknown>
   } catch (error) {
-    logger.fail(`Error reading ${filePath}:`, (error as Error).message)
+    logger.fail(`Error reading ${filePath}:`, errorMessage(error))
     process.exit(1)
   }
 }
@@ -39,11 +32,17 @@ function main(): void {
   const packageJsonPath = path.join(projectRoot, 'package.json')
   const manifestJsonPath = path.join(projectRoot, 'manifest.json')
 
-  const packageJson = readJsonFile<PackageJson>(packageJsonPath)
-  const manifestJson = readJsonFile<ManifestJson>(manifestJsonPath)
+  const packageJson = readJsonFile(packageJsonPath)
+  const manifestJson = readJsonFile(manifestJsonPath)
 
-  const packageVersion = packageJson.version
-  const manifestVersion = manifestJson.version
+  // A missing/non-string version renders as the literal fallback so the
+  // mismatch report stays readable instead of stringifying `undefined`.
+  const rawPackageVersion = packageJson['version']
+  const packageVersion =
+    typeof rawPackageVersion === 'string' ? rawPackageVersion : '(missing)'
+  const rawManifestVersion = manifestJson['version']
+  const manifestVersion =
+    typeof rawManifestVersion === 'string' ? rawManifestVersion : '(missing)'
 
   logger.log(`package.json version: ${packageVersion}`)
   logger.log(`manifest.json version: ${manifestVersion}`)

@@ -20,10 +20,10 @@
 import path from 'node:path'
 import process from 'node:process'
 
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
-const WIN32 = process.platform === 'win32'
 // scripts/repo/fuzz.mts → repo root is two levels up.
 const repoRoot = path.resolve(import.meta.dirname, '..', '..')
 const VITEST_BIN = path.join(
@@ -40,6 +40,7 @@ const result = spawnSync(
   // is the only config both this parent run and vitiate's re-spawned child agree
   // on (the child never receives --config). See vitest.config.mts header.
   ['run', ...process.argv.slice(2)],
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-proto options-bag idiom: `__proto__: null` keeps the options prototype-free but changes the literal's inferred type, so the double cast is required to pass it as SpawnSyncOptions.
   {
     __proto__: null,
     cwd: repoRoot,

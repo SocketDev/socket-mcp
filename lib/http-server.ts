@@ -5,6 +5,7 @@ import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import crypto from 'node:crypto'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -81,7 +82,7 @@ export function applyClientApiKey(req: AuthenticatedRequest): void {
   req.auth = { token, clientId: 'socket-api-key', scopes: [] }
 }
 
-// Socket API tokens carry this prefix (e.g. `sktsec_t_...`); OAuth access
+// Socket API tokens carry this doc-only example prefix, `sktsec_t_...`; OAuth access — socket-lint: allow socket-api-key
 // tokens do not. We use it to recognize a raw Socket key sent over the
 // standard `Authorization: Bearer` header so it bypasses OAuth introspection.
 const SOCKET_API_KEY_PREFIX = 'sktsec_'
@@ -118,7 +119,7 @@ export function destroySession(
   }
   sessions.delete(id)
   try {
-    s.transport.close()
+    s.transport.close().catch(() => {})
   } catch {}
   s.server.close().catch(() => {})
   logger.info(`Session ${id} destroyed`)
@@ -145,9 +146,9 @@ export async function handleDelete(
     return
   }
   try {
-    await transport.handleRequest(req as AuthenticatedRequest, res)
+    await transport.handleRequest(req, res)
   } catch (error) {
-    logger.error(`Error processing DELETE request: ${error}`)
+    logger.error(`Error processing DELETE request: ${errorMessage(error)}`)
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -181,9 +182,9 @@ export async function handleGet(
   }
   try {
     session.lastActivity = Date.now()
-    await session.transport.handleRequest(req as AuthenticatedRequest, res)
+    await session.transport.handleRequest(req, res)
   } catch (error) {
-    logger.error(`Error processing GET request: ${error}`)
+    logger.error(`Error processing GET request: ${errorMessage(error)}`)
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -218,7 +219,7 @@ export async function handlePost(
       }
       return
     }
-    logger.error(`Error reading POST body: ${error}`)
+    logger.error(`Error reading POST body: ${errorMessage(error)}`)
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -264,6 +265,7 @@ export async function handlePost(
         }
       }
       transport = newTransport
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamableHTTPServerTransport implements the SDK Transport contract; the cast bridges the SDK's own type split between server and shared transport.
       await server.connect(transport as Transport)
     }
 
@@ -286,9 +288,9 @@ export async function handlePost(
       }
     }
 
-    await transport.handleRequest(req as AuthenticatedRequest, res, jsonData)
+    await transport.handleRequest(req, res, jsonData)
   } catch (error) {
-    logger.error(`Error processing POST request: ${error}`)
+    logger.error(`Error processing POST request: ${errorMessage(error)}`)
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -345,7 +347,7 @@ export async function routeRequest(
   try {
     url = new URL(req.url!, `http://localhost:${port}`)
   } catch (error) {
-    logger.warn(`Invalid URL in request: ${req.url} - ${error}`)
+    logger.warn(`Invalid URL in request: ${req.url} - ${errorMessage(error)}`)
     writeJson(res, 400, {
       jsonrpc: '2.0',
       error: { code: -32_000, message: 'Bad Request: Invalid URL' },
@@ -419,10 +421,10 @@ export async function routeRequest(
   // A `sktsec_`-prefixed Bearer token authenticates as a Socket API key in
   // both modes; only a non-prefixed token on an OAuth server goes through
   // introspection.
-  const hasApiKey = applySocketApiKey(req as AuthenticatedRequest)
+  const hasApiKey = applySocketApiKey(req)
   if (!hasApiKey && isOauthEnabled()) {
     const authResult = await authenticateRequest(
-      req as AuthenticatedRequest,
+      req,
       res,
       getProtectedResourceMetadataUrl(baseUrl),
     )
@@ -430,7 +432,7 @@ export async function routeRequest(
       return
     }
   } else if (!hasApiKey) {
-    applyClientApiKey(req as AuthenticatedRequest)
+    applyClientApiKey(req)
   }
 
   if (req.method === 'POST') {

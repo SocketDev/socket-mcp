@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   for (let i = 0, { length } = violations; i < length; i += 1) {
     const violation = violations[i]!
     logger.error(`  ${violation.message}`)
-    logger.error(`  Found: minify: ${violation.value}`)
+    logger.error(`  Found: minify: ${JSON.stringify(violation.value)}`)
     logger.error('  Expected: minify: false')
     logger.error(`  Location: ${violation.location}`)
     logger.error('')

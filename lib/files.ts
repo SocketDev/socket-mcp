@@ -1,3 +1,4 @@
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { normalizePath } from '@socketsecurity/lib/paths/normalize'
 
@@ -63,9 +64,13 @@ export interface FetchFileListOptions {
 }
 
 export interface RawFileEntry {
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   path?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   type?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   size?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   hash?: unknown | undefined
 }
 
@@ -118,21 +123,19 @@ export function extractFileList(
  */
 export async function fetchFileList(
   purlStr: string,
-  options: FetchFileListOptions,
+  config: FetchFileListOptions,
 ): Promise<FileListResult> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = options.baseUrl.replace(/\/$/u, '')
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = config.baseUrl.replace(/\/$/u, '')
   const url = `${baseUrl}/v0/purl/file-list/${encodeURIComponent(purlStr)}`
 
-  const headers = buildJsonApiHeaders(options)
-  options.onRequest?.(url)
+  const headers = buildJsonApiHeaders(config)
+  config.onRequest?.(url)
   let res
   try {
     res = await httpRequest(url, { headers })
   } catch (e) {
-    throw new Error(
-      `file-list request to ${url} failed: ${(e as Error).message}`,
-    )
+    throw new Error(`file-list request to ${url} failed: ${errorMessage(e)}`)
   }
   if (!res.ok) {
     throw new Error(
@@ -141,7 +144,7 @@ export async function fetchFileList(
   }
 
   const data = res.json<RawFileListResponse>()
-  const includeHashes = options.includeHashes === true
+  const includeHashes = config.includeHashes === true
   const files = extractFileList(
     data,
     includeHashes ? { includeHashes: true } : {},

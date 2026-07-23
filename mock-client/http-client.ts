@@ -88,6 +88,7 @@ export async function testHTTPMode() {
       body: JSON.stringify(toolsRequest),
     })
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dev-only mock client: the cast documents the JSON-RPC response shape returned by the server under test.
     const toolsResult = parseResponse(toolsResponse) as {
       result?:
         | { tools?: Array<{ name?: string | undefined }> | undefined }

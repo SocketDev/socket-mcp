@@ -18,6 +18,7 @@ import type { Session } from '../../lib/http-server.ts'
 import type { AuthenticatedRequest } from '../../lib/oauth.ts'
 
 function reqWith(authorization?: string): AuthenticatedRequest {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return {
     headers: authorization === undefined ? {} : { authorization },
   } as unknown as AuthenticatedRequest
@@ -71,6 +72,7 @@ test('applySocketApiKey returns false when no Authorization header', () => {
 // readPostBody only async-iterates the request and calls `.destroy()`,
 // both of which Readable provides.
 function mockReq(chunks: Array<string | Buffer>): IncomingMessage {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return Readable.from(chunks) as unknown as IncomingMessage
 }
 
@@ -128,6 +130,7 @@ interface CapturedRes {
 function makeRes(): { res: ServerResponse; captured: CapturedRes } {
   const captured: CapturedRes = { headers: {} }
   let sent = false
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const res = {
     get headersSent() {
       return sent
@@ -158,6 +161,7 @@ function plainReq(opts: {
   method: string
   headers?: Record<string, string> | undefined
 }): IncomingMessage {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return {
     url: opts.url,
     method: opts.method,
@@ -171,6 +175,7 @@ function postReq(
   body: string,
   headers?: Record<string, string>,
 ): IncomingMessage {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const req = Readable.from([body]) as unknown as IncomingMessage & {
     url: string
     method: string
@@ -182,6 +187,7 @@ function postReq(
   req.method = 'POST'
   req.headers = { host: 'localhost:3000', ...headers }
   req.rawHeaders = []
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   req.socket = {} as unknown as IncomingMessage['socket']
   return req
 }
@@ -191,6 +197,7 @@ function fakeSession(lastActivity: number): {
   closed: () => boolean
 } {
   let transportClosed = false
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const session = {
     transport: {
       close() {

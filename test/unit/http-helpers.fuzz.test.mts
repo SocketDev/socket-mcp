@@ -26,7 +26,7 @@ import {
 
 const ALNUM = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const word = fc
-  .array(fc.constantFrom(...ALNUM), { minLength: 1, maxLength: 12 })
+  .array(fc.constantFrom(...ALNUM.split('')), { minLength: 1, maxLength: 12 })
   .map(chars => chars.join(''))
 
 const octet = fc.integer({ min: 0, max: 255 })

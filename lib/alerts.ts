@@ -79,16 +79,16 @@ export function buildAlertsQuery(
  * /v0/orgs/{org_slug}/alerts`. Returns the parsed JSON body untouched.
  */
 export async function fetchAlerts(
-  options: FetchAlertsOptions,
+  config: FetchAlertsOptions,
 ): Promise<unknown> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = options.baseUrl.replace(/\/$/u, '')
-  const qs = buildAlertsQuery(options.filters).toString()
-  const url = `${baseUrl}/v0/orgs/${encodeURIComponent(options.orgSlug)}/alerts${qs ? `?${qs}` : ''}`
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = config.baseUrl.replace(/\/$/u, '')
+  const qs = buildAlertsQuery(config.filters).toString()
+  const url = `${baseUrl}/v0/orgs/${encodeURIComponent(config.orgSlug)}/alerts${qs ? `?${qs}` : ''}`
 
-  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
+  const res = await httpRequest(url, { headers: buildJsonApiHeaders(config) })
   if (!res.ok) {
     throw new Error(`alerts endpoint ${res.status}: ${res.text()}`)
   }
-  return res.json<unknown>()
+  return res.json()
 }

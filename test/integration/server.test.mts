@@ -118,6 +118,7 @@ describe('createConfiguredServer', () => {
 
     // A known tool dispatches to its handler; with no token it returns the
     // structured AUTH_REQUIRED error rather than throwing.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const known = (await client.callTool({
       name: 'organizations',
       arguments: {},
@@ -126,6 +127,7 @@ describe('createConfiguredServer', () => {
     expect(known.content[0]!.text).toMatch(/Authentication is required/)
 
     // An unknown tool returns the "Unknown tool" error result.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const unknown = (await client.callTool({
       name: 'does-not-exist',
       arguments: {},

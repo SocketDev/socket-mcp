@@ -131,6 +131,7 @@ export async function checkPackage(
     throw new Error(`Socket MCP depscore returned ${callRes.status}`)
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
   const payload = (await callRes.json()) as {
     result?:
       | {
@@ -252,10 +253,11 @@ async function main(): Promise<void> {
     return
   }
 
-  const command =
+  const rawCommand =
     typeof input.tool_input === 'string'
       ? input.tool_input
-      : (input.tool_input?.['command'] as string) || ''
+      : input.tool_input?.['command']
+  const command = typeof rawCommand === 'string' ? rawCommand : ''
 
   if (!command) {
     outputAllow()

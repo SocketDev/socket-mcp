@@ -15,6 +15,7 @@ async function main() {
     args: ['--experimental-strip-types', serverPath],
 
     env: {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dev-only mock client: the cast documents the JSON-RPC response shape returned by the server under test.
       ...(Object.fromEntries(
         Object.entries(process.env).filter(([, value]) => value !== undefined),
       ) as Record<string, string>),

@@ -58,10 +58,6 @@
     "trustPolicy": "no-downgrade"
   },
   "github": {
-    "apps": [
-      "cursor",
-      "socket-security",
-      "socket-trufflehog"
-    ]
+    "apps": ["cursor", "socket-security", "socket-trufflehog"]
   }
 }

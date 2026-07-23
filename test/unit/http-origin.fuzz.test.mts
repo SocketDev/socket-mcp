@@ -32,7 +32,7 @@ const ALLOWED_HOSTS = ['mcp.socket.dev', 'mcp.socket-staging.dev'] as const
 
 const ALNUM = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const word = fc
-  .array(fc.constantFrom(...ALNUM), { minLength: 1, maxLength: 15 })
+  .array(fc.constantFrom(...ALNUM.split('')), { minLength: 1, maxLength: 15 })
   .map(chars => chars.join(''))
 
 const scheme = fc.constantFrom('http', 'https')

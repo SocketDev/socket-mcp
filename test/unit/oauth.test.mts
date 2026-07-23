@@ -62,6 +62,7 @@ export function assertOAuthError(
     errorDescription: string
   },
 ): void {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const body = JSON.parse(captured.getBody()) as {
     error?: string | undefined
     error_description?: string | undefined
@@ -101,6 +102,7 @@ export function makeMockResponse(): CapturedResponse {
   let status = 0
   let headers: Record<string, string> = {}
   let body = ''
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const res = {
     writeHead(statusCode: number, responseHeaders?: Record<string, string>) {
       status = statusCode
@@ -129,6 +131,7 @@ export function makeRequest(
   authorization?: string,
   extraHeaders: Record<string, string> = {},
 ): IncomingMessage {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return {
     headers: {
       ...(authorization === undefined ? {} : { authorization }),
@@ -404,6 +407,7 @@ test('authenticateRequest 500s when introspection discovery fails', async () => 
   )
   expect(result.ok).toBe(false)
   expect(captured.getStatus()).toBe(500)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const body = JSON.parse(captured.getBody()) as { error?: string | undefined }
   expect(body.error).toBe('server_error')
 })

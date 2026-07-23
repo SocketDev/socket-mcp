@@ -98,9 +98,9 @@
     "@types/semver": "catalog:",
     "@types/shell-quote": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "@vitiate/core": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
+    "@vitiate/core": "catalog:",
     "c8": "catalog:",
     "chrome-devtools-mcp": "catalog:",
     "fast-check": "catalog:",
@@ -124,8 +124,8 @@
     "taze": "catalog:",
     "typescript": "catalog:",
     "untracked": "catalog:",
-    "vitiate": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vitiate": "catalog:"
   },
   "devEngines": {
     "packageManager": {

@@ -28,13 +28,13 @@ const ALNUM = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const LOWER = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
 const nameWord = fc
-  .array(fc.constantFrom(...ALNUM), { minLength: 1, maxLength: 20 })
+  .array(fc.constantFrom(...ALNUM.split('')), { minLength: 1, maxLength: 20 })
   .map(chars => chars.join(''))
 
 // Lowercase-only word for ecosystems that lowercase the name (npm/composer),
 // so the input already equals its normalized form.
 const lowerWord = fc
-  .array(fc.constantFrom(...LOWER), { minLength: 1, maxLength: 20 })
+  .array(fc.constantFrom(...LOWER.split('')), { minLength: 1, maxLength: 20 })
   .map(chars => chars.join(''))
 
 // A numeric version whose major is >= 2, so it is never the '1.0.0' placeholder
@@ -53,8 +53,8 @@ const verbatimEco = fc.constantFrom('cargo', 'gem', 'nuget')
 const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const validTypeEco = fc
   .tuple(
-    fc.constantFrom(...LETTERS),
-    fc.array(fc.constantFrom(...ALNUM, '.', '-'), { maxLength: 9 }),
+    fc.constantFrom(...LETTERS.split('')),
+    fc.array(fc.constantFrom(...ALNUM.split(''), '.', '-'), { maxLength: 9 }),
   )
   .map(([head, rest]) => head + rest.join(''))
 

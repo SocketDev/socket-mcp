@@ -8,7 +8,8 @@ const SOCKET_REPORT_BASE = 'https://socket.dev'
 export function buildSocketReportUrl(data: unknown): string {
   const obj =
     data && typeof data === 'object'
-      ? (data as Record<string, unknown>)
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the typeof-object check above; Record<string, unknown> is the loosest object view and each field is type-guarded below.
+        (data as Record<string, unknown>)
       : Object.create(null)
   const { name, namespace, type } = obj
   const ecosystem = (typeof type === 'string' ? type : 'npm').toLowerCase()

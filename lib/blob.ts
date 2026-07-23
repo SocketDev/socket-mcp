@@ -1,3 +1,4 @@
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
 export interface BlobResult {
@@ -26,7 +27,9 @@ const DEFAULT_MAX_BYTES = 1024 * 1024 // 1 MB
 export interface ChunkedManifest {
   _version?: string | undefined
   size?: number | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   chunks?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   offset?: unknown | undefined
 }
 
@@ -55,28 +58,28 @@ export interface ChunkedFetchResult {
  */
 export async function fetchBlob(
   hash: string,
-  options: FetchBlobOptions,
+  config: FetchBlobOptions,
 ): Promise<BlobResult> {
   // `hash` is user-supplied (the package_file_contents MCP arg). An empty
   // string makes `hash[0]` undefined, silently selecting the raw-blob
   // branch below and issuing a doomed fetch; reject it up front instead.
-  options = { __proto__: null, ...options } as typeof options
+  config = { __proto__: null, ...config } as typeof config
   if (!hash) {
     throw new Error('fetchBlob requires a non-empty blob hash')
   }
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
+  const maxBytes = config.maxBytes ?? DEFAULT_MAX_BYTES
 
   let buf: Uint8Array
   let contentType: string | undefined
   let originalSize: number
 
   if (hash[0] === 'S') {
-    const chunked = await fetchChunkedBytes(hash, options, maxBytes)
+    const chunked = await fetchChunkedBytes(hash, config, maxBytes)
     buf = chunked.bytes
     originalSize = chunked.totalSize
     contentType = undefined
   } else {
-    const raw = await fetchRawBytes(hash, options)
+    const raw = await fetchRawBytes(hash, config)
     buf = raw.bytes
     originalSize = buf.length
     contentType = raw.contentType
@@ -103,31 +106,32 @@ export async function fetchBlob(
  */
 export async function fetchChunkedBytes(
   sHash: string,
-  options: FetchBlobOptions,
+  config: FetchBlobOptions,
   maxBytes: number,
 ): Promise<ChunkedFetchResult> {
   const manifestHash = `Q${sHash.slice(1)}`
-  const manifestRaw = await fetchRawBytes(manifestHash, options)
+  const manifestRaw = await fetchRawBytes(manifestHash, config)
 
   let manifest: ChunkedManifest
   try {
+    // Every ChunkedManifest field is optional `unknown`, so any decoded JSON
+    // object satisfies it; the shape checks below validate what's used.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above: all-optional-unknown target type, field-checked before use.
     manifest = JSON.parse(
       new TextDecoder('utf-8').decode(manifestRaw.bytes),
     ) as ChunkedManifest
   } catch (e) {
     throw new Error(
-      `chunked blob manifest at ${manifestHash} is not valid JSON: ${(e as Error).message}`,
+      `chunked blob manifest at ${manifestHash} is not valid JSON: ${errorMessage(e)}`,
     )
   }
-  if (
-    !Array.isArray(manifest.chunks) ||
-    manifest.chunks.some(c => typeof c !== 'string' || !c)
-  ) {
+  const rawChunks = manifest.chunks
+  if (!isStringArray(rawChunks) || rawChunks.some(c => !c)) {
     throw new Error(
       `chunked blob manifest at ${manifestHash} is missing a valid 'chunks' array`,
     )
   }
-  const chunks = manifest.chunks as string[]
+  const chunks = rawChunks
   const totalSize = typeof manifest.size === 'number' ? manifest.size : -1
   // Offsets are usable only when every entry is a number AND there's one per
   // chunk. Check both together so a single non-numeric entry yields undefined
@@ -137,7 +141,7 @@ export async function fetchChunkedBytes(
     Array.isArray(rawOffset) &&
     rawOffset.length === chunks.length &&
     rawOffset.every(n => typeof n === 'number')
-      ? (rawOffset as number[])
+      ? rawOffset
       : undefined
 
   // Decide how many chunks we actually need. With offsets we can stop at the
@@ -157,7 +161,7 @@ export async function fetchChunkedBytes(
   const chunkBuffers = await Promise.all(
     chunks
       .slice(0, needed)
-      .map(async c => (await fetchRawBytes(c, options)).bytes),
+      .map(async c => (await fetchRawBytes(c, config)).bytes),
   )
 
   let total = 0
@@ -180,25 +184,25 @@ export async function fetchChunkedBytes(
 // Single GET against `/blob/<hash>`. No prefix logic.
 export async function fetchRawBytes(
   hash: string,
-  options: FetchBlobOptions,
+  config: FetchBlobOptions,
 ): Promise<RawFetchResult> {
-  options = { __proto__: null, ...options } as typeof options
-  const url = `${options.baseUrl.replace(/\/$/u, '')}/blob/${encodeURIComponent(hash)}`
+  config = { __proto__: null, ...config } as typeof config
+  const url = `${config.baseUrl.replace(/\/$/u, '')}/blob/${encodeURIComponent(hash)}`
 
   const headers: Record<string, string> = {}
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
+  if (config.userAgent) {
+    headers['user-agent'] = config.userAgent
   }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
+  if (config.extraHeaders) {
+    Object.assign(headers, config.extraHeaders)
   }
 
-  options.onRequest?.(url)
+  config.onRequest?.(url)
   let res
   try {
     res = await httpRequest(url, { headers })
   } catch (e) {
-    throw new Error(`blob request to ${url} failed: ${(e as Error).message}`)
+    throw new Error(`blob request to ${url} failed: ${errorMessage(e)}`)
   }
   if (!res.ok) {
     throw new Error(`blob fetch ${res.status} for ${url}: ${res.text()}`)
@@ -210,6 +214,11 @@ export async function fetchRawBytes(
     contentType:
       typeof contentTypeHeader === 'string' ? contentTypeHeader : undefined,
   }
+}
+
+// Type guard so manifest `chunks` narrows without an unsafe cast.
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(v => typeof v === 'string')
 }
 
 /**

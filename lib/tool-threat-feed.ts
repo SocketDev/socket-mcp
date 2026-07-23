@@ -103,6 +103,7 @@ export function defineThreatFeedTool(): ToolSpec {
     inputSchema: threatFeedInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as ThreatFeedArgs
       logger.info(
         {

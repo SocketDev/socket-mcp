@@ -47,6 +47,7 @@ describe('parseNdjsonPackageBody', () => {
     const result = parseNdjsonPackageBody(body, undefined)
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(1)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result as string[])[0]).toContain('pkg:npm/a@1.2.3:')
   })
 
@@ -69,12 +70,14 @@ describe('parseNdjsonPackageBody', () => {
     const result = parseNdjsonPackageBody(body, undefined)
     expect(Array.isArray(result)).toBe(true)
     // both valid lines survive; the garbage line is skipped
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result as string[]).length).toBe(2)
   })
 
   test('returns an error object when no valid JSON objects remain', () => {
     const result = parseNdjsonPackageBody('not json\nalso not json', undefined)
     expect(Array.isArray(result)).toBe(false)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result as { error: string }).error).toMatch(/No valid JSON objects/)
   })
 })

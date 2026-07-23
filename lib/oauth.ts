@@ -100,7 +100,7 @@ export async function authenticateRequest(
   req: AuthenticatedRequest,
   res: ServerResponse,
   resourceMetadataUrl: string,
-  config: OAuthConfig = defaultConfig,
+  options: OAuthConfig = defaultConfig,
 ): Promise<{ ok: false } | { ok: true; authInfo: AuthInfo }> {
   const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
   if (!authHeader) {
@@ -128,7 +128,7 @@ export async function authenticateRequest(
 
   let authInfo: AuthInfo | undefined
   try {
-    authInfo = await verifyAccessToken(token, config)
+    authInfo = await verifyAccessToken(token, options)
   } catch (error) {
     logger.error(`Token verification failed: ${errorMessage(error)}`)
     writeJson(res, 500, {
@@ -163,7 +163,7 @@ export async function authenticateRequest(
     return { ok: false }
   }
 
-  const missingScopes = config.requiredScopes.filter(
+  const missingScopes = options.requiredScopes.filter(
     scope => !authInfo.scopes.includes(scope),
   )
   if (missingScopes.length > 0) {
@@ -189,12 +189,12 @@ export async function authenticateRequest(
 export function buildProtectedResourceMetadata(
   baseUrl: URL,
   oauthMetadata: OAuthAuthorizationServerMetadata,
-  config: OAuthConfig = defaultConfig,
+  options: OAuthConfig = defaultConfig,
 ): Record<string, unknown> {
   return {
     resource: new URL('/', baseUrl).href,
     authorization_servers: [oauthMetadata.issuer],
-    scopes_supported: config.requiredScopes,
+    scopes_supported: options.requiredScopes,
     resource_name: 'Socket MCP Server',
   }
 }
@@ -213,20 +213,20 @@ export function isOauthEnabled(): boolean {
 // (RFC 8414). The fetched metadata is cached; failures clear the cache so
 // the next request retries.
 export async function loadOAuthMetadata(
-  config: OAuthConfig = defaultConfig,
+  options: OAuthConfig = defaultConfig,
 ): Promise<OAuthAuthorizationServerMetadata | undefined> {
-  if (!config.enabled) {
+  if (!options.enabled) {
     return undefined
   }
 
-  if (!config.metadataPromise) {
+  if (!options.metadataPromise) {
     const metadataPromise = (async () => {
       // `enabled` is only set when all three settings were present (see
       // setOauthEnabled / allOAuthConfig), which requires `issuer` to be
       // a non-empty string. SSRF-guard it: an operator-set issuer must not
       // point the discovery request at an internal/loopback host.
       const issuerUrl = assertSafeHttpUrl(
-        config.issuer,
+        options.issuer,
         'SOCKET_OAUTH_ISSUER',
         ALLOW_LOCAL_OAUTH,
       )
@@ -249,17 +249,17 @@ export async function loadOAuthMetadata(
     })()
 
     const retryableMetadataPromise = metadataPromise.catch(error => {
-      if (config.metadataPromise === retryableMetadataPromise) {
-        config.metadataPromise = undefined
+      if (options.metadataPromise === retryableMetadataPromise) {
+        options.metadataPromise = undefined
       }
 
       throw error
     })
 
-    config.metadataPromise = retryableMetadataPromise
+    options.metadataPromise = retryableMetadataPromise
   }
 
-  return await config.metadataPromise
+  return await options.metadataPromise
 }
 
 // Call this in HTTP mode after confirming all three settings are present.
@@ -329,9 +329,9 @@ export function validateOAuthMetadataFields(
 // client. Returns AuthInfo on `active:true`, undefined on inactive.
 export async function verifyAccessToken(
   token: string,
-  config: OAuthConfig = defaultConfig,
+  options: OAuthConfig = defaultConfig,
 ): Promise<AuthInfo | undefined> {
-  const oauthMetadata = await loadOAuthMetadata(config)
+  const oauthMetadata = await loadOAuthMetadata(options)
   if (!oauthMetadata) {
     throw new Error('OAuth is not configured for this server')
   }
@@ -348,7 +348,7 @@ export async function verifyAccessToken(
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      authorization: `Basic ${Buffer.from(`${config.introspectionClientId}:${config.introspectionClientSecret}`).toString('base64')}`,
+      authorization: `Basic ${Buffer.from(`${options.introspectionClientId}:${options.introspectionClientSecret}`).toString('base64')}`,
     },
     body: new URLSearchParams({ token }).toString(),
   })

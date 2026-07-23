@@ -61,6 +61,7 @@ describe('validateOriginAndHost', () => {
 describe('patchAcceptHeader', () => {
   function fakeReq(accept: string | undefined): IncomingMessage {
     const rawHeaders = accept === undefined ? [] : ['Accept', accept]
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     return {
       headers: accept === undefined ? {} : { accept },
       rawHeaders,
@@ -95,6 +96,7 @@ describe('writeCorsHeaders', () => {
     headers: Record<string, string>
   } {
     const headers: Record<string, string> = {}
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const res = {
       setHeader(name: string, value: string) {
         headers[name] = value

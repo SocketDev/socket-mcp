@@ -146,6 +146,7 @@ export function definePackageFileContentsTool(): ToolSpec {
     inputSchema: packageFileContentsInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFileContentsArgs
       const { hash, path } = args
       const label = path ?? hash
@@ -195,6 +196,7 @@ export function definePackageFileGrepTool(): ToolSpec {
     inputSchema: packageFileGrepInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFileGrepArgs
       const { hash, pattern, caseInsensitive, contextLines, maxMatches, path } =
         args
@@ -310,6 +312,7 @@ export function definePackageFilesTool(): ToolSpec {
     inputSchema: packageFilesInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFilesArgs
       const { ecosystem, depname, version, artifactId, platform } = args
       const purlWithQualifiers = buildPurlForFiles(

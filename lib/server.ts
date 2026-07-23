@@ -16,11 +16,7 @@ import { defineOrganizationsTool } from './tool-organizations.ts'
 import { defineThreatFeedTool } from './tool-threat-feed.ts'
 import { withToolLogging } from './tool-logging.ts'
 import type { ToolHandler } from './tool-logging.ts'
-import type {
-  ToolCallResult,
-  ToolHandlerExtra,
-  ToolSpec,
-} from './tool-types.ts'
+import type { ToolSpec } from './tool-types.ts'
 import { VERSION } from './version.ts'
 
 export interface ToolErrorResult {
@@ -120,14 +116,14 @@ export function createConfiguredServer(): Server {
       return {
         content: [{ type: 'text', text: message }],
         isError: true,
-      } as ToolCallResult
+      }
     }
     // `request.params.arguments` is optional in the SDK shape; tools that
     // declare empty inputSchemas (e.g. organizations) get undefined here.
-    const args = (request.params.arguments ?? {}) as Record<string, unknown>
-    // extra carries authInfo + transport extras; shape-cast to our local
-    // type so the handler sees a stable signature.
-    return handler(args, extra as unknown as ToolHandlerExtra)
+    const args = request.params.arguments ?? {}
+    // extra carries authInfo + transport extras; structurally compatible
+    // with the local ToolHandlerExtra shape the handler expects.
+    return handler(args, extra)
   })
 
   return server
@@ -179,7 +175,7 @@ export function resolveScopedAuthToken(
 // value is used.
 export function setStaticApiKey(
   value: string,
-  options?: { shared?: boolean | undefined } | undefined,
+  options?: { shared?: boolean | undefined },
 ): void {
   const opts = { __proto__: null, ...options } as {
     shared?: boolean | undefined

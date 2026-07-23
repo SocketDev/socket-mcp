@@ -12,9 +12,10 @@ import {
 // body text we control. Keeps the decision logic under test off the network.
 function stubFetch(depscoreText: string, isError = false): typeof fetch {
   let call = 0
-  return (async () => {
+  return async () => {
     call += 1
     if (call === 1) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
       return {
         ok: true,
         status: 200,
@@ -22,6 +23,7 @@ function stubFetch(depscoreText: string, isError = false): typeof fetch {
         text: async () => '',
       } as Response
     }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     return {
       ok: true,
       status: 200,
@@ -33,7 +35,7 @@ function stubFetch(depscoreText: string, isError = false): typeof fetch {
         },
       }),
     } as Response
-  }) as unknown as typeof fetch
+  }
 }
 
 describe('extractPackage', () => {

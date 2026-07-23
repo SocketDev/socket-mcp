@@ -30,6 +30,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
       command: 'node',
       args: [serverPath],
       env: {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
         ...(Object.fromEntries(
           Object.entries(process.env).filter(
             ([, value]) => value !== undefined,
@@ -67,6 +68,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
     })
     expect(result.content).toBeTruthy()
     expect(Array.isArray(result.content)).toBe(true)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result.content as unknown[]).length).toBeGreaterThan(0)
   })
 
@@ -79,6 +81,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         ],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content.length).toBeGreaterThan(0)
     const { text } = content[0]!
@@ -97,6 +100,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         ],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content.length).toBeGreaterThan(0)
     expect(content[0]!.text).toContain('pkg:pypi/')
@@ -109,6 +113,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         packages: [{ depname: 'numpy', ecosystem: 'pypi', version: '1.26.4' }],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     const numpyLines = content[0]!.text
       .split('\n')
@@ -124,6 +129,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         platform: 'darwin-arm64',
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content[0]!.text).toContain('pkg:pypi/numpy')
     const numpyLines = content[0]!.text
@@ -145,6 +151,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         ],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content[0]!.text).toContain('pkg:maven/')
   })
@@ -158,6 +165,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         ],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content[0]!.text).toContain('pkg:nuget/')
   })
@@ -172,6 +180,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         ],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content[0]!.text).toContain('pkg:cargo/')
   })
@@ -187,6 +196,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
         ],
       },
     })
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     expect(content.length).toBeGreaterThan(0)
     expect(content[0]!.text).toContain('pkg:gem/')

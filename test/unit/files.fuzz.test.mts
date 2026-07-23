@@ -21,7 +21,7 @@ import type { FileListEntry, RawFileEntry } from '../../lib/files.ts'
 
 const ALNUM = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const segment = fc
-  .array(fc.constantFrom(...ALNUM), { minLength: 1, maxLength: 8 })
+  .array(fc.constantFrom(...ALNUM.split('')), { minLength: 1, maxLength: 8 })
   .map(chars => chars.join(''))
 
 // A non-empty path built from 1-4 slash-joined segments.
@@ -108,11 +108,13 @@ describe('lib/files extractFileList (fuzz)', () => {
   // raw source and check the type/size/hash rules precisely.
   test('coerces type, keeps numeric size, and gates hash on includeHashes', () => {
     const uniqueByPath = fc.uniqueArray(rawValidEntry, {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
       selector: e => e.path as string,
     })
     fc.assert(
       fc.property(uniqueByPath, fc.boolean(), (files, includeHashes) => {
         const bySource = new Map<string, RawFileEntry>(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
           files.map(f => [f.path as string, f]),
         )
         const out = extractFileList(

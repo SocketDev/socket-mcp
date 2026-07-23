@@ -36,6 +36,7 @@ async function freshCache(capBytes?: number) {
 describe('blobWeight', () => {
   test('weighs UTF-8 byte length plus fixed overhead', async () => {
     const { blobWeight } = await freshCache()
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const blob = { text: 'abc', binary: false } as BlobResult
     expect(blobWeight(blob)).toBe(Buffer.byteLength('abc', 'utf8') + 512)
   })

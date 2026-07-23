@@ -73,6 +73,7 @@ describe('buildJsonApiHeaders', () => {
 })
 
 function makeRequest(headers: Record<string, string>): IncomingMessage {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return { headers, socket: new Socket() } as unknown as IncomingMessage
 }
 
@@ -89,6 +90,7 @@ function fakeResponse(): {
     headers?: Record<string, string> | undefined
     body?: string | undefined
   } = {}
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const res = {
     writeHead(statusCode: number, headers: Record<string, string>) {
       calls.statusCode = statusCode
@@ -163,6 +165,7 @@ describe('getRequestBaseUrl', () => {
   })
 
   test('uses https when the socket is TLS-encrypted', () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const req = {
       headers: { host: 'secure.example.test' },
       socket: { encrypted: true },

@@ -18,13 +18,13 @@ export interface FetchOrganizationsOptions {
  * `baseUrl` (the bare API origin) gets `/v0/` appended.
  */
 export async function fetchOrganizations(
-  options: FetchOrganizationsOptions,
+  config: FetchOrganizationsOptions,
 ): Promise<unknown> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = `${options.baseUrl.replace(/\/$/u, '')}/v0/`
-  const sdk = new SocketSdk(options.authToken ?? '', {
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = `${config.baseUrl.replace(/\/$/u, '')}/v0/`
+  const sdk = new SocketSdk(config.authToken ?? '', {
     baseUrl,
-    ...(options.userAgent ? { userAgent: options.userAgent } : {}),
+    ...(config.userAgent ? { userAgent: config.userAgent } : {}),
   })
 
   const result = await sdk.listOrganizations()

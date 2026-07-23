@@ -31,6 +31,7 @@ describe('http-server integration', () => {
     try {
       // connect() POSTs the initialize request — exercises the new-session
       // branch (server creation, transport wiring, onsessioninitialized).
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
       await client.connect(transport as Transport)
       expect(sessions.size).toBe(1)
 
