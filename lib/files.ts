@@ -214,7 +214,9 @@ export function renderTree(
         line += '/'
       }
       lines.push(line)
-      if (!kid.isFile && kid.children.size > 0) {
+      // A degenerate listing can name a path as both a file and a parent
+      // (e.g. `a` and `a/b`); still walk the children so no leaf is dropped.
+      if (kid.children.size > 0) {
         walk(kid, prefix + cont)
       }
     }
