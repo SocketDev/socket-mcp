@@ -79,8 +79,7 @@ async function main(): Promise<void> {
   logger.fail('esbuild minify validation failed')
   logger.error('')
 
-  for (let i = 0, { length } = violations; i < length; i += 1) {
-    const violation = violations[i]!
+  for (const violation of violations) {
     logger.error(`  ${violation.message}`)
     logger.error(`  Found: minify: ${JSON.stringify(violation.value)}`)
     logger.error('  Expected: minify: false')
