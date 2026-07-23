@@ -48,12 +48,7 @@
     },
     "blockExoticSubdeps": true,
     "minimumReleaseAge": 10080,
-    "minimumReleaseAgeExclude": [
-      "@socketaddon/*",
-      "@socketbin/*",
-      "@socketregistry/*",
-      "@socketsecurity/*"
-    ],
+    "minimumReleaseAgeExclude": ["@socketregistry/*", "@socketsecurity/*"],
     "resolutionMode": "highest",
     "trustPolicy": "no-downgrade"
   },

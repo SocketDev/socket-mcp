@@ -38,8 +38,6 @@ export const SOCKET_PACKAGE_PATTERNS: readonly string[] = [
   // prefix glob (`socket-*` would soak-bypass any attacker-published
   // `socket-<anything>`) — every non-scoped Socket package is named EXACTLY.
   '@sdxgen/*',
-  '@socketaddon/*',
-  '@socketbin/*',
   '@socketoverride/*',
   '@socketregistry/*',
   '@socketsecurity/*',
