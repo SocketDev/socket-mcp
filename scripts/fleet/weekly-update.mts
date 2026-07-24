@@ -54,7 +54,7 @@ import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
-export interface WeeklyUpdateOptions {
+export interface WeeklyUpdateConfig {
   testSetupScript: string
   testScript: string
   updateModel: string
@@ -68,7 +68,7 @@ export interface WeeklyUpdateOptions {
 // Parse argv into options. Defaults mirror the gh-aw weekly-update inputs; --pr
 // is opt-in (local default leaves the branch) so a local run never surprises
 // with a PR.
-export function parseArgs(argv: readonly string[]): WeeklyUpdateOptions {
+export function parseArgs(argv: readonly string[]): WeeklyUpdateConfig {
   const flag = (name: string): string | undefined => {
     const i = argv.indexOf(name)
     return i !== -1 ? argv[i + 1] : undefined

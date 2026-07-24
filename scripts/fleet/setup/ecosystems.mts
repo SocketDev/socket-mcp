@@ -88,7 +88,7 @@ export interface EcosystemStepResult {
 /**
  * The seams with every default filled in.
  */
-export interface ResolvedEcosystemOptions {
+export interface ResolvedEcosystemConfig {
   readonly commandExists: CommandExists
   readonly logger: Logger
   readonly platform: NodeJS.Platform
@@ -102,7 +102,7 @@ export interface ResolvedEcosystemOptions {
  */
 export function resolveEcosystemOptions(
   options?: EcosystemStepOptions | undefined,
-): ResolvedEcosystemOptions {
+): ResolvedEcosystemConfig {
   const opts = options ?? {}
   return {
     commandExists: opts.commandExists ?? defaultCommandExists,

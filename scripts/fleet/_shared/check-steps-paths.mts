@@ -157,6 +157,17 @@ export function buildPathsAndSupplyChainSteps(): CheckStep[] {
         'scripts/fleet/check/ignored-files-are-untracked.mts',
         '--quiet',
       ]),
+    // Companion: no build OUTPUT is tracked (bundle / dispatch tables / oxlint
+    // plugin / anything under _dist/). Knows a path is an output structurally
+    // from paths.mts, so it catches a new output tracked BEFORE it is gitignored
+    // — the gap the ignore-based belt above can't see. Only the dep-0 seeds
+    // (fleet.mjs, .npmrc) may be committed. See
+    // docs/agents.md/fleet/generated-outputs-are-untracked.md.
+    () =>
+      run('node', [
+        'scripts/fleet/check/generated-outputs-are-untracked.mts',
+        '--quiet',
+      ]),
     // Companion: every sparse submodule declares a `verify =` consumer (the
     // command that build-proves the pattern) or `verify = none` (reference-only).
     // A sparse pattern with no declared consumer is unproven — the verify is
@@ -290,6 +301,14 @@ export function buildPathsAndSupplyChainSteps(): CheckStep[] {
     // gate on any unsigned/bad-signed commit ahead of the base; fail-open when
     // the base can't be resolved (offline/shallow CI).
     () => run('node', ['scripts/fleet/check/commits-are-signed.mts']),
+    // gh's default repo must resolve to origin. In a fork checkout an
+    // unset/misdirected default sends bare gh commands (workflow dispatch,
+    // issue/PR queries) to the UPSTREAM PARENT (2026-07-24: npm-publish.yml
+    // dispatch 404'd on package-url/packageurl-js — twice). Local-only
+    // (git config reads); fix = `gh repo set-default <origin>`, auto-applied
+    // by `doctor --fix` / `pnpm run fix --all`.
+    () =>
+      run('node', ['scripts/fleet/check/gh-default-repo-matches-origin.mts']),
     // Fleet soak-exclude parity. Wheelhouse-only at runtime — the script
     // no-ops when `scripts/sync-scaffolding/manifest.mts` is absent (i.e.
     // in every cascaded fleet repo). Enforces that every versioned soak
@@ -330,6 +349,12 @@ export function buildPathsAndSupplyChainSteps(): CheckStep[] {
     // patch is opaque + high-trust; an unannotated or force-less one is suspect.
     // See docs/agents.md/fleet/pnpm-patching.md (the patch-for-compat dedup lever).
     () => run('node', ['scripts/fleet/check/dedup-patches-are-justified.mts']),
+    // taze single-registry posture (owner ruling): the fast-npm-meta hosted
+    // endpoint is never network-allowed — no tracked file may carry its host
+    // (guard/test/patch exempt) — and the taze catalog pin must have its
+    // matching patches/taze@<pin>.patch + patchedDependencies entry, so a
+    // taze bump without a regenerated single-registry patch goes red.
+    () => run('node', ['scripts/fleet/check/taze-is-single-registry.mts']),
     // Avoidable dependency duplication (CLAUDE.md dedup discipline). Parses
     // pnpm-lock.yaml and reports packages resolved at >1 major (collapse
     // candidates — informational) and any package carrying a known

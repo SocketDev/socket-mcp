@@ -22,8 +22,8 @@ catalog:
   '@sinclair/typebox': 0.34.52
   '@socketregistry/packageurl-js': 1.4.6
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.6
-  '@socketsecurity/lib': 6.2.2
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.2.2
+  '@socketsecurity/lib': 6.2.3
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.2.3
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.2
@@ -61,7 +61,7 @@ catalog:
   'semver': 7.8.5
   'shell-quote': 1.10.0
   'svgo': 4.0.1
-  'taze': 19.14.1
+  'taze': 19.16.0
   'typescript': 7.0.2
   'untracked': 1.6.1
   'vite': 8.1.0
@@ -214,6 +214,15 @@ minimumReleaseAgeExclude:
   - '@oxlint-tsgolint/win32-arm64@7.0.2001'
   # published: 2026-07-21 | removable: 2026-07-28
   - '@oxlint-tsgolint/win32-x64@7.0.2001'
+  # taze 19.16.0 — the dep updater itself; forced ahead of the soak by owner
+  # directive so the regenerated single-registry patch (patchedDependencies)
+  # tracks the current release. Exact-pinned so a future version re-soaks.
+  # published: 2026-07-22 | removable: 2026-07-29
+  - 'taze@19.16.0'
+  # obug + verkit — new dev-only transitives of taze 19.16.0 (same owner
+  # directive); exact-pinned so future versions re-soak.
+  # published: 2026-07-19 | removable: 2026-07-26
+  - 'verkit@0.1.2'
 
 # Transitional: warn (not error) while the socket-registry CI install chain
 # still ships pnpm 11.5.1 and this repo runs 11.6.0. Restore to error once the
@@ -231,3 +240,15 @@ trustPolicyExclude:
   - 'ast-v8-to-istanbul@1.0.2'
   - 'compromise@14.15.0'
   - 'undici-types@6.21.0'
+
+patchedDependencies:
+  # single-registry (managed by socket-wheelhouse sync; do not edit):
+  # routes taze version resolution through its own bundled direct-registry
+  # client (getVersionsFromRegistry — full packument, .npmrc/auth-aware) for
+  # EVERY registry, instead of the fast-npm-meta hosted endpoint it uses
+  # when the registry is the npm default. That third-party hop leaks
+  # dependency names, violates the fleet single-registry posture, and is
+  # blocked by egress policy — every lookup then hits the request timeout
+  # while taze still exits 0 (false green; update.mts fails loud on it).
+  # On a taze bump, regenerate via `pnpm patch taze` + `pnpm patch-commit`.
+  taze@19.16.0: patches/taze@19.16.0.patch

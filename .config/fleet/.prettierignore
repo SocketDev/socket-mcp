@@ -31,9 +31,9 @@
 # git-ls-files template gate), not this walk.
 **/fleet/**
 
-# The rolldown-inlined dep-0 fetcher — a build artifact (from bootstrap/src/* via
-# scripts/repo/build-bootstrap-fetcher.mts), not hand-written source; oxfmt would
-# fight the bundler output. The bootstrap/src/* modules ARE formatted.
+# The rolldown-inlined dep-0 fetcher — a build artifact (from template/bootstrap/
+# src/* via scripts/repo/gen/bootstrap.mts), not hand-written source; oxfmt would
+# fight the bundler output. The template/bootstrap/src/* modules ARE formatted.
 **/bootstrap/fleet.mjs
 
 # Generated build/test output — machine-written trees whose generators own the

@@ -18,14 +18,14 @@ catalog:
   '@redwoodjs/agent-ci': 0.17.1
   'dtu-github-actions': 0.17.1
   '@sinclair/typebox': 0.34.52
-  '@socketregistry/packageurl-js': 1.4.4
-  '@socketsecurity/lib': 6.2.0
+  '@socketregistry/packageurl-js': 1.4.6
+  '@socketsecurity/lib': 6.2.2
   '@socketsecurity/registry': 2.0.2
-  '@socketsecurity/sdk': 4.0.1
-  '@socketregistry/packageurl-js-stable': 'npm:@socketregistry/packageurl-js@1.4.4'
-  '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@6.2.0'
+  '@socketsecurity/sdk': 4.0.2
+  '@socketregistry/packageurl-js-stable': 'npm:@socketregistry/packageurl-js@1.4.6'
+  '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@6.2.2'
   '@socketsecurity/registry-stable': 'npm:@socketsecurity/registry@2.0.2'
-  '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.0.1'
+  '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.0.2'
   '@types/mdast': 4.0.4
   '@types/node': 26.1.1
   '@types/semver': 7.7.1

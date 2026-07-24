@@ -161,7 +161,7 @@ export function computeNextVersion(current: string, level: BumpLevel): string {
   return `${major}.${minor}.${patch + 1}`
 }
 
-export interface ResolveBumpBaseOptions {
+export interface ResolveBumpBaseConfig {
   manifestVersion: string
   publishedVersion?: string | undefined
   tagVersion?: string | undefined
@@ -177,8 +177,8 @@ export interface ResolveBumpBaseOptions {
  * can never inflate it. Falls back to the manifest core ONLY for a genuine
  * first release (no published version, no tag).
  */
-export function resolveBumpBase(config: ResolveBumpBaseOptions): string {
-  const cfg = { __proto__: null, ...config } as ResolveBumpBaseOptions
+export function resolveBumpBase(config: ResolveBumpBaseConfig): string {
+  const cfg = { __proto__: null, ...config } as ResolveBumpBaseConfig
   const released: string[] = []
   if (cfg.publishedVersion) {
     released.push(cfg.publishedVersion)

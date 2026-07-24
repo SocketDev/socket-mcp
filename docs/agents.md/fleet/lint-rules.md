@@ -33,6 +33,12 @@ The contract + audit logic live in ONE place, `.claude/hooks/fleet/_shared/forei
 
 **Why:** adapter packages (author a plugin once, ship it to many hosts) were forced to choose between mock-only integration coverage and a blanket guard bypass; an explicit, audited manifest field keeps the gate strict while making the legitimate case first-class.
 
+## Optional `| undefined` vs typescript/no-duplicate-type-constituents
+
+The fleet writes every optional as `x?: T | undefined` — property AND parameter — enforced by `socket/optional-explicit-undefined` (autofix appends `| undefined`). The type-aware `typescript/no-duplicate-type-constituents` sees the PARAM form as a duplicate, since an optional parameter's checker type already carries an implicit `undefined`: it reports "Explicit undefined is unnecessary on an optional parameter", and its autofix strips the union member — leaving the flanking whitespace behind. With both rules live the fix loop ping-pongs: socket appends, tsgolint strips with residue, +2 spaces per pass (`body?: string        ,` after the runner's 4 passes — the decmpfs/socket-sdk-js mangling).
+
+The fleet sides with the socket rule: the explicit `| undefined` is the `exactOptionalPropertyTypes` pairing convention, uniform across properties and params, not redundancy. So the canonical config keeps `socket/optional-explicit-undefined` at `"error"` and configures the typescript rule with `{ "ignoreUnions": true }` — it still catches duplicate intersection constituents, and its union leg, the only surface that can fight the convention, is off. Never resolve the conflict per-line: `oxlint-disable` comments don't reach tsgolint (it honors only `eslint-disable` markers), and per-site silences would need one comment per optional in the codebase.
+
 ## Cascade
 
 When introducing a new rule fleet-wide, expect it to surface dozens of pre-existing violations. That's the rule earning its keep, not noise. Surface the cleanup as a separate task rather than auto-fixing in the same PR.
