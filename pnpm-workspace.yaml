@@ -26,8 +26,8 @@ catalog:
   '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.2.3
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
-  '@socketsecurity/sdk': 4.0.2
-  '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.2
+  '@socketsecurity/sdk': 4.0.3
+  '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.3
   '@types/mdast': 4.0.4
   '@types/node': 26.1.1
   '@types/semver': 7.7.1
