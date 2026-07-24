@@ -19,8 +19,8 @@ catalog:
   '@anthropic-ai/claude-code': 2.1.201
   '@redwoodjs/agent-ci': 0.17.1
   '@sinclair/typebox': 0.34.52
-  '@socketregistry/packageurl-js': 1.4.4
-  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.4
+  '@socketregistry/packageurl-js': 1.4.5
+  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.5
   '@socketsecurity/lib': 6.2.2
   '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.2.2
   '@socketsecurity/registry': 2.0.2
