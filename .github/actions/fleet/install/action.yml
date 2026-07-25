@@ -100,11 +100,11 @@ runs:
         fi
         # Latest published version is the ideal floor. Bound the npm
         # query to 10s so a slow registry doesn't stall the job.
-        # Validate the response matches plain semver via lib/semver.mjs
+        # Validate the response matches plain semver via the colocated semver.mjs
         # — Socket Firewall and other npm proxies sometimes intercept
         # queries and return a banner string, which would otherwise
         # poison the comparison below.
-        SEMVER="${GITHUB_ACTION_PATH}/../lib/semver.mjs"
+        SEMVER="${GITHUB_ACTION_PATH}/semver.mjs"
         NPM_LATEST="$(timeout 10 npm view @socketsecurity/lib version 2>/dev/null || true)"
         if [ -n "$NPM_LATEST" ] && node "$SEMVER" valid "$NPM_LATEST"; then
           MIN_VERSION="$NPM_LATEST"
@@ -164,8 +164,8 @@ runs:
         # which the cascade tool keeps up to date. Hard fallback if the file is
         # absent or unparseable.
         FALLBACK_VERSION="1.4.0"
-        JQ="${GITHUB_ACTION_PATH}/../lib/jq.mjs"
-        EXTERNAL_TOOLS="${GITHUB_ACTION_PATH}/../lib/external-tools.json"
+        JQ="${GITHUB_ACTION_PATH}/../_shared/jq.mjs"
+        EXTERNAL_TOOLS="${GITHUB_ACTION_PATH}/../_shared/external-tools.json"
         resolve_version() {
           if [ -f "$EXTERNAL_TOOLS" ]; then
             local purl

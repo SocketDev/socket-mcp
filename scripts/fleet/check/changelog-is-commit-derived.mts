@@ -1,18 +1,23 @@
 /**
- * @file Guard against a CHANGELOG entry that drifts from the commits it claims
- *   to release — the failure mode that shipped a 6.0.9 entry describing `feat`
- *   work that landed AFTER the 6.0.9 tag. A release CHANGELOG must be DERIVED
- *   from the Conventional Commits being released (run `node
- *   scripts/fleet/bump.mts`), never hand-written ahead of the tag. Fires only
- *   for a PENDING release — when `package.json` version is ahead of the last
- *   `v<semver>` tag. For that pending version it regenerates the entry via
- *   bump.mts's OWN `deriveReleaseCommits` — the same base + anchor chain +
- *   commit stream the generator used, one implementation for both sides — and
- *   fails when the committed entry's bullets don't match. A published version
- *   (version == last tag) is historical and not re-validated. Fail-open: any
- *   uncertainty (no tag, shallow clone, unreachable registry, unresolvable
- *   range anchor, unreadable CHANGELOG) skips rather than false-fails. Usage:
- *   node scripts/fleet/check/changelog-is-commit-derived.mts.
+ * @file Guard against a CHANGELOG entry that LOSES the commits it claims to
+ *   release — the failure mode that shipped a 6.0.9 entry describing `feat`
+ *   work that landed AFTER the 6.0.9 tag. A release CHANGELOG's derived side
+ *   must be DERIVED from the Conventional Commits being released (run `node
+ *   scripts/fleet/bump.mts`). Fires only for a PENDING release — when
+ *   `package.json` version is ahead of the last `v<semver>` tag. For that
+ *   pending version it regenerates the entry via bump.mts's OWN
+ *   `deriveReleaseCommits` — the same base + anchor chain + commit stream the
+ *   generator used, one implementation for both sides — and asserts every
+ *   commit-derived bullet is PRESENT in the section and the anchor/range is
+ *   correct. Hand-written EXTRAS are tolerated: hand content is human-owned,
+ *   accrues under `## [Unreleased]`, and the bump promotes it into the
+ *   release section (the sdk 4.0.2 cached-scan bullets were dropped by a
+ *   stricter exact-match rule). A present `[Unreleased]` section is never a
+ *   finding. A published version (version == last tag) is historical and not
+ *   re-validated. Fail-open: any uncertainty (no tag, shallow clone,
+ *   unreachable registry, unresolvable range anchor, unreadable CHANGELOG)
+ *   skips rather than false-fails. Usage: node
+ *   scripts/fleet/check/changelog-is-commit-derived.mts.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -42,13 +47,21 @@ interface PackageJsonShape {
 
 const VERSION_HEADING_RE = /^## \[?v?(?<version>\d+\.\d+\.\d+)/
 
+// The `## [Unreleased]` / `## Unreleased` heading — hand-written notes accrue
+// there between releases and the bump promotes them, so its presence is never
+// a finding: the top-section probe skips past it.
+const UNRELEASED_HEADING_RE = /^##\s+\[?unreleased\]?\s*$/i
+
 /**
  * The first `## …` version section of the CHANGELOG (heading through the line
- * before the next `## `), or `undefined` when the file has no version sections.
+ * before the next `## `), skipping an `## [Unreleased]` block, or `undefined`
+ * when the file has no version sections.
  */
 export function topChangelogSection(changelog: string): string | undefined {
   const lines = changelog.split('\n')
-  const start = lines.findIndex(l => l.startsWith('## '))
+  const start = lines.findIndex(
+    l => l.startsWith('## ') && !UNRELEASED_HEADING_RE.test(l.trim()),
+  )
   if (start === -1) {
     return undefined
   }
@@ -95,6 +108,22 @@ export function bulletSet(section: string): Set<string> {
     }
   }
   return out
+}
+
+/**
+ * The commit-derived bullets of `expected` that are ABSENT from the committed
+ * `section` — the check's one red condition. Extras in `section` beyond the
+ * derived set are tolerated by construction: hand-written bullets are
+ * human-owned — they accrue under `## [Unreleased]` and the bump promotes
+ * them into the release section — so a hand SUPERSET of the derived bullets
+ * is a healthy section, never drift. Losing derived content stays red.
+ */
+export function missingDerivedBullets(
+  section: string,
+  expected: string,
+): string[] {
+  const have = bulletSet(section)
+  return [...bulletSet(expected)].filter(b => !have.has(b))
 }
 
 async function main(): Promise<void> {
@@ -187,40 +216,31 @@ async function main(): Promise<void> {
     version,
   })
 
-  const have = bulletSet(section)
-  const want = bulletSet(expected)
-  const extra = [...have].filter(b => !want.has(b))
-  const missing = [...want].filter(b => !have.has(b))
-  if (extra.length === 0 && missing.length === 0) {
+  // Hand-written bullets beyond the derived set are TOLERATED — hand content
+  // is human-owned; it accrues under `## [Unreleased]` and the bump promotes
+  // it into the release section. Only LOSING derived content is red.
+  const missing = missingDerivedBullets(section, expected)
+  if (missing.length === 0) {
     return
   }
 
-  const detail: string[] = []
-  if (extra.length) {
-    detail.push(
-      `  ${extra.length} entry(ies) not derived from a released commit (drift):`,
-    )
-    const bList = extra.slice(0, 5)
-    for (let i = 0, { length } = bList; i < length; i += 1) {
-      const b = bList[i]!
-      detail.push(`    + ${b}`)
-    }
-  }
-  if (missing.length) {
-    detail.push(
-      `  ${missing.length} released commit(s) missing from the entry:`,
-    )
-    const bs = missing.slice(0, 5)
-    for (let i = 0, { length } = bs; i < length; i += 1) {
-      const b = bs[i]!
-      detail.push(`    - ${b}`)
-    }
+  const detail: string[] = [
+    `  ${missing.length} released commit(s) missing from the entry:`,
+  ]
+  const bs = missing.slice(0, 5)
+  for (let i = 0, { length } = bs; i < length; i += 1) {
+    const b = bs[i]!
+    detail.push(`    - ${b}`)
   }
   fail(
-    `The ${version} CHANGELOG entry doesn't match the commits since ` +
-      `${describeAnchor(derivation.anchor)}.\n` +
+    `The ${version} CHANGELOG entry is missing commit-derived bullet(s) for ` +
+      `the commits since ${describeAnchor(derivation.anchor)}.\n` +
       `${detail.join('\n')}\n` +
-      `  Regenerate it: \`node scripts/fleet/bump.mts\` (the CHANGELOG is derived, not hand-written).`,
+      `  Regenerate it: \`node scripts/fleet/bump.mts\` unions the ` +
+      `commit-derived bullets with the hand-written "## [Unreleased]" notes.\n` +
+      `  Hand-written extras are fine and stay; author new hand notes under ` +
+      `"## [Unreleased]" so the next bump promotes them — never delete a ` +
+      `derived bullet.`,
   )
 }
 

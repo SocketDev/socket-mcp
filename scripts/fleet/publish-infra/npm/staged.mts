@@ -24,6 +24,7 @@ import {
 import { releaseBehindLiveGate } from '../release.mts'
 import { logger, rootPath, runCapture, runInherit } from '../shared.mts'
 import { withPinnedReadme } from '../pin-readme.mts'
+import { withPrunedPackManifest } from './pack-manifest.mts'
 import { isAlreadyPublished } from './registry.mts'
 import type { StageListEntry } from './shared.mts'
 import { isStagingExpected } from './shared.mts'
@@ -99,11 +100,12 @@ export async function runStaged(
   }
   // Pin the SUBJECT README's relative asset URLs to the release tag for the
   // packed tarball only (restored right after) so the npm page's badge is
-  // immutable + matches this version instead of a moving HEAD ref. The same
-  // bracket wraps the --approve verify pack (defaultPackTarball) so the
+  // immutable + matches this version instead of a moving HEAD ref, and prune
+  // repo-only lifecycle scripts from the manifest that packs. The same
+  // brackets wrap the --approve verify pack (defaultPackTarball) so the
   // integrity gate sees identical bytes.
   const code = await withPinnedReadme(pinTargetFor(pkg), () =>
-    runInherit('pnpm', args, rootPath),
+    withPrunedPackManifest(pkg.dir, () => runInherit('pnpm', args, rootPath)),
   )
   if (code !== 0) {
     logger.fail(`pnpm stage publish exited ${code}`)
@@ -182,10 +184,10 @@ export async function runDirect(
   if (dryRun) {
     args.push('--dry-run')
   }
-  // Pin the SUBJECT README to the release tag for the published tarball only
-  // (see runStaged).
+  // Pin the SUBJECT README to the release tag + prune repo-only lifecycle
+  // scripts for the published tarball only (see runStaged).
   const code = await withPinnedReadme(pinTargetFor(pkg), () =>
-    runInherit('pnpm', args, rootPath),
+    withPrunedPackManifest(pkg.dir, () => runInherit('pnpm', args, rootPath)),
   )
   if (code !== 0) {
     logger.fail(`pnpm publish exited ${code}`)
@@ -241,11 +243,15 @@ export async function defaultPackTarball(
     )
     return undefined
   }
-  // Same README-pin bracket as runStaged, so the approve-time verify pack is
-  // byte-identical to the staged tarball (the integrity gate compares them).
+  // Same README-pin + manifest-prune brackets as runStaged, so the
+  // approve-time verify pack is byte-identical to the staged tarball (the
+  // integrity gate compares them).
   const packed = await withPinnedReadme(
     { ...pinTargetFor(subject), version },
-    () => runCapture('pnpm', ['pack'], root),
+    () =>
+      withPrunedPackManifest(subject.dir, () =>
+        runCapture('pnpm', ['pack'], root),
+      ),
   )
   const tarballName = `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`
   // pnpm pack writes into the subject directory under a publishConfig

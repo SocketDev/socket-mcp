@@ -1,6 +1,6 @@
 /**
  * @file Shared seams + defaults for the per-ecosystem setup steps
- *   (`setup-brew`, `setup-go`, `setup-python`, `setup-rust`). Each step is
+ *   (`brew`, `go`, `python`, `rust`). Each step is
  *   self-detecting: it no-ops with a clear skip line when its ecosystem is
  *   absent or the platform does not apply, and otherwise installs ONLY through
  *   the locked/soaked artifact the fleet already pins (a soaked Homebrew tap

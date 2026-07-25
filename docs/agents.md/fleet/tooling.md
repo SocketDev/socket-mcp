@@ -39,6 +39,10 @@ exclude-newer = "7 days"
 
 uv is pre-1.0 (`0.x`) — adopted as a noted exception to the stable-1.0+ rule because it is de-facto stable, Astral-backed, Apache-2.0 / MIT, and ships as a single static binary. It replaces the unpinned `pip3 install --break-system-packages` pattern in Dockerfiles, which has no lockfile or soak.
 
+## ripgrep: `-r` never clusters
+
+rg's `-r` (`--replace`) takes a value, so inside a short-flag cluster it consumes the REST of the cluster as the replacement text: `rg -rln <pattern>` parses as `rg --replace 'ln' <pattern>`. Every match is rewritten to the literal text `ln` instead of listing files with line numbers, and the command still exits 0, so the corruption is easy to miss. Spell `-r` separately (`rg -l -n`), use long flags, or pass `--replace '<text>'` only when a replacement is meant. `-r` last in a cluster (`-lnr <text>`) and standalone `-r <text>` read the next argument as the replacement and are fine. Nudged by `.claude/hooks/fleet/rg-replace-flag-nudge/`.
+
 ## Reserved `scripts/` dir names
 
 Script tiers are `scripts/fleet/` + `scripts/repo/`; name any other dir for its job, never a build/output concept (`build`, `dist`, `node_modules`, `coverage`, `cache`). Bypass `Allow reserved-script-dir bypass` (`.claude/hooks/fleet/reserved-script-dir-guard/`).

@@ -180,6 +180,7 @@
         "allowDestructuring": true
       }
     ],
+    "typescript/no-unnecessary-type-assertion": "off",
     "typescript/no-useless-empty-export": "error",
     "typescript/no-wrapper-object-types": "error",
     "typescript/prefer-as-const": "error",
@@ -236,12 +237,6 @@
       "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       "rules": {
         "eslint/no-unused-vars": "off"
-      }
-    },
-    {
-      "files": ["**/lib/**"],
-      "rules": {
-        "socket/no-required-in-options-bag": "off"
       }
     }
   ],

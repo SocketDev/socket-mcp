@@ -176,6 +176,42 @@ skips. The chain never falls back to an OLDER tag: socket-lib 6.2.2's
 generated section re-listed the already-shipped 6.2.1 fix because the missing
 v6.2.1 tag silently widened the range to v6.2.0.
 
+## Hand-written notes accrue under [Unreleased]; the bump promotes them
+
+Derivation only sees typed commits: feat / fix / perf / revert reach the
+CHANGELOG; chore / style / test / docs / ci / build / refactor never do. Work
+that ships under an invisible type still needs documenting — write its bullets
+by hand under `## [Unreleased]` as the work lands. That section is the ONE
+home for hand-written release notes; hand-editing a version section directly
+is still drift.
+
+At bump time `composeReleaseSection` in `bump.mts` builds the release section
+from BOTH sources: the commit-derived bullets unioned with the hand-written
+`[Unreleased]` bullets, merged under their matching Added / Changed / Fixed
+headings, exact-duplicate lines collapsed. Promotion then empties the
+`[Unreleased]` block — the fleet style creates the heading on demand, so
+squash-time accrual recreates it when the next entry lands.
+
+`changelog-is-commit-derived` verifies the derived side only: every
+commit-derived bullet must be PRESENT in the pending section, and the
+anchor/range must be correct. Hand-written extras are tolerated — hand content
+is human-owned — and a present `[Unreleased]` section is never a finding.
+Losing derived content stays red.
+
+The safety net is a bump-time WARNING, never a red: commits since the anchor
+that touch `src/` but are typed chore / style / test are invisible to
+derivation, so the bump names them and asks you to add `[Unreleased]` bullets
+or retype the commits if they carry user-facing work. The same text lands in
+the CI job summary when the bump runs there. It cannot fail the bump — a
+chore commit touching `src/` is often genuinely internal, and over-absolute
+rules get enforced and block real work.
+
+WHY: sdk 4.0.2 shipped its cached-scan/pollIntervalMs feature UNDOCUMENTED.
+The feature's bullets were hand-written under `[Unreleased]`, its commits were
+chore-typed, and the then-strict commit-derived regeneration dropped the hand
+side at bump time. The union rule, the superset-tolerant check, and the
+warning close that hole from three directions.
+
 ## Verify is auth-honest, and approve reconciles from registry truth
 
 `pnpm stage list` 401s without npm auth and its failure output parses as an

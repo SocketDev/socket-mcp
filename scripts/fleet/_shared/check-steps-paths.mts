@@ -138,6 +138,26 @@ export function buildPathsAndSupplyChainSteps(): CheckStep[] {
     // upstream/ tree). See docs/agents.md/fleet/upstream-references.md.
     () =>
       run('node', ['scripts/fleet/check/upstream-contracts-are-current.mts']),
+    // The composite → upstream PORT MAP is total (every .github/actions/fleet/*
+    // composite declares what it ports — `[]` for a Socket-original), every
+    // declared port has a release-tagged + sha256-stamped upstream/ reference
+    // block, and `portedAt` equals the pinned tag — so a vendor-actions re-pin
+    // without a re-port review goes red. THE lock-step gate for inlined
+    // third-party actions. See docs/agents.md/fleet/upstream-references.md.
+    () =>
+      run('node', ['scripts/fleet/check/action-ports-are-lock-stepped.mts']),
+    // The canonical GH Actions allowlist (auditing-gha CANONICAL_PATTERNS)
+    // matches the template's workflow surface in BOTH directions: every
+    // cascaded template/base `uses:` is pattern-covered — GitHub validates
+    // selected-actions at plan time, so a miss startup-fails every
+    // strict-allowlist repo's scheduled runs with 0 jobs (incident
+    // 2026-07-21: gh-aw cascaded actions/create-github-app-token into
+    // weekly-update.lock.yml with no canonical pattern) — and every canonical
+    // entry has a live consumer, in-template or declared external.
+    () =>
+      run('node', [
+        'scripts/fleet/check/gha-allowlist-matches-template-uses.mts',
+      ]),
     // Belt: no `upstream/` reference is git-tracked as a gitlink — the
     // `.gitmodules` `ref`+`sha256:` is the pin, so a `160000` index entry is a
     // redundant copy. Write-time twin: no-upstream-gitlink-guard. See

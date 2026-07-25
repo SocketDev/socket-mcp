@@ -43,6 +43,15 @@ The fleet sides with the socket rule: the explicit `| undefined` is the `exactOp
 
 When introducing a new rule fleet-wide, expect it to surface dozens of pre-existing violations. That's the rule earning its keep, not noise. Surface the cleanup as a separate task rather than auto-fixing in the same PR.
 
+## Repo-owned overrides: the sanctioned surface
+
+`.config/fleet/oxlintrc.json` is FLEET-MANAGED — cascaded byte-identical, so any hand edit (staging a rule off, adding an overrides block) is reverted by the next refresh. Never park repo state there. The two repo-owned surfaces that survive a refresh:
+
+1. **`.config/repo/oxlint.config.mts`** — the composable factory call. It imports `config()` from `.config/fleet/oxlint.config.mts` and augments in JS: `rules` merge over the fleet rules, `overrides` blocks append after the fleet blocks, `jsPlugins` and `ignorePatterns` extend the fleet lists. This is where a burn-down staging lives — e.g. a new `socket/*` rule that surfaced a pre-existing debt pile gets `'socket/<rule>': 'off'` (or a scoped `overrides` block) HERE, with a comment naming the campaign, and the entry is deleted when the count reaches zero. socket-lib's staging of `socket/no-required-in-options-bag` off for `**/src/**` is the exemplar.
+2. **The `ignorePatterns` tail after `#fleet-canonical-end`** — inside the fleet oxlintrc's `ignorePatterns` array, entries after the `#fleet-canonical-end` sentinel are repo-owned; the cascade splices only the sentinel-fenced region and preserves the tail. Ignore-shaped repo state — a vendored tree, a generated dir — goes there when the JS factory's `ignorePatterns` option isn't already carrying it.
+
+Rule of thumb: rules and overrides → the repo factory config; ignores → either surface. Anything typed INSIDE the fleet-canonical region is a revert waiting to happen.
+
 ## Disable comments: per-call-site, never identical-stacked
 
 `oxlint-disable-next-line <rule> -- <reason>` is correct when a single call site has a genuine, code-local justification that wouldn't apply to siblings. Stacking the same comment on adjacent lines is the failure mode.

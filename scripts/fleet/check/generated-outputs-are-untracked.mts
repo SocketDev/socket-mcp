@@ -21,6 +21,14 @@
  *       `excluded-bundle.cjs`, `_shared/dispatch-manifest.json`, the oxlint
  *       `.mjs`) may never be tracked.
  *
+ *   Bundle-placed generated outputs — bundle.cjs, the dispatch table + manifest,
+ *   the release manifest's `generatedPaths` — EXIST ON DISK in every member:
+ *   the release bundle ships them, the fleet gitignore block ignores them, and
+ *   the installer untracks any historically committed copy. On-disk presence is
+ *   fine; only TRACKING one is a violation. The three surfaces — producer,
+ *   gitignore block, this check — agree by construction, and a wheelhouse
+ *   regression test asserts the trio against STAGED_GENERATED_ARTIFACTS.
+ *
  *   Runs per-tree (wheelhouse + every member). Fails open when git is
  *   unavailable. Exit: 0 — clean / no git; 1 — a build output is tracked.
  *

@@ -20,9 +20,15 @@
  *      glob set (regenerate with `pnpm run lockstep:emit-mirror-globs`), so the
  *      format-skip set can never grow past declared mirrors.
  *   4. MEMBERSHIP (defense-in-depth): a file-scope `oxlint-disable` on a marked
- *      mirror may name only rules in LOCKSTEP_MIRROR_EXEMPT_RULES. Exit: 0 =
- *      all gates pass; 1 = at least one violation. Usage: node
- *      scripts/fleet/check/lockstep-mirror-markers-are-declared.mts [--quiet]
+ *      mirror may name only rules in LOCKSTEP_MIRROR_EXEMPT_RULES.
+ *
+ *   A repo with NO lockstep manifest (not enrolled in lockstep) VACUOUS-PASSES
+ *   the declared-mirror gates — nothing is declared, so there is nothing to
+ *   verify — while the FORWARD anti-abuse gate and the FORMAT-BLOCK gate still
+ *   run against the empty set (a marker or a stray .prettierignore glob with no
+ *   manifest is still a violation). Exit: 0 = all gates pass; 1 = at least one
+ *   violation. Usage: node
+ *   scripts/fleet/check/lockstep-mirror-markers-are-declared.mts [--quiet]
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -209,6 +215,24 @@ export function findIllegalDisables(
 }
 
 /**
+ * The declared mirrors for a repo — or the EMPTY set when the repo carries no
+ * lockstep manifest at `rootManifestPath`. A repo not enrolled in lockstep has
+ * nothing to declare, so the declared-mirror gates VACUOUS-PASS instead of
+ * failing on "manifest not found" (readManifest exits 1 on an absent file).
+ * The FORWARD anti-abuse gate and the FORMAT-BLOCK gate still run against the
+ * empty set: a `@lockstep-mirror` marker — or a stray .prettierignore glob —
+ * in an unenrolled repo is exactly the paste-anywhere escape hatch this check
+ * exists to reject.
+ */
+export function declaredMirrorsIfEnrolled(
+  rootManifestPath: string,
+): DeclaredMirror[] {
+  return existsSync(rootManifestPath)
+    ? collectDeclaredMirrors(rootManifestPath)
+    : []
+}
+
+/**
  * Every tracked source file carrying a well-formed `@lockstep-mirror` HEADER
  * marker (parsed via the shared grammar so a prose/fixture mention deeper in a
  * file never counts). `git grep -l` narrows the candidate set; the parser is
@@ -266,7 +290,8 @@ function report(violations: readonly Violation[]): void {
 function main(): void {
   const quiet = process.argv.includes('--quiet')
   const rootManifest = resolveManifestRoot(REPO_ROOT)
-  const mirrors = collectDeclaredMirrors(rootManifest)
+  const enrolled = existsSync(rootManifest)
+  const mirrors = declaredMirrorsIfEnrolled(rootManifest)
   const marked = scanMarkedFiles(REPO_ROOT)
 
   const markedByLocal = new Map<string, MarkedFile>()
@@ -297,7 +322,9 @@ function main(): void {
   if (violations.length === 0) {
     if (!quiet) {
       logger.success(
-        `lockstep-mirror markers are declared (${mirrors.length} mirror${mirrors.length === 1 ? '' : 's'}).`,
+        enrolled
+          ? `lockstep-mirror markers are declared (${mirrors.length} mirror${mirrors.length === 1 ? '' : 's'}).`
+          : 'lockstep-mirror markers are declared (no lockstep manifest — nothing to declare).',
       )
     }
     return
