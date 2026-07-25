@@ -356,6 +356,7 @@ overrides:
   fast-uri: 3.1.2
   hono: 4.12.23
   ip-address: 10.1.1
+  js-yaml@>=5.0.0 <5.2.2: 5.2.2
   node-forge: 1.4.0
   path-to-regexp: 8.4.2
   qs: 6.15.2
@@ -4094,8 +4095,8 @@ packages:
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
 
-  js-yaml@5.2.0:
-    resolution: {integrity: sha512-YeLUMlvR4Ou1B119LIaM0r65JvbOBooJDc9yEu0dClb/uSC5P4FrLU8OCCz/HXWvtPoIrR0dRzABTjo1sTN9Bw==}
+  js-yaml@5.2.2:
+    resolution: {integrity: sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==}
     hasBin: true
 
   jsesc@3.1.0:
@@ -6689,7 +6690,7 @@ snapshots:
 
   js-tokens@10.0.0: {}
 
-  js-yaml@5.2.0:
+  js-yaml@5.2.2:
     dependencies:
       argparse: 2.0.1
 
@@ -6818,7 +6819,7 @@ snapshots:
   markdownlint-cli2@0.23.0:
     dependencies:
       globby: 16.2.0
-      js-yaml: 5.2.0
+      js-yaml: 5.2.2
       jsonc-parser: 3.3.1
       jsonpointer: 5.0.1
       markdown-it: 14.2.0

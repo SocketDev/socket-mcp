@@ -116,6 +116,9 @@ overrides:
   # prefix; transitive via @modelcontextprotocol/sdk, fixed in 4.12.21
   'hono': '4.12.23'
   'ip-address': '10.1.1'
+  # GHSA-pm4m-ph32-ghv5 exponential parse time in flow collections; exact-pinned
+  # at 5.2.1 by markdownlint-cli2; fixed in 5.2.2 (4.x line via cosmiconfig unaffected)
+  'js-yaml@>=5.0.0 <5.2.2': '5.2.2'
   # CVE-2026-... node-forge prototype-pollution-class advisories #55/#57/#59/#61
   'node-forge': '1.4.0'
   # GHSA-9wv6-86v2-598j path-to-regexp DoS / GHSA-rhx6-c78j-4q9w; advisories #51/#53
@@ -223,6 +226,8 @@ minimumReleaseAgeExclude:
   # directive); exact-pinned so future versions re-soak.
   # published: 2026-07-19 | removable: 2026-07-26
   - 'verkit@0.1.2'
+  # published: 2026-07-23 | removable: 2026-07-30
+  - 'js-yaml@5.2.2'
 
 # Transitional: warn (not error) while the socket-registry CI install chain
 # still ships pnpm 11.5.1 and this repo runs 11.6.0. Restore to error once the
