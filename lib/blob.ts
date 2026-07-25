@@ -9,7 +9,7 @@ export interface BlobResult {
   text: string
 }
 
-export interface FetchBlobOptions {
+export interface FetchBlobConfig {
   baseUrl: string
   userAgent?: string | undefined
   // Extra headers merged into the outbound request. Values overwrite
@@ -58,7 +58,7 @@ export interface ChunkedFetchResult {
  */
 export async function fetchBlob(
   hash: string,
-  config: FetchBlobOptions,
+  config: FetchBlobConfig,
 ): Promise<BlobResult> {
   // `hash` is user-supplied (the package_file_contents MCP arg). An empty
   // string makes `hash[0]` undefined, silently selecting the raw-blob
@@ -106,7 +106,7 @@ export async function fetchBlob(
  */
 export async function fetchChunkedBytes(
   sHash: string,
-  config: FetchBlobOptions,
+  config: FetchBlobConfig,
   maxBytes: number,
 ): Promise<ChunkedFetchResult> {
   const manifestHash = `Q${sHash.slice(1)}`
@@ -184,7 +184,7 @@ export async function fetchChunkedBytes(
 // Single GET against `/blob/<hash>`. No prefix logic.
 export async function fetchRawBytes(
   hash: string,
-  config: FetchBlobOptions,
+  config: FetchBlobConfig,
 ): Promise<RawFetchResult> {
   config = { __proto__: null, ...config } as typeof config
   const url = `${config.baseUrl.replace(/\/$/u, '')}/blob/${encodeURIComponent(hash)}`

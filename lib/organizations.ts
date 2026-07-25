@@ -1,6 +1,6 @@
 import { SocketSdk } from '@socketsecurity/sdk'
 
-export interface FetchOrganizationsOptions {
+export interface FetchOrganizationsConfig {
   baseUrl: string
   userAgent?: string | undefined
   // Socket access token. The SDK sends it as HTTP Basic auth (token as the
@@ -18,7 +18,7 @@ export interface FetchOrganizationsOptions {
  * `baseUrl` (the bare API origin) gets `/v0/` appended.
  */
 export async function fetchOrganizations(
-  config: FetchOrganizationsOptions,
+  config: FetchOrganizationsConfig,
 ): Promise<unknown> {
   config = { __proto__: null, ...config } as typeof config
   const baseUrl = `${config.baseUrl.replace(/\/$/u, '')}/v0/`

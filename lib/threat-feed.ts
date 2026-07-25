@@ -32,7 +32,7 @@ export interface ThreatFeedFilters {
   ecosystem?: string | undefined
 }
 
-export interface FetchThreatFeedOptions {
+export interface FetchThreatFeedConfig {
   baseUrl: string
   orgSlug: string
   filters?: ThreatFeedFilters | undefined
@@ -92,7 +92,7 @@ export function buildThreatFeedQuery(
  * /v0/orgs/{org_slug}/threat-feed`. Returns the parsed JSON body untouched.
  */
 export async function fetchThreatFeed(
-  config: FetchThreatFeedOptions,
+  config: FetchThreatFeedConfig,
 ): Promise<unknown> {
   config = { __proto__: null, ...config } as typeof config
   const baseUrl = config.baseUrl.replace(/\/$/u, '')

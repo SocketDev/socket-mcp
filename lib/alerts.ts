@@ -23,7 +23,7 @@ export interface AlertsFilters {
   cursor?: string | undefined
 }
 
-export interface FetchAlertsOptions {
+export interface FetchAlertsConfig {
   baseUrl: string
   orgSlug: string
   filters?: AlertsFilters | undefined
@@ -78,9 +78,7 @@ export function buildAlertsQuery(
  * Fetch the latest alerts for an organization from `GET
  * /v0/orgs/{org_slug}/alerts`. Returns the parsed JSON body untouched.
  */
-export async function fetchAlerts(
-  config: FetchAlertsOptions,
-): Promise<unknown> {
+export async function fetchAlerts(config: FetchAlertsConfig): Promise<unknown> {
   config = { __proto__: null, ...config } as typeof config
   const baseUrl = config.baseUrl.replace(/\/$/u, '')
   const qs = buildAlertsQuery(config.filters).toString()

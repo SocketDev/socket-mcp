@@ -51,7 +51,7 @@ export interface FileListResult {
   tree: string
 }
 
-export interface FetchFileListOptions {
+export interface FetchFileListConfig {
   baseUrl: string
   includeHashes?: boolean | undefined
   userAgent?: string | undefined
@@ -123,7 +123,7 @@ export function extractFileList(
  */
 export async function fetchFileList(
   purlStr: string,
-  config: FetchFileListOptions,
+  config: FetchFileListConfig,
 ): Promise<FileListResult> {
   config = { __proto__: null, ...config } as typeof config
   const baseUrl = config.baseUrl.replace(/\/$/u, '')
