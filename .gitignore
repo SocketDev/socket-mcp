@@ -171,3 +171,9 @@ pnpm-debug.log
 # commit them.
 /.swc/
 /.vitiate/
+
+# Generated .mcp.json projections — produced at setup:mcp from the committed
+# .mcp.json authority, never tracked. The v1.0.15 fleet-canonical block
+# ignores these too; these lines bridge until that block cascades here.
+/.kimi-code/
+/opencode.json
