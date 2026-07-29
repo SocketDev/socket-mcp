@@ -43,6 +43,7 @@
 // must not wedge every Bash call.
 
 import { isFleetTarget } from '../_shared/fleet-context.mts'
+import { gitSubcommand } from '../_shared/git-subcommand.mts'
 import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import { parseCommands } from '../_shared/shell-command.mts'
 
@@ -62,40 +63,6 @@ export interface HistoryRewriteDetection {
   readonly kind: HistoryRewriteKind
   // The offending invocation, re-joined for the "Where" line.
   readonly invocation: string
-}
-
-// `git` global flags that consume the NEXT token as their value. Skipping the
-// value is what keeps `git -C /repo filter-branch` from resolving its
-// subcommand to `/repo`.
-const GIT_VALUE_FLAGS: ReadonlySet<string> = new Set([
-  '--config-env',
-  '--exec-path',
-  '--git-dir',
-  '--namespace',
-  '--super-prefix',
-  '--work-tree',
-  '-C',
-  '-c',
-])
-
-/**
- * The subcommand of a parsed `git` invocation: the first bare token that is
- * neither a global flag nor a global flag's value. Returns undefined for a
- * flags-only `git` line (`git --version`).
- */
-export function gitSubcommand(args: readonly string[]): string | undefined {
-  for (let i = 0, { length } = args; i < length; i += 1) {
-    const arg = args[i]!
-    if (GIT_VALUE_FLAGS.has(arg)) {
-      i += 1
-      continue
-    }
-    if (arg.startsWith('-')) {
-      continue
-    }
-    return arg
-  }
-  return undefined
 }
 
 /**
