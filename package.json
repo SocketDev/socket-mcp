@@ -46,10 +46,10 @@
     "fix": "node scripts/fleet/fix.mts",
     "fix:all": "node scripts/fleet/fix.mts --all",
     "update": "node scripts/fleet/update.mts",
-    "build": "pnpm run clean && run-s build:bundle build:permissions",
+    "build": "pnpm run clean && pnpm run build:bundle && pnpm run build:permissions",
     "build:bundle": "node scripts/repo/build.mts",
     "build:permissions": "chmod +x ./dist/index.cjs",
-    "build-mcpb": "run-s build build-mcpb:versions_match build-mcpb:validate build-mcpb:ensure-deps build-mcpb:mcpb-pack",
+    "build-mcpb": "pnpm run build && pnpm run build-mcpb:versions_match && pnpm run build-mcpb:validate && pnpm run build-mcpb:ensure-deps && pnpm run build-mcpb:mcpb-pack",
     "build-mcpb:versions_match": "node scripts/repo/check-versions.ts",
     "build-mcpb:validate": "mcpb validate ./",
     "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
@@ -75,7 +75,6 @@
     "sync-oxlint-rules": "node scripts/fleet/sync-oxlint-rules.mts",
     "sync-package-manager-pins": "node scripts/fleet/sync-package-manager-pins.mts",
     "doctor": "node scripts/fleet/doctor.mts",
-    "gen:llms-txt": "node scripts/fleet/gen/llms-txt.mts --no-ai",
     "setup:brew": "node scripts/fleet/setup/brew.mts",
     "setup:go": "node scripts/fleet/setup/go.mts",
     "setup:mcp": "node scripts/fleet/setup/mcp.mts",
@@ -118,7 +117,6 @@
     "micromark": "catalog:",
     "neosanitize": "catalog:",
     "nock": "catalog:",
-    "npm-run-all2": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
@@ -153,8 +151,5 @@
     "protobufjs": false,
     "puppeteer": false,
     "ssh2": false
-  },
-  "npm-run-all2": {
-    "nodeRun": true
   }
 }
