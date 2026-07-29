@@ -1,20 +1,55 @@
-import { describe, expect, test } from 'vitest'
+import process from 'node:process'
+
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
   checkPackage,
   extractPackage,
+  outputAllow,
+  outputDeny,
   parseSupplyChainScore,
   stripVersion,
 } from '../../hooks/socket-gate/index.mts'
+
+// A fetch stub that answers the MCP initialize with `initOverrides` applied,
+// so the pre-depscore failure modes can be driven one at a time.
+function stubInitFetch(
+  initOverrides: Record<string, unknown>,
+  callOverrides: Record<string, unknown> = {},
+): typeof fetch {
+  let call = 0
+  return async () => {
+    call += 1
+    if (call === 1) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'mcp-session-id': 'test-session' }),
+        text: async () => '',
+        ...initOverrides,
+      } as Response
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({ result: { content: [] } }),
+      ...callOverrides,
+    } as Response
+  }
+}
 
 // A fetch stub for checkPackage: first call is the MCP `initialize` (must
 // return an mcp-session-id header), second is the depscore tool call whose
 // body text we control. Keeps the decision logic under test off the network.
 function stubFetch(depscoreText: string, isError = false): typeof fetch {
   let call = 0
-  return (async () => {
+  return async () => {
     call += 1
     if (call === 1) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
       return {
         ok: true,
         status: 200,
@@ -22,6 +57,7 @@ function stubFetch(depscoreText: string, isError = false): typeof fetch {
         text: async () => '',
       } as Response
     }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     return {
       ok: true,
       status: 200,
@@ -33,7 +69,7 @@ function stubFetch(depscoreText: string, isError = false): typeof fetch {
         },
       }),
     } as Response
-  }) as unknown as typeof fetch
+  }
 }
 
 describe('extractPackage', () => {
@@ -171,6 +207,53 @@ describe('extractPackage', () => {
     expect(extractPackage('bundle install')).toBe(undefined)
     expect(extractPackage('go mod tidy')).toBe(undefined)
   })
+
+  test('a spec that strips to nothing is not a package', () => {
+    // `@1.2.3` matches the npm pattern's first non-flag argument, but the
+    // npm version strip leaves an empty name — there is nothing to scan.
+    expect(extractPackage('npm install @1.2.3')).toBe(undefined)
+  })
+})
+
+describe('hook decision output', () => {
+  let written: string[] = []
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    written = []
+  })
+
+  function captureStdout(): string[] {
+    vi.spyOn(process.stdout, 'write').mockImplementation(chunk => {
+      written.push(String(chunk))
+      return true
+    })
+    return written
+  }
+
+  test('outputAllow writes the PreToolUse allow envelope', () => {
+    const out = captureStdout()
+    outputAllow()
+    expect(out).toHaveLength(1)
+    expect(JSON.parse(out[0]!)).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+      },
+    })
+  })
+
+  test('outputDeny carries the reason the harness shows the user', () => {
+    const out = captureStdout()
+    outputDeny('blocked because reasons')
+    expect(JSON.parse(out[0]!)).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'blocked because reasons',
+      },
+    })
+  })
 })
 
 describe('stripVersion', () => {
@@ -227,5 +310,35 @@ describe('checkPackage (stubbed fetch)', () => {
     await expect(
       checkPackage('npm', 'ghost', stubFetch('', true)),
     ).rejects.toThrow(/tool error/)
+  })
+
+  test('throws with the status when initialize is refused', async () => {
+    await expect(
+      checkPackage('npm', 'express', stubInitFetch({ ok: false, status: 503 })),
+    ).rejects.toThrow('Socket MCP initialize returned 503')
+  })
+
+  test('throws when initialize returns no session id', async () => {
+    await expect(
+      checkPackage('npm', 'express', stubInitFetch({ headers: new Headers() })),
+    ).rejects.toThrow('Socket MCP did not return a session id')
+  })
+
+  test('throws with the status when the depscore call is refused', async () => {
+    await expect(
+      checkPackage(
+        'npm',
+        'express',
+        stubInitFetch({}, { ok: false, status: 500 }),
+      ),
+    ).rejects.toThrow('Socket MCP depscore returned 500')
+  })
+
+  test('throws when the depscore result carries no content', async () => {
+    // An empty content array leaves nothing to parse a score out of, so the
+    // caller fails open rather than treating "no score" as a pass.
+    await expect(
+      checkPackage('npm', 'express', stubInitFetch({})),
+    ).rejects.toThrow(/Could not parse supplyChain score/)
   })
 })

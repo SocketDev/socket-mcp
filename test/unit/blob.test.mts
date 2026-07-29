@@ -154,3 +154,54 @@ describe('fetchBlob', () => {
     expect(scope.isDone()).toBe(true)
   })
 })
+
+describe('fetchBlob input and manifest guards', () => {
+  test('rejects an empty hash instead of issuing a doomed fetch', async () => {
+    // An empty hash makes `hash[0]` undefined, which would silently pick the
+    // raw-blob branch and GET /blob/ — reject it up front.
+    await expect(fetchBlob('', { baseUrl: HOST })).rejects.toThrow(
+      'fetchBlob requires a non-empty blob hash',
+    )
+    expect(nock.pendingMocks()).toEqual([])
+  })
+
+  test('surfaces a transport failure with the URL that failed', async () => {
+    nock(HOST).get('/blob/Qdead').replyWithError('socket hang up')
+    await expect(fetchBlob('Qdead', { baseUrl: HOST })).rejects.toThrow(
+      /blob request to https:\/\/socketusercontent.com\/blob\/Qdead failed:/,
+    )
+  })
+
+  test('chunked: rejects a manifest with no usable chunks array', async () => {
+    nock(HOST)
+      .get('/blob/Qnochunks')
+      .reply(200, JSON.stringify({ _version: '2', size: 10 }))
+    await expect(fetchBlob('Snochunks', { baseUrl: HOST })).rejects.toThrow(
+      /chunked blob manifest at Qnochunks is missing a valid 'chunks' array/,
+    )
+  })
+
+  test('chunked: rejects a manifest whose chunks array holds an empty entry', async () => {
+    nock(HOST)
+      .get('/blob/Qblankchunk')
+      .reply(200, JSON.stringify({ chunks: ['Qa', ''] }))
+    await expect(fetchBlob('Sblankchunk', { baseUrl: HOST })).rejects.toThrow(
+      /missing a valid 'chunks' array/,
+    )
+  })
+
+  test('chunked: falls back to the concatenated length when size and offsets are absent', async () => {
+    // No `size` and no `offset` array — the reported byte count has to come
+    // from what was actually fetched.
+    nock(HOST)
+      .get('/blob/Qnosize')
+      .reply(200, JSON.stringify({ chunks: ['Qx', 'Qy'] }))
+    nock(HOST).get('/blob/Qx').reply(200, 'abc')
+    nock(HOST).get('/blob/Qy').reply(200, 'de')
+
+    const result = await fetchBlob('Snosize', { baseUrl: HOST })
+    expect(result.text).toBe('abcde')
+    expect(result.bytes).toBe(5)
+    expect(nock.isDone()).toBe(true)
+  })
+})

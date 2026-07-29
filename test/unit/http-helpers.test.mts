@@ -49,6 +49,17 @@ describe('assertSafeHttpUrl', () => {
     )
   })
 
+  test('rejects cleartext http on a public host', () => {
+    // The issuer and introspection URLs carry a bearer token and the
+    // introspection client secret, so plain http is refused off localhost.
+    expect(() => assertSafeHttpUrl('http://issuer.example.com/x', 'x')).toThrow(
+      /must use https on a public host/,
+    )
+    expect(() =>
+      assertSafeHttpUrl('http://issuer.example.com/x', 'x', true),
+    ).toThrow(/must use https on a public host/)
+  })
+
   test('rejects a non-URL string', () => {
     expect(() => assertSafeHttpUrl('not a url', 'x')).toThrow(/not a valid URL/)
   })
@@ -73,6 +84,7 @@ describe('buildJsonApiHeaders', () => {
 })
 
 function makeRequest(headers: Record<string, string>): IncomingMessage {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return { headers, socket: new Socket() } as unknown as IncomingMessage
 }
 
@@ -89,6 +101,7 @@ function fakeResponse(): {
     headers?: Record<string, string> | undefined
     body?: string | undefined
   } = {}
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   const res = {
     writeHead(statusCode: number, headers: Record<string, string>) {
       calls.statusCode = statusCode
@@ -163,6 +176,7 @@ describe('getRequestBaseUrl', () => {
   })
 
   test('uses https when the socket is TLS-encrypted', () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const req = {
       headers: { host: 'secure.example.test' },
       socket: { encrypted: true },
@@ -229,6 +243,30 @@ describe('writeOAuthError', () => {
     )
     expect(calls.headers!['WWW-Authenticate']).toContain(
       'resource_metadata="https://mcp.socket.dev/.well-known/oauth-protected-resource"',
+    )
+  })
+
+  test('emits the RFC 6750 scope parameter for a step-up challenge', () => {
+    const { res, calls } = fakeResponse()
+    writeOAuthError(
+      res,
+      403,
+      'insufficient_scope',
+      'Missing required scopes: packages:list',
+      'https://mcp.socket.dev/.well-known/oauth-protected-resource',
+      'packages:list packages:write',
+    )
+    expect(calls.statusCode).toBe(403)
+    expect(calls.headers!['WWW-Authenticate']).toBe(
+      'Bearer error="insufficient_scope", error_description="Missing required scopes: packages:list", resource_metadata="https://mcp.socket.dev/.well-known/oauth-protected-resource", scope="packages:list packages:write"',
+    )
+  })
+
+  test('omits scope when the resource enforces none', () => {
+    const { res, calls } = fakeResponse()
+    writeOAuthError(res, 401, 'invalid_token', 'bad', undefined, '')
+    expect(calls.headers!['WWW-Authenticate']).toBe(
+      'Bearer error="invalid_token", error_description="bad"',
     )
   })
 })

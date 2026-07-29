@@ -68,3 +68,11 @@ describe('buildSocketReportUrl produces correct URLs across ecosystems', () => {
     )
   })
 })
+
+describe('buildSocketReportUrl namespace handling', () => {
+  test('drops the namespace segment for a namespace-less non-npm ecosystem', () => {
+    expect(buildSocketReportUrl({ type: 'golang', name: 'gin' })).toBe(
+      'https://socket.dev/golang/package/gin',
+    )
+  })
+})

@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest'
 
-import { deduplicateArtifacts } from '../../lib/artifacts.ts'
+import {
+  artifactGroupKey,
+  deduplicateArtifacts,
+  matchesPlatform,
+} from '../../lib/artifacts.ts'
 import type { ArtifactData } from '../../lib/artifacts.ts'
 
 export function makeArtifact(
@@ -243,5 +247,31 @@ describe('deduplicateArtifacts', () => {
     ]
     const result = deduplicateArtifacts(artifacts)
     expect(result.length).toBe(2)
+  })
+})
+
+describe('artifactGroupKey', () => {
+  test('groups artifacts missing every identity field under one key', () => {
+    // A record with nothing set must not stringify undefined into the key,
+    // or two blank artifacts would land in different groups.
+    expect(artifactGroupKey({})).toBe('//@')
+  })
+})
+
+describe('matchesPlatform', () => {
+  test('matches a known platform through its release-name pattern', () => {
+    expect(
+      matchesPlatform('numpy-1.26.0-macosx_11_0_arm64.whl', 'darwin-arm64'),
+    ).toBe(true)
+    expect(
+      matchesPlatform('numpy-1.26.0-manylinux_x86_64.whl', 'darwin-arm64'),
+    ).toBe(false)
+  })
+
+  test('falls back to a substring match for an unlisted platform', () => {
+    // No pattern table entry for sunos, so the raw platform token is looked
+    // for in the release name.
+    expect(matchesPlatform('pkg-1.0-SunOS-x64.tar.gz', 'sunos-x64')).toBe(true)
+    expect(matchesPlatform('pkg-1.0-linux-x64.tar.gz', 'sunos-x64')).toBe(false)
   })
 })

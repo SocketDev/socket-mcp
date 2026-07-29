@@ -1,7 +1,10 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { fetchOrganizations } from '../../lib/organizations.ts'
+import {
+  buildOrganizationsErrorMessage,
+  fetchOrganizations,
+} from '../../lib/organizations.ts'
 
 const API = 'https://api.socket.dev'
 
@@ -38,5 +41,44 @@ describe('fetchOrganizations', () => {
     await expect(
       fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
     ).rejects.toThrow(/organizations endpoint 401/)
+  })
+})
+
+describe('fetchOrganizations auth and error shape', () => {
+  test('refuses to build an SDK client with no token', async () => {
+    // `authToken ?? ''` hands the SDK an empty credential, and the SDK
+    // refuses it up front rather than sending an unauthenticated request.
+    await expect(fetchOrganizations({ baseUrl: API })).rejects.toThrow(
+      '"apiToken" cannot be empty or whitespace-only',
+    )
+    expect(nock.pendingMocks()).toEqual([])
+  })
+})
+
+describe('buildOrganizationsErrorMessage', () => {
+  test('appends the SDK cause in parentheses when it is reported', () => {
+    expect(
+      buildOrganizationsErrorMessage({
+        cause: 'token expired',
+        error: 'Unauthorized',
+        status: 401,
+      }),
+    ).toBe('organizations endpoint 401: Unauthorized (token expired)')
+  })
+
+  test('omits the parenthetical when the SDK reports no cause', () => {
+    expect(
+      buildOrganizationsErrorMessage({ error: 'Server Error', status: 500 }),
+    ).toBe('organizations endpoint 500: Server Error')
+  })
+
+  test('omits the parenthetical for an empty cause', () => {
+    expect(
+      buildOrganizationsErrorMessage({
+        cause: '',
+        error: 'Server Error',
+        status: 500,
+      }),
+    ).toBe('organizations endpoint 500: Server Error')
   })
 })

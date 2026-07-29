@@ -9,6 +9,8 @@ let savedCap: string | undefined
 
 beforeEach(() => {
   savedCap = process.env['SOCKET_BLOB_CACHE_BYTES']
+  delete process.env['SOCKET_BYPASS_HEADER_NAME']
+  delete process.env['SOCKET_BYPASS_HEADER_VALUE']
   nock.disableNetConnect()
   vi.resetModules()
 })
@@ -19,13 +21,15 @@ afterEach(() => {
   } else {
     process.env['SOCKET_BLOB_CACHE_BYTES'] = savedCap
   }
+  delete process.env['SOCKET_BYPASS_HEADER_NAME']
+  delete process.env['SOCKET_BYPASS_HEADER_VALUE']
   nock.cleanAll()
   nock.enableNetConnect()
 })
 
 // Import a fresh blob-cache module (empty cache) with the cap configured. The
 // cap is read at import time, so it must be set before the dynamic import.
-async function freshCache(capBytes?: number) {
+async function freshCache(capBytes?: number | undefined) {
   if (capBytes !== undefined) {
     process.env['SOCKET_BLOB_CACHE_BYTES'] = String(capBytes)
   }
@@ -36,6 +40,7 @@ async function freshCache(capBytes?: number) {
 describe('blobWeight', () => {
   test('weighs UTF-8 byte length plus fixed overhead', async () => {
     const { blobWeight } = await freshCache()
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const blob = { text: 'abc', binary: false } as BlobResult
     expect(blobWeight(blob)).toBe(Buffer.byteLength('abc', 'utf8') + 512)
   })
@@ -103,5 +108,36 @@ describe('getOrFetchBlob', () => {
     // Qa was evicted by Qb, so this re-fetches Qa (the second Qa interceptor).
     await getOrFetchBlob('Qa')
     expect(nock.isDone()).toBe(true)
+  })
+})
+
+describe('WAF bypass header', () => {
+  test('sends the configured bypass header on every blob request', async () => {
+    process.env['SOCKET_BYPASS_HEADER_NAME'] = 'x-waf-bypass'
+    process.env['SOCKET_BYPASS_HEADER_VALUE'] = 'let-me-through'
+    const { getOrFetchBlob } = await freshCache()
+    // The matchHeader is the assertion: without the pair configured at module
+    // init the interceptor never matches and the request fails.
+    nock(BLOB_HOST)
+      .matchHeader('x-waf-bypass', 'let-me-through')
+      .get('/blob/Qwaf')
+      .reply(200, 'through', { 'content-type': 'text/plain' })
+
+    expect((await getOrFetchBlob('Qwaf')).text).toBe('through')
+  })
+
+  test('sends no bypass header when only the name is configured', async () => {
+    process.env['SOCKET_BYPASS_HEADER_NAME'] = 'x-waf-bypass'
+    const { getOrFetchBlob } = await freshCache()
+    // A half-configured pair must not produce a header with an empty value.
+    nock(BLOB_HOST)
+      .get('/blob/Qhalf')
+      .reply(function reply() {
+        return this.req.getHeader('x-waf-bypass') === undefined
+          ? [200, 'no header']
+          : [400, 'unexpected header']
+      })
+
+    expect((await getOrFetchBlob('Qhalf')).text).toBe('no header')
   })
 })

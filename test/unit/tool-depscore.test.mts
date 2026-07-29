@@ -1,5 +1,5 @@
 import nock from 'nock'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
   buildPackageComponents,
@@ -12,6 +12,23 @@ import {
 } from '../../lib/tool-depscore.ts'
 
 const API = 'https://api.socket.dev'
+
+interface PackagesItemSchema {
+  required: string[]
+  properties: Record<string, { default?: string | undefined } | undefined>
+}
+
+// Read back the JSON Schema the tool ships to clients for one `packages[]`
+// entry. TypeBox emits plain JSON Schema, so this is the exact object a client
+// compiles into its request validator.
+function packagesItemSchema(): PackagesItemSchema {
+  const { properties } = defineDepscoreTool().inputSchema
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the emitted schema is typed as generic JSON; the asserted shape is fixed by the tool's own Type.Object definition.
+  const packages = properties!['packages'] as unknown as {
+    items: PackagesItemSchema
+  }
+  return packages.items
+}
 
 describe('formatScoreLine', () => {
   test('renders a scored package with a report URL', () => {
@@ -31,6 +48,31 @@ describe('formatScoreLine', () => {
       'pkg:npm/x@1.2.3: No score found',
     )
   })
+
+  test('keeps the namespace segment of a scoped purl', () => {
+    const line = formatScoreLine({
+      type: 'npm',
+      namespace: '@types',
+      name: 'node',
+      version: '22.0.0',
+      score: { overall: 0.9, quality: 0.9 },
+    })
+    expect(line).toContain('pkg:npm/@types/node@22.0.0:')
+  })
+
+  test('substitutes "unknown" for every purl part the API left off', () => {
+    // A record with no usable type / name / version still renders a
+    // well-formed purl instead of stringifying undefined into the template.
+    expect(formatScoreLine({ score: { overall: 0.4 } })).toContain(
+      'pkg:unknown/unknown@unknown:',
+    )
+  })
+
+  test('substitutes "unknown" for non-string purl parts', () => {
+    expect(
+      formatScoreLine({ type: 42, name: {}, version: [], namespace: 7 }),
+    ).toBe('pkg:unknown/unknown@unknown: No score found')
+  })
 })
 
 describe('parseNdjsonPackageBody', () => {
@@ -47,6 +89,7 @@ describe('parseNdjsonPackageBody', () => {
     const result = parseNdjsonPackageBody(body, undefined)
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(1)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result as string[])[0]).toContain('pkg:npm/a@1.2.3:')
   })
 
@@ -69,12 +112,32 @@ describe('parseNdjsonPackageBody', () => {
     const result = parseNdjsonPackageBody(body, undefined)
     expect(Array.isArray(result)).toBe(true)
     // both valid lines survive; the garbage line is skipped
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result as string[]).length).toBe(2)
+  })
+
+  test('skips blank lines between documents', () => {
+    const body = [
+      '',
+      JSON.stringify({
+        type: 'npm',
+        name: 'a',
+        version: '1.0.0',
+        score: { overall: 0.8, quality: 0.8 },
+      }),
+      '   ',
+      '',
+    ].join('\n')
+    const result = parseNdjsonPackageBody(body, undefined)
+    // The trailing newline an NDJSON producer emits must not count as a
+    // malformed document.
+    expect(result).toHaveLength(1)
   })
 
   test('returns an error object when no valid JSON objects remain', () => {
     const result = parseNdjsonPackageBody('not json\nalso not json', undefined)
     expect(Array.isArray(result)).toBe(false)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     expect((result as { error: string }).error).toMatch(/No valid JSON objects/)
   })
 })
@@ -115,6 +178,13 @@ describe('formatScoreEntries', () => {
     expect(out).toBe('quality: n/a, supplyChain: 90')
     expect(out).not.toContain('NaN')
   })
+
+  test('JSON-encodes a non-string non-numeric value instead of collapsing it', () => {
+    // A bare template interpolation would render "[object Object]" and lose
+    // whatever the API actually sent.
+    const out = formatScoreEntries({ quality: { note: 'pending' } })
+    expect(out).toBe('quality: {"note":"pending"}')
+  })
 })
 
 describe('buildPackageComponents', () => {
@@ -123,6 +193,14 @@ describe('buildPackageComponents', () => {
       { depname: 'express', version: '^4.18.2' },
     ])
     expect(components).toEqual([{ purl: 'pkg:npm/express@4.18.2' }])
+  })
+
+  test('defaults both ecosystem and version when only depname is given', () => {
+    // The ecosystem default supplies the `npm` purl type; the `unknown`
+    // version default is a placeholder buildPurl leaves off the purl.
+    expect(buildPackageComponents([{ depname: 'lodash' }])).toEqual([
+      { purl: 'pkg:npm/lodash' },
+    ])
   })
 })
 
@@ -270,6 +348,28 @@ describe('handleDepscore', () => {
     expect(result.content[0]!.text).toMatch(/No valid JSON objects/)
   })
 
+  test('treats a body with no content-type as a single JSON document', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(
+        200,
+        JSON.stringify({
+          type: 'npm',
+          name: 'express',
+          version: '4.18.2',
+          score: { overall: 0.9, quality: 0.9 },
+        }),
+      )
+    const result = await handleDepscore(
+      [{ depname: 'express', version: '4.18.2' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toMatch(/pkg:npm\/express@4.18.2/)
+  })
+
   test('handles a JSON parse failure on a single-document body', async () => {
     nock(API)
       .post('/v0/purl')
@@ -288,6 +388,11 @@ describe('handleDepscore', () => {
 })
 
 describe('depscore tool spec', () => {
+  afterEach(() => {
+    nock.cleanAll()
+    nock.enableNetConnect()
+  })
+
   test('handler delegates to handleDepscore', async () => {
     nock.disableNetConnect()
     const spec = defineDepscoreTool()
@@ -298,5 +403,84 @@ describe('depscore tool spec', () => {
     )
     // No token in extra and no static key -> AUTH_REQUIRED.
     expect(result.isError).toBe(true)
+  })
+
+  test('requires only depname on a packages[] entry', () => {
+    const items = packagesItemSchema()
+    expect(items.required).toEqual(['depname'])
+  })
+
+  test('keeps the ecosystem and version defaults on the optional fields', () => {
+    const { properties } = packagesItemSchema()
+    expect(properties['ecosystem']?.default).toBe('npm')
+    expect(properties['version']?.default).toBe('unknown')
+  })
+
+  test('accepts a packages entry carrying only depname', async () => {
+    nock.disableNetConnect()
+    // The interceptor's body matcher is the assertion: it matches only when
+    // the handler defaults the absent ecosystem and version into the purl.
+    nock(API)
+      .post('/v0/purl', { components: [{ purl: 'pkg:npm/lodash' }] })
+      .query(true)
+      .reply(
+        200,
+        JSON.stringify({
+          type: 'npm',
+          name: 'lodash',
+          version: '4.17.21',
+          score: { overall: 0.9, quality: 0.9 },
+        }),
+        { 'content-type': 'application/json' },
+      )
+
+    const result = await defineDepscoreTool().handler(
+      { packages: [{ depname: 'lodash' }] },
+      { authInfo: { token: 'tok' } },
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toMatch(/pkg:npm\/lodash@4.17.21/)
+  })
+})
+
+describe('local-stack mode', () => {
+  afterEach(() => {
+    nock.cleanAll()
+    nock.enableNetConnect()
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  test('SOCKET_DEBUG points depscore at the local Socket stack', async () => {
+    vi.stubEnv('SOCKET_DEBUG', '1')
+    // The explicit override wins over the debug default, so clear it.
+    vi.stubEnv('SOCKET_API_BASE_URL', '')
+    vi.resetModules()
+    nock.disableNetConnect()
+    nock.enableNetConnect('localhost:8866')
+    // The interceptor host is the assertion: it only matches when the debug
+    // default replaced api.socket.dev.
+    nock('http://localhost:8866')
+      .post('/v0/purl')
+      .query(true)
+      .reply(
+        200,
+        JSON.stringify({
+          type: 'npm',
+          name: 'local',
+          version: '1.0.0',
+          score: { overall: 0.7, quality: 0.7 },
+        }),
+        { 'content-type': 'application/json' },
+      )
+
+    const local = await import('../../lib/tool-depscore.ts')
+    const result = await local.handleDepscore(
+      [{ depname: 'local', version: '1.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toMatch(/pkg:npm\/local@1.0.0/)
   })
 })

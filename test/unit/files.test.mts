@@ -3,7 +3,12 @@ import { brotliCompressSync, gzipSync } from 'node:zlib'
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { extractFileList, fetchFileList, renderTree } from '../../lib/files.ts'
+import {
+  buildTree,
+  extractFileList,
+  fetchFileList,
+  renderTree,
+} from '../../lib/files.ts'
 
 const API = 'https://api.socket.dev'
 
@@ -242,4 +247,41 @@ describe('fetchFileList', () => {
       expect(result.tree).toMatch(/index\.js {2}100B/)
     })
   }
+})
+
+describe('buildTree edge cases', () => {
+  test('skips an entry whose path has no usable segments', () => {
+    // A bare "/" normalizes to no path components; it must not create an
+    // empty-named child under the root.
+    const tree = buildTree([
+      { path: '/', type: 'dir' },
+      { path: 'a.txt', type: 'file' },
+    ])
+    expect([...tree.children.keys()]).toEqual(['a.txt'])
+  })
+})
+
+describe('fetchFileList failures', () => {
+  test('surfaces a transport failure with the URL that failed', async () => {
+    const purl = 'pkg:npm/left-pad@1.0.0'
+    nock(API).get(filePath(purl)).replyWithError('socket hang up')
+    await expect(fetchFileList(purl, { baseUrl: API })).rejects.toThrow(
+      /file-list request to .*left-pad.* failed:/,
+    )
+  })
+
+  test('counts sizeless file entries as zero bytes', async () => {
+    const purl = 'pkg:npm/sizeless@1.0.0'
+    nock(API)
+      .get(filePath(purl))
+      .reply(200, {
+        files: [
+          { path: 'a.txt', type: 'file', size: 10 },
+          { path: 'b.txt', type: 'file' },
+        ],
+      })
+    const result = await fetchFileList(purl, { baseUrl: API })
+    expect(result.fileCount).toBe(2)
+    expect(result.totalBytes).toBe(10)
+  })
 })

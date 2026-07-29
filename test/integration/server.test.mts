@@ -1,5 +1,5 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { afterEach, describe, expect, test } from 'vitest'
 
 import {
@@ -11,6 +11,7 @@ import {
   resolveAuthToken,
   resolveScopedAuthToken,
   setStaticApiKey,
+  toToolHandlerExtra,
 } from '../../lib/server.ts'
 
 afterEach(() => {
@@ -93,7 +94,38 @@ describe('buildToolSpecs', () => {
       expect(spec.inputSchema).toBeTruthy()
     }
   })
+
+  test('every input schema is plain JSON Schema with no symbol keys', () => {
+    const specs = buildToolSpecs()
+    for (const spec of specs) {
+      expect(symbolKeyPaths(spec.inputSchema, spec.name)).toEqual([])
+    }
+  })
 })
+
+// Every symbol-keyed property reachable from `value`, as dotted paths. TypeBox
+// hangs `Symbol(TypeBox.Kind)` and `Symbol(TypeBox.Optional)` off the schema
+// objects it builds; JSON Schema has no symbol keys, so a non-empty result
+// means a schema reached a consumer unlaundered.
+function symbolKeyPaths(value: unknown, path: string): string[] {
+  if (!value || typeof value !== 'object') {
+    return []
+  }
+  const paths = Object.getOwnPropertySymbols(value).map(
+    sym => `${path} :: ${String(sym)}`,
+  )
+  for (const [key, child] of Object.entries(value)) {
+    paths.push(...symbolKeyPaths(child, `${path}.${key}`))
+  }
+  return paths
+}
+
+// The text of a tool result's first content block. `content` is a union of
+// block kinds, so narrow on `type` rather than casting.
+function firstText(result: CallToolResult): string {
+  const [block] = result.content
+  return block?.type === 'text' ? block.text : ''
+}
 
 describe('createConfiguredServer', () => {
   test('builds a Server instance with every tool registered', () => {
@@ -102,6 +134,12 @@ describe('createConfiguredServer', () => {
     expect(typeof server.setRequestHandler).toBe('function')
   })
 
+  // This case guards schema plainness. `InMemoryTransport` hands each message
+  // to the client by reference, so a `tools/list` result carrying the
+  // symbol-keyed metadata TypeBox attaches to a schema object fails the
+  // client's result validation here. Serializing transports would hide the
+  // problem, so keep the plain linked pair — do not wrap it in a JSON round
+  // trip.
   test('lists tools and dispatches calls over a transport', async () => {
     const server = createConfiguredServer()
     const [clientTransport, serverTransport] =
@@ -118,22 +156,45 @@ describe('createConfiguredServer', () => {
 
     // A known tool dispatches to its handler; with no token it returns the
     // structured AUTH_REQUIRED error rather than throwing.
-    const known = (await client.callTool({
+    const known = await client.callTool({
       name: 'organizations',
       arguments: {},
-    })) as { isError?: boolean | undefined; content: Array<{ text: string }> }
+    })
     expect(known.isError).toBe(true)
-    expect(known.content[0]!.text).toMatch(/Authentication is required/)
+    expect(firstText(known)).toMatch(/Authentication is required/)
 
     // An unknown tool returns the "Unknown tool" error result.
-    const unknown = (await client.callTool({
+    const unknown = await client.callTool({
       name: 'does-not-exist',
       arguments: {},
-    })) as { isError?: boolean | undefined; content: Array<{ text: string }> }
+    })
     expect(unknown.isError).toBe(true)
-    expect(unknown.content[0]!.text).toMatch(/Unknown tool: does-not-exist/)
+    expect(firstText(unknown)).toMatch(/Unknown tool: does-not-exist/)
+
+    // A call with no `arguments` at all still reaches the handler — the
+    // SDK leaves the field off, and routing substitutes an empty bag.
+    const bare = await client.callTool({ name: 'organizations' })
+    expect(bare.isError).toBe(true)
+    expect(firstText(bare)).toMatch(/Authentication is required/)
 
     await client.close()
     await server.close()
+  })
+})
+
+describe('toToolHandlerExtra', () => {
+  test('forwards the HTTP transport authInfo to the tool layer', () => {
+    const authInfo = { token: 'tok', clientId: 'c', scopes: [] }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
+    const ctx = { http: { authInfo } } as unknown as Parameters<
+      typeof toToolHandlerExtra
+    >[0]
+    expect(toToolHandlerExtra(ctx).authInfo).toBe(authInfo)
+  })
+
+  test('hands stdio callers an empty extra so they fall back to the static key', () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
+    const ctx = {} as unknown as Parameters<typeof toToolHandlerExtra>[0]
+    expect(toToolHandlerExtra(ctx)).toEqual({})
   })
 })

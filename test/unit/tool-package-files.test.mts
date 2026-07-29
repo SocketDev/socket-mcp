@@ -56,6 +56,26 @@ describe('buildPurlForFiles', () => {
   })
 })
 
+describe('package_files tool description', () => {
+  test('describes the tree contents and names the hash-consuming tools', () => {
+    const { description } = definePackageFilesTool()
+    // The tree carries a hash per file, and both follow-up tools key off that
+    // hash rather than the path.
+    expect(description).toContain('size and blob hash')
+    expect(description).toContain(
+      "pass a file's `hash` to `package_file_contents`",
+    )
+    expect(description).toContain('`package_file_grep`')
+    expect(description).not.toContain('paths and sizes')
+    expect(description).not.toContain('with one of the paths')
+  })
+
+  test('names hash as the only lookup key package_file_contents accepts', () => {
+    const { inputSchema } = definePackageFileContentsTool()
+    expect(inputSchema.required).toEqual(['hash'])
+  })
+})
+
 describe('package_files tool handler', () => {
   test('returns AUTH_REQUIRED when no token is resolvable', async () => {
     const result = await definePackageFilesTool().handler(
@@ -145,6 +165,25 @@ describe('package_file_contents tool handler', () => {
     )
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toMatch(/Error fetching blob/)
+  })
+})
+
+describe('package_file_contents truncation', () => {
+  test('tells the caller the file was cut at the 1 MB cap', async () => {
+    const hash = uniqueHash()
+    const big = 'y\n'.repeat(600_000)
+    nock(BLOB_HOST)
+      .get(`/blob/${hash}`)
+      .reply(200, big, { 'content-type': 'text/plain' })
+
+    const result = await definePackageFileContentsTool().handler(
+      { hash },
+      withToken,
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toMatch(
+      /\[truncated — file is \d+ bytes, returning first 1 MB\]/,
+    )
   })
 })
 
@@ -239,6 +278,20 @@ describe('package_file_grep tool handler', () => {
     expect(result.content[0]!.text).toMatch(/searched only the first 1 MB/)
   })
 
+  test('echoes the i flag back in the no-match message', async () => {
+    const hash = uniqueHash()
+    nock(BLOB_HOST)
+      .get(`/blob/${hash}`)
+      .reply(200, 'nothing here', { 'content-type': 'text/plain' })
+
+    const result = await definePackageFileGrepTool().handler(
+      { hash, pattern: 'ZZZ', caseInsensitive: true },
+      withToken,
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toMatch(/no matches for \/ZZZ\/i$/)
+  })
+
   test('rejects an invalid regular expression before fetching', async () => {
     const result = await definePackageFileGrepTool().handler(
       { hash: uniqueHash(), pattern: '(' },
@@ -246,6 +299,20 @@ describe('package_file_grep tool handler', () => {
     )
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toMatch(/Invalid regular expression/)
+  })
+
+  test('surfaces a blob fetch failure as an isError result', async () => {
+    const hash = uniqueHash()
+    nock(BLOB_HOST).get(`/blob/${hash}`).reply(502, 'upstream is down')
+
+    const result = await definePackageFileGrepTool().handler(
+      { hash, pattern: 'x' },
+      withToken,
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toMatch(
+      new RegExp(`Error grepping blob ${hash}: blob fetch 502`),
+    )
   })
 
   test('refuses to grep binary content', async () => {

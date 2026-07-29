@@ -6,12 +6,24 @@ import {
   envString,
   getMcpHttpMode,
   getMcpPort,
+  getSocketApiToken,
   getSocketBlobCacheBytes,
   getSocketBlobUrl,
   getSocketBypassHeaderName,
   getSocketOauthRequiredScopes,
   getTrustProxy,
 } from '../../lib/env.ts'
+
+// The chain getSocketApiToken walks, canonical name first.
+// socket-api-token-env: bootstrap -- this array IS the alias chain under test.
+const API_TOKEN_ALIASES = [
+  'SOCKET_API_TOKEN',
+  'SOCKET_API_KEY',
+  'SOCKET_CLI_API_TOKEN',
+  'SOCKET_CLI_API_KEY',
+  'SOCKET_SECURITY_API_TOKEN',
+  'SOCKET_SECURITY_API_KEY',
+] as const
 
 const TOUCHED = [
   'TEST_ENV_BOOL',
@@ -22,6 +34,7 @@ const TOUCHED = [
   'SOCKET_BLOB_CACHE_BYTES',
   'SOCKET_BLOB_URL',
   'SOCKET_BYPASS_HEADER_NAME',
+  ...API_TOKEN_ALIASES,
   'SOCKET_OAUTH_REQUIRED_SCOPES',
   'TRUST_PROXY',
 ]
@@ -139,5 +152,30 @@ describe('getSocketOauthRequiredScopes', () => {
   test('splits on whitespace and commas, dropping blanks', () => {
     process.env['SOCKET_OAUTH_REQUIRED_SCOPES'] = 'a, b  c,,d'
     expect(getSocketOauthRequiredScopes()).toEqual(['a', 'b', 'c', 'd'])
+  })
+})
+
+// socket-api-token-getter: allow direct-env -- the getter under test IS the
+// alias reader; going through the keychain helper would test the wrong thing.
+function setTokenAlias(index: number, value: string): void {
+  process.env[API_TOKEN_ALIASES[index]!] = value
+}
+
+describe('getSocketApiToken', () => {
+  test('returns undefined when no alias is set', () => {
+    expect(getSocketApiToken()).toBeUndefined()
+  })
+
+  test('prefers the canonical name over a legacy alias', () => {
+    setTokenAlias(0, 'canonical')
+    setTokenAlias(1, 'legacy')
+    expect(getSocketApiToken()).toBe('canonical')
+  })
+
+  test('walks the alias chain in declared order', () => {
+    setTokenAlias(5, 'last-resort')
+    expect(getSocketApiToken()).toBe('last-resort')
+    setTokenAlias(2, 'cli-token')
+    expect(getSocketApiToken()).toBe('cli-token')
   })
 })

@@ -1,23 +1,26 @@
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
+import type { IncomingMessage } from 'node:http'
 
+import type { NodeMcpRequestHandler } from '@modelcontextprotocol/node'
 import { describe, expect, test } from 'vitest'
 
 import {
   applyClientApiKey,
-  applySocketApiKey,
-  destroySession,
-  handleDelete,
-  handleGet,
-  PayloadTooLargeError,
-  readPostBody,
-  reapIdleSessions,
+  handleMcpRequest,
   routeRequest,
 } from '../../lib/http-server.ts'
-import type { Session } from '../../lib/http-server.ts'
 import type { AuthenticatedRequest } from '../../lib/oauth.ts'
+import {
+  bodyReq,
+  erroringReq,
+  makeRes,
+  MAX_POST_BODY_BYTES as MAX,
+  plainReq,
+  recordingMcpHandler,
+} from './http-server-fixtures.mts'
 
-function reqWith(authorization?: string): AuthenticatedRequest {
+function reqWith(authorization?: string | undefined): AuthenticatedRequest {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
   return {
     headers: authorization === undefined ? {} : { authorization },
   } as unknown as AuthenticatedRequest
@@ -48,182 +51,71 @@ test('applyClientApiKey ignores a non-bearer scheme', () => {
   expect(req.auth).toBeUndefined()
 })
 
-test('applySocketApiKey matches a sktsec_-prefixed Bearer token', () => {
-  const req = reqWith('Bearer sktsec_t_example')
-  expect(applySocketApiKey(req)).toBe(true)
-  expect(req.auth?.token).toBe('sktsec_t_example')
-  expect(req.auth?.clientId).toBe('socket-api-key')
-})
-
-test('applySocketApiKey ignores a non-prefixed Bearer token (OAuth)', () => {
-  const req = reqWith('Bearer oauth-access-token')
-  expect(applySocketApiKey(req)).toBe(false)
-  expect(req.auth).toBeUndefined()
-})
-
-test('applySocketApiKey returns false when no Authorization header', () => {
-  const req = reqWith()
-  expect(applySocketApiKey(req)).toBe(false)
-  expect(req.auth).toBeUndefined()
-})
-
-// A Readable stream doubles as a stand-in for IncomingMessage here:
-// readPostBody only async-iterates the request and calls `.destroy()`,
-// both of which Readable provides.
-function mockReq(chunks: Array<string | Buffer>): IncomingMessage {
-  return Readable.from(chunks) as unknown as IncomingMessage
-}
-
-const MAX = 4 * 1024 * 1024
-
-describe('readPostBody', () => {
-  test('returns the buffered body for a small payload', async () => {
-    const body = await readPostBody(mockReq(['{"jsonrpc":', '"2.0"}']))
-    expect(body).toBe('{"jsonrpc":"2.0"}')
-  })
-
-  test('concatenates Buffer chunks as UTF-8', async () => {
-    const body = await readPostBody(mockReq([Buffer.from('café')]))
-    expect(body).toBe('café')
-  })
-
-  test('throws PayloadTooLargeError when the body exceeds the cap', async () => {
-    // One chunk just over the 4 MB limit.
-    const huge = 'a'.repeat(MAX + 1)
-    await expect(readPostBody(mockReq([huge]))).rejects.toBeInstanceOf(
-      PayloadTooLargeError,
-    )
-  })
-
-  test('counts bytes across chunks, not just the final chunk', async () => {
-    // Each chunk is under the cap, but together they exceed it.
-    const half = 'a'.repeat(MAX / 2 + 1)
-    await expect(readPostBody(mockReq([half, half]))).rejects.toBeInstanceOf(
-      PayloadTooLargeError,
-    )
-  })
-
-  test('measures byte length, not char count, for multibyte payloads', async () => {
-    // '€' is 3 UTF-8 bytes; MAX/2 + 1 of them exceeds MAX in bytes while
-    // staying well under MAX in characters.
-    const multibyte = '€'.repeat(Math.floor(MAX / 3) + 1)
-    await expect(readPostBody(mockReq([multibyte]))).rejects.toBeInstanceOf(
-      PayloadTooLargeError,
-    )
-  })
-
-  test('a body exactly at the cap is accepted', async () => {
-    const atLimit = 'a'.repeat(MAX)
-    const body = await readPostBody(mockReq([atLimit]))
-    expect(body.length).toBe(MAX)
-  })
-})
-
-interface CapturedRes {
-  statusCode?: number | undefined
-  body?: string | undefined
-  headers: Record<string, string>
-}
-
-function makeRes(): { res: ServerResponse; captured: CapturedRes } {
-  const captured: CapturedRes = { headers: {} }
-  let sent = false
-  const res = {
-    get headersSent() {
-      return sent
-    },
-    setHeader(name: string, value: string) {
-      captured.headers[name] = value
-    },
-    writeHead(code: number) {
-      captured.statusCode = code
-      sent = true
-      return res
-    },
-    end(chunk?: string) {
-      if (chunk !== undefined) {
-        captured.body = chunk
-      }
-      sent = true
-    },
-    write() {
-      return true
-    },
-  } as unknown as ServerResponse
-  return { res, captured }
-}
-
-function plainReq(opts: {
-  url: string
-  method: string
-  headers?: Record<string, string> | undefined
-}): IncomingMessage {
-  return {
-    url: opts.url,
-    method: opts.method,
-    headers: opts.headers ?? {},
-    rawHeaders: [],
-    socket: {},
-  } as unknown as IncomingMessage
-}
-
-function postReq(
-  body: string,
-  headers?: Record<string, string>,
-): IncomingMessage {
-  const req = Readable.from([body]) as unknown as IncomingMessage & {
-    url: string
-    method: string
-    headers: Record<string, string>
-    rawHeaders: string[]
-    socket: object
-  }
-  req.url = '/'
-  req.method = 'POST'
-  req.headers = { host: 'localhost:3000', ...headers }
-  req.rawHeaders = []
-  req.socket = {} as unknown as IncomingMessage['socket']
-  return req
-}
-
-function fakeSession(lastActivity: number): {
-  session: Session
-  closed: () => boolean
-} {
-  let transportClosed = false
-  const session = {
-    transport: {
-      close() {
-        transportClosed = true
-      },
-    },
-    server: {
-      close() {
-        return Promise.resolve()
-      },
-    },
-    lastActivity,
-  } as unknown as Session
-  return { session, closed: () => transportClosed }
+function throwingMcpHandler(message: string): NodeMcpRequestHandler {
+  return () => Promise.reject(new Error(message))
 }
 
 describe('routeRequest', () => {
   test('answers /health without origin validation', async () => {
     const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
     await routeRequest(
-      new Map(),
+      handler,
       plainReq({ url: '/health', method: 'GET' }),
       res,
       3000,
     )
     expect(captured.statusCode).toBe(200)
     expect(JSON.parse(captured.body!).status).toBe('healthy')
+    expect(calls).toHaveLength(0)
+  })
+
+  test('answers 400 when the request target is not a parseable URL', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    // A protocol-relative target with an unparseable host: `new URL` throws
+    // even with a base, so routing has to answer rather than crash.
+    await routeRequest(
+      handler,
+      plainReq({ url: '//[', method: 'POST' }),
+      res,
+      3000,
+    )
+    expect(captured.statusCode).toBe(400)
+    expect(JSON.parse(captured.body!).error).toEqual({
+      code: -32_000,
+      message: 'Bad Request: Invalid URL',
+    })
+    expect(calls).toHaveLength(0)
+  })
+
+  test('rejects a spoofed Host with no Origin header at all', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    // An origin-less request still has to clear the strict host check —
+    // a missing Origin is not a bypass.
+    await routeRequest(
+      handler,
+      plainReq({
+        url: '/',
+        method: 'POST',
+        headers: { host: 'malicious-localhost.evil.com' },
+      }),
+      res,
+      3000,
+    )
+    expect(captured.statusCode).toBe(403)
+    expect(JSON.parse(captured.body!).error.message).toBe(
+      'Forbidden: Invalid origin',
+    )
+    expect(calls).toHaveLength(0)
   })
 
   test('rejects an invalid origin with 403', async () => {
     const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
     await routeRequest(
-      new Map(),
+      handler,
       plainReq({
         url: '/',
         method: 'POST',
@@ -236,12 +128,14 @@ describe('routeRequest', () => {
       3000,
     )
     expect(captured.statusCode).toBe(403)
+    expect(calls).toHaveLength(0)
   })
 
   test('answers an OPTIONS preflight with CORS headers', async () => {
     const { captured, res } = makeRes()
+    const { handler } = recordingMcpHandler()
     await routeRequest(
-      new Map(),
+      handler,
       plainReq({
         url: '/',
         method: 'OPTIONS',
@@ -258,8 +152,9 @@ describe('routeRequest', () => {
 
   test('returns 404 for an unknown path', async () => {
     const { captured, res } = makeRes()
+    const { handler } = recordingMcpHandler()
     await routeRequest(
-      new Map(),
+      handler,
       plainReq({
         url: '/nope',
         method: 'GET',
@@ -271,10 +166,11 @@ describe('routeRequest', () => {
     expect(captured.statusCode).toBe(404)
   })
 
-  test('returns 405 for an unsupported method', async () => {
+  test('returns 405 for a non-MCP method', async () => {
     const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
     await routeRequest(
-      new Map(),
+      handler,
       plainReq({
         url: '/',
         method: 'PUT',
@@ -284,12 +180,14 @@ describe('routeRequest', () => {
       3000,
     )
     expect(captured.statusCode).toBe(405)
+    expect(calls).toHaveLength(0)
   })
 
-  test('dispatches GET to a 404 when the session is unknown', async () => {
-    const { captured, res } = makeRes()
+  test('dispatches GET to the MCP handler, which owns the 2025-era answer', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
     await routeRequest(
-      new Map(),
+      handler,
       plainReq({
         url: '/',
         method: 'GET',
@@ -298,64 +196,184 @@ describe('routeRequest', () => {
       res,
       3000,
     )
-    expect(captured.statusCode).toBe(404)
-    expect(captured.body).toMatch(/Invalid or expired session/)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.method).toBe('GET')
+    // A GET carries no body, so nothing is buffered or pre-parsed.
+    expect(calls[0]!.parsedBody).toBeUndefined()
   })
 
-  test('dispatches a no-session POST to 400 for a non-initialize body', async () => {
-    const { captured, res } = makeRes()
+  test('dispatches a session-teardown request to the MCP handler', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await routeRequest(handler, bodyReq('', { method: 'DELETE' }), res, 3000)
+    expect(calls[0]!.method).toBe('DELETE')
+    expect(calls).toHaveLength(1)
+  })
+
+  test('hands a stateless POST to the MCP handler pre-parsed', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    // No prior initialize, no Mcp-Session-Id — the stateless contract.
     await routeRequest(
-      new Map(),
-      postReq('{"jsonrpc":"2.0","method":"tools/list","id":1}'),
+      handler,
+      bodyReq('{"jsonrpc":"2.0","method":"tools/list","id":1}'),
       res,
       3000,
     )
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.parsedBody).toEqual({
+      jsonrpc: '2.0',
+      method: 'tools/list',
+      id: 1,
+    })
+  })
+
+  test('answers a POST with malformed JSON with 400 and a parse error', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await routeRequest(handler, bodyReq('not json at all'), res, 3000)
     expect(captured.statusCode).toBe(400)
-    expect(captured.body).toMatch(/No valid session/)
+    expect(JSON.parse(captured.body!).error.code).toBe(-32_700)
+    expect(calls).toHaveLength(0)
   })
 
-  test('dispatches a POST with invalid JSON to a 500', async () => {
+  test('forwards a Socket API key to the handler on req.auth', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await routeRequest(
+      handler,
+      bodyReq('{"jsonrpc":"2.0","method":"tools/list","id":1}', {
+        headers: { authorization: 'Bearer sktsec_t_example' },
+      }),
+      res,
+      3000,
+    )
+    expect(calls[0]!.auth?.token).toBe('sktsec_t_example')
+  })
+})
+
+describe('handleMcpRequest', () => {
+  test('reads no body for GET and passes undefined through', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, plainReq({ url: '/', method: 'GET' }), res)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.parsedBody).toBeUndefined()
+  })
+
+  test('passes an empty body through as undefined', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, bodyReq(''), res)
+    expect(calls[0]!.parsedBody).toBeUndefined()
+  })
+
+  test('answers 413 when a POST body exceeds the cap', async () => {
     const { captured, res } = makeRes()
-    await routeRequest(new Map(), postReq('not json at all'), res, 3000)
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, bodyReq('a'.repeat(MAX + 1)), res)
+    expect(captured.statusCode).toBe(413)
+    expect(JSON.parse(captured.body!).error.message).toMatch(
+      /Request body too large/,
+    )
+    expect(calls).toHaveLength(0)
+  })
+
+  test('applies the body cap to every body-bearing method', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(
+      handler,
+      bodyReq('a'.repeat(MAX + 1), { method: 'DELETE' }),
+      res,
+    )
+    expect(captured.statusCode).toBe(413)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('does not double-write a 413 onto an already-answered response', async () => {
+    const { captured, res } = makeRes({ headersSent: true })
+    captured.statusCode = 200
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, bodyReq('a'.repeat(MAX + 1)), res)
+    // The status the earlier writer set survives; no second writeHead lands.
+    expect(captured.statusCode).toBe(200)
+    expect(captured.body).toBeUndefined()
+    expect(calls).toHaveLength(0)
+  })
+
+  test('answers 500 when the request stream fails mid-read', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, erroringReq('socket hang up'), res)
+    // Not a size overflow, so the caller gets the internal-error code, not
+    // the 413 the cap path writes.
     expect(captured.statusCode).toBe(500)
+    expect(JSON.parse(captured.body!)).toMatchObject({
+      jsonrpc: '2.0',
+      error: { code: -32_603, message: 'Internal server error' },
+    })
+    expect(calls).toHaveLength(0)
   })
-})
 
-describe('handleGet / handleDelete', () => {
-  test('handleGet 404s without a session id', async () => {
+  test('does not double-write a 500 when the stream fails after headers went out', async () => {
+    const { captured, res } = makeRes({ headersSent: true })
+    captured.statusCode = 200
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, erroringReq('socket hang up'), res)
+    expect(captured.statusCode).toBe(200)
+    expect(captured.body).toBeUndefined()
+    expect(calls).toHaveLength(0)
+  })
+
+  test('defaults a request missing method and url to GET /', async () => {
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    const stream = Readable.from([''])
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
+    const req = stream as unknown as IncomingMessage
+    await handleMcpRequest(handler, req, res)
+    // The adapter's request shape requires both, so routing restates them
+    // rather than handing over undefined.
+    expect(calls[0]!.method).toBe('GET')
+    expect(calls[0]!.url).toBe('/')
+  })
+
+  test('answers 400 with JSON-RPC -32700 on malformed JSON', async () => {
     const { captured, res } = makeRes()
-    await handleGet(new Map(), plainReq({ url: '/', method: 'GET' }), res)
-    expect(captured.statusCode).toBe(404)
+    const { calls, handler } = recordingMcpHandler()
+    await handleMcpRequest(handler, bodyReq('{oops'), res)
+    expect(captured.statusCode).toBe(400)
+    expect(JSON.parse(captured.body!)).toMatchObject({
+      jsonrpc: '2.0',
+      error: { code: -32_700, message: 'Parse error' },
+    })
+    expect(calls).toHaveLength(0)
   })
 
-  test('handleDelete 404s without a session id', async () => {
+  test('answers 500 when the MCP handler throws', async () => {
     const { captured, res } = makeRes()
-    await handleDelete(new Map(), plainReq({ url: '/', method: 'DELETE' }), res)
-    expect(captured.statusCode).toBe(404)
-  })
-})
-
-describe('session lifecycle', () => {
-  test('reapIdleSessions destroys stale sessions and keeps fresh ones', () => {
-    const sessions = new Map<string, Session>()
-    const stale = fakeSession(Date.now() - 31 * 60 * 1000)
-    const fresh = fakeSession(Date.now())
-    sessions.set('stale', stale.session)
-    sessions.set('fresh', fresh.session)
-    reapIdleSessions(sessions)
-    expect(sessions.has('stale')).toBe(false)
-    expect(sessions.has('fresh')).toBe(true)
-    expect(stale.closed()).toBe(true)
+    await handleMcpRequest(
+      throwingMcpHandler('handler exploded'),
+      bodyReq('{"jsonrpc":"2.0","method":"tools/list","id":1}'),
+      res,
+    )
+    expect(captured.statusCode).toBe(500)
+    expect(JSON.parse(captured.body!).error.code).toBe(-32_603)
   })
 
-  test('destroySession closes the transport and no-ops for unknown ids', () => {
-    const sessions = new Map<string, Session>()
-    const s = fakeSession(Date.now())
-    sessions.set('s', s.session)
-    destroySession(sessions, 's')
-    expect(sessions.has('s')).toBe(false)
-    expect(s.closed()).toBe(true)
-    // No throw for a missing id.
-    destroySession(sessions, 'missing')
+  test('leaves the response alone when the handler already answered', async () => {
+    const { captured, res } = makeRes()
+    const handler: NodeMcpRequestHandler = (_req, response) => {
+      response.writeHead(202, { 'content-type': 'application/json' })
+      response.end('{}')
+      return Promise.reject(new Error('too late'))
+    }
+    await handleMcpRequest(
+      handler,
+      bodyReq('{"jsonrpc":"2.0","method":"tools/list","id":1}'),
+      res,
+    )
+    expect(captured.statusCode).toBe(202)
   })
 })

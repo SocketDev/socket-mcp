@@ -49,6 +49,43 @@ describe('alerts tool handler', () => {
     })
   })
 
+  test('forwards every optional filter and the pagination cursor', async () => {
+    nock(API)
+      .get('/v0/orgs/my-org/alerts')
+      .query({
+        'filters.alertCategory': 'supplyChainRisk',
+        'filters.alertSeverity': 'critical',
+        'filters.alertStatus': 'triaged',
+        'filters.artifactName': 'left-pad',
+        'filters.alertType': 'malware',
+        'filters.artifactType': 'npm',
+        'filters.repoSlug': 'web',
+        per_page: '25',
+        startAfterCursor: 'cursor-2',
+      })
+      .reply(200, { results: [], nextPage: undefined })
+
+    // The interceptor's query matcher is the assertion: it only matches when
+    // every snake_case tool argument reaches its curated query parameter.
+    const result = await defineAlertsTool().handler(
+      {
+        org_slug: 'my-org',
+        alert_type: 'malware',
+        artifact_name: 'left-pad',
+        artifact_type: 'npm',
+        category: 'supplyChainRisk',
+        cursor: 'cursor-2',
+        per_page: 25,
+        repo_slug: 'web',
+        severity: 'critical',
+        status: 'triaged',
+      },
+      withToken,
+    )
+    expect(result.isError).toBeUndefined()
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ results: [] })
+  })
+
   test('returns an isError result on upstream failure', async () => {
     nock(API).get('/v0/orgs/my-org/alerts').query(true).reply(403, 'forbidden')
     const result = await defineAlertsTool().handler(
