@@ -9,7 +9,7 @@ Fleet lint rules are guardrails for AI-generated code. Make them strict:
 - **Errors, not warnings.** A warning is silently ignored; an error blocks the commit. Severity `"warn"` belongs to user-facing tools (browser dev consoles, ad-hoc scripts), not the fleet's CI gate. Default to `"error"` for new rules; bump existing `"warn"` entries to `"error"` when you touch them.
 - **Fixable when possible.** Every new rule that _can_ express a deterministic rewrite _should_ ship an autofix. The `fixable: 'code'` meta flag plus a `fix(fixer) => ...` in `context.report` lets `pnpm exec oxlint --fix` clean up the violation. Reporting-only rules are fine when the fix requires human judgment (e.g., picking between `httpJson` vs `httpText` to replace `fetch()`); say so explicitly in the rule docstring.
 - **Skill or hook ≠ no rule.** If a behavior already lives as a skill (the canonical write-up) or a hook (PreToolUse blocking), still encode the lint rule on top. Defense in depth. The skill is documentation, the hook is edit-time enforcement, the lint rule is commit-time enforcement.
-- **Tooling: oxlint + oxfmt only.** No ESLint, no Prettier. The fleet socket-\* oxlint plugin lives in `template/.config/oxlint-plugin/`; new fleet rules land there. Wire via `.oxlintrc.json` `jsPlugins` and the `socket/` namespace.
+- **Tooling: oxlint + oxfmt only.** No ESLint, no Prettier. The fleet socket-\* oxlint plugin lives in `template/.config/fleet/oxlint-plugin/`; new fleet rules land there. Wire via `.oxlintrc.json` `jsPlugins` and the `socket/` namespace.
 
 ## Host-test deps: the `fleet.hostTestDeps` exemption
 
@@ -33,9 +33,24 @@ The contract + audit logic live in ONE place, `.claude/hooks/fleet/_shared/forei
 
 **Why:** adapter packages (author a plugin once, ship it to many hosts) were forced to choose between mock-only integration coverage and a blanket guard bypass; an explicit, audited manifest field keeps the gate strict while making the legitimate case first-class.
 
+## Optional `| undefined` vs typescript/no-duplicate-type-constituents
+
+The fleet writes every optional as `x?: T | undefined` — property AND parameter — enforced by `socket/optional-explicit-undefined` (autofix appends `| undefined`). The type-aware `typescript/no-duplicate-type-constituents` sees the PARAM form as a duplicate, since an optional parameter's checker type already carries an implicit `undefined`: it reports "Explicit undefined is unnecessary on an optional parameter", and its autofix strips the union member — leaving the flanking whitespace behind. With both rules live the fix loop ping-pongs: socket appends, tsgolint strips with residue, +2 spaces per pass (`body?: string        ,` after the runner's 4 passes — the decmpfs/socket-sdk-js mangling).
+
+The fleet sides with the socket rule: the explicit `| undefined` is the `exactOptionalPropertyTypes` pairing convention, uniform across properties and params, not redundancy. So the canonical config keeps `socket/optional-explicit-undefined` at `"error"` and configures the typescript rule with `{ "ignoreUnions": true }` — it still catches duplicate intersection constituents, and its union leg, the only surface that can fight the convention, is off. Never resolve the conflict per-line: `oxlint-disable` comments don't reach tsgolint (it honors only `eslint-disable` markers), and per-site silences would need one comment per optional in the codebase.
+
 ## Cascade
 
 When introducing a new rule fleet-wide, expect it to surface dozens of pre-existing violations. That's the rule earning its keep, not noise. Surface the cleanup as a separate task rather than auto-fixing in the same PR.
+
+## Repo-owned overrides: the sanctioned surface
+
+`.config/fleet/oxlintrc.json` is FLEET-MANAGED — cascaded byte-identical, so any hand edit (staging a rule off, adding an overrides block) is reverted by the next refresh. Never park repo state there. The two repo-owned surfaces that survive a refresh:
+
+1. **`.config/repo/oxlint.config.mts`** — the composable factory call. It imports `config()` from `.config/fleet/oxlint.config.mts` and augments in JS: `rules` merge over the fleet rules, `overrides` blocks append after the fleet blocks, `jsPlugins` and `ignorePatterns` extend the fleet lists. This is where a burn-down staging lives — e.g. a new `socket/*` rule that surfaced a pre-existing debt pile gets `'socket/<rule>': 'off'` (or a scoped `overrides` block) HERE, with a comment naming the campaign, and the entry is deleted when the count reaches zero. socket-lib's staging of `socket/no-required-in-options-bag` off for `**/src/**` is the exemplar.
+2. **The `ignorePatterns` tail after the fleet-canonical end sentinel** — inside the fleet oxlintrc's `ignorePatterns` array, entries after the end sentinel (`FLEET_CANONICAL_END_SENTINEL` in `scripts/fleet/_shared/fleet-canonical-splice.mts`) are repo-owned; the cascade splices only the sentinel-fenced region and preserves the tail. Ignore-shaped repo state — a vendored tree, a generated dir — goes there when the JS factory's `ignorePatterns` option isn't already carrying it. This doc never spells the raw token: only the designated segment files may carry it in the bundle payload, enforced by the stray-carrier class check, because pre-path-gate placement machinery splices any file containing it.
+
+Rule of thumb: rules and overrides → the repo factory config; ignores → either surface. Anything typed INSIDE the fleet-canonical region is a revert waiting to happen.
 
 ## Disable comments: per-call-site, never identical-stacked
 

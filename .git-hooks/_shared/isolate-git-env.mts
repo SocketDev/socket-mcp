@@ -1,9 +1,9 @@
-/**
+/*
  * @file Neutralize the inherited git environment so a test's `git` spawns can
  *   never touch the live repo. Importing this module runs the SAFE default
- *   (strip discovery vars) as a side effect; call `isolateGitEnv({ … })` for
+ *   strip discovery vars, as a side effect; call `isolateGitEnv({ … })` for
  *   the stronger variant. Why this is load-bearing: when a suite runs from the
- *   pre-commit / pre-push hook (or just inherits the ambient env), git exports
+ *   pre-commit / pre-push hook, or just inherits the ambient env, git exports
  *   `GIT_DIR` / `GIT_WORK_TREE` / `GIT_INDEX_FILE` pointing at THE LIVE repo,
  *   and git honors those above cwd-based discovery. A fixture that does `git
  *   init` + `git config user.email …` in a `cwd: tmpDir` then escapes onto the
@@ -17,7 +17,7 @@
  *     default (strip-only) stops the escape while leaving each fixture free to
  *     scope its own `GIT_CONFIG_GLOBAL` per-spawn (the signing-gate tests need
  *     that). `no-unisolated-git-fixture-guard` recognizes the import.
- *   - vitest, via `setupFiles` (`test/scripts/fleet/setup.mts`), calls
+ *   - vitest, via `setupFiles` (`test/fleet/scripts/setup.mts`), calls
  *     `isolateGitEnv({ pinConfigToNull: true })` for the stronger form (no
  *     fixture there manipulates a controlled global config). Lives in
  *     `.git-hooks/_shared/` (alongside `git-identity.mts`) so the git-hook test

@@ -1,6 +1,6 @@
 # gh token hygiene
 
-GitHub CLI auth tokens are the highest-blast-radius credential most developers carry. The Nx Console supply-chain compromise (May 2026) exfiltrated `~/.config/gh/hosts.yml` and used the token against the GitHub API within 74 seconds of malware execution. Three layered defenses, all enforced by `.claude/hooks/fleet/gh-token-hygiene-guard/` (the 8h age cap, keychain check, and workflow-scope gate all live in this hook — `auth-rotation-reminder` handles non-gh CLIs like npm/pnpm/gcloud/docker/vault).
+GitHub CLI auth tokens are the highest-blast-radius credential most developers carry. The Nx Console supply-chain compromise (May 2026) exfiltrated `~/.config/gh/hosts.yml` and used the token against the GitHub API within 74 seconds of malware execution. Three layered defenses, all enforced by `.claude/hooks/fleet/gh-token-hygiene-guard/`: the 8h age cap, keychain check, and workflow-scope gate all live in this hook — `auth-rotation-nudge` handles non-gh CLIs like npm/pnpm/gcloud/docker/vault.
 
 ## 1. Keychain storage only
 
@@ -92,7 +92,7 @@ sudo -v
 If you see the Touch ID dialog, you're good. If you see a password prompt instead, either:
 
 - Touch ID isn't enrolled on this Mac: check System Settings → Touch ID & Password
-- You're on a Mac without Touch ID hardware: use the password fallback (the hook handles this automatically)
+- You're on a Mac without Touch ID hardware: use the password fallback — the hook handles this automatically
 - The file path or content is wrong: re-run the `sudo tee` command and double-check
 
 #### Undoing it
@@ -105,9 +105,9 @@ After this, sudo is back to its default (password only). The hook's auth flow wi
 
 ## 3. 8-hour token age cap
 
-`auth-rotation-reminder` Stop-hook tracks the gh token's issued-at timestamp (stored at `~/.claude/gh-token-issued-at`). When the token is >8 hours old, the next Stop event exits non-zero with instructions:
+`auth-rotation-nudge` Stop-hook tracks the gh token's issued-at timestamp (stored at `~/.claude/gh-token-issued-at`). When the token is >8 hours old, the next Stop event exits non-zero with instructions:
 
-```
+```bash
 gh auth refresh -h github.com
 ```
 
@@ -123,8 +123,8 @@ Local timestamp tracking is advisory. A malicious process can backdate the file.
 
 ## Recovery flow if a token leaks
 
-1. **Revoke immediately** at https://github.com/settings/tokens (search "gh" or the token name, click Delete).
-2. Audit recent activity: https://github.com/settings/security-log
+1. **Revoke immediately** at <https://github.com/settings/tokens> (search "gh" or the token name, click Delete).
+2. Audit recent activity: <https://github.com/settings/security-log>
 3. Check repo audit logs for unauthorized pushes / workflow dispatches / PRs.
 4. If anything looks wrong: rotate every repo's deploy keys, deploy tokens, and CI secrets accessible from the affected token's scope.
 5. Re-issue gh token with keychain storage + minimal scopes (`gh auth logout && gh auth login` — keychain is the default; then trim scopes via `gh auth refresh -h github.com -r workflow,admin:public_key,admin:repo_hook`).
@@ -143,12 +143,31 @@ Three recovery paths, ordered from cleanest to most surgical:
 
 1. **Run the refresh through Claude.** Ask Claude to run `gh auth refresh -h github.com` in a Bash tool call. The hook sees it, pre-stamps, and the next gh call goes through.
 2. **Use the hook's `--stamp` CLI mode.** From any shell:
+
    ```sh
    node ~/.claude/hooks/fleet/gh-token-hygiene-guard/index.mts --stamp
    ```
+
    Writes a fresh `Date.now()` to the stamp file. Use this when you've already done `gh auth refresh` externally and don't want to re-run it.
 3. **Auto-correction of malformed values.** If the stamp file contains a value less than `1577836800000` (2020-01-01 in ms) — e.g. you accidentally wrote POSIX seconds via `date "+%s" > ~/.claude/gh-token-issued-at` — the hook treats it as malformed on the next read, re-stamps, and proceeds. No manual intervention required; the malformed-value branch is there as a safety net for cases like the seconds-vs-ms confusion.
 
 The stamp file is purely an in-process record of "when did the hook last see a refresh"; the actual token security lives in the OS keychain. A wrong stamp value can't escalate access — at worst it temporarily locks the user out of gh tool calls until they reauth or re-stamp.
 
 No escape hatches. The hook is failsafe-deny on all invariants. The OS-auth path (Touch ID + osascript + dscl, called via absolute `/usr/bin/` paths to defeat PATH-hijack) is intentionally unreachable in unit tests; the auth path is exercised by manual smoke-testing when the hook ships.
+
+## Heartbeat and recurring loops
+
+Token freshness is tracked by a heartbeat stamp (`~/.claude/gh-token-issued-at`).
+A recurring gh loop — PR scanning on a cron tick, CI watching — can outlive the
+8-hour window even though it is actively and successfully using the token, and
+the rotation then strands the loop mid-cycle. Active use is proof of liveness,
+so every loop tick re-stamps the heartbeat FIRST:
+
+```bash
+node scripts/fleet/gh-heartbeat.mts --quiet
+```
+
+The refresh is probe-gated: it runs `gh api user` and only stamps on a
+successful authenticated response. A dead token is never stamped fresh — the
+script exits 1 with the re-auth instruction instead, so the loop's failure mode
+is a loud early exit rather than a masked expiry.

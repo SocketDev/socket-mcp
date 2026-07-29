@@ -8,7 +8,7 @@ A README reflects the maintainer's intent; a training cutoff reflects last year.
 
 ## Architecture
 
-Two halves, by design (the Anthropic Agent-Skills best-practices split):
+Two halves, by design — the Anthropic Agent-Skills best-practices split:
 
 - **Deterministic engine** (`scripts/fleet/researching-recency/`): the math that must be repeatable. Parallel fetch, freshness + engagement scoring, near-duplicate collapse, reciprocal-rank fusion, and rendering the evidence envelope. Pure, unit-tested, no model in the loop.
 - **Model-driven synthesis** (the `SKILL.md` contract): the judgment. Resolving the entity, building the query plan, clustering the evidence into themes, and writing the cited prose. The engine drops the LLM reranker the upstream uses, and the model recovers that judgment at synthesis time.
@@ -27,7 +27,7 @@ Two halves, by design (the Anthropic Agent-Skills best-practices split):
 ## Sources
 
 | Source | Auth | Notes |
-|--------|------|-------|
+| -------- | ------ | ------- |
 | GitHub | `gh auth token` / `GITHUB_TOKEN`, else unauthenticated | issues + PRs, sorted by reactions |
 | Hacker News | none | Algolia full-text, points floor |
 | Reddit | none | Atom RSS search (the `.json` path 403s); no engagement counts |
@@ -41,8 +41,8 @@ The opt-in sources (X, Bluesky) read their credential from a process env var loa
 
 ## Contract enforcement
 
-The SKILL.md prose and the engine output share literal marker strings (the badge prefix, the evidence-envelope and footer comment fences). Those live once in `lib/markers.mts`. The `researching-recency-contract-is-current` check imports them and asserts the SKILL.md still quotes them, so the prose contract can't silently drift from what the engine emits.
+The SKILL.md prose and the engine output share literal marker strings: the badge prefix, the evidence-envelope and footer comment fences. Those live once in `lib/markers.mts`. The `researching-recency-contract-is-current` check imports them and asserts the SKILL.md still quotes them, so the prose contract can't silently drift from what the engine emits.
 
 ## Tests
 
-`test/unit/fleet/researching-recency-*.test.mts` cover every pure module (relevance, signals, dedupe, rank, plan, render) directly, and every source adapter against `nock`-mocked fixtures that mirror the real API shapes, under `disableNetConnect()`.
+`test/repo/unit/researching-recency-*.test.mts` cover every pure module (relevance, signals, dedupe, rank, plan, render) directly, and every source adapter against `nock`-mocked fixtures that mirror the real API shapes, under `disableNetConnect()`.

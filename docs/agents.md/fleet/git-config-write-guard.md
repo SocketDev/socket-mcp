@@ -9,7 +9,7 @@ These keys must never appear in a fleet repo's local `.git/config`:
 | Key               | Why it's banned                                                                                                                                                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core.bare`       | `bare = true` turns the work tree into a bare repo. Every `git status` / `git commit` / `git rev-parse --is-inside-work-tree` then fails with "must be run in a work tree". The repo becomes unusable until manually cleaned up. |
-| `user.email`      | Overrides the global identity. Commits sign with the global GPG key but author with the local email — GitHub rejects the push for "Found N violations: <sha>" verified-signature check.                                          |
+| `user.email`      | Overrides the global identity. Commits sign with the global GPG key but author with the local email — GitHub rejects the push for "Found N violations: `<sha>`" verified-signature check.                                        |
 | `user.name`       | Same shape — the commit author won't match the global GitHub identity.                                                                                                                                                           |
 | `user.signingkey` | Pinning a key locally drifts from the canonical global key. If the local key is wrong (or stale after rotation), every commit is unsigned to GitHub.                                                                             |
 | `commit.gpgsign`  | Disabling signing locally bypasses the fleet rule. Pre-commit hook catches it for `main`/`master` but the local config has clobbered the global preference.                                                                      |
@@ -19,11 +19,13 @@ These keys must never appear in a fleet repo's local `.git/config`:
 `PreToolUse(Bash + Edit/Write)` blocker triggered by either path:
 
 1. **Bash** — `git config <key> <value>` (no `--global` / `--system` / `--worktree` qualifier) that touches a banned key:
-   ```
+
+   ```bash
    git config core.bare true
    git config user.email test@example.com
    git config commit.gpgsign false
    ```
+
 2. **Edit / Write** — direct writes to `.git/config` (any path matching `**/.git/config`) where the new content contains one of the banned `[section] key = value` shapes.
 
 `git config --global <key>` is **always allowed** — global config is the canonical home for identity / signing settings.
@@ -32,7 +34,7 @@ These keys must never appear in a fleet repo's local `.git/config`:
 
 Single-use bypass for genuine operator scenarios (initial signing setup on a fresh checkout, signing-key rotation, manual cleanup after a `bare = true` incident):
 
-```
+```text
 Allow git-config-write bypass
 ```
 
@@ -59,8 +61,8 @@ The blast radius is high: a single bad config write knocks out an entire repo fo
 
 The SessionStart auto-unset is a backstop. The leak is prevented at the source by neutralizing the inherited git env in tests, so a fixture's `git init` / `git config` can never escape. The single source of truth is `.git-hooks/_shared/isolate-git-env.mts`:
 
-- vitest loads it via `test/scripts/fleet/setup.mts`, calling `isolateGitEnv({ pinConfigToNull: true })` (strip discovery vars + pin the config files).
-- `node --test` git-fixture suites do NOT load the vitest setup, so each side-effect imports the module at the top: `import '<…>/.git-hooks/_shared/isolate-git-env.mts'`. The default strips the `GIT_*` discovery vars (which is what stops the escape), leaving each fixture free to scope its own `GIT_CONFIG_GLOBAL` per-spawn (the signing-gate tests need that).
+- vitest loads it via `test/fleet/scripts/setup.mts`, calling `isolateGitEnv({ pinConfigToNull: true })` (strip discovery vars + pin the config files).
+- `node --test` git-fixture suites do NOT load the vitest setup, so each side-effect imports the module at the top: `import '<…>/.git-hooks/_shared/isolate-git-env.mts'`. The default strips the `GIT_*` discovery vars (which is what stops the escape), leaving each fixture free to scope its own `GIT_CONFIG_GLOBAL` per-spawn — the signing-gate tests need that.
 
 `no-unisolated-git-fixture-guard` blocks authoring a git-fixture test without that import (or an equivalent scrub).
 

@@ -127,7 +127,7 @@ Cross-references catch path rot. They don't catch _semantic_ drift, the case whe
 
 Rules:
 
-- **Single-line `// ` syntax across every language**: no `//!` / `///` / `/** */` mixing. Strip the leading `// `, byte-compare. Languages that need a doc-comment for tooling (Rust's `//!` for `rustdoc`, JSDoc for TypeScript) put that separately. The Lock-step header is its own block and lives alongside.
+- **Single-line `//` syntax across every language**: no `//!` / `///` / `/** */` mixing. Strip the leading `//`, byte-compare. Languages that need a doc-comment for tooling (Rust's `//!` for `rustdoc`, JSDoc for TypeScript) put that separately. The Lock-step header is its own block and lives alongside.
 - **Mandatory: name + cross-refs.** First line is the file's purpose. Body lists `Lock-step with <Lang>: <path>` for every peer in the quadruplet, and `Lock-step from <Lang>: <path>` if the file is a port. The path forms are the same ones validated in §5.
 - **No timestamps, no authors, no per-impl prose.** Anything that differs between impls goes _outside_ the header (in language-specific doc comments, `// PORT NOTE:` blocks, etc.). The header is the contract; divergence is contraband.
 
@@ -149,3 +149,29 @@ It does NOT apply to:
 - Code that doesn't have an upstream reference
 
 Default rules apply for those. The exception buys verbosity only when the verbosity is load-bearing (cross-impl alignment).
+
+File-doc uses `@file`, never `@fileoverview` (socket/no-fileoverview-prefer-file) — a doc generator reading `@fileoverview` while the fleet writes `@file` produced empty API descriptions.
+
+## State the present, never the removed past
+
+A comment describes what the code does NOW. It never narrates what was removed,
+replaced, or deprecated — the dead past is noise the reader never needs. It also
+never describes the code by what it is NOT, lacks, or is unlike — no "not a
+fork", "inspired by X", "unlike Y", "we don't include Z". State the positive:
+what the code does, not what it declines to do or resemble.
+
+Banned shapes (`no-removal-comment-nudge` flags them on Edit/MultiEdit):
+
+- **Temporal narration** (fires anywhere): `// used to be X, now Y`,
+  `// a custom dashboard that replaced the old filament one`,
+  `// formerly known as Z`, `// no longer used`. Rewrite to describe the
+  current behavior, dropping the reference to the old thing.
+- **Relocation tombstone** (fires next to a code deletion): `// moved to utils`,
+  `// now lives in registry`. A relocation note belongs at the ADD site (beside
+  the import/call that replaces it), never orphaned where code was deleted.
+
+When told to remove something or stop using it, purge it and write the result as
+if it never existed — don't augment the wording to acknowledge it. The
+distinctive multi-word phrases keep the nudge from firing on ordinary prose
+("no longer than 80 chars", "the value replaced in the map"). git log carries
+the history.

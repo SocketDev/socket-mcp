@@ -8,11 +8,11 @@
 //   2. Auto-strip AI attribution lines from the commit message before
 //      git records the commit.
 //
-// Wired via .git-hooks/commit-msg (the sibling shell shim), which git
+// Wired via .git-hooks/commit-msg, the sibling shell shim, which git
 // invokes when `core.hooksPath` points at .git-hooks/ — set by
 // `node scripts/install-git-hooks.mts` at `pnpm install` time. The
 // shim execs this .mts file with the path to the commit message file
-// as argv[2] (after the script path itself).
+// as argv[2], after the script path itself.
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
@@ -183,7 +183,9 @@ const main = (): number => {
     const ghHits = scanGitHubTokens(original)
     if (ghHits.length > 0) {
       logger.fail('Commit message contains a potential GitHub token:')
-      for (const hit of ghHits.slice(0, 3)) {
+      const shownHits = ghHits.slice(0, 3)
+      for (let i = 0, { length } = shownHits; i < length; i += 1) {
+        const hit = shownHits[i]!
         logger.info(`  line ${hit.lineNumber}: ${hit.line.trim()}`)
       }
       logger.info(
@@ -246,7 +248,7 @@ const main = (): number => {
     try {
       ident = gitLines('var', which)[0] ?? ''
     } catch {
-      // `git var` failed (unusual env) — fail open, don't block a real commit.
+      // `git var` failed, unusual env — fail open, don't block a real commit.
       continue
     }
     const who = parseIdent(ident)
@@ -272,4 +274,4 @@ const main = (): number => {
   return 0
 }
 
-process.exit(main())
+process.exitCode = main()

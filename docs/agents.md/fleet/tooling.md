@@ -18,7 +18,9 @@ NEVER pass `--experimental-strip-types` to `node`. Runners are `.mts` executed b
 
 The Socket Firewall (SFW) footer carries malware/soak warnings; piping `pnpm install`/`check`/`test`/`build` output to `tail` or `head` hides it. Let the full output through (`.claude/hooks/fleet/no-tail-install-out-guard/`).
 
-## Python: `uv` for projects, never `pip` / `pip3`
+## Search: `fff` MCP, not `ripgrep` / `grep`
+
+For file + content search in a git-indexed tree, reach for the **fff** MCP tools (`ffgrep` content search, `fffind` path search, `fff-multi-grep`) before `ripgrep` / `grep` / `rg`. fff (`.mcp.json` → `fff-mcp`, a resident Rust index installed by `tools` + pinned in `external-tools.json`) keeps the index + file cache warm for the whole session — sub-10ms queries vs 3-9s per ripgrep spawn on a large tree — and ranks definitions first with frecency + git-aware annotations, so the agent lands on the right code in fewer roundtrips and less context. `ripgrep` / `grep` stay fine for one-off shell use and inside scripts; this rule is about the agent's interactive search loop. Ask the agent to "use fff" if a session's client didn't auto-pick the tools.
 
 A Python project uses [`uv`](https://docs.astral.sh/uv/) (Astral), pinned in `external-tools.json` (currently `0.11.21`). uv is the Python analog of the fleet's pnpm model: a hash-verified `uv.lock` plus an `exclude-newer` soak. The dev shortcut for one-off CLI tools stays `pipx install <pkg>==<ver>` (pinned). Never bare `pip`/`pip3` (`.claude/hooks/fleet/prefer-pipx-over-pip-guard/`).
 
@@ -36,6 +38,10 @@ exclude-newer = "7 days"
 - **Malware scan (optional).** `UV_MALWARE_CHECK=1` makes `uv sync` run a lightweight OSV scan of the lockfile.
 
 uv is pre-1.0 (`0.x`) — adopted as a noted exception to the stable-1.0+ rule because it is de-facto stable, Astral-backed, Apache-2.0 / MIT, and ships as a single static binary. It replaces the unpinned `pip3 install --break-system-packages` pattern in Dockerfiles, which has no lockfile or soak.
+
+## ripgrep: `-r` never clusters
+
+rg's `-r` (`--replace`) takes a value, so inside a short-flag cluster it consumes the REST of the cluster as the replacement text: `rg -rln <pattern>` parses as `rg --replace 'ln' <pattern>`. Every match is rewritten to the literal text `ln` instead of listing files with line numbers, and the command still exits 0, so the corruption is easy to miss. Spell `-r` separately (`rg -l -n`), use long flags, or pass `--replace '<text>'` only when a replacement is meant. `-r` last in a cluster (`-lnr <text>`) and standalone `-r <text>` read the next argument as the replacement and are fine. Nudged by `.claude/hooks/fleet/rg-replace-flag-nudge/`.
 
 ## Reserved `scripts/` dir names
 
@@ -62,7 +68,7 @@ Both env knobs are silently ignored by an older Homebrew, so the **≥6.0.0 vers
 
 macOS GUI apps the fleet uses for tooling that self-update via the [Sparkle](https://sparkle-project.org/) framework (e.g. OrbStack, bundle `dev.kdrag0n.MacVirt`) must have auto-update disabled. A Sparkle install can swap a tool version under a running build or scan, and it rides the app's own update channel outside the soak gate. Set by `setup-security-tools`, audited in `check --all` (`scripts/fleet/check/sparkle-auto-update-is-disabled.mts`); both read `_shared/sparkle-auto-update.mts`. There's no PreToolUse guard: a GUI app self-updates with no Bash invocation to gate, so persist plus audit are the surfaces.
 
-The disable writes two Sparkle prefs into the app's defaults domain (a user-level `defaults write` overrides the Info.plist default):
+The disable writes two Sparkle prefs into the app's defaults domain — a user-level `defaults write` overrides the Info.plist default:
 
 ```sh
 defaults write dev.kdrag0n.MacVirt SUAutomaticallyUpdate -bool false
@@ -70,6 +76,20 @@ defaults write dev.kdrag0n.MacVirt SUEnableAutomaticChecks -bool false
 ```
 
 `SUEnableAutomaticChecks=false` stops the background update check; `SUAutomaticallyUpdate=false` stops silent install of a found update. Add a new Sparkle app by appending to `SPARKLE_APPS` in `_shared/sparkle-auto-update.mts` (id, name, bundle-id domain); the persist and audit pick it up automatically.
+
+## Lint/fix scope: modified by default, `--all` for waves
+
+`pnpm run lint` and `pnpm run fix` default to **modified scope** — only files
+git sees as changed (plus `--staged` in pre-commit). A repo-wide autofix
+campaign run that way is a **silent no-op on the whole backlog**: the run exits
+green having fixed nothing outside your edits (two delegated wave runs reported
+success while fixing zero backlog files, 2026-07-07). For a wave, pass `--all`:
+`pnpm run lint --fix --all` (`pnpm run fix --all` forwards it and adds the
+doctor). The `template/` tree is OFF the default lint surface everywhere —
+in the wheelhouse it only lints under `LINT_DOGFOOD=1`, so a wave that must
+reach canonical sources is `LINT_DOGFOOD=1 pnpm run lint --fix --all`. Every
+scoped `--fix` run now ends with a loud reminder naming the wave form
+(`fixScopeReminder` in `scripts/fleet/lint.mts`).
 
 ## Docs lead with pnpm
 
@@ -81,11 +101,32 @@ Every new dep added to `package.json` runs a Socket-score check at edit time. Lo
 
 Every per-package soak-bypass entry (the `'pkg@1.2.3'` exact-pin form) MUST carry a `# published: YYYY-MM-DD | removable: YYYY-MM-DD` annotation as the LAST comment line above the bullet. `published` is the version's npm publish date; `removable` is `published + 7d` so a periodic cleanup can drop entries that no longer need the bypass (enforced by `.claude/hooks/fleet/soak-exclude-date-guard/` at edit time + `scripts/fleet/check/soak-excludes-have-dates.mts` at commit time).
 
+**Add a soak-bypass ONLY with the writer, never by hand:** `node scripts/fleet/soak-bypass.mts <pkg>@<version>`. It fetches the authoritative npm publish date, writes the dated `'name@version'` pin to `pnpm-workspace.yaml` (canonical — pnpm reads it directly), AND appends the bare-name line to `.npmrc` (for npm >= v12, which matches soak-excludes by NAME or glob only, no `@version` — [npm/cli#9532](https://github.com/npm/cli/pull/9532)), keeping both package managers in lockstep from one command. `.npmrc` itself is cascade-GENERATED (`scripts/repo/gen/npmrc.mts` in the source repo, from the manifest `EXPECTED_RELEASE_AGE_EXCLUDE` + `SOCKET_PACKAGE_PATTERNS`), so the local append is the ephemeral unblock — the durable fleet-wide form is the manifest entry, which the next cascade renders into every repo's `.npmrc`.
+
 Vitest `include` globs must not match `node:test` files. Mismatched runners produce confusing "no test suite found" errors (enforced by `.claude/hooks/fleet/vitest-vs-node-test-guard/`).
 
 ## Bundler
 
 `rolldown`, NOT `esbuild`. The fleet standardizes on rolldown for direct bundling (see `template/.config/rolldown/`). Transitive esbuild deps (e.g. via vitest) are unavoidable today. The rule is no _new direct_ esbuild use anywhere in the fleet.
+
+## Engine-gate folding (`engine-gate-fold`)
+
+`.config/repo/rolldown/engine-gate-fold.mts` (`createEngineGateFoldPlugin`) precomputes semver-vs-runtime engine gates in bundled (vendored) code from the `engines.node` of the package being built. Vendored deps ship gates like `useNative = node.satisfies('>=16.7.0')` (the @npmcli/fs `lib/common/node.js` shape) whose losing branch — usually a polyfill — is dead weight the bundler can't drop because the gate looks dynamic. Motivating incident: socket-packageurl-js's bundled `dist/exists.js` crashed at require-time on exactly that vendored gate.
+
+- **Statically-safe shapes only, string-literal ranges only**: `satisfies(process.version, 'R')` / `semver.satisfies(process.version, 'R')` and comparator forms `gte|gt|lte|lt(process.version, 'V')` when the callee provably binds to the `semver` package, plus `helper.satisfies('R')` when the callee resolves to a vendored node-version helper module structurally verified to wrap `semver.satisfies(process.version, range)`. Anything dynamic stays untouched.
+- **Verdicts are interval math against `engines.node`** (read once at plugin creation; the factory throws without a valid range): engines ⊆ gate-range → literal `true`; provably disjoint → literal `false`; partial overlap → untouched. Unbounded floors are honest: `>=99` under engines `>=18` is a partial overlap — a future node 99 exists in both sets — not a false fold — provable `false` comes from upper-bounded gates (`lt(process.version, '18.0.0')` under `>=18`) or bounded engines unions (`^18 || ^20` vs `>=99`).
+- **The literal lets rolldown DCE drop the dead branch** (and its polyfill imports). Every folded site is logged (module id + gate source + verdict) — silent transforms are banned.
+- **Wire it into the repo's `rolldown.config.mts` `plugins`**: `createEngineGateFoldPlugin()` (reads `engines.node` from cwd; pass `{ packageDir }` otherwise). Requires `semver` catalog-pinned in devDependencies and `define-guarded.mts` alongside (it imports its AST helpers) — the cascade delivers the file to every repo carrying `.config/repo/rolldown/define-guarded.mts` (CONDITIONAL_FILES marker).
+
+## Factory-collision guards (`factory-collision`)
+
+`.config/repo/rolldown/factory-collision.mts` guards the nested-bundle factory-collision class: re-bundling a file that is ITSELF a bundler output — a pre-bundled dependency like socket-lib's `dist/external/npm-pack.js` — carries pre-suffixed CJS factory bindings such as `require_node$2`, and rolldown's identifier deconflicter can rename another `require_node` onto exactly that pre-existing name in the same emitted scope. The later `var` declaration silently clobbers the earlier, so an unrelated binding resolves to the wrong module at runtime. Motivating incidents: socket-cli's dlx crash — Arborist's `pacote` rebound to libnpmpack via a colliding `require_lib$10` — and socket-packageurl-js's `dist/exists.js` require-time crash, where two `var require_node$2` in one scope turned `node.satisfies` into a class.
+
+Two independent guards; adopt either or both in the repo's `rolldown.config.mts` `plugins`:
+
+- **`createPrebundleRenamePlugin({ prebundlePattern })` is the fix** — the proven socket-cli mechanics, generalized. It rewrites `require_*$N` factory names inside files matching `prebundlePattern` to a `$`-free form (`require_lib$36` → `require_lib_v36`) the deconflicter can never generate, and realpath-normalizes resolved ids so a symlink-aliased prebundle (pnpm's `@socketsecurity/lib` + `lib-stable` aliases point at one real package) can't enter the graph twice and force the deconflict at all. Place it FIRST in `plugins` so its `resolveId` hook sees every resolution; custom `resolveId` hooks that hand-compute paths should return `toRealPath(p)` themselves.
+- **`createCollisionDetectorPlugin()` is the backstop** — a post-render `generateBundle` check that fails the build when any emitted chunk declares the same `var require_*` binding twice in one scope. Cheap: a regex pass filters chunks that can't collide, only suspects pay for the scope-aware AST scan. Wire it even where the rename plugin isn't adopted — a silent wrong-module rebinding is strictly worse than a red build.
+- **Delivery**: same CONDITIONAL_FILES channel as engine-gate-fold — every repo carrying `.config/repo/rolldown/define-guarded.mts` receives the file on sync.
 
 ## Compile-time defines (`INLINED_*`)
 
@@ -103,48 +144,39 @@ FORBIDDEN to maintain. Remove when encountered.
 
 ## `packageManager` field
 
-Bare `pnpm@<version>` is correct for pnpm 11+. pnpm 11 stores the integrity hash in `pnpm-lock.yaml` (separate YAML document) instead of inlining it in `packageManager`. On install pnpm rewrites the field to its bare form and migrates legacy inline hashes automatically. Don't fight the strip. Older repos may still ship `pnpm@<version>+sha512.<hex>`. Leave it; pnpm migrates on first install. The lockfile is the integrity source of truth.
+Retired — there is NO `packageManager` field, and corepack is disabled fleet-wide. `scripts/fleet/sync-package-manager-pins.mts` is the code-as-law: it derives every pin from `external-tools.json`'s `tools.{pnpm,npm}.version`, deletes any legacy `packageManager` it finds, and writes:
+
+- `devEngines.packageManager` — pnpm at the major-bounded SemVer range derived from the floor, `11.0.5` → `>=11.0.0 <12.0.0`, with `onFail: error`. This is the enforced manager pin: a mismatched pnpm is refused, and the fleet provisions pnpm out-of-band — the setup action reads `external-tools.json` in CI, local uses the racked pnpm — so nothing ever downloads a package manager on the fly.
+- `engines.pnpm` — the `>=<floor>` floor.
+- `engines.npm` — the `>=<npm-version>` floor.
+
+`pnpm-workspace.yaml` keeps `managePackageManagerVersions: false` plus `pmOnFail: warn` as a belt: pnpm's legacy `packageManager` self-check stays off and is moot without the field. Integrity needs no field-level hash either — pnpm 11 stores it in `pnpm-lock.yaml`, the integrity source of truth.
+
+Drift is directional. A pin behind a newer `external-tools.json` warns and continues — a cascade reconciles it during a rollout window, and hard-failing would block unrelated member PRs. A pin ahead of the source, or otherwise inconsistent, fails. `packageManager` removal and any `devEngines.packageManager` reshape are advisory, never a hard fail. Run the sync after a bump — `update-external-tools.mts` calls it and `pnpm run update` runs it; the `package-manager-pins-are-synced` check gates drift in CI.
 
 ## Bumping a versioned tool fleet-wide (pnpm, zizmor, sfw)
 
-🚨 **Single entry point: `socket-wheelhouse/scripts/fleet/cascade-fleet.mts`.** Run from the wheelhouse repo:
+**Entry point: `scripts/repo/cascade-fleet.mts`** — bumps one tool's pinned version and commits it. Run from the wheelhouse repo:
 
 ```bash
-node socket-wheelhouse/scripts/fleet/cascade-fleet.mts \
-  --pnpm 11.3.0 \
-  [--skip-ci-wait] \
-  [--dry-run]
+node scripts/repo/cascade-fleet.mts --pnpm 11.3.0 [--dry-run] [--self]
 ```
 
-This is a four-stage orchestrator. Don't reach for any of the lower-level scripts directly unless one of the stages bailed and you're recovering:
+The bump stage (`pipeline-stages.mts#runBump` → `tools/<tool>.mts#applyToRegistry`) downloads every platform binary from upstream, recomputes sha256 ourselves (integrity = binary-download + own-checksum, never trust in upstream-published values), writes `socket-registry/.config/repo/external-tools.json`, and commits. Tools with a `sourceDir` override (node, npm) write the wheelhouse root instead (`.node-version` / `package.json` engines).
 
-| Stage | Does                                                                                                                                                                                                                                                                                                                                                                                                                       | Driven by                                                    |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| A     | Bumps `socket-registry/external-tools.json`: downloads every platform binary from upstream, recomputes sha256 ourselves (integrity model is binary-download + own-checksum, not trust in upstream-published values), writes the file. Commits to registry.                                                                                                                                                                 | `tools/pnpm.mts#applyToRegistry` (+ `zizmor.mts`, `sfw.mts`) |
-| B     | Delegates to `socket-registry/scripts/cascade-workflows.mts`: recursively bumps every SHA pin in registry's own workflows (`setup-and-install` → `setup` → `checkout`), converging to a fixed point. Commits to registry.                                                                                                                                                                                                  | `pipeline.mts#stageB`                                        |
-| C     | Pushes registry main; polls GitHub Actions for the cascade SHA's CI to land green. Aborts the whole cascade if registry CI fails. Fleet repos must not pin to a broken registry. Skipped via `--skip-ci-wait`.                                                                                                                                                                                                             | `pipeline.mts#stageC`                                        |
-| D     | For every primary fleet checkout: runs `cleanup-stranded.mts --against <stageBSha>` (no-layering rule discards prior unpushed cascade commits), rewrites every `setup-and-install@<old-sha>` reference to the new registry SHA via diff-based pin matching, optionally runs the tool's per-fleet step (pnpm bumps `packageManager` + `engines.pnpm`), runs `pnpm run format` to fold pre-existing drift, commits + pushes. | `pipeline.mts#stageD`                                        |
+**Propagation is the sync-scaffolding cascade, not this script.** external-tools.json is a cascaded file — after a bump, run the cascade to fan it out to every member. The former registry-hosted reconcile / gate / propagate stages (which pinned members to a socket-registry SHA) were retired with the socket-registry shared-source model; fleet actions now live in each repo as `.github/actions/fleet/*`, referenced by local `./` path, so there is no cross-repo pin to rewrite. (`--skip-ci-wait` / `--ci-timeout` are vestigial no-ops from the retired gate stage.)
 
 ### Soak gate
 
-Stage A honors the 7-day `minimumReleaseAge` cooldown via `--soak-days <n>` (default 7). Pulling a same-day release requires explicit bypass. See `bypass-phrases.md` row `Allow soak-time bypass` (alias `Allow minimumReleaseAge bypass`).
-
-### Recovery from an interrupted cascade
-
-If Stage A+B+C landed (registry has a new tip) but Stage D didn't run, pass `--force-fanout` to skip Stages A+B+C and use the current registry HEAD as the propagation SHA. This is the only sanctioned way to "resume" a cascade. Manually invoking `cascade-workflows.mts` then `cascade-fleet.mts` without the resume flag would re-run Stages A+B+C and produce a no-op commit / extra runner minutes.
-
-### What this does NOT do
-
-- It does NOT bump `socket-wheelhouse/external-tools.json` (the wheelhouse's own at-repo-root copy, consumed by `scripts/install-sfw.mts`). The live source of truth for cascade purposes is `socket-registry/external-tools.json`. The wheelhouse file uses a different schema (tools nested under `.tools.<name>` with `sha256` field; registry uses top-level keys with `integrity` field) and a different consumer (the local SFW installer + zizmor setup). When SFW or zizmor bumps, the wheelhouse file's checksums go stale. Today refreshing them is manual (run `node scripts/update-external-tools.mts` from the wheelhouse repo). Wiring this into the cascade orchestrator is a known gap. For now, treat wheelhouse's external-tools.json as a "sibling source of truth" that needs its own update step after a tool bump.
-- It does NOT bump `.node-version`. Node bumps follow a different cadence (the Node ecosystem doesn't ship the same per-platform binary model; `.node-version` is just a string).
+The bump honors the 7-day `minimumReleaseAge` cooldown via `--soak-days <n>` (default 7). Pulling a same-day release requires explicit bypass. See `bypass-phrases.md` row `Allow soak-time bypass` (alias `Allow minimumReleaseAge bypass`).
 
 ## Monorepo internal `engines.node`
 
-Only the workspace root needs `engines.node`. Private (`"private": true`) sub-packages in `packages/*` don't need their own `engines.node` field. The field is dead, drift-prone, and removing it is the cleaner play. Public-published sub-packages (the npm-published ones with no `"private": true`) keep their `engines.node` because external consumers see it.
+Only the workspace root needs `engines.node`. Private (`"private": true`) sub-packages in `packages/*` don't need their own `engines.node` field. The field is dead, drift-prone, and removing it is the cleaner play. Public-published sub-packages — the npm-published ones with no `"private": true` — keep their `engines.node` because external consumers see it.
 
 ## Config files in `.config/`
 
-Place tool / test / build configs in `.config/`: `taze.config.mts`, `vitest.config.mts`, `tsconfig.base.json` (the abstract compiler-options layer, fleet-canonical, byte-identical across the fleet), `esbuild.config.mts`. New abstract configs go in `.config/` by default.
+Place tool / test / build configs in `.config/`: `taze.config.mts`, `vitest.config.mts`, `esbuild.config.mts`, `tsconfig.base.json` — the abstract compiler-options layer, fleet-canonical, byte-identical across the fleet. New abstract configs go in `.config/` by default.
 
 Repo root keeps only what _must_ be there: package manifests + lockfile (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`), the linter / formatter dotfiles whose tools require root placement (`.oxlintrc.json`, `.oxfmtrc.json`, `.npmrc`, `.gitignore`, `.node-version`), and every **concrete** tsconfig (`tsconfig.json`, `tsconfig.check.json`, `tsconfig.dts.json`, `tsconfig.test.json`, etc.; anything with `include`/`exclude`/`files`). Concrete tsconfigs live at the package root so tsc + IDE language-servers discover them natively at cwd. Burying them in `.config/` breaks the lookup. In monorepos the concrete `tsconfig.json` lives at each `packages/<pkg>/`. Concrete configs `extend` `./.config/tsconfig.base.json` (single-repo at root) or `../../.config/tsconfig.base.json` (monorepo per-package).
 
@@ -154,7 +186,7 @@ Every executable script (skill runner, hook handler, fleet automation) is TypeSc
 
 ## Soak time
 
-(pnpm-workspace.yaml `minimumReleaseAge`, default 7 days). Never add packages to `minimumReleaseAgeExclude` in CI. Locally, ASK before adding (security control).
+(pnpm-workspace.yaml `minimumReleaseAge`, default 7 days). Never add packages to `minimumReleaseAgeExclude` in CI. Locally, ASK before adding (security control), then add it with `node scripts/fleet/soak-bypass.mts <pkg>@<version>` (never by hand — see "New dependencies + soak" above for why: it keeps `pnpm-workspace.yaml` and `.npmrc` in lockstep).
 
 ## External repo clones
 
@@ -196,13 +228,13 @@ Every entry in `.gitmodules` MUST set `shallow = true`. Every `git submodule upd
 
 The fleet pins `npm-run-all2: 9.0.0` in the wheelhouse catalog. Every repo that depends on it MUST also declare the top-level `"npm-run-all2": { "nodeRun": true }` key in its own `package.json`. That key tells npm-run-all2 9.x to execute each script via `node --run` instead of the package manager CLI. `run-s build:*` and `run-p test:*` chains skip the per-script pnpm startup cost, which is non-trivial for N-script fan-outs. Inherited limitations from `node --run` (no `pre`/`post` lifecycle hooks; no `npm_*` env injection: `NODE_RUN_SCRIPT_NAME` + `NODE_RUN_PACKAGE_JSON_PATH` replace them; `node_modules/.bin` still on PATH) are acceptable for the fleet because none of our canonical scripts rely on those features. Enforced by `scripts/sync-scaffolding/checks/package-npm-run-all2-noderun.mts`: `npm_run_all2_node_run_missing` findings auto-fix.
 
-## Backward compatibility
+## Backward compatibility (npm-run-all2)
 
 FORBIDDEN to maintain. Remove when encountered.
 
 ## `-stable` self-import in tooling
 
-A fleet repo that publishes `@socketsecurity/<X>` resolves the bare `@socketsecurity/<X>` specifier to its OWN local `src/` (the pnpm workspace link), which is work-in-progress and may be mid-edit or broken. Build scripts and git-hooks must run against a known-good PUBLISHED copy, so the fleet pins a `@socketsecurity/<X>-stable` catalog alias (`npm:@socketsecurity/<X>@<last-published>`). Tooling imports the `-stable` alias; only the package's own source consumers use the bare name.
+A fleet repo that publishes `@socketsecurity/<X>` resolves the bare `@socketsecurity/<X>` specifier to its OWN local `src/` — the pnpm workspace link — which is work-in-progress and may be mid-edit or broken. Build scripts and git-hooks must run against a known-good PUBLISHED copy, so the fleet pins a `@socketsecurity/<X>-stable` catalog alias (`npm:@socketsecurity/<X>@<last-published>`). Tooling imports the `-stable` alias; only the package's own source consumers use the bare name.
 
 Scope: files under `scripts/**` or `.claude/hooks/**` (test files exempt). The owned package name is read from the nearest ancestor `package.json` `name`. Only the repo's OWN package is flagged — e.g. in socket-lib, `@socketsecurity/lib/...` must become `@socketsecurity/lib-stable/...`, but `@socketsecurity/registry/...` is left alone (socket-lib doesn't own registry).
 
@@ -222,7 +254,7 @@ start, native `docker` CLI compatibility). macOS-only; Linux dev hosts use
 the distro's native Docker/Podman and don't need it. It's a recommended
 dev convenience, not a build requirement — CI builds run on Linux runners
 with native Docker, so OrbStack only affects local Mac iteration. Repos
-that consume it pin it in their own `external-tools.json` (per-repo, not
+that consume it pin it in their own `.config/repo/external-tools.json` (per-repo, not
 template) and may wire a `brew install --cask orbstack` onboarding step.
 
 ## Local CI runs (`agent-ci`)
@@ -238,16 +270,16 @@ download + integrity-verify the pinned package through Socket Firewall):
 
 ```mts
 import { dlxPackage, executePackage } from '@socketsecurity/lib/dlx/package'
-// version resolves from the repo's external-tools.json `agent-ci` pin
+// version resolves from the repo's .config/repo/external-tools.json `agent-ci` pin
 ```
 
 **Limitations** ([compatibility](https://agent-ci.dev/compatibility)) — it
-**skips reusable workflows** (so the fleet `ci.yml`'s
-`SocketDev/socket-registry/.github/workflows/*` uses are skipped with a
-warning), has no GH-secret access, no concurrency groups, and a simplified
-job-`if` evaluator. Useful for the self-contained `ci.yml` jobs (lint /
-type / test matrix), not the provenance/release reusable workflows. Repos
-that adopt it pin the version in their own `external-tools.json`.
+**skips reusable workflows** (`workflow_call`), has no GH-secret access, no
+concurrency groups, and a simplified job-`if` evaluator. The fleet `ci.yml`
+is self-contained: its jobs call local `./.github/actions/fleet/*` composite
+actions (which agent-ci runs), never a cross-repo reusable workflow — so
+agent-ci runs the full lint / type / test matrix. Repos that adopt it pin
+the version in their own `.config/repo/external-tools.json`.
 
 ## npm 2FA registry ops
 
@@ -257,4 +289,4 @@ it on an **interactive TTY**. The `!` / headless channel has no TTY, so the
 prompt is swallowed and the command dies with `EOTP`. Tell the user to run
 the op in a **real terminal** where the prompt can appear; fall back to
 `--otp=<code>` only when no TTY is available and the user supplies a fresh
-code. Reminder hook: `.claude/hooks/fleet/npm-otp-flow-reminder/`.
+code. Reminder hook: `.claude/hooks/fleet/npm-otp-flow-nudge/`.

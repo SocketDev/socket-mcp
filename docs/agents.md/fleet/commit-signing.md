@@ -6,7 +6,7 @@ Every commit landing on a default branch (`main` / `master`) in the fleet must c
 
 Before git records a commit, the pre-commit hook reads:
 
-```
+```bash
 git config --get commit.gpgsign      # expect: true
 git config --get user.signingkey     # expect: a key ID or .pub path
 ```
@@ -39,9 +39,9 @@ No bypass. Unsigned commits on `main`/`master` are always blocked — sign the c
 
 ## Layer 3: server-side (GitHub branch protection)
 
-`lint-github-settings.mts` audits the default branch's protection on GitHub for `required_signatures: { enabled: true }`. If the audit reports drift, the operator fixes it via the GitHub branch-protection UI (this script's `--fix` does not auto-apply branch-protection patches because that endpoint can clobber custom status-check requirements).
+`lint-github-settings.mts` audits the default branch's protection on GitHub for `required_signatures: { enabled: true }`. If the audit reports drift, the operator fixes it via the GitHub branch-protection UI — this script's `--fix` does not auto-apply branch-protection patches because that endpoint can clobber custom status-check requirements.
 
-GitHub-side enforcement is the failsafe: it catches pushes that somehow bypassed both local layers (an attacker who manipulated `core.hooksPath`, a CI pipeline that pushed without running hooks, a freshly-created fleet repo whose hooks aren't yet installed).
+GitHub-side enforcement is the failsafe: it catches pushes that somehow bypassed both local layers — an attacker who manipulated `core.hooksPath`, a CI pipeline that pushed without running hooks, a freshly-created fleet repo whose hooks aren't yet installed.
 
 ## Setup helper
 
@@ -59,7 +59,7 @@ Detection order (first hit wins):
 2. **SSH key on disk**: `~/.ssh/id_ed25519.pub` (preferred), `id_ecdsa.pub`, then `id_rsa.pub`. `user.signingkey` points at the `.pub` path.
 3. **GPG secret key**: `gpg --list-secret-keys --with-colons`, first `sec:` entry. `user.signingkey` set to the long key ID.
 
-The helper never generates keys (user's call) and never uploads keys to GitHub. After running, upload the public key as a Signing Key at https://github.com/settings/keys to get the "Verified" badge on web-rendered commits.
+The helper never generates keys (user's call) and never uploads keys to GitHub. After running, upload the public key as a Signing Key at <https://github.com/settings/keys> to get the "Verified" badge on web-rendered commits.
 
 ## Why three layers
 

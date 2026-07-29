@@ -23,6 +23,14 @@ Org-level (recommended; applies to all repos by default):
 
 The fleet baseline is **org-level on, no per-repo opt-out**. Run `auditing-gha` periodically to flag drift once the GH API surfaces the toggle.
 
+## Pre-approve integrity gate
+
+`publish.mts --approve` runs a **local pack-vs-staged-shasum gate before the 2FA / OAuth promote** (`pnpm stage approve`): for each selected staged package it packs the tarball locally and asserts its sha1 equals the shasum npm recorded at stage time (`verifyStagedEntry` → `compareHashSources`, `scripts/fleet/lib/verify-release-hashes.mts`). A mismatch — or an unresolvable staged shasum — drops that package from the promote set and exits non-zero; the operator is pointed at `pnpm stage reject <id>`. The gate is **fail-closed**: it never promotes a package it couldn't verify. GitHub-asset + `gh attestation verify` checks belong to the post-approve release step below (no GitHub release exists pre-approve — `ensureTagAndRelease` runs after the promote).
+
+## Publish-before-release ordering
+
+The tag + immutable release are the **FINAL markers** of a release — they may only exist once the version is actually resolvable on its registry. A STAGED npm package is not published (staging may never be approved); cutting the immutable release first once left a release with no artifact whose late checksums upload the immutability then 422-rejected (the v6.2.0 near-miss). Enforcement is layered: every release-cutting path — `npm-publish.mts --approve`/`--direct`, `cargo-publish.mts --approve`/`--direct`, the publish pipeline's release stage — gates `ensureTagAndRelease` behind `requireRegistryLive`, a bounded retry probe that tolerates registry propagation and refuses loud otherwise; the pipeline's release stage additionally refuses without a passed `approve` receipt; and the `github-release` workflow independently refuses to cut a tag whose version the registry can't resolve. The hook layer adds the same rail for agent-run commands: `release-tag-tied-guard` refuses a `gh release create` for a semver tag whose version is not live on the repo's registry, and `verify-before-publish-guard` redirects every local publish shape — `npm|pnpm publish`, `pnpm stage publish`, `cargo publish`, direct `npm-publish.mts` runs, `publish-pipeline.mts --local` — to the pipeline, whose stage-publish leg dispatches `npm-publish.yml` instead of publishing locally. Release assets + checksums are prepared BEFORE the release is created — the verify stage stashes the checksums in pipeline state — so the draft → upload → undraft flow lands them in one shot.
+
 ## Workflow pattern: draft → upload → publish
 
 The `gh release create` direct-publish pattern (single call that creates the release + uploads assets + publishes immediately) **does not produce an attestation reliably** because the attestation hash is computed at publish-time over the locked asset set, and direct-publish can race with asset uploads.
@@ -66,7 +74,7 @@ These work for anyone outside the org with `gh` installed. The attestation is al
 
 ## Post-publish provenance check
 
-A Stop-hook reminder (`provenance-publish-reminder`) already checks that npm-published artifacts carry `dist.attestations` and `_npmUser.trustedPublisher`. The same hook is extended to verify GH-release-published artifacts carry a release attestation: after `chore: bump version to vX.Y.Z` + `vX.Y.Z` tag, the hook runs `gh release view <tag> --json isImmutable,...` and warns if the release isn't immutable.
+A Stop-hook reminder (`provenance-publish-nudge`) already checks that npm-published artifacts carry `dist.attestations` and `_npmUser.trustedPublisher`. The same hook is extended to verify GH-release-published artifacts carry a release attestation: after `chore: bump version to vX.Y.Z` + `vX.Y.Z` tag, the hook runs `gh release view <tag> --json isImmutable,...` and warns if the release isn't immutable.
 
 ## When the repo doesn't qualify
 

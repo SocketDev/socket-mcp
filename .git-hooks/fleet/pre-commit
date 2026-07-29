@@ -11,8 +11,10 @@
 # - Emergency hotfixes
 # - When tests require binaries that haven't been built yet
 #
-# There is NO per-step env kill-switch — `--no-verify` is the only
-# disable, so the choice to skip checks is always explicit and gated.
+# There is NO per-step env kill-switch — the disables are `--no-verify`
+# and the whole-chain `HUSKY=0` escape (handled by the root dispatcher,
+# same bypass phrase), so skipping checks is always explicit and
+# all-or-nothing.
 
 # Skip guards during rebase — commits are being replayed; lint/test on
 # each pick is noisy and slow. Signing is unaffected: git signs via
@@ -24,24 +26,14 @@ fi
 
 # Put the repo-pinned Node (.node-version) on PATH — git runs hooks with
 # the login shell's PATH, which may be an older system Node than the
-# hooks' floor (.mts type-stripping needs Node >= 25). See
+# hooks' floor (.mts type-stripping needs Node >= 24). See
 # _shared/resolve-node.sh.
 . "$(dirname "$0")/../_shared/resolve-node.sh"
 
-# Sanitize placeholder Socket API credentials. Some shell setups
-# export `SOCKET_API_TOKEN=literal-value` (or similar placeholders
-# used in onboarding docs) which causes Socket Firewall's sfw
-# pnpm-shim to return 401 on every invocation and block the
-# pre-commit chain before any check runs. A real Socket API key
-# is a `sktsec_…` token; anything that doesn't start with `sktsec_`
-# is treated as a placeholder and unset for this hook's subprocess.
-for var in SOCKET_API_TOKEN SOCKET_API_KEY; do
-  eval "val=\${$var}"
-  if [ -n "$val" ] && ! printf '%s' "$val" | grep -q '^sktsec_'; then
-    echo "[pre-commit] unsetting placeholder $var (was: '$val') so pnpm/sfw doesn't 401."
-    unset "$var"
-  fi
-done
+# Sanitize placeholder Socket API credentials (logs each unset here; see the
+# shared script for the rationale) so the sfw pnpm-shim doesn't 401.
+SANITIZE_TOKEN_LABEL=pre-commit
+. "$(dirname "$0")/../_shared/sanitize-token-env.sh"
 
 # Run Socket security pre-commit checks (API keys, .DS_Store, etc.).
 node "$(dirname "$0")/pre-commit.mts"
@@ -53,90 +45,15 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 1
 fi
 
-# Error-visibility helper. When lint/test fails, harness output often
-# shows only a final "Failed with non-blocking status code" line — the
-# actual error is buried thousands of lines up the log and gets clipped
-# by the agent's stdout limits. Tee each step's output to a tempfile,
-# tail it on failure with a clear marker so the operator (or agent)
-# can see what broke without scrolling.
-run_step() {
-  step_name=$1
-  shift
-  step_log=$(mktemp -t "pre-commit-${step_name}.XXXXXX") || step_log=/tmp/pre-commit-step.log
-  if "$@" 2>&1 | tee "$step_log"; then
-    status=0
-  else
-    status=$?
-  fi
-  if [ "$status" -ne 0 ]; then
-    printf '\n========== pre-commit: %s FAILED (exit %s) ==========\n' "$step_name" "$status"
-    printf 'Last 60 lines of output:\n\n'
-    tail -60 "$step_log"
-    printf '\n========== full log: %s ==========\n' "$step_log"
-  else
-    rm -f "$step_log"
-  fi
-  return "$status"
-}
+# Error-visibility + budget-bounded step runners (run_step / run_step_bounded),
+# extracted so the logic lives in one place. See _shared/run-step.sh.
+. "$(dirname "$0")/../_shared/run-step.sh"
 
-# Like run_step, but bounds the command to STAGED_TEST_BUDGET_S and, on
-# timeout, KILLS THE WHOLE PROCESS GROUP (the `sfw` pnpm-shim wrapper +
-# every vitest worker it spawned) — then fails OPEN (returns 0). This is
-# the automatic form of the manual "kill the sfw test wrapper, not the
-# worker" recovery: under Socket Firewall the staged `pnpm test` can
-# deadlock (the sfw proxy and a vitest worker block on each other), and a
-# bare blocking run hangs the commit forever. The matching helper
-# `runStagedTestsReminder` (_shared/helpers.mts) already bounds the
-# NON-blocking reminder path at STAGED_TEST_TIMEOUT_MS=60s; this gives the
-# BLOCKING step the same ceiling so the no-premature-commit-kill-guard's
-# "bounded ~60s" promise is actually true for both paths. A real test
-# failure (clean non-zero before the budget) still blocks — only a
-# budget-exceeding hang is skipped (the merge gate runs the full suite).
-#
-# Portable: no `timeout`/`gtimeout`/`setsid` dependency. `set -m` puts the
-# backgrounded job in its own process group so `kill -- -$pgid` reaps the
-# whole tree; poll in 1s ticks (sh has no `wait -t`).
-STAGED_TEST_BUDGET_S=60
-run_step_bounded() {
-  step_name=$1
-  shift
-  step_log=$(mktemp -t "pre-commit-${step_name}.XXXXXX") || step_log=/tmp/pre-commit-step.log
-  set -m
-  { "$@" >"$step_log" 2>&1; } &
-  job=$!
-  set +m
-  elapsed=0
-  while kill -0 "$job" 2>/dev/null; do
-    if [ "$elapsed" -ge "$STAGED_TEST_BUDGET_S" ]; then
-      # Budget blown — a deadlock or an over-broad related-set. Take out the
-      # whole group (sfw wrapper + workers), TERM then KILL, and fail open.
-      # The kills run in an stderr-discarded subshell so the shell's
-      # "Terminated" job-control notice doesn't leak into the commit output.
-      { kill -- -"$job"; sleep 1; kill -9 -- -"$job"; } 2>/dev/null
-      wait "$job" 2>/dev/null
-      cat "$step_log" 2>/dev/null
-      rm -f "$step_log"
-      printf '\n[pre-commit] %s exceeded %ss budget — process group killed; ' \
-        "$step_name" "$STAGED_TEST_BUDGET_S"
-      printf 'skipped (non-blocking). The merge gate runs the full suite.\n'
-      return 0
-    fi
-    sleep 1
-    elapsed=$((elapsed + 1))
-  done
-  wait "$job"
-  status=$?
-  cat "$step_log" 2>/dev/null
-  if [ "$status" -ne 0 ]; then
-    printf '\n========== pre-commit: %s FAILED (exit %s) ==========\n' "$step_name" "$status"
-    printf '\n========== full log: %s ==========\n' "$step_log"
-  else
-    rm -f "$step_log"
-  fi
-  return "$status"
-}
-
-run_step lint pnpm lint --staged || exit $?
+# verify-deps stays off for the commit gate: its job is the STAGED files;
+# dependency freshness belongs to the install/CI gates. Without this, a
+# lockfile that cannot reconcile yet (a soak-window pin mid-wait) blocks
+# every commit in the repo, including doc-only ones.
+run_step_bounded lint pnpm --config.verify-deps-before-run=false lint --staged || exit $?
 
 # Each repo's `pnpm test` script wraps a runner that understands
 # `--staged` (e.g. scripts/test.mts forwards staged-filtering to
@@ -144,4 +61,4 @@ run_step lint pnpm lint --staged || exit $?
 # `pnpm test` is bare vitest without a wrapper need a local override
 # that pre-filters with `git diff --cached --name-only` then runs
 # `pnpm test`. Bounded so an sfw-proxy deadlock can't hang the commit.
-run_step_bounded test pnpm test --staged || exit $?
+run_step_bounded test pnpm --config.verify-deps-before-run=false test --staged || exit $?

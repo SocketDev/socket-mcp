@@ -2,8 +2,8 @@
 // the wheelhouse-cascaded config FILE, resolved repo-scoped only (no machine-
 // local fallback, by design — minimize outside-wheelhouse settings):
 //
-//   .config/repo/git-authors.json   (per-repo override, optional)
-//   .config/fleet/git-authors.json  (cascaded fleet default)
+//   .config/repo/git-authors.json, per-repo override, optional
+//   .config/fleet/git-authors.json, cascaded fleet default
 //
 // Shape: { denylist: { emails[], names[] }, canonical: {name,email}, aliases[] }.
 //
@@ -34,7 +34,9 @@ export interface IdentityPolicy {
 }
 
 interface RawConfig {
-  denylist?: { emails?: string[]; names?: string[] } | undefined
+  denylist?:
+    | { emails?: string[] | undefined; names?: string[] | undefined }
+    | undefined
   canonical?: GitAuthor | undefined
   aliases?: GitAuthor[] | undefined
 }
@@ -109,7 +111,7 @@ export function isDeniedIdentity(
  * True when `candidate`'s email is the canonical identity or an alias. When no
  * allowlist is configured (empty canonical + aliases), returns true — only the
  * denylist gates that repo. A candidate with no email is treated as allowed
- * (git fails on its own when no identity is set).
+ * git fails on its own when no identity is set.
  */
 export function isAllowedAuthor(
   candidate: GitAuthor,
