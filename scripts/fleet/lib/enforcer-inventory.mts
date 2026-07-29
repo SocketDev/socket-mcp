@@ -46,7 +46,7 @@ export function collectHookEnforcers(repoRoot: string): Set<string> {
 }
 
 export interface LintRuleInventory {
-  // socket/<rule> names — the rule directories under .config/oxlint-plugin/fleet/.
+  // socket/<rule> names — the rule directories under .config/fleet/oxlint-plugin/fleet/.
   // Empty in a repo that doesn't ship the plugin (the gate's socket arm then
   // fails open).
   readonly socketRules: Set<string>
@@ -60,7 +60,7 @@ export function collectLintRules(repoRoot: string): LintRuleInventory {
   // CLAUDE.md "Lint rules"), so a rule name is the DIRECTORY name — not a `.mts`
   // file stem. (`socket/<id>` is the citation form; the `socket/` prefix is
   // implicit.)
-  const rulesDir = path.join(repoRoot, '.config/oxlint-plugin/fleet')
+  const rulesDir = path.join(repoRoot, '.config/fleet/oxlint-plugin/fleet')
   try {
     for (const entry of readdirSync(rulesDir, { withFileTypes: true })) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
@@ -77,7 +77,9 @@ export function collectLintRules(repoRoot: string): LintRuleInventory {
     const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
       rules?: Record<string, unknown> | undefined
     }
-    for (const key of Object.keys(config.rules ?? {})) {
+    const ruleKeys = Object.keys(config.rules ?? {})
+    for (let i = 0, { length } = ruleKeys; i < length; i += 1) {
+      const key = ruleKeys[i]!
       if (key.startsWith('typescript/')) {
         tsRules.add(key.slice('typescript/'.length))
       }
@@ -121,7 +123,7 @@ function walkMts(dir: string, base: string, out: Set<string>): void {
 // `fleet/check/foo.mts`, `repo/cascade-fleet.mts`). A citation is written as
 // `scripts/<key>`; the check strips the leading `scripts/` before lookup. Both
 // tiers count: scripts/fleet/ is cascaded executable law, scripts/repo/ is
-// wheelhouse-owned automation (the cascade engine itself) — both are code that
+// wheelhouse-owned automation, the cascade engine itself — both are code that
 // enforces a rule when run.
 export function collectScriptPaths(repoRoot: string): Set<string> {
   const base = path.join(repoRoot, 'scripts')

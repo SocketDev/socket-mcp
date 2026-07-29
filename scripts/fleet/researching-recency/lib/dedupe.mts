@@ -4,9 +4,8 @@
  *   text is highly similar (character-trigram OR token Jaccard above a
  *   threshold), keeping the earlier — already better-ranked — item. Runs after
  *   `annotateStream` sorts a stream, before fusion.
- *
- * Lock-step with: last30days `dedupe.py` (similarity math + 0.7 default
- * threshold; keep identical so dedup behavior matches the reference).
+ *   Lock-step with: last30days `dedupe.py` (similarity math + 0.7 default
+ *   threshold; keep identical so dedup behavior matches the reference).
  */
 
 import type { SourceItem } from './types.mts'
@@ -14,8 +13,28 @@ import type { SourceItem } from './types.mts'
 // Common English words dropped before token-Jaccard so shared filler doesn't
 // inflate similarity. Matches the upstream dedupe stopword set.
 const STOPWORDS: ReadonlySet<string> = new Set([
-  'a', 'an', 'and', 'are', 'at', 'by', 'can', 'do', 'for', 'from', 'how',
-  'in', 'is', 'it', 'of', 'on', 'that', 'the', 'this', 'to', 'what', 'with',
+  'a',
+  'an',
+  'and',
+  'are',
+  'at',
+  'by',
+  'can',
+  'do',
+  'for',
+  'from',
+  'how',
+  'in',
+  'is',
+  'it',
+  'of',
+  'on',
+  'that',
+  'the',
+  'this',
+  'to',
+  'what',
+  'with',
 ])
 
 // Lowercase, replace non-word/non-space chars with spaces, squeeze whitespace.
@@ -38,7 +57,7 @@ function ngramsOfNormalized(norm: string, n = 3): Set<string> {
   return grams
 }
 
-// Character n-grams of the normalized text (default trigrams).
+// Character n-grams of the normalized text, default trigrams.
 export function getNgrams(text: string, n = 3): Set<string> {
   return ngramsOfNormalized(normalizeText(text), n)
 }
@@ -64,7 +83,9 @@ export function jaccardSimilarity(
 
 function tokensOf(normalized: string): Set<string> {
   const tokens = new Set<string>()
-  for (const token of normalized.split(' ')) {
+  const parts = normalized.split(' ')
+  for (let i = 0, { length } = parts; i < length; i += 1) {
+    const token = parts[i]!
     if (token.length > 1 && !STOPWORDS.has(token)) {
       tokens.add(token)
     }
@@ -91,7 +112,7 @@ export function hybridSimilarity(textA: string, textB: string): number {
 }
 
 // Pre-computed text representations for fast repeated similarity checks across
-// a stream (build once per item, compare many times).
+// a stream, build once per item, compare many times.
 export interface PreparedText {
   ngrams: Set<string>
   tokens: Set<string>
@@ -135,7 +156,11 @@ export function dedupeItems(
     }
     const prepared = prepareText(text)
     let isDuplicate = false
-    for (let j = 0, { length: keptLength } = keptPrepared; j < keptLength; j += 1) {
+    for (
+      let j = 0, { length: keptLength } = keptPrepared;
+      j < keptLength;
+      j += 1
+    ) {
       if (preparedSimilarity(prepared, keptPrepared[j]!) >= threshold) {
         isDuplicate = true
         break

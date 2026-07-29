@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Resolve a recorded MEMORY lesson into its two canonical code surfaces
  *   via the socket-lib AI helper — so nobody hand-juggles the 40KB CLAUDE.md
  *   byte budget or the defer-to-docs split again. The flow is: (1) record the
@@ -10,7 +10,7 @@
  *   1. Adds a TERSE one-line `-` bullet to the right CLAUDE.md section (the `## 📚
  *      Wheelhouse Standards` fleet block for `--section fleet`, or the `## 🏗️
  *      …-Specific` postamble for `--section repo`), pointing at the doc.
- *   2. Creates (or extends) the detail doc at
+ *   2. Creates, or extends, the detail doc at
  *      `docs/agents.md/{fleet,repo}/<topic>.md` from the memory's content. The
  *      agent owns the hard part: keeping the CLAUDE.md edit under the 40KB cap
  *      (claude-md-size-guard) and the per-section ≤8-line cap
@@ -30,10 +30,11 @@ import process from 'node:process'
 import { AI_PROFILE } from '@socketsecurity/lib-stable/ai/profiles'
 import { spawnAiAgent } from '@socketsecurity/lib-stable/ai/spawn'
 import { discoverAiAgents } from '@socketsecurity/lib-stable/ai/discover'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from './paths.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -128,14 +129,14 @@ export function parseArgs(argv: readonly string[]): CodifyArgs {
 // The CLAUDE.md section to append the bullet under, by scope.
 function sectionAnchor(section: 'fleet' | 'repo'): string {
   return section === 'fleet'
-    ? 'the `## 📚 Wheelhouse Standards` fleet-canonical block (between the BEGIN/END FLEET-CANONICAL markers)'
-    : 'the `## 🏗️ …-Specific` project section (the repo-owned postamble, OUTSIDE the FLEET-CANONICAL markers)'
+    ? 'the `## 📚 Wheelhouse Standards` fleet-canonical block (between the `<fleet-canonical>` markers)'
+    : 'the `## 🏗️ …-Specific` project section (the repo-owned postamble, OUTSIDE the `<fleet-canonical>` markers)'
 }
 
 export function buildPrompt(args: CodifyArgs): string {
   const docRel = `docs/agents.md/${args.section}/${args.topic}.md`
   const claudeRel =
-    args.section === 'fleet' ? 'template/CLAUDE.md' : 'CLAUDE.md'
+    args.section === 'fleet' ? 'template/base/CLAUDE.md' : 'CLAUDE.md'
   return [
     'You are codifying ONE recorded lesson into its two canonical code surfaces. The MEMORY below is your source of truth — it captures the rule AND the *why*. Make exactly two edits and nothing else.',
     '',
@@ -155,7 +156,7 @@ export async function main(): Promise<void> {
   const prompt = buildPrompt(args)
   const docRel = `docs/agents.md/${args.section}/${args.topic}.md`
   const claudeRel =
-    args.section === 'fleet' ? 'template/CLAUDE.md' : 'CLAUDE.md'
+    args.section === 'fleet' ? 'template/base/CLAUDE.md' : 'CLAUDE.md'
 
   logger.log(`codify-rule: section=${args.section} topic=${args.topic}`)
   logger.log(`  CLAUDE.md:  ${claudeRel} (add/fold a terse bullet)`)
@@ -178,9 +179,9 @@ export async function main(): Promise<void> {
     return
   }
 
-  // AI_PROFILE.create: Edit + Write (must create the doc), NO Bash — the
+  // AI_PROFILE.create: Edit + Write, must create the doc, NO Bash — the
   // four-flag lockdown the Programmatic-Claude rule mandates. addDirs lets the
-  // agent see template/ + docs/ under the repo root (already the cwd).
+  // agent see template/ + docs/ under the repo root, already the cwd.
   const { exitCode, stderr } = await spawnAiAgent({
     ...AI_PROFILE.create,
     cwd: REPO_ROOT,
@@ -199,7 +200,11 @@ export async function main(): Promise<void> {
   )
 }
 
-main().catch((e: unknown) => {
-  logger.error(errorMessage(e))
-  process.exitCode = 1
-})
+// Entrypoint-guarded: importing this module (unit tests of its exported
+// helpers) must not execute the script.
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.error(errorMessage(e))
+    process.exitCode = 1
+  })
+}

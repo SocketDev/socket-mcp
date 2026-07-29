@@ -3,8 +3,8 @@
  *   in the manifest produces a typed report row — the dispatcher in `cli.mts`
  *   is exhaustively typed on the `Report` union below so the formatter can read
  *   each kind's payload without `any` casts. `Severity` is the tri-state every
- *   report carries: `ok` (no drift), `drift` (consumer needs to look), `error`
- *   (manifest is broken). Exit codes map 0 / 2 / 1 respectively.
+ *   report carries: `ok`, no drift, `drift`, consumer needs to look, `error`
+ *   manifest is broken. Exit codes map 0 / 2 / 1 respectively.
  */
 
 import type { LockstepManifest, PortStatus } from './schema.mts'
@@ -41,7 +41,10 @@ export interface FileForkReport extends ReportBase {
 export interface VersionPinReport extends ReportBase {
   kind: 'version-pin'
   upstream: string
-  pinned_sha: string
+  // The effective pin: the row's stored pinned_sha when present, else the value
+  // derived from the `.gitmodules` `ref =`. `undefined` only on the error path
+  // where neither is resolvable.
+  pinned_sha: string | undefined
   pinned_tag: string | undefined
   upgrade_policy: string
   head_sha: string | undefined

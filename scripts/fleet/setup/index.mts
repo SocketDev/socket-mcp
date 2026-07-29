@@ -1,23 +1,53 @@
 #!/usr/bin/env node
 /**
- * @file Full repo setup wizard — runs all setup steps in order. Each step is
- *   also runnable independently via pnpm run setup:<name>. Usage: pnpm
- *   setup-all pnpm setup-all --rotate pnpm setup-all --skip-tools pnpm
- *   setup-all --skip-native-host.
+ * @file Full repo setup wizard — runs the fleet steps in order, then any
+ *   repo-owned steps discovered in scripts/repo/setup/. Each fleet step is also
+ *   runnable independently via pnpm run setup:<name>. Usage: pnpm setup-all
+ *   pnpm setup-all --rotate pnpm setup-all --skip-tools.
  */
 
-import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
+import { parseCanonicalMcpConfig, writeCodexAdapters } from '../mcp-config.mts'
+import { discoverRepoSetup } from '../_shared/repo-setup.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { setupBrew } from './brew.mts'
+import { setupDeveloperTools } from './developer-tools.mts'
+import { setupGo } from './go.mts'
+import { setupMcp } from './mcp.mts'
+import { setupPython } from './python.mts'
+import { setupRefero } from './refero.mts'
+import { setupRust } from './rust.mts'
+
+import type { EcosystemStepResult } from './ecosystems.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const logger = getDefaultLogger()
 
-function run(script: string, extraArgs: string[] = []): boolean {
+// The per-ecosystem provisioning steps, alphabetical. Each self-detects and
+// no-ops (skips) when its ecosystem or platform does not apply, so the whole
+// list runs unconditionally. Also runnable standalone via pnpm run setup:<eco>.
+const ECOSYSTEM_STEPS: ReadonlyArray<
+  readonly [string, () => Promise<EcosystemStepResult>]
+> = [
+  ['setup:brew', setupBrew],
+  ['setup:developer-tools', setupDeveloperTools],
+  ['setup:go', setupGo],
+  ['setup:mcp', setupMcp],
+  ['setup:python', setupPython],
+  ['setup:refero', setupRefero],
+  ['setup:rust', setupRust],
+]
+
+export function run(script: string, extraArgs: string[] = []): boolean {
   const r = spawnSync(
     'node',
     ['--experimental-strip-types', script, ...extraArgs],
@@ -26,12 +56,57 @@ function run(script: string, extraArgs: string[] = []): boolean {
   return r.status === 0
 }
 
-function main(): void {
-  const logger = getDefaultLogger()
-  const argv = process.argv.slice(2)
-  const rotate = argv.includes('--rotate')
-  const skipNativeHost = argv.includes('--skip-native-host')
-  const skipTools = argv.includes('--skip-tools')
+// Parse the setup-all CLI flags: --rotate (rotate the API token) and
+// --skip-tools (skip package-manager/security-tool/ecosystem installs).
+export function parseSetupArgs(argv: string[]): {
+  rotate: boolean
+  skipTools: boolean
+} {
+  return {
+    rotate: argv.includes('--rotate'),
+    skipTools: argv.includes('--skip-tools'),
+  }
+}
+
+// True only when every named step succeeded.
+export function allStepsOk(
+  results: ReadonlyArray<readonly [string, boolean]>,
+): boolean {
+  return results.every(([, ok]) => ok)
+}
+
+// Render the "=== Summary ===" checklist lines for the setup results.
+export function formatSummaryLines(
+  results: ReadonlyArray<readonly [string, boolean]>,
+): string[] {
+  return results.map(([name, ok]) => `  ${ok ? '✓' : '✗'} ${name}`)
+}
+
+// Generate the gitignored, generated-untracked `.codex` adapters from the
+// committed `.mcp.json`. A pure repo-local projection (writes files, installs
+// nothing), so it runs UNCONDITIONALLY — never behind `--skip-tools`, like the
+// Claude-config step — otherwise `setup-all --skip-tools` would leave a member
+// with no Codex MCP config or PreToolUse guard. A missing `.mcp.json` is not a
+// failure, nothing to project. See docs/agents.md/fleet/release-vs-cascade.md.
+export function generateCodexAdapters(): boolean {
+  const canonicalPath = path.join(REPO_ROOT, '.mcp.json')
+  if (!existsSync(canonicalPath)) {
+    return true
+  }
+  try {
+    writeCodexAdapters(
+      REPO_ROOT,
+      parseCanonicalMcpConfig(readFileSync(canonicalPath, 'utf8')),
+    )
+    return true
+  } catch (e) {
+    logger.error(`Codex adapters — ${errorMessage(e)}`)
+    return false
+  }
+}
+
+async function main(): Promise<void> {
+  const { rotate, skipTools } = parseSetupArgs(process.argv.slice(2))
 
   const results: Array<[string, boolean]> = []
 
@@ -40,7 +115,7 @@ function main(): void {
 
   if (!skipTools) {
     logger.log('── Tools (pnpm + sfw + bootstrap) ─────────')
-    results.push(['Tools', run(path.join(__dirname, 'setup-tools.mjs'))])
+    results.push(['Tools', run(path.join(__dirname, 'tools.mjs'))])
     logger.log('')
   }
 
@@ -58,17 +133,10 @@ function main(): void {
   ])
   logger.log('')
 
-  if (!skipNativeHost) {
-    logger.log('── Native Messaging Host ──────────────────')
-    results.push(['Native host', run(path.join(__dirname, 'native-host.mts'))])
-    logger.log('')
-  }
-
-  logger.log('── Trusted Publisher Extension ────────────')
-  results.push([
-    'Extension',
-    run(path.join(__dirname, 'trusted-publisher-extension.mts')),
-  ])
+  // Pure repo-local projection (.mcp.json → .codex) — always-run, never gated
+  // by --skip-tools; the kimi-CLI user merge (setup:mcp) stays tools-gated.
+  logger.log('── Codex adapters ─────────────────────────')
+  results.push(['Codex adapters', generateCodexAdapters()])
   logger.log('')
 
   if (!skipTools) {
@@ -89,12 +157,35 @@ function main(): void {
     logger.log('')
   }
 
-  logger.log('=== Summary ===')
-  for (const [name, ok] of results) {
-    logger.log(`  ${ok ? '✓' : '✗'} ${name}`)
+  // Per-ecosystem provisioning (local == CI): brew / go / python / rust, each
+  // self-detecting and installing only through the locked/soaked artifact.
+  // Gated by --skip-tools like the other install steps (each still no-ops when
+  // its ecosystem/platform is absent, so a repo without them sees clean skips).
+  if (!skipTools) {
+    for (const [name, step] of ECOSYSTEM_STEPS) {
+      logger.log(`── ${name} ─────────────────────────────────`)
+      const result = await step()
+      results.push([name, result.ok])
+      logger.log('')
+    }
   }
 
-  if (!results.every(([, ok]) => ok)) {
+  // Repo-owned setup steps (scripts/repo/setup/*.mts) — the fleet/repo seam.
+  // Absent in most members; the wheelhouse ships the native-host + extension
+  // steps here. Ordered by filename (see discoverRepoSetup).
+  for (const rel of discoverRepoSetup(REPO_ROOT)) {
+    const name = path.basename(rel, '.mts')
+    logger.log(`── ${name} ─────────────────────────────────`)
+    results.push([name, run(path.join(REPO_ROOT, rel))])
+    logger.log('')
+  }
+
+  logger.log('=== Summary ===')
+  for (const line of formatSummaryLines(results)) {
+    logger.log(line)
+  }
+
+  if (!allStepsOk(results)) {
     logger.error('')
     logger.warn('Some steps failed — see above.')
     process.exitCode = 1
@@ -104,4 +195,9 @@ function main(): void {
   }
 }
 
-main()
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.error(e)
+    process.exitCode = 1
+  })
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Audit the dev machine for prompt-less secret / signing setup. Each
  *   check has a `fix` suggestion the operator can copy-paste. Exit code 0 = all
  *   good. Exit code 1 = at least one check failed. Use `--fix` to attempt
@@ -31,6 +31,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = console
 
@@ -41,9 +42,9 @@ interface CheckResult {
   readonly fix?: string | undefined
 }
 
-const CACHE_TTL_THRESHOLD_SECONDS = 28800
+const CACHE_TTL_THRESHOLD_SECONDS = 28_800
 
-function isMac(): boolean {
+export function isMac(): boolean {
   return os.platform() === 'darwin'
 }
 
@@ -59,7 +60,10 @@ function readGpgAgentConf(): string | undefined {
   }
 }
 
-function parseTtl(content: string, directive: string): number | undefined {
+export function parseTtl(
+  content: string,
+  directive: string,
+): number | undefined {
   // gpg-agent.conf supports comments via `#`; directives are
   // `directive value` on a line. Take the LAST occurrence (gpg-agent
   // semantics: later wins on duplicates).
@@ -72,7 +76,7 @@ function parseTtl(content: string, directive: string): number | undefined {
     }
     const re = new RegExp(`^${directive}\\s+(\\d+)\\s*(?:#.*)?$`)
     const m = re.exec(ln)
-    if (m && m[1]) {
+    if (m?.[1]) {
       match = Number(m[1])
     }
   }
@@ -281,7 +285,7 @@ function checkSocketTokenInEnv(): CheckResult {
   // keychain-fallback getter would defeat the check.
   const env =
     // socket-api-token-getter: allow direct-env
-    // oxlint-disable-next-line socket/socket-api-token-env -- audit script: must check the primary slot because that's literally what's being audited (whether the install hook's primary export is wired up).
+    // oxlint-disable-next-line socket/socket-api-token-env -- audit script: must check the primary slot because that's literally what's being audited, whether the install hook's primary export is wired up.
     process.env['SOCKET_API_KEY'] || process.env['SOCKET_API_TOKEN']
   if (env) {
     // socket-api-token-getter: allow direct-env -- audit reports which raw env name is set.
@@ -424,4 +428,6 @@ function main(): void {
   process.exit(summary.failed > 0 ? 1 : 0)
 }
 
-main()
+if (isMainModule(import.meta.url)) {
+  main()
+}

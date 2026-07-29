@@ -1,4 +1,4 @@
-/**
+/*
  * @file Flag commands that reference sibling repos via relative paths. `node
  *   ../socket-foo/scripts/bar.mts` in a fleet README assumes the reader has the
  *   sibling repo checked out at exactly the right level relative to the current
@@ -16,10 +16,12 @@
 
 import { isInsideWheelhouse } from './_shared/wheelhouse-self-skip.mts'
 
+import type { MarkdownlintRule } from './_shared/rule-types.mts'
+
 const RULE_NAME = 'socket-no-relative-sibling-script'
 const SIBLING_PATH_RES = [
   // Detect `<runner> ../<sibling>/...` where runner is one of the common
-  // JS/TS toolchain binaries (any runtime invocation).
+  // JS/TS toolchain binaries, any runtime invocation.
   /\b(?:bun|deno|node|npm|pnpm|yarn)\s+\.\.\/[\w@-]+\//,
   // Detect bare ../<segment>/ where the first segment doesn't start with `.`
   // (i.e. genuine sibling, not the current repo's `..` for monorepo packages).
@@ -29,10 +31,7 @@ const SIBLING_PATH_RES = [
   /(?:^|\s)\.\.\/stuie\//,
 ]
 
-/**
- * @type {import('markdownlint').Rule}
- */
-const rule = {
+const rule: MarkdownlintRule = {
   description:
     'Commands referencing sibling fleet repos via relative paths fail for outside readers',
   function(params, onError) {
@@ -40,9 +39,9 @@ const rule = {
       return
     }
     for (let i = 0; i < params.lines.length; i += 1) {
-      const line = params.lines[i]
+      const line = params.lines[i]!
       for (let j = 0; j < SIBLING_PATH_RES.length; j += 1) {
-        const re = SIBLING_PATH_RES[j]
+        const re = SIBLING_PATH_RES[j]!
         const match = re.exec(line)
         if (!match) {
           continue

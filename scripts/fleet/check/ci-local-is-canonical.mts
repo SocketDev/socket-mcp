@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Code-is-law backing for the onboarding skill's CI step (step 18 of
  *   `.claude/skills/fleet/onboarding-fleet-member/SKILL.md`). The skill
  *   DESCRIBES the local-CI path; this check ENFORCES it so the prose can't
@@ -15,7 +15,7 @@
  *     when a template copy is reachable (the wheelhouse, or a checkout that
  *     vendored it); a downstream repo without the template skips that half.
  *     Scope: the repo this runs in (check --all is per-repo). Exit codes: 0 —
- *     the ci:local script (and Dockerfile, if present) are canonical; 1 —
+ *     the ci:local script, and Dockerfile, if present, are canonical; 1 —
  *     drift.
  */
 
@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
@@ -50,16 +50,19 @@ export function ciLocalScript(repoDir: string): string | undefined {
 }
 
 // The reachable canonical Dockerfile: prefer the in-repo template (the
-// wheelhouse), else undefined (a downstream repo can't compare without it).
+// wheelhouse), else undefined, a downstream repo can't compare without it.
 export function templateDockerfilePath(repoDir: string): string | undefined {
-  const inTemplate = path.join(repoDir, 'template', AGENT_CI_DOCKERFILE)
+  // The canonical seed lives under template/base/ (not the old top-level
+  // template/); a stale template/.github/... probe returned undefined for the
+  // wheelhouse, so the byte-identity check below was silently skipped.
+  const inTemplate = path.join(repoDir, 'template', 'base', AGENT_CI_DOCKERFILE)
   return existsSync(inTemplate) ? inTemplate : undefined
 }
 
 async function main(): Promise<void> {
   const errors: string[] = []
 
-  // 1. ci:local script shape (when declared).
+  // 1. ci:local script shape, when declared.
   const ciLocal = ciLocalScript(REPO_ROOT)
   if (ciLocal !== undefined && ciLocal !== CANONICAL_CI_LOCAL) {
     errors.push(

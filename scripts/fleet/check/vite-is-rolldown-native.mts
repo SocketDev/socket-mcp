@@ -2,7 +2,7 @@
 // tree.
 //
 //   1. RULE — the fleet bundler is rolldown, and esbuild is banned (CLAUDE.md
-//      Tooling). vite 8.x is rolldown-native (bundles rolldown, no esbuild);
+//      Tooling). vite 8.x is rolldown-native, bundles rolldown, no esbuild;
 //      vite 6/7 hard-depend on esbuild. A repo that runs vitest pulls vite
 //      transitively, so without a `vite: 8.x` catalog pin + a `'vite':
 //      'catalog:'` override the transitive vite floats to 7.x and drags esbuild
@@ -14,10 +14,10 @@
 //      didn't get the rolldown-native pin.
 //   3. THE FIX — catalog `vite: 8.x`, overrides `'vite': 'catalog:'` +
 //      `'rolldown': 'catalog:'`, bump any package.json vitest hard-pin to the
-//      catalog version (a hard-pin masks the catalog), and
+//      catalog version, a hard-pin masks the catalog, and
 //      `ignoredOptionalDependencies: [esbuild]` to drop vite 8's optional
 //      esbuild peer, then `rm -rf node_modules pnpm-lock.yaml && pnpm install`
-//      (a gentle relock won't re-derive). See docs/agents.md/fleet/tooling.md.
+//      a gentle relock won't re-derive. See docs/agents.md/fleet/tooling.md.
 //
 //   Exit codes: 0 — clean (vite 8.x, no esbuild) or no lockfile; 1 — drift.
 //   Usage: node scripts/fleet/check/vite-is-rolldown-native.mts [--quiet]
@@ -27,9 +27,30 @@ import process from 'node:process'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
-import { PNPM_LOCK } from '../paths.mts'
+import { loadSocketWheelhouseConfig, PNPM_LOCK } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
+
+// Repo opt-out for the esbuild ban ONLY (the vite<8 floor is unconditional).
+// A repo with a legitimate non-bundler esbuild use — e.g. socket-lib's
+// browser-bundle e2e arm, meander's opt-in minify pass — declares it with a
+// reason in the ONE member config surface (config-segregation: no new loose
+// config files):
+//   socket-wheelhouse.json  →  { "vite": { "allowEsbuild": "<why>" } }
+// The build bundler stays rolldown either way; this tolerates esbuild as a
+// declared test/dev dependency, never as the bundler.
+export function esbuildAllowReason(
+  repoRoot?: string | undefined,
+): string | undefined {
+  const loaded = loadSocketWheelhouseConfig(repoRoot)
+  const vite = loaded?.value['vite']
+  const reason =
+    vite && typeof vite === 'object'
+      ? (vite as Record<string, unknown>)['allowEsbuild']
+      : undefined
+  return typeof reason === 'string' && reason ? reason : undefined
+}
 
 export interface ViteFinding {
   // 'vite-too-old' (a vite@<8 resolution) or 'esbuild-present'.
@@ -50,12 +71,14 @@ const ESBUILD_RE = /^ {2}'?(@esbuild\/[a-z0-9-]+|esbuild)@\d/u
 
 /**
  * Scan a pnpm-lock.yaml body for vite-too-old / esbuild-present resolutions.
- * Pure (string in, findings out) so it unit-tests without a real lockfile.
+ * Pure, string in, findings out, so it unit-tests without a real lockfile.
  */
 export function scanLock(lockBody: string): ViteFinding[] {
   const findings: ViteFinding[] = []
   const seen = new Set<string>()
-  for (const line of lockBody.split('\n')) {
+  const lines = lockBody.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
     const vm = VITE_RE.exec(line)
     if (vm && Number(vm[1]) < 8) {
       const spec = line.trim().replace(/:$/u, '').replace(/^'|'$/gu, '')
@@ -88,7 +111,17 @@ export function main(): void {
     }
     return
   }
-  const findings = scanLock(readFileSync(PNPM_LOCK, 'utf8'))
+  let findings = scanLock(readFileSync(PNPM_LOCK, 'utf8'))
+  const allowReason = esbuildAllowReason()
+  if (allowReason) {
+    const tolerated = findings.filter(f => f.kind === 'esbuild-present')
+    findings = findings.filter(f => f.kind !== 'esbuild-present')
+    if (tolerated.length > 0 && !quiet) {
+      logger.log(
+        `vite-is-rolldown-native: tolerating ${tolerated.length} esbuild resolution(s) — socket-wheelhouse.json vite.allowEsbuild: ${allowReason}`,
+      )
+    }
+  }
   if (findings.length === 0) {
     if (!quiet) {
       logger.success(
@@ -106,11 +139,11 @@ export function main(): void {
     )
   }
   logger.log(
-    'Fix: catalog `vite: 8.x` + overrides `vite`/`rolldown`: `catalog:`, bump any vitest hard-pin to the catalog version, `ignoredOptionalDependencies: [esbuild]`, then `rm -rf node_modules pnpm-lock.yaml && pnpm install`.',
+    'Fix: catalog `vite: 8.x` + overrides `vite`/`rolldown`: `catalog:`, bump any vitest hard-pin to the catalog version, `ignoredOptionalDependencies: [esbuild]`, then `rm -rf node_modules pnpm-lock.yaml && pnpm install`. A legitimate NON-BUNDLER esbuild use (test/dev only) declares `vite.allowEsbuild: "<why>"` in socket-wheelhouse.json instead.',
   )
   process.exitCode = 1
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main()
 }

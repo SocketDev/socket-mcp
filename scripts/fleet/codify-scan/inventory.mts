@@ -5,19 +5,18 @@
  * works from one authoritative set.
  *
  * Thin wrapper: it calls the EXISTING collectors in lib/enforcer-inventory.mts
- * (the same owner the claude-md-rules-are-enforced gate uses) rather than
+ * the same owner the claude-md-rules-are-enforced gate uses, rather than
  * re-deriving the directory conventions. The only logic it adds is splitting
  * the flat hook set into guards / reminders / installers by name suffix, since
  * the scan's overlap check keys on that distinction.
  *
  * Usage:
- *   node scripts/fleet/codify-scan/inventory.mts [--repo-root <path>]
+ * node scripts/fleet/codify-scan/inventory.mts [--repo-root <path>]
  */
 
 import path from 'node:path'
 import process from 'node:process'
 import { existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 import {
   collectFleetDocs,
@@ -26,6 +25,7 @@ import {
   collectScriptPaths,
 } from '../lib/enforcer-inventory.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 export interface EnforcementInventory {
   hooks: {
@@ -43,7 +43,7 @@ export interface EnforcementInventory {
 }
 
 // Split the flat hook-enforcer set by the fleet naming convention: a `-guard`
-// BLOCKS, a `-reminder` NUDGES, anything else (an installer hook with an
+// BLOCKS, a `-nudge` NUDGES, anything else (an installer hook with an
 // install.mts, e.g. setup-signing) is an installer. The split is what the
 // scan's overlap check ("does a guard/reminder for this already exist?") reads.
 export function splitHooks(names: Iterable<string>): {
@@ -57,7 +57,7 @@ export function splitHooks(names: Iterable<string>): {
   for (const name of names) {
     if (name.endsWith('-guard')) {
       guards.push(name)
-    } else if (name.endsWith('-reminder')) {
+    } else if (name.endsWith('-nudge')) {
       reminders.push(name)
     } else {
       installers.push(name)
@@ -104,6 +104,6 @@ export function main(): void {
   )
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

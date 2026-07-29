@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Doc-integrity gate: every hook + socket/ rule CITED in CLAUDE.md must
  *   actually exist. CLAUDE.md documents the fleet's guardrails by naming the
  *   enforcing hook (a backticked `.claude/hooks/fleet/<name>/` citation — the
  *   minimal form, no prose wrapper) and the lint rule (a "socket/<rule>"
  *   reference). When a hook is renamed/removed or a rule is dropped, the
- *   citation goes stale and the doc lies — a reader (human or agent) trusts a
+ *   citation goes stale and the doc lies — a reader, human or agent, trusts a
  *   guard that no longer exists. The `new-hook-claude-md-guard` enforces the
  *   FORWARD direction at edit time (new hook ⇒ needs a citation); this gate
  *   enforces the REVERSE at commit time (citation ⇒ the thing exists), which
@@ -15,7 +15,7 @@
  *      hook dir. Brace-grouped citations (`{a,b,c}/`) are expanded. Repo-only
  *      hooks (`.claude/hooks/repo/<name>/`) are checked the same way.
  *   2. Every `socket/<rule>` cited in CLAUDE.md is a registered rule in the oxlint
- *      plugin's fleet/ tier (one dir per rule). Advisory (logged, non-failing):
+ *      plugin's fleet/ tier, one dir per rule. Advisory, logged, non-failing:
  *      hooks on disk with
  *      NO citation, EXCEPT the reminder family + wheelhouse-only set (those
  *      legitimately need none). This surfaces undocumented guards without
@@ -29,14 +29,15 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { hasFleetHookSource } from '../_shared/fleet-source-present.mts'
 
 const logger = getDefaultLogger()
 
-// Citation shapes (mirror new-hook-claude-md-guard): inline + comma-listed both
+// Citation shapes, mirror new-hook-claude-md-guard: inline + comma-listed both
 // contain the literal backticked path; brace-grouped is `{a,b,c}/` expansion.
 const HOOK_CITATION_RE =
   /\.claude\/hooks\/(fleet|repo)\/([a-z][a-z0-9-]*|\{[^}]+\})\//g
@@ -108,13 +109,22 @@ async function main(): Promise<void> {
     logger.success('No CLAUDE.md to check.')
     return
   }
+  // A bundle-only member has no per-hook / per-rule SOURCE dirs to resolve
+  // citations against — every citation would read as dangling. The doc +
+  // citations are validated at the source repo.
+  if (!hasFleetHookSource(REPO_ROOT)) {
+    logger.success(
+      'No fleet hook source in this repo (bundle-only) — citations validated at the source repo.',
+    )
+    return
+  }
   const claudeMd = readFileSync(claudeMdPath, 'utf8')
 
   const fleetHooks = listDirNames(path.join(REPO_ROOT, '.claude/hooks/fleet'))
   const repoHooks = listDirNames(path.join(REPO_ROOT, '.claude/hooks/repo'))
   // Each rule is a dir under the plugin's fleet/ tier; the dir name is the id.
   const rules = listDirNames(
-    path.join(REPO_ROOT, '.config/oxlint-plugin/fleet'),
+    path.join(REPO_ROOT, '.config/fleet/oxlint-plugin/fleet'),
   )
   // A skill resolves when .claude/skills/fleet/<name>/SKILL.md exists.
   const fleetSkills = new Set(
@@ -131,7 +141,7 @@ async function main(): Promise<void> {
   for (const { segment, name } of citedHooks(claudeMd)) {
     const present =
       segment === 'fleet' ? fleetHooks.has(name) : repoHooks.has(name)
-    // A hook may be cited at fleet/ but live at repo/ (or vice versa) after a
+    // A hook may be cited at fleet/ but live at repo/ or vice versa, after a
     // move — accept either segment so a relocation isn't a false failure, but
     // require the hook to exist SOMEWHERE.
     const existsEither = fleetHooks.has(name) || repoHooks.has(name)

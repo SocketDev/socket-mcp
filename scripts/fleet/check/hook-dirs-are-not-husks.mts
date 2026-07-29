@@ -16,7 +16,7 @@
 //
 // A directory is a valid hook iff it holds at least one of: index.mts (the
 // PreToolUse/PostToolUse/Stop entrypoint), install.mts (setup-* installer
-// hooks), or README.md (documentation-only entries are still intentional). The
+// hooks), or README.md, documentation-only entries are still intentional. The
 // `_shared/` directory is exempt — it is a helper library, not a hook.
 //
 // Usage: node scripts/fleet/check/hook-dirs-are-not-husks.mts [--quiet]
@@ -24,11 +24,11 @@
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -37,12 +37,14 @@ const logger = getDefaultLogger()
 const HOOK_MARKER_FILES = ['index.mts', 'install.mts', 'README.md']
 
 // Directories under .claude/hooks/<seg>/ that are not hooks themselves.
-const NON_HOOK_DIRS = new Set(['_shared'])
+// `_shared` is the helper library; `_dispatch` is the rolldown hook-bundle
+// infra (the CJS loader + dispatcher + built bundle), not a hook entrypoint.
+const NON_HOOK_DIRS = new Set(['_dispatch', '_dist', '_shared'])
 
 export interface HuskHit {
   // Repo-relative path of the husk directory.
   dir: string
-  // What the dir actually contained (for the failure message).
+  // What the dir actually contained, for the failure message.
   contents: string[]
 }
 
@@ -103,12 +105,10 @@ function main(): void {
     return
   }
   if (!quiet) {
-    logger.success(
-      '[check-hook-dirs-are-not-husks] no husk hook directories.',
-    )
+    logger.success('[check-hook-dirs-are-not-husks] no husk hook directories.')
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

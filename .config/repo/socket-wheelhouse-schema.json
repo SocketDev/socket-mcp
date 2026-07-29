@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SocketDev/socket-wheelhouse-schema.json",
+  "title": "socket-wheelhouse per-repo config",
+  "description": "Per-repo socket-wheelhouse config. Two valid locations: `.config/socket-wheelhouse.json` (primary) or `.socket-wheelhouse.json` at the repo root (alternative). Both are first-class — pick the location that fits your repo's convention.",
+  "type": "object",
+  "required": ["schemaVersion", "repoName", "repo", "build"],
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema reference for editor autocompletion. Conventionally `./socket-wheelhouse-schema.json` — both the config and its schema live side-by-side in `.config/`.",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "description": "Schema version. Bump on breaking changes; readers gate on it.",
+      "const": 1,
+      "type": "number"
+    },
+    "repoName": {
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Canonical repo basename (e.g. `socket-lib`, `ultrathink`). Used for shape-independent exemptions like the oxlint `socket-lib` carve-out.",
+      "type": "string"
+    },
+    "repo": {
+      "description": "Repo shape.",
+      "additionalProperties": false,
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "description": "Package layout. `solo` = one `package.json` at root, no `packages/`. `mono` = pnpm workspaces under `packages/`.",
+          "anyOf": [
+            {
+              "const": "solo",
+              "type": "string"
+            },
+            {
+              "const": "mono",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "build": {
+      "description": "How the repo is built + released. Drives the release-checksums file cascade + CI breadth. `from: github-release` repos are native producers (socket-btm); `from: npm-registry` + non-`js` type wrap prebuilt native bits (socket-bin/socket-addon); `type: js` is a plain package.",
+      "additionalProperties": false,
+      "type": "object",
+      "required": ["from", "type"],
+      "properties": {
+        "from": {
+          "description": "Release source/target. `npm-registry` = published as an npm package. `github-release` = raw artifacts attached to a GitHub Release.",
+          "anyOf": [
+            {
+              "const": "npm-registry",
+              "type": "string"
+            },
+            {
+              "const": "github-release",
+              "type": "string"
+            }
+          ]
+        },
+        "type": {
+          "description": "Artifact kind. `js` = plain JS package. `addon` = `.node` native addon. `binary` = a native binary (executable or wasm module — wasm is a binary format, so it lives here, not its own value).",
+          "anyOf": [
+            {
+              "const": "js",
+              "type": "string"
+            },
+            {
+              "const": "addon",
+              "type": "string"
+            },
+            {
+              "const": "binary",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "bundle": {
+      "additionalProperties": false,
+      "description": "Lock-step release-cascade pin. Both fields are written TOGETHER by the cascade (cascadeSha) and the re-pin path (ref) — never hand-edited. The dep-0 fetcher's lock-step verify asserts `cascadeSha === templateSha of the release at ref` before applying.",
+      "type": "object",
+      "required": ["ref", "cascadeSha"],
+      "properties": {
+        "ref": {
+          "description": "The pinned fleet release tag the bundle is fetched from. An EXACT `fleet-<hex>` tag only — no semver, no range (`^`/`~`), no alias (`latest`/`lts`/`main`). Write-time validation rejects a fuzzy/ranged/aliased value.",
+          "pattern": "^fleet-[0-9a-f]{7,}$",
+          "type": "string"
+        },
+        "cascadeSha": {
+          "description": "The wheelhouse template commit SHA the last commit-cascade landed. A bare full-length git SHA (40 lowercase hex chars) — never a `v`-prefix, range, or alias. Must equal the `templateSha` of the release at `ref` (the lock-step invariant).",
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        }
+      }
+    },
+    "release": {
+      "additionalProperties": false,
+      "description": "Release / version-bump policy.",
+      "type": "object",
+      "properties": {
+        "versionPolicy": {
+          "description": "Version-bump policy enforced by bump.mts. `standard` (default): derive major/minor/patch from Conventional Commits. `patch-only`: reject any major/minor bump — only the patch may increment (e.g. socket-wheelhouse stays 1.0.x).",
+          "anyOf": [
+            {
+              "const": "standard",
+              "type": "string"
+            },
+            {
+              "const": "patch-only",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "hooks": {
+      "description": "Git-hook opt-ins.",
+      "type": "object",
+      "properties": {
+        "enablePrePush": {
+          "description": "Wire `.git-hooks/pre-push` (shell shim) → `.git-hooks/pre-push.mts`. Mandatory security gate; default true.",
+          "type": "boolean"
+        },
+        "enableCommitMsg": {
+          "description": "Wire `.git-hooks/commit-msg` (shell shim) → `.git-hooks/commit-msg.mts`. Strips AI attribution; default true.",
+          "type": "boolean"
+        },
+        "enablePreCommit": {
+          "description": "Wire `.git-hooks/pre-commit` (shell shim) → `.git-hooks/pre-commit.mts`. Lint + secret scan on staged files; default true.",
+          "type": "boolean"
+        },
+        "preCommitVariant": {
+          "description": "`lint-only` runs format + secret scan; `lint-test` adds vitest on touched packages. Default `lint-test`.",
+          "anyOf": [
+            {
+              "const": "lint-only",
+              "type": "string"
+            },
+            {
+              "const": "lint-test",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "scripts": {
+      "description": "package.json script tracking overrides.",
+      "type": "object",
+      "properties": {
+        "required": {
+          "description": "Override REQUIRED_SCRIPTS from manifest.mts. Usually omitted — the fleet default applies.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "optional": {
+          "description": "Per-script opt-in map keyed by script name. `true` = repo ships this RECOMMENDED script; `false` = explicit opt-out.",
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "type": "boolean"
+            }
+          }
+        },
+        "bodyExempt": {
+          "description": "Script names whose body is allowed to drift from the canonical form (e.g. socket-lib runs a richer test runner than the standard `node scripts/fleet/test.mts`). Each entry is the script name only.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lint": {
+      "description": "oxlint profile.",
+      "type": "object",
+      "properties": {
+        "profile": {
+          "description": "`standard` requires the fleet plugin set (import + typescript + unicorn). `rich` opts into a wider set; check the runner for the exact basenames currently exempted.",
+          "anyOf": [
+            {
+              "const": "standard",
+              "type": "string"
+            },
+            {
+              "const": "rich",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "workflows": {
+      "description": "CI workflow opt-ins.",
+      "type": "object",
+      "properties": {
+        "ci": {
+          "description": "Ship `.github/workflows/ci.yml`.",
+          "type": "boolean"
+        },
+        "weeklyUpdate": {
+          "description": "Ship `.github/workflows/weekly-update.yml`.",
+          "type": "boolean"
+        },
+        "provenance": {
+          "description": "Repo publishes with npm provenance (OIDC). Hint for setup helpers; not enforced by the checker today.",
+          "type": "boolean"
+        },
+        "requirePinnedFullSha": {
+          "description": "Enforce 40-char SHA pins on every `uses:` ref. Defaults to true; an opt-out is reserved for special cases (e.g. workflow-dispatch test rigs) and currently has no consumer.",
+          "type": "boolean"
+        }
+      }
+    },
+    "claude": {
+      "description": "Claude Code opt-ins.",
+      "type": "object",
+      "properties": {
+        "includeSecurityScanSkill": {
+          "description": "Ship `.claude/skills/fleet/scanning-security/SKILL.md`.",
+          "type": "boolean"
+        },
+        "includeSharedSkills": {
+          "description": "Ship `.claude/skills/fleet/_shared/*` — env-check, path-guard-rule, report-format, security-tools, verify-build.",
+          "type": "boolean"
+        },
+        "includeUpdatingSkill": {
+          "description": "Ship the dependency-update skill. Reserved — no consumer wired today.",
+          "type": "boolean"
+        }
+      }
+    },
+    "workspace": {
+      "description": "pnpm-workspace.yaml setting hints. The runner reads from the YAML; this block exists for repos that prefer to declare intent in JSON.",
+      "type": "object",
+      "properties": {
+        "allowBuilds": {
+          "description": "pnpm `onlyBuiltDependencies` allowlist. Map a package name to true/false to grant/deny build scripts.",
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "type": "boolean"
+            }
+          }
+        },
+        "blockExoticSubdeps": {
+          "description": "Refuse transitive git/tarball subdeps (direct git deps still allowed). Required true; the field exists so a repo can document the intent locally.",
+          "type": "boolean"
+        },
+        "minimumReleaseAge": {
+          "minimum": 0,
+          "description": "Soak time in minutes before installing freshly-published packages. Fleet default 10080 (= 7 days).",
+          "type": "integer"
+        },
+        "minimumReleaseAgeExclude": {
+          "description": "Scopes / package patterns exempt from the soak time. Socket-owned scopes typically listed here.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resolutionMode": {
+          "description": "pnpm `resolutionMode`. Fleet default `highest`.",
+          "anyOf": [
+            {
+              "const": "highest",
+              "type": "string"
+            },
+            {
+              "const": "lowest-direct",
+              "type": "string"
+            }
+          ]
+        },
+        "trustPolicy": {
+          "description": "pnpm `trustPolicy`. Fleet default `no-downgrade`.",
+          "anyOf": [
+            {
+              "const": "no-downgrade",
+              "type": "string"
+            },
+            {
+              "const": "match-spec",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "github": {
+      "description": "GitHub-related fleet config.",
+      "type": "object",
+      "properties": {
+        "apps": {
+          "description": "GitHub App slugs that must be installed on the repo (e.g. `cursor`, `socket-security`, `socket-trufflehog`). Audited by `scripts/fleet/lint-github-settings.mts` — apps whose installation cannot be reliably detected via check-suites are trusted via this manifest.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "pathsAllowlist": {
+      "description": "Exemptions for the path-hygiene gate (scripts/fleet/check/paths-are-canonical.mts). Each entry needs a `reason`; prefer narrow entries (rule + file + snippet_hash + pattern) over blanket file-level exempts.",
+      "type": "array",
+      "items": {
+        "description": "One exemption for the path-hygiene gate.",
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "rule": {
+            "description": "Rule letter (A, B, C, D, F, G). Omit to match any rule.",
+            "type": "string"
+          },
+          "file": {
+            "description": "Substring match against the relative file path.",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Substring match against the offending snippet.",
+            "type": "string"
+          },
+          "line": {
+            "description": "Exact line number. Strict — no fuzz tolerance.",
+            "type": "number"
+          },
+          "snippet_hash": {
+            "description": "12-char SHA-256 prefix of the normalized snippet (whitespace collapsed). Drift-resistant: keeps matching after reformatting that doesn't change the offending construction. Get via `node scripts/fleet/check/paths-are-canonical.mts --show-hashes`.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why this site is genuinely exempt. Required.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

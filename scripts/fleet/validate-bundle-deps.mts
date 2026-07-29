@@ -15,16 +15,18 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from './paths.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
 const rootPath = REPO_ROOT
 
 // Node.js builtins to ignore (including node: prefix variants).
-// node:smol-* are Socket SEA-bundled optional builtins (smol-util, smol-primordial);
+// node:smol-* are Socket SEA-bundled optional builtins, smol-util, smol-primordial;
 // they appear in dist behind `mod.isBuiltin('node:smol-util')` guards and are only
 // resolvable in SEA binaries, so they should never be expected in dependencies.
 const SOCKET_SEA_BUILTINS = ['node:smol-util', 'node:smol-primordial']
@@ -68,7 +70,7 @@ export async function findDistFiles(distPath: string): Promise<string[]> {
 /**
  * Check if a string is a valid package specifier.
  */
-function isValidPackageSpecifier(specifier: string): boolean {
+export function isValidPackageSpecifier(specifier: string): boolean {
   // Relative imports
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
     return false
@@ -113,7 +115,9 @@ function isValidPackageSpecifier(specifier: string): boolean {
  * Extract external package names from require() and import statements in built
  * files.
  */
-async function extractExternalPackages(filePath: string): Promise<Set<string>> {
+export async function extractExternalPackages(
+  filePath: string,
+): Promise<Set<string>> {
   const content = await fs.readFile(filePath, 'utf8')
   const externals = new Set<string>()
 
@@ -132,7 +136,7 @@ async function extractExternalPackages(filePath: string): Promise<Set<string>> {
     if (!specifier) {
       continue
     }
-    // Skip internal src/external/ wrapper paths (used by socket-lib pattern)
+    // Skip internal src/external/ wrapper paths, used by socket-lib pattern
     if (specifier.includes('/external/')) {
       continue
     }
@@ -147,7 +151,7 @@ async function extractExternalPackages(filePath: string): Promise<Set<string>> {
     if (!specifier) {
       continue
     }
-    // Skip internal src/external/ wrapper paths (used by socket-lib pattern)
+    // Skip internal src/external/ wrapper paths, used by socket-lib pattern
     if (specifier.includes('/external/')) {
       continue
     }
@@ -162,7 +166,7 @@ async function extractExternalPackages(filePath: string): Promise<Set<string>> {
     if (!specifier) {
       continue
     }
-    // Skip internal src/external/ wrapper paths (used by socket-lib pattern)
+    // Skip internal src/external/ wrapper paths, used by socket-lib pattern
     if (specifier.includes('/external/')) {
       continue
     }
@@ -177,7 +181,9 @@ async function extractExternalPackages(filePath: string): Promise<Set<string>> {
 /**
  * Extract bundled package names from node_modules paths in comments and code.
  */
-async function extractBundledPackages(filePath: string): Promise<Set<string>> {
+export async function extractBundledPackages(
+  filePath: string,
+): Promise<Set<string>> {
   const content = await fs.readFile(filePath, 'utf8')
   const bundled = new Set<string>()
 
@@ -219,7 +225,7 @@ async function extractBundledPackages(filePath: string): Promise<Set<string>> {
       packageName.includes(']') ||
       packageName.includes('(') ||
       packageName.includes(')') ||
-      // Filter out common false positives (strings that appear in code but aren't packages)
+      // Filter out common false positives, strings that appear in code but aren't packages
       packageName === 'bin' ||
       packageName === '.bin' ||
       packageName === 'npm' ||
@@ -240,9 +246,9 @@ async function extractBundledPackages(filePath: string): Promise<Set<string>> {
 }
 
 /**
- * Get package name from a module specifier (strip subpaths).
+ * Get package name from a module specifier, strip subpaths.
  */
-function getPackageName(specifier: string): string | undefined {
+export function getPackageName(specifier: string): string | undefined {
   // Relative imports are not packages
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
     return undefined
@@ -399,7 +405,7 @@ async function validateBundleDeps(): Promise<ValidationResult> {
     }
   }
 
-  // Validate bundled packages are in devDependencies (not dependencies)
+  // Validate bundled packages are in devDependencies, not dependencies
   for (const packageName of allBundled) {
     if (dependencies.has(packageName)) {
       violations.push({
@@ -460,15 +466,14 @@ async function main(): Promise<void> {
     // Only fail on violations, not warnings
     process.exitCode = violations.length > 0 ? 1 : 0
   } catch (e) {
-    logger.error(
-      'Validation failed:',
-      e instanceof Error ? e.message : String(e),
-    )
+    logger.error('Validation failed:', errorMessage(e))
     process.exitCode = 1
   }
 }
 
-main().catch((e: unknown) => {
-  logger.error('Unhandled error in main():', e)
-  process.exitCode = 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.error('Unhandled error in main():', e)
+    process.exitCode = 1
+  })
+}

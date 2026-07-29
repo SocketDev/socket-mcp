@@ -11,7 +11,7 @@
  *   Why a script and not just a Workflow agent: the skill's Workflow PROPOSES
  *   the codification (scan → dedup → rank → diff sketch). This script is the
  *   APPLY engine for one chosen gap — it pins model + effort to the surface
- *   (token-spend rule), enforces the four-flag programmatic-Claude lockdown via
+ *   token-spend rule, enforces the four-flag programmatic-Claude lockdown via
  *   AI_PROFILE, and runs the surface's own verifier (the new hook's tests, the
  *   new check, the lint plugin load) at the SCRIPT level the way ai-lint-fix
  *   re-runs lint — "give the agent a way to verify its work," done by the
@@ -31,14 +31,12 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { AI_PROFILE } from '@socketsecurity/lib-stable/ai/profiles'
 import { discoverAiAgents } from '@socketsecurity/lib-stable/ai/discover'
 import { spawnAiAgent } from '@socketsecurity/lib-stable/ai/spawn'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
@@ -50,6 +48,7 @@ import {
 } from './codify-guidance.mts'
 
 import type { CodifySurface } from './codify-guidance.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -85,7 +84,7 @@ export function parseArgs(argv: readonly string[]): CodifyGapArgs {
       const value = argv[i + 1] ?? ''
       i += 1
       if (!isCodifySurface(value)) {
-        // oxlint-disable-next-line unicorn/no-array-sort -- the spread copies CODIFY_SURFACES into a fresh array (no shared mutation); .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
+        // oxlint-disable-next-line unicorn/no-array-sort -- the spread copies CODIFY_SURFACES into a fresh array, no shared mutation; .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
         const surfaces = [...CODIFY_SURFACES].sort().join(', ')
         throw new Error(
           `--surface must be one of ${surfaces}; saw "${value}". Fix: pass the surface codifying-disciplines chose for this gap.`,
@@ -107,7 +106,7 @@ export function parseArgs(argv: readonly string[]): CodifyGapArgs {
     }
   }
   if (!surface) {
-    // oxlint-disable-next-line unicorn/no-array-sort -- the spread copies CODIFY_SURFACES into a fresh array (no shared mutation); .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
+    // oxlint-disable-next-line unicorn/no-array-sort -- the spread copies CODIFY_SURFACES into a fresh array, no shared mutation; .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
     const surfaces = [...CODIFY_SURFACES].sort().join(', ')
     throw new Error(
       '--surface is required (one of ' +
@@ -166,11 +165,13 @@ export function buildCodifyPrompt(args: CodifyGapArgs): string {
     '</surface>',
     '',
     '<verify-before-stop>',
-    "Before you finish: run the surface's own check. For a hook, run its test",
-    'via `node scripts/repo/run-hook-tests.mts <name>` and confirm it passes',
-    'both arms. For a check, run `node scripts/fleet/check/<name>.mts` and',
-    'confirm it exits 0 on a clean tree. For a lint rule, run the plugin-load',
-    'check. Do not declare done on an unverified surface.',
+    "Before you finish: run the surface's own check. For a hook, run its",
+    'vitest test via `pnpm test test/repo/{unit,integration}/hooks/<name>.test.mts`',
+    'and confirm it passes both arms. For a check, run',
+    '`node scripts/fleet/check/<name>.mts` and confirm it exits 0 on a clean',
+    'tree (plus its vitest test if it has one). For a lint rule, run its vitest',
+    'test via `pnpm test test/repo/{unit,integration}/lint-rules/<id>.test.mts`',
+    'and the plugin-load check. Do not declare done on an unverified surface.',
     '</verify-before-stop>',
   )
   return sections.join('\n')
@@ -179,7 +180,7 @@ export function buildCodifyPrompt(args: CodifyGapArgs): string {
 /**
  * Author the `agents-doc` surface by shelling out to codify-rule.mts rather
  * than spawning our own agent — that script owns the CLAUDE.md byte budget +
- * defer-to-docs split. Requires a memory file (its source-of-truth input).
+ * defer-to-docs split. Requires a memory file, its source-of-truth input.
  */
 async function delegateToCodifyRule(
   args: CodifyGapArgs,
@@ -265,7 +266,7 @@ async function main(): Promise<void> {
   )
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(`ai-codify: ${errorMessage(e)}`)
     process.exitCode = 1

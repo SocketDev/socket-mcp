@@ -5,7 +5,7 @@
  *   segment vocabulary in order to flag everyone else. Pure data + predicate;
  *   no I/O. Paths are normalized to forward-slash form before matching so the
  *   regexes work on Windows too — see [`docs/agents.md/fleet/code-style.md`]
- *   (cross-platform path matching).
+ *   cross-platform path matching.
  */
 
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
@@ -23,6 +23,13 @@ export const EXEMPT_FILE_PATTERNS: RegExp[] = [
   /scripts\/fleet\/check\/paths\//,
   /scripts\/check-consistency\.mts$/,
   /\.claude\/hooks\/fleet\/path-guard\//,
+  // The path-guard hook`s relocated tests (under test/repo/, split into
+  // path-guard-hook + path-guard-rules) feed path-construction fixtures to the
+  // hook to verify detection, so they legitimately enumerate path segments too.
+  /(?:^|\/)path-guard(?:-[a-z]+)?\.test\.mts$/,
+  // The paths-are-canonical check's own test feeds path-shape fixtures to the
+  // check to verify detection — same reason as path-guard.test above.
+  /(?:^|\/)check-paths-are-canonical\.test\.mts$/,
 ]
 
 export function isExempt(filePath: string): boolean {

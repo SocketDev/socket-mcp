@@ -1,12 +1,13 @@
 /**
  * @file Allowlist parsing + matching for the path-hygiene gate. Loads
- *   `pathsAllowlist` from the fleet's canonical `.config/socket-wheelhouse.json`
- *   (JSON, not YAML, per the "JSON not YAML for our own configs" rule).
- *   `snippetHash` produces a whitespace-insensitive, 12-hex-char SHA-256 prefix
- *   used as a drift-tolerant key in allowlist entries. `isAllowlisted` matches a
- *   finding against any combination of `rule` / `file` / `pattern` / `line` /
- *   `snippet_hash` filters; the line/hash check is OR'd so reformatting that
- *   shifts the line still matches via the hash.
+ *   `pathsAllowlist` from the fleet's canonical
+ *   `.config/socket-wheelhouse.json` (JSON, not YAML, per the "JSON not YAML
+ *   for our own configs" rule). `snippetHash` produces a
+ *   whitespace-insensitive, 12-hex-char SHA-256 prefix used as a drift-tolerant
+ *   key in allowlist entries. `isAllowlisted` matches a finding against any
+ *   combination of `rule` / `file` / `pattern` / `line` / `snippet_hash`
+ *   filters; the line/hash check is OR'd so reformatting that shifts the line
+ *   still matches via the hash.
  */
 
 import crypto from 'node:crypto'
@@ -17,16 +18,18 @@ import type { AllowlistEntry, Finding } from './types.mts'
 
 /**
  * Read `pathsAllowlist` from the fleet's canonical `socket-wheelhouse.json`
- * (primary under `.config/`, legacy root-level dotfile as a secondary location).
- * Returns `[]` when the config is absent, has no `pathsAllowlist` key, or the
- * key is empty. `reason` is required per entry; bad shapes are dropped with a
- * stderr note rather than blowing up the whole gate.
+ * (primary under `.config/`, legacy root-level dotfile as a secondary
+ * location). Returns `[]` when the config is absent, has no `pathsAllowlist`
+ * key, or the key is empty. `reason` is required per entry; bad shapes are
+ * dropped with a stderr note rather than blowing up the whole gate.
  */
 export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
-  // Two accepted locations match the rest of the fleet's
-  // socket-wheelhouse.json resolution: primary under .config/ and
-  // legacy root-level dotfile.
+  // Accepted locations match the rest of the fleet's socket-wheelhouse.json
+  // resolution: the .config/{fleet,repo} split's repo tier first (where the
+  // per-repo settings actually live), then the pre-split .config/ location,
+  // then the legacy root-level dotfile.
   const candidates = [
+    path.join(repoRoot, '.config', 'repo', 'socket-wheelhouse.json'),
     path.join(repoRoot, '.config', 'socket-wheelhouse.json'),
     path.join(repoRoot, '.socket-wheelhouse.json'),
   ]
@@ -102,7 +105,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
 
 /**
  * Stable, normalized snippet hash. Whitespace-insensitive so trivial
- * reformatting (indent change, trailing comma, line wrap) doesn't invalidate an
+ * reformatting, indent change, trailing comma, line wrap, doesn't invalidate an
  * allowlist entry, but content-changing edits do. The hash exposes only the
  * first 12 hex chars (~48 bits) which is plenty for collision-resistance within
  * a single repo's finding set and keeps the config entry readable.

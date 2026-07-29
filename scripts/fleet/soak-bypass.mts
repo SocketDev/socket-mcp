@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file One-shot soak-bypass: add a dated `minimumReleaseAgeExclude` entry for
  *   a package whose 7-day soak hasn't cleared yet, so an install can proceed
  *   now. Bakes in the manual dance the user would otherwise repeat:
@@ -13,19 +13,52 @@
  *      `scripts/sync-scaffolding/manifest.mts` + cascade. The daily
  *      `updating-daily` job removes the entry again once `removable` passes, so
  *      this is add-only; promotion is automatic. Usage: `node
- *      scripts/fleet/soak-bypass.mts <pkg>@<version>` Exit codes:
+ *      scripts/fleet/soak-bypass.mts <pkg>@<version>
+ *      [--allow-non-member --reason <why>]` Exit codes:
  *
- *   - 0 — entry added (or already present).
- *   - 1 — bad args, version not found on npm, or no `minimumReleaseAge:` anchor.
+ *   - 0 — entry added, or already present.
+ *   - 1 — bad args, version not found on npm, no `minimumReleaseAge:` anchor,
+ *     or a non-member repo root (the destination must be in the fleet roster;
+ *     `--allow-non-member --reason "<why>"` is the audited escape hatch).
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { PNPM_WORKSPACE_YAML } from './paths.mts'
+import { PNPM_WORKSPACE_YAML, REPO_ROOT } from './paths.mts'
+import { fetchPackagePublishDate } from './registry-publish-date.mts'
+import {
+  gateWriteDest,
+  parseNonMemberOverride,
+} from './_shared/fleet-membership.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const SOAK_DAYS = 7
+
+/**
+ * Append `min-release-age-exclude[]=<name>` to the repo's `.npmrc` so npm
+ * honors the bypass immediately. Idempotent, no duplicate line. `.npmrc` is
+ * cascade-generated (scripts/repo/gen/npmrc.mts in the source repo), so this
+ * local line lives only until the next cascade re-canonicalizes the file — the
+ * durable fleet-wide form is the manifest EXPECTED_RELEASE_AGE_EXCLUDE entry.
+ */
+export function appendNpmrcExcludeLine(repoRoot: string, name: string): void {
+  const npmrcPath = path.join(repoRoot, '.npmrc')
+  if (!existsSync(npmrcPath)) {
+    return
+  }
+  const line = `min-release-age-exclude[]=${name}`
+  const content = readFileSync(npmrcPath, 'utf8')
+  if (content.split('\n').includes(line)) {
+    return
+  }
+  const sep = content.endsWith('\n') ? '' : '\n'
+  writeFileSync(
+    npmrcPath,
+    `${content}${sep}# local soak-bypass (ephemeral — the cascade regenerates this file)\n${line}\n`,
+  )
+}
 
 interface ParsedSpec {
   name: string
@@ -73,7 +106,7 @@ export function spliceSoakEntry(
   removableISO: string,
 ): string | undefined {
   const tag = `${spec.name}@${spec.version}`
-  // Already excluded (any annotation state) → no-op.
+  // Already excluded, any annotation state → no-op.
   const dupRe = new RegExp(
     `^\\s*-\\s*['"]?${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]?\\s*$`,
     'm',
@@ -117,51 +150,47 @@ export function spliceSoakEntry(
   return lines.join('\n')
 }
 
-/**
- * Fetch a package's npm publish date for `version` from the full packument.
- */
-async function fetchPublishDate(
-  name: string,
-  version: string,
-): Promise<string | undefined> {
-  const url = `https://registry.npmjs.org/${encodeURIComponent(name).replace('%40', '@')}`
-  try {
-    // socket-lint: allow global-fetch -- soak tooling probes the npm registry directly; the lib http-request helper isn't a dependency in scripts/.
-    const response = await fetch(url, {
-      headers: { accept: 'application/json' },
-    })
-    if (!response.ok) {
-      return undefined
-    }
-    const json = (await response.json()) as {
-      time?: Record<string, string> | undefined
-    }
-    return json.time?.[version]
-  } catch {
-    return undefined
-  }
-}
-
 async function main(): Promise<void> {
   const spec = parseSpec(process.argv[2] ?? '')
   if (!spec) {
     process.stderr.write(
       'Usage: node scripts/fleet/soak-bypass.mts <pkg>@<version>\n' +
-        '  e.g. node scripts/fleet/soak-bypass.mts compromise@14.15.1\n',
+        '  e.g. node scripts/fleet/soak-bypass.mts compromise@14.15.1\n' +
+        '  Non-member repo root? Audited escape hatch:\n' +
+        '    --allow-non-member --reason "<why>"\n',
     )
     process.exit(1)
   }
 
-  const published = await fetchPublishDate(spec.name, spec.version)
-  if (!published) {
+  // Membership gate — this tool WRITES pnpm-workspace.yaml + .npmrc at the
+  // resolved repo root, so the root must be a fleet-roster member before any
+  // byte lands. Audited escape hatch: `--allow-non-member --reason "<why>"`.
+  const gate = gateWriteDest({
+    destDir: REPO_ROOT,
+    override: parseNonMemberOverride(process.argv.slice(2)),
+    toolName: 'soak-bypass',
+  })
+  if (!gate.allowed) {
+    process.stderr.write(`${gate.message}\n`)
+    process.exit(1)
+  }
+  if (gate.note !== undefined) {
+    process.stderr.write(`${gate.note}\n`)
+  }
+
+  // The lean registry helper returns the already-sliced `YYYY-MM-DD` publish
+  // date (or undefined when the version is unknown / the registry is
+  // unreachable). soak-bypass is interactive, run by hand to bypass a soak, so
+  // an undefined here is a hard stop, not the fail-open a CI check wants.
+  const publishedISO = await fetchPackagePublishDate(spec.name, spec.version)
+  if (!publishedISO) {
     process.stderr.write(
       `soak-bypass: ${spec.name}@${spec.version} not found on npm (no publish ` +
         `date). Check the name + version.\n`,
     )
     process.exit(1)
   }
-  const publishedISO = published.slice(0, 10)
-  const removableISO = addDaysISO(published, SOAK_DAYS)
+  const removableISO = addDaysISO(publishedISO, SOAK_DAYS)
 
   const content = readFileSync(PNPM_WORKSPACE_YAML, 'utf8')
   const next = spliceSoakEntry(content, spec, publishedISO, removableISO)
@@ -179,9 +208,17 @@ async function main(): Promise<void> {
     process.exit(0)
   }
   writeFileSync(PNPM_WORKSPACE_YAML, next)
+  // Mirror the pin's bare NAME into `.npmrc` for npm (>= v12, npm/cli#9532),
+  // which matches by name/glob only. `.npmrc` is cascade-GENERATED
+  // (scripts/repo/gen/npmrc.mts in the source repo), so this append is the
+  // deliberately-ephemeral local unblock — the next cascade re-canonicalizes
+  // the file; the durable form is the manifest EXPECTED_RELEASE_AGE_EXCLUDE
+  // entry (step 3 below). Idempotent: skipped when the line already exists.
+  appendNpmrcExcludeLine(REPO_ROOT, spec.name)
   process.stdout.write(
     `soak-bypass: added ${spec.name}@${spec.version} to minimumReleaseAgeExclude\n` +
-      `  # published: ${publishedISO} | removable: ${removableISO}\n\n` +
+      `  # published: ${publishedISO} | removable: ${removableISO}\n` +
+      `  + mirrored '${spec.name}' into .npmrc (npm soak-exclude, name-only)\n\n` +
       `Next:\n` +
       `  1. pnpm install   (reconcile the lockfile)\n` +
       `  2. commit: chore(deps): soak-bypass ${spec.name}@${spec.version}\n` +
@@ -194,6 +231,6 @@ async function main(): Promise<void> {
 
 // Run only when invoked directly (CLI), not when imported by unit tests —
 // main() calls process.exit, which would tear down the test runner.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

@@ -9,33 +9,48 @@
  *   from elsewhere but didn't inherit this entry, so every downstream `pnpm
  *   install` rejected rolldown@1.0.3's transitive dep with
  *   `[ERR_PNPM_NO_MATURE_MATCHING_VERSION]`. The invariant: **anything
- *   wheelhouse needs to install (its own soak-exclude block) must be in
+ *   wheelhouse needs to install, its own soak-exclude block, must be in
  *   `EXPECTED_RELEASE_AGE_EXCLUDE` so it propagates to every fleet repo via the
  *   cascade**. Bare names (`@socketsecurity/*` etc.) are already in the
  *   SOCKET_PACKAGE_PATTERNS spread; this check focuses on the versioned entries
  *   (`name@version`) that drift case-by-case. Exit 0 = parity. Exit 1 = drift;
  *   lists the diffs. CI gate via `scripts/check.mts`. Wheelhouse-only — fleet
  *   repos don't have an EXPECTED_RELEASE_AGE_EXCLUDE; the cascade hands them
- *   the synth.
- *
- *   Second invariant: no EXPECTED `name@version` pin may have soaked past its
- *   7-day window. A cleared pin is dead weight — the cascade's insert loop and
- *   prune loop disagree about it (insert wants the canonical pin present, prune
- *   drops a soak-cleared one), so it flip-flops on every wave and the pre-push
- *   soak gate rejects the re-add. Failing here keeps the manifest minimal: drop
- *   a pin the day its `removable` date passes (the dep stays in the catalog; it
- *   no longer needs a soak bypass). Pairs with the soak-fixer rule in
- *   checks/workspace-config.mts (expired target → drop, not re-pin).
+ *   the synth. Second invariant: no EXPECTED `name@version` pin may have soaked
+ *   past its 7-day window. A cleared pin is dead weight — the cascade's insert
+ *   loop and prune loop disagree about it (insert wants the canonical pin
+ *   present, prune drops a soak-cleared one), so it flip-flops on every wave
+ *   and the pre-push soak gate rejects the re-add. Failing here keeps the
+ *   manifest minimal: drop a pin the day its `removable` date passes (the dep
+ *   stays in the catalog; it no longer needs a soak bypass). Pairs with the
+ *   soak-fixer rule in checks/workspace-config.mts (expired target → drop, not
+ *   re-pin). Third invariant: each STILL-SOAKING pin's annotated `published`
+ *   date must match the registry's REAL publish date for that exact version.
+ *   The workspace.mts load-time invariant proves the annotation is internally
+ *   consistent (`removable === published + 7d`) but can't prove `published` is
+ *   what the registry actually recorded — a fat-fingered date sails through
+ *   with a wrong soak window (admits the version too early = a trust hole, or
+ *   too late = a stuck install). This fetches the packument `time` (via the
+ *   shared `registry-publish-date.mts` helper — `httpJson`, never bare `fetch`)
+ *   and compares. FAIL-OPEN: an unreachable registry / unknown version yields
+ *   undefined and is skipped, never a red, so offline CI never blocks; fetches
+ *   run in parallel so an offline run pays one timeout window, not one per
+ *   pin.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
+import {
+  isSocketSourcedPackage,
+  SOCKET_PACKAGE_PATTERNS,
+} from '../constants/socket-scopes.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { fetchPackagePublishDate } from '../registry-publish-date.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -85,6 +100,29 @@ export function parseSoakExcludeBlock(content: string): string[] {
 }
 
 /**
+ * The Socket-owned soak-bypass patterns (globs + bare names) that MUST be
+ * present in the live `minimumReleaseAgeExclude` block. Returns the canonical
+ * `SOCKET_PACKAGE_PATTERNS` entries ABSENT from `wheelhouse` — the reverse of
+ * `diffSoakExclude`, which guards `wheelhouse ⊆ canonical`. Without this, a
+ * stale or hand-trimmed live block (missing e.g. `@ultrathink/*`) reads green
+ * even though those scopes get no soak bypass — a fresh Socket publish then
+ * fails every `pnpm install` with `[ERR_PNPM_NO_MATURE_MATCHING_VERSION]`, and
+ * the "Socket scopes are always soak-excluded" invariant becomes a doc claim,
+ * not code-as-law.
+ */
+export function missingSocketPatterns(wheelhouse: readonly string[]): string[] {
+  const present = new Set(wheelhouse)
+  const missing: string[] = []
+  for (let i = 0, { length } = SOCKET_PACKAGE_PATTERNS; i < length; i += 1) {
+    const pattern = SOCKET_PACKAGE_PATTERNS[i]!
+    if (!present.has(pattern)) {
+      missing.push(pattern)
+    }
+  }
+  return missing
+}
+
+/**
  * Compute the soak-exclude parity diff. Returns entries present in `wheelhouse`
  * but missing from `canonical` — the drift the cascade would leave behind.
  * Filters out entries that are transitively covered:
@@ -95,7 +133,7 @@ export function parseSoakExcludeBlock(content: string): string[] {
  *
  * The drift this surfaces is the case that bit us in cascade@4ec6212c: a
  * `name@version` entry present only in wheelhouse, with no canonical
- * counterpart (bare or pinned), so the cascade omits it entirely.
+ * counterpart, bare or pinned, so the cascade omits it entirely.
  */
 export function diffSoakExclude(
   wheelhouse: readonly string[],
@@ -142,13 +180,26 @@ export function diffSoakExclude(
 }
 
 /**
- * EXPECTED `name@version` soak-pins whose annotated `removable` date is on or
- * before `today` (ISO `YYYY-MM-DD`). These have cleared their 7-day soak: the
- * gate admits the version without a bypass, so the pin is dead weight that the
- * cascade re-pins (insert loop) and drops (prune loop) on every wave — a
- * tug-of-war. Globs and bare names have no version to soak and are skipped. An
- * entry with no annotation is skipped (can't date it offline; the parity diff
- * already requires versioned entries to be annotated for the synth comment).
+ * EXPECTED `name@version` soak-pins whose annotated `removable` date is
+ * STRICTLY before `today` (ISO `YYYY-MM-DD`). These have cleared their 7-day
+ * soak: the gate admits the version without a bypass, so the pin is dead weight
+ * that the cascade re-pins, insert loop, and drops, prune loop, on every wave —
+ * a tug-of-war. Globs and bare names have no version to soak and are skipped.
+ * An entry with no annotation is skipped (can't date it offline; the parity
+ * diff already requires versioned entries to be annotated for the synth
+ * comment).
+ *
+ * Why STRICTLY before (`<`), not on-or-before (`<=`): pnpm's minimumReleaseAge
+ * gate (config/version-policy createPublishConfig + npm-resolver
+ * checkResolutionPolicy) compares the version's full publish TIMESTAMP against
+ * a `now - minimumReleaseAge` cutoff — it rejects while `publishTs > now - 7d`.
+ * `removable` is the publish DATE + 7d, but a package published at 14:39 on the
+ * publish date does not clear the 7×24h window until 14:39 on the `removable`
+ * date. So on `today === removable` pnpm may still reject the unpinned install
+ * the window clears later that same day. Retiring the pin then leaves a
+ * lockfile pnpm refuses to install. `removable < today` is the first calendar
+ * date by which the full 7×24h has elapsed regardless of publish time-of-day,
+ * so it can never disagree with pnpm's timestamp comparison.
  */
 export function expiredExpectedPins(
   expected: readonly string[],
@@ -162,12 +213,106 @@ export function expiredExpectedPins(
     if (entry.includes('*') || entry.lastIndexOf('@') <= 0) {
       continue
     }
+    // Socket-owned packages are soak-EXEMPT — they ship through Socket's own
+    // provenance pipeline as scope-glob excludes, never dated version pins, so
+    // the soak never guards them and there is no removable date to expire.
+    if (isSocketSourcedPackage(entry.slice(0, entry.lastIndexOf('@')))) {
+      continue
+    }
     const removable = annotations[entry]?.removable
-    if (removable && removable <= today) {
+    if (removable && removable < today) {
       expired.push(entry)
     }
   }
   return expired
+}
+
+export interface PublishDateMismatch {
+  actual: string
+  annotated: string
+  entry: string
+}
+
+/**
+ * Verify each STILL-SOAKING `name@version` annotation's `published` date
+ * against the registry's REAL publish date. Only pins inside their window
+ * (`removable >= today`) are checked — a cleared pin is already flagged by
+ * `expiredExpectedPins`, so re-verifying it would double-report and spend a
+ * needless request. Globs and bare names (no `@version`) are skipped.
+ *
+ * `fetchDate` is injected (the CLI passes `fetchPackagePublishDate`; tests pass
+ * a stub) so this stays pure + offline-testable. Fetches run in PARALLEL, so an
+ * offline run pays one timeout window rather than one per pin.
+ *
+ * FAIL-OPEN per pin: `fetchDate` returns undefined when the registry is
+ * unreachable or the version is unknown, and undefined is treated as "couldn't
+ * verify" (skipped), NEVER a mismatch. Only a date the registry definitively
+ * reports that disagrees with the annotation is a mismatch.
+ */
+export async function mismatchedPublishDates(
+  annotations: Readonly<
+    Record<
+      string,
+      | { published?: string | undefined; removable?: string | undefined }
+      | undefined
+    >
+  >,
+  today: string,
+  fetchDate: (name: string, version: string) => Promise<string | undefined>,
+): Promise<PublishDateMismatch[]> {
+  const candidates: Array<{
+    annotated: string
+    entry: string
+    name: string
+    version: string
+  }> = []
+  const entrys = Object.keys(annotations).toSorted()
+  for (let i = 0, { length } = entrys; i < length; i += 1) {
+    const entry = entrys[i]!
+    const ann = annotations[entry]
+    const annotated = ann?.published
+    if (!annotated) {
+      continue
+    }
+    // Soak-cleared pins are handled by expiredExpectedPins — don't double-flag.
+    if (ann?.removable && ann.removable < today) {
+      continue
+    }
+    const at = entry.lastIndexOf('@')
+    if (at <= 0) {
+      continue
+    }
+    const name = entry.slice(0, at)
+    // Socket-owned packages are soak-EXEMPT (they ship through Socket's own
+    // provenance pipeline), so the soak never guards them — never registry-
+    // verify a Socket package's publish date here.
+    if (isSocketSourcedPackage(name)) {
+      continue
+    }
+    candidates.push({
+      annotated,
+      entry,
+      name,
+      version: entry.slice(at + 1),
+    })
+  }
+  const actuals = await Promise.all(
+    candidates.map(c => fetchDate(c.name, c.version)),
+  )
+  const mismatches: PublishDateMismatch[] = []
+  for (let i = 0, { length } = candidates; i < length; i += 1) {
+    const actual = actuals[i]
+    const candidate = candidates[i]!
+    // Fail-open: undefined = couldn't verify (offline / unknown version).
+    if (actual && actual !== candidate.annotated) {
+      mismatches.push({
+        actual,
+        annotated: candidate.annotated,
+        entry: candidate.entry,
+      })
+    }
+  }
+  return mismatches
 }
 
 async function main(): Promise<void> {
@@ -191,7 +336,11 @@ async function main(): Promise<void> {
     (await import(MANIFEST)) as {
       EXPECTED_RELEASE_AGE_EXCLUDE: readonly string[]
       RELEASE_AGE_EXCLUDE_ANNOTATIONS: Readonly<
-        Record<string, { published?: string | undefined; removable?: string | undefined } | undefined>
+        Record<
+          string,
+          | { published?: string | undefined; removable?: string | undefined }
+          | undefined
+        >
       >
     }
 
@@ -226,7 +375,73 @@ async function main(): Promise<void> {
     return
   }
 
+  // Third invariant: each soaking pin's annotated `published` matches the
+  // registry's real publish date. Fail-open offline (see fn doc + @file).
+  const mismatches = await mismatchedPublishDates(
+    RELEASE_AGE_EXCLUDE_ANNOTATIONS,
+    today,
+    fetchPackagePublishDate,
+  )
+  if (mismatches.length > 0) {
+    logger.fail(
+      [
+        '[check-fleet-soak-exclude-parity] Soak annotation `published` disagrees with the registry.',
+        '',
+        '  An EXPECTED soak-pin annotation claims a `published` date that does',
+        '  not match what the npm registry recorded for that exact version, so',
+        '  its soak window (removable = published + 7d) is wrong — it admits the',
+        '  version too early (a trust hole) or too late (a stuck install).',
+        '',
+        '  Annotated vs. registry:',
+        ...mismatches.map(
+          m =>
+            `    - ${m.entry}: annotated ${m.annotated}, registry ${m.actual}`,
+        ),
+        '',
+        '  Fix: correct each `published` (and recompute `removable` = published',
+        '  + 7d) in RELEASE_AGE_EXCLUDE_ANNOTATIONS',
+        '  (scripts/repo/sync-scaffolding/manifest/workspace.mts). Re-run',
+        '  `node scripts/fleet/soak-bypass.mts <pkg>@<version>` to fetch the',
+        '  authoritative date rather than hand-typing it.',
+        '',
+      ].join('\n'),
+    )
+    process.exitCode = 1
+    return
+  }
+
   const wheelhouseEntries = parseSoakExcludeBlock(content)
+
+  // Fourth invariant: every Socket-owned soak-bypass pattern must be PRESENT in
+  // the live block. Socket scopes are permanent bypasses (they ship through
+  // Socket's own provenance pipeline), so a missing one is never intentional —
+  // it is cascade-staleness or a hand-trim, and it silently denies the bypass.
+  const missingSocket = missingSocketPatterns(wheelhouseEntries)
+  if (missingSocket.length > 0) {
+    logger.fail(
+      [
+        '[check-fleet-soak-exclude-parity] Socket-owned soak-bypass pattern(s) missing from the live block.',
+        '',
+        '  `minimumReleaseAgeExclude:` in pnpm-workspace.yaml is missing Socket',
+        '  scope pattern(s) that SOCKET_PACKAGE_PATTERNS marks as permanent',
+        '  soak-bypasses. Socket packages ship through our own provenance',
+        '  pipeline, so they are always excluded — a missing entry denies the',
+        '  bypass and a fresh Socket publish then fails every `pnpm install`.',
+        '',
+        '  Missing (add to the block, or re-run the cascade which regenerates it):',
+        ...missingSocket.map(e => `    - '${e}'`),
+        '',
+        '  Canonical source: scripts/fleet/constants/socket-scopes.mts',
+        '  SOCKET_PACKAGE_PATTERNS (spread into EXPECTED_RELEASE_AGE_EXCLUDE by',
+        '  scripts/repo/sync-scaffolding/manifest/workspace.mts). Fix:',
+        '  `node scripts/repo/sync-scaffolding/cli.mts --target . --fix`.',
+        '',
+      ].join('\n'),
+    )
+    process.exitCode = 1
+    return
+  }
+
   const missing = diffSoakExclude(
     wheelhouseEntries,
     EXPECTED_RELEASE_AGE_EXCLUDE,
@@ -256,7 +471,7 @@ async function main(): Promise<void> {
   process.exitCode = 1
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.fail(`[check-fleet-soak-exclude-parity] error: ${e}`)
     process.exitCode = 1

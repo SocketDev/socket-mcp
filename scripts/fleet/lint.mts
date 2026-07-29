@@ -1,127 +1,63 @@
 /* eslint-disable no-shadow -- nested cached-length for-loops intentionally reuse `i`/`length` names for the fleet-wide cached-loop idiom; renaming would diverge from the codebase pattern. */
 /**
- * @file Canonical minimal lint runner for socket-* repos. Scope modes:
- *   (default) Lint files modified in the working tree vs HEAD. --staged Lint
- *   files in the git index (used by .git-hooks/pre-commit). --all Lint the
- *   entire workspace. Flags: --fix Auto-fix issues. --quiet Suppress progress
- *   output. If the chosen scope has no lintable files, the script is a no-op.
- *   Config or infrastructure changes (.config/fleet/oxlintrc.json,
+ * @file Canonical minimal lint runner for socket-* repos. Scope modes: Explicit
+ *   positional file paths (e.g. `pnpm run lint <file…>`) lint exactly those
+ *   files, tracked or brand-new — they win over every flag below, including
+ *   --all. Otherwise: (default, or explicit --modified / its alias --changed)
+ *   Lint files modified in the working tree vs HEAD. --staged Lint files in the
+ *   git index (used by .git-hooks/pre-commit). --all Lint the entire workspace.
+ *   Flags: --fix Auto-fix issues. --quiet Suppress progress output. If the
+ *   chosen scope has no lintable files, the script is a no-op. Config or
+ *   infrastructure changes (.config/fleet/oxlintrc.json,
  *   .config/fleet/oxfmtrc.json, tsconfig*.json, pnpm-lock.yaml, .config/**,
  *   scripts/**, package.json) escalate to `--all` automatically, since they can
- *   affect everything. This is the minimal zero-dependency reference
- *   implementation. Larger repos (socket-lib, socket-registry, socket-sdk-js,
- *   etc.) use a richer version based on @socketsecurity/lib-stable helpers;
- *   this one keeps the same CLI contract so pre-commit hooks and CI work
- *   identically across repos.
+ *   affect everything — EXCEPT under `--staged`, the pre-commit path, which
+ *   always scopes strictly to the staged files so the commit hook stays fast (a
+ *   config/scripts edit staged for commit would otherwise re-lint the whole
+ *   tree, blowing the ≤10s pre-commit budget). The whole-tree correctness net
+ *   for such changes is the pre-push `--all` gate + CI, not the commit hook.
+ *   This is the minimal zero-dependency reference implementation; the oxlint /
+ *   oxfmt / markdownlint / plugin-load runners live in
+ *   `_shared/lint-runners.mts`. Larger repos (socket-lib, socket-registry,
+ *   socket-sdk-js, etc.) use a richer version based on.
+ *
+ * @socketsecurity/lib-stable helpers; this one keeps the same CLI contract so
+ *   pre-commit hooks and CI work identically across repos.
  */
 
-// prefer-async-spawn: sync-required — top-level CLI runner; entire
-// flow is sync (sequential gates, exit-code aggregation).
-import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import type { SpawnSyncOptions } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import os from 'node:os'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
+import {
+  acquireFixerLock,
+  describeHolder,
+  fixerLockPath,
+} from './_shared/fixer-lock.mts'
+import {
+  filterFormatIgnored,
+  getModifiedFiles,
+  getStagedFiles,
+} from './_shared/format-scope.mts'
+import { createLintRunners } from './_shared/lint-runners.mts'
+import { REPO_ROOT } from './paths.mts'
+import { resolveScopeMode } from './_shared/scope-flags.mts'
+import type { ScopeMode } from './_shared/scope-flags.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
+
 const logger = getDefaultLogger()
 
 const args = process.argv.slice(2)
-const mode: 'staged' | 'all' | 'modified' = args.includes('--all')
-  ? 'all'
-  : args.includes('--staged')
-    ? 'staged'
-    : 'modified'
+const mode = resolveScopeMode(args)
 const fix = args.includes('--fix')
 const quiet = args.includes('--quiet') || args.includes('--silent')
-const stdio: SpawnSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
-// On Windows, `pnpm` is a .cmd shim that Node refuses to exec directly
-// via spawnSync (CVE-2024-27980 hardening). The shell wrapper resolves
-// the shim; on POSIX we keep direct invocation so no shell-quoting
-// surface is introduced.
+// On Windows, `pnpm` is a .cmd shim that Node refuses to exec directly via
+// spawnSync (CVE-2024-27980 hardening). The shell wrapper resolves the shim; on
+// POSIX we keep direct invocation so no shell-quoting surface is introduced.
 const useShell = process.platform === 'win32'
 
 const LINTABLE_EXTS = new Set(['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts'])
-
-// Two-file extends layout: `.config/fleet/<config>.json` is fleet-canonical
-// (byte-identical across the fleet, owned by the wheelhouse cascade).
-// A repo with overrides ships `.config/repo/<config>.json` that uses
-// `extends: ['../fleet/<config>.json']` + a small `overrides` block.
-// Auto-discover: prefer the repo overlay if it exists, else the fleet
-// canonical. Picks at invocation time — adding the overlay doesn't
-// require touching scripts. The basename (oxlintrc.json / oxfmtrc.json)
-// stays identical on both sides; only the directory differs.
-function pickConfig(basename: string): string {
-  const repoOverlay = path.join('.config', 'repo', basename)
-  if (existsSync(repoOverlay)) {
-    return repoOverlay
-  }
-  return path.join('.config', 'fleet', basename)
-}
-
-// Resolve the oxfmt `--ignore-path`. The fleet canonical
-// `.config/fleet/.prettierignore` excludes `.claude/`, `**/fleet/**`, and the
-// vendored acorn blob — the patterns every repo shares. A repo with its OWN
-// verbatim trees (e.g. socket-btm's `additions/source-patched/` synced into the
-// Node build, or `test/fixtures/` corpora) declares them in a repo overlay at
-// `.config/repo/.prettierignore`. oxfmt takes a single `--ignore-path` and does
-// NOT honor the flag twice, so when an overlay exists we concatenate fleet +
-// repo into one temp file and pass that. The fleet file alone is returned when
-// there is no overlay (the common case). Cached so both oxfmt call sites
-// (runAll + the changed-files path) share one temp file per invocation.
-const FLEET_IGNORE_PATH = path.join('.config', 'fleet', '.prettierignore')
-let cachedIgnorePath: string | undefined
-function pickIgnorePath(): string {
-  if (cachedIgnorePath !== undefined) {
-    return cachedIgnorePath
-  }
-  const repoOverlay = path.join('.config', 'repo', '.prettierignore')
-  if (!existsSync(repoOverlay)) {
-    cachedIgnorePath = FLEET_IGNORE_PATH
-    return cachedIgnorePath
-  }
-  let fleetBody = ''
-  let repoBody = ''
-  try {
-    fleetBody = readFileSync(FLEET_IGNORE_PATH, 'utf8')
-  } catch {}
-  try {
-    repoBody = readFileSync(repoOverlay, 'utf8')
-  } catch {}
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'fleet-prettierignore-'))
-  const combined = path.join(dir, '.prettierignore')
-  writeFileSync(
-    combined,
-    `${fleetBody}\n# --- .config/repo/.prettierignore (repo-specific verbatim trees) ---\n${repoBody}\n`,
-    'utf8',
-  )
-  cachedIgnorePath = combined
-  return cachedIgnorePath
-}
-
-// oxlint config picker. Prefers the composable `oxlint.config.mts` factory
-// (a repo's `.config/repo/oxlint.config.mts` imports the fleet factory and
-// augments it in JS — see `.config/fleet/oxlint.config.mts`). oxlint's own
-// `extends` can't compose fleet + repo cleanly (it drops plugins/categories/
-// ignorePatterns and mis-roots relative globs), so the fleet uses a JS factory
-// instead. Falls back to `oxlintrc.json` for repos that haven't adopted the
-// factory yet. Order at each tier: repo `.mts` → fleet `.mts` → repo `.json`
-// → fleet `.json`.
-function pickOxlintConfig(): string {
-  const candidates = [
-    path.join('.config', 'repo', 'oxlint.config.mts'),
-    path.join('.config', 'fleet', 'oxlint.config.mts'),
-    path.join('.config', 'repo', 'oxlintrc.json'),
-    path.join('.config', 'fleet', 'oxlintrc.json'),
-  ]
-  for (let i = 0, { length } = candidates; i < length; i += 1) {
-    if (existsSync(candidates[i]!)) {
-      return candidates[i]!
-    }
-  }
-  return path.join('.config', 'fleet', 'oxlintrc.json')
-}
 
 // Paths that, when touched, force a full-workspace lint.
 const ESCALATION_PATTERNS = [
@@ -139,54 +75,15 @@ function log(msg: string): void {
   }
 }
 
-// Assert the socket/ oxlint plugin actually loaded. A dead plugin (a rule with
-// a missing dep / bad import) makes oxlint silently disable EVERY socket/ rule
-// and still exit 0 — so a green oxlint run is meaningless until the plugin is
-// confirmed loaded. Runs the existing oxlint-plugin-loads check as a sync
-// subprocess (keeps this sync flow sync; reuses the one assertion). No-op +
-// pass when the repo has no plugin. Returns 0 on ok / no-plugin, 1 on a dead
-// or mis-wired plugin. This is what closes the silent-disable window: the
-// pre-push runs lint.mts, not check --all, so without this a dead plugin sails
-// through commit + lint + pre-push.
-function assertPluginLoaded(): number {
-  const checkPath = path.join(
-    'scripts',
-    'fleet',
-    'check',
-    'oxlint-plugin-loads.mts',
-  )
-  if (!existsSync(checkPath)) {
-    return 0
-  }
-  const res = spawnSync(process.execPath, [checkPath, '--quiet'], { stdio })
-  return res.status === 0 ? 0 : 1
-}
+const { runAll, runFiles } = createLintRunners({
+  fix,
+  log,
+  quiet,
+  stdio: quiet ? 'pipe' : 'inherit',
+  useShell,
+})
 
-function gitFiles(args: string[]): string[] {
-  // spawnSync with array args — no shell interpolation, no injection
-  // surface even if a future caller passes data into args.
-  const r = spawnSync('git', args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    stdioString: true,
-  })
-  if (r.status !== 0 || typeof r.stdout !== 'string') {
-    return []
-  }
-  return r.stdout
-    .split('\n')
-    .map(s => s.trim())
-    .filter(s => s.length > 0)
-}
-
-function getStagedFiles(): string[] {
-  return gitFiles(['diff', '--cached', '--name-only', '--diff-filter=ACMR'])
-}
-
-function getModifiedFiles(): string[] {
-  return gitFiles(['diff', '--name-only', '--diff-filter=ACMR', 'HEAD'])
-}
-
-function shouldEscalate(files: string[]): boolean {
+export function shouldEscalate(files: string[]): boolean {
   for (let i = 0, { length } = files; i < length; i += 1) {
     const f = files[i]!
     for (let i = 0, { length } = ESCALATION_PATTERNS; i < length; i += 1) {
@@ -199,215 +96,116 @@ function shouldEscalate(files: string[]): boolean {
   return false
 }
 
+// Whether a run in `mode` over `files` escalates to a full-workspace lint.
+// `staged` NEVER escalates — the pre-commit hook must stay within its ≤10s
+// budget, so it scopes strictly to the staged files regardless of which
+// infrastructure paths they touch. `modified`/`all` keep the escalation net.
+export function escalatesForScope(mode: ScopeMode, files: string[]): boolean {
+  if (mode === 'staged') {
+    return false
+  }
+  return shouldEscalate(files)
+}
+
 function filterLintable(files: string[]): string[] {
   return files.filter(f => LINTABLE_EXTS.has(path.extname(f)) && existsSync(f))
 }
 
-// Wheelhouse-self dogfood paths. These dirs are in the canonical
-// .config/oxlint{,rc}.json ignorePatterns because downstream fleet
-// repos consume them as opaque tooling — but the wheelhouse itself
-// authors the code and must lint it. Pass the paths explicitly so
-// oxlint walks them, with the same config + plugin rule set.
-//
-// `template/**` ships byte-identical to every fleet repo via the
-// sync-scaffolding cascade — including `template/.claude/hooks/`
-// (the actual fleet hook code) and `template/.config/oxlint-plugin/`
-// (the canonical rule definitions). The wheelhouse must lint these
-// here, before they propagate, because downstream repos can't
-// independently fix drift in fleet-canonical files.
-//
-// NOTE: The wheelhouse's OWN `<root>/.claude/` is excluded. That's
-// local-dev tooling (the wheelhouse's machine-local hook setup), not
-// fleet-canonical. It's a copy of `template/.claude/` plus per-machine
-// overrides; linting it would double-flag every issue once in
-// `template/` and once in `.claude/`.
-const DOGFOOD_LINT_PATHS = ['.config/oxlint-plugin', 'template']
-
-// Markdown lint pass — gated behind LINT_MARKDOWN=1 so existing fleet
-// repos with pre-existing markdown hygiene findings aren't blocked
-// until they've cleaned up. Operates over the markdownlint-cli2 config
-// at .config/fleet/.markdownlint-cli2.jsonc, which scopes globs + ignores
-// and registers the three fleet custom rules
-// (socket-no-private-wheelhouse-leak, socket-no-relative-sibling-
-// script, socket-readme-required-sections). When the env var is unset
-// the function is a no-op and returns 0.
-//
-// Scope choice: markdown lint always runs over the whole tree (the
-// canonical config's globs/ignores decide the scope, not the script).
-// Per-file invocation would require pre-filtering for the same globs +
-// is slower for the small overall file count typical in fleet repos.
-function runMarkdown(): number {
-  if (process.env['LINT_MARKDOWN'] !== '1') {
-    return 0
-  }
-  if (!existsSync('.config/fleet/.markdownlint-cli2.jsonc')) {
-    log('Skipping markdownlint: .config/fleet/.markdownlint-cli2.jsonc absent.')
-    return 0
-  }
-  log('Running markdownlint-cli2…')
-  const mdArgs = [
-    'exec',
-    'markdownlint-cli2',
-    '--config',
-    '.config/fleet/.markdownlint-cli2.jsonc',
-  ]
-  if (fix) {
-    mdArgs.push('--fix')
-  }
-  const mdRes = spawnSync('pnpm', mdArgs, { shell: useShell, stdio })
-  if (mdRes.status !== 0) {
-    return 1
-  }
-  return 0
+// Explicit positional file paths → linted unconditionally, tracked or not.
+// `getModifiedFiles`/`getStagedFiles` resolve through `git diff`, which never
+// surfaces an untracked (never-`git add`ed) file, so a brand-new file passed
+// explicitly on the argv (`pnpm run fix <new-file>`) was silently dropped from
+// the git-diff-derived scope while the scope-count log still reported success.
+// Positional args (anything not starting with `-`) win over the git-diff scope
+// entirely, matching `scripts/fleet/test.mts`'s `fileArgs()` convention: flags
+// (scope flags, `--fix`, `--quiet`/`--silent`) are filtered out, and what
+// remains is treated as file paths (existence + lintable-extension filtered
+// downstream by `filterLintable`, same as the git-diff-derived scope).
+export function resolveExplicitFiles(argv: readonly string[]): string[] {
+  return argv.filter(a => !a.startsWith('-'))
 }
 
-function runAll(): number {
-  log('Formatting all files…')
-  // spawnSync with array args, no shell interpolation. Matches the
-  // socket/prefer-spawn-over-execsync rule: shell-string execSync is
-  // banned because every interpolated value is a potential injection
-  // vector; the array form structurally can't shell-expand its args.
-  const oxfmtArgs = [
-    'exec',
-    'oxfmt',
-    '-c',
-    pickConfig('oxfmtrc.json'),
-    '--ignore-path',
-    pickIgnorePath(),
-    fix ? '--write' : '--check',
-    '.',
-  ]
-  const fmtRes = spawnSync('pnpm', oxfmtArgs, { shell: useShell, stdio })
-  if (fmtRes.status !== 0) {
-    return 1
-  }
-  log('Running oxlint on all files…')
-  const oxlintArgs = ['exec', 'oxlint', '-c', pickOxlintConfig()]
-  if (fix) {
-    oxlintArgs.push('--fix')
-  }
-  const lintRes = spawnSync('pnpm', oxlintArgs, { shell: useShell, stdio })
-  if (lintRes.status !== 0) {
-    return 1
-  }
-  // A green oxlint run is vacuous if the socket/ plugin failed to load (every
-  // socket/ rule silently disabled). Fail-closed here so lint.mts — the gate
-  // the pre-push runs — never passes on a dead plugin.
-  if (assertPluginLoaded() !== 0) {
-    return 1
-  }
-  // Wheelhouse-self dogfood: lint the .config/oxlint-plugin/ + template/
-  // trees too. The canonical .config/fleet/oxlintrc.json ignores those paths so
-  // downstream fleet repos don't waste cycles linting opaque tooling, but
-  // the wheelhouse is the author — every change here lands in every
-  // fleet repo, so the rules must hold here first. .config/fleet/oxlintrc.dogfood.json
-  // extends the base config with a narrower ignore list.
-  //
-  // The dogfood lint surface has known structural exemptions (e.g. rule
-  // modules MUST `export default` per the oxlint plugin contract, so
-  // `no-default-export` is exempt for them). Those exemptions live in
-  // .config/fleet/oxlintrc.dogfood.json's `overrides`. Today this lint pass
-  // is gated behind LINT_DOGFOOD=1 so it doesn't break the default
-  // workflow while the exemption list is being curated. Set the env var
-  // to opt in.
-  if (process.env['LINT_DOGFOOD'] === '1') {
-    if (!quiet) {
-      logger.log('Running oxlint on wheelhouse-self dogfood paths…')
-    }
-    for (let i = 0, { length } = DOGFOOD_LINT_PATHS; i < length; i += 1) {
-      const dogfoodPath = DOGFOOD_LINT_PATHS[i]!
-      if (!existsSync(dogfoodPath)) {
-        continue
-      }
-      // spawnSync (not execSync) — array args, no shell interpolation.
-      // Avoids any chance of command injection via dogfoodPath.
-      // spawnSync returns a status object rather than throwing on
-      // non-zero exit, so we branch on status.
-      const args = [
-        'exec',
-        'oxlint',
-        '-c',
-        '.config/fleet/oxlintrc.dogfood.json',
-      ]
-      if (fix) {
-        args.push('--fix')
-      }
-      args.push(dogfoodPath)
-      const r = spawnSync('pnpm', args, { shell: useShell, stdio })
-      if (r.status !== 0) {
-        return 1
-      }
-    }
-  }
-  const mdStatus = runMarkdown()
-  if (mdStatus !== 0) {
-    return mdStatus
-  }
-  return 0
+/**
+ * The loud-scope contract for fix runs: a `--fix` outside `--all` only touches
+ * the files git already sees as changed, so a repo-wide autofix campaign run
+ * that way is a SILENT no-op on the whole backlog (two delegated wave runs
+ * reported success while fixing nothing, 2026-07-07). Every scoped fix run
+ * ends with this reminder so the operator can tell "fixed my edits" apart
+ * from "fixed the repo".
+ */
+export function fixScopeReminder(scopeMode: string): string {
+  return (
+    `fix applied to ${scopeMode.toUpperCase()} files only — the repo-wide backlog is untouched.\n` +
+    'For a wave: pnpm run lint --fix --all  (add LINT_DOGFOOD=1 to reach template/).'
+  )
 }
 
-function runFiles(files: string[]): number {
-  if (files.length === 0) {
-    log('No lintable files; skipping.')
-    return 0
+// Lint `files`, already scoped, and report pass/fail + the fix-scope
+// reminder. `scopeLabel` names the scope in the progress log — the git-diff
+// mode ('modified'/'staged') or 'explicit' for argv-named files.
+function lintFileSet(scopeLabel: string, files: string[]): void {
+  // Pre-filter against the merged .prettierignore: oxfmt does not apply
+  // --ignore-path to explicitly-passed argv files, so without this a staged
+  // cascade-mirror path (.claude/**, scripts/fleet/**) red-lights the
+  // pre-commit gate on bytes the format run never owns. template/** is exempt
+  // inside filterFormatIgnored, the wheelhouse canon stays gated.
+  const extLintable = filterLintable(files)
+  const lintable = filterFormatIgnored(extLintable)
+  const ignoredCount = extLintable.length - lintable.length
+  if (ignoredCount > 0) {
+    log(
+      `${ignoredCount} format-ignored mirror file(s) skipped (cascade payload — gated at the template source).`,
+    )
   }
-  log(`Formatting ${files.length} file(s)...`)
-  const oxfmtArgs = [
-    'exec',
-    'oxfmt',
-    '-c',
-    pickConfig('oxfmtrc.json'),
-    '--ignore-path',
-    pickIgnorePath(),
-    fix ? '--write' : '--check',
-    '--no-error-on-unmatched-pattern',
-    ...files,
-  ]
-  const fmtRes = spawnSync('pnpm', oxfmtArgs, { shell: useShell, stdio })
-  if (fmtRes.status !== 0) {
-    return 1
+  log(
+    `Lint scope: ${scopeLabel} (${lintable.length} of ${files.length} files lintable)`,
+  )
+  process.exitCode = runFiles(lintable)
+  if (process.exitCode === 0) {
+    log('Lint passed')
+  } else {
+    log('Lint failed')
   }
-  log(`Running oxlint on ${files.length} file(s)...`)
-  // --no-error-on-unmatched-pattern keeps the command exit-0 when
-  // every listed file falls inside the config's ignorePatterns (e.g.
-  // touching just .claude/ files, which the canonical config excludes).
-  // Without it oxlint exits 1 with "No files found" — the user sees a
-  // lint failure for files they were never going to lint.
-  const oxlintArgs = [
-    'exec',
-    'oxlint',
-    '-c',
-    pickOxlintConfig(),
-    '--no-error-on-unmatched-pattern',
-  ]
   if (fix) {
-    oxlintArgs.push('--fix')
+    log(fixScopeReminder(scopeLabel))
   }
-  oxlintArgs.push(...files)
-  const lintRes = spawnSync('pnpm', oxlintArgs, { shell: useShell, stdio })
-  if (lintRes.status !== 0) {
-    return 1
-  }
-  // A green oxlint run is vacuous if the socket/ plugin failed to load — see
-  // runAll(). Fail-closed on a dead plugin in the scoped path too.
-  if (assertPluginLoaded() !== 0) {
-    return 1
-  }
-  // Markdown lint when any of the changed files is .md / .mdx. The
-  // markdownlint-cli2 config picks its own scope from globs; we just
-  // gate on whether to invoke at all so unrelated edits don't pay the
-  // markdownlint startup cost.
-  const touchedMarkdown = files.some(f => /\.(?:md|mdx)$/i.test(f))
-  if (touchedMarkdown) {
-    const mdStatus = runMarkdown()
-    if (mdStatus !== 0) {
-      return mdStatus
-    }
-  }
-  return 0
 }
 
 function main(): void {
+  // Mutating (--fix) runs hold the repo-scoped fixer lock so concurrent or
+  // zombie fixers never race the same tree; read-only lint runs stay
+  // lock-free. fix.mts already holds the lock when it spawns this runner —
+  // acquireFixerLock's env-var reentrancy makes the nested acquire a no-op.
+  if (!fix) {
+    runLint()
+    return
+  }
+  const lock = acquireFixerLock(
+    fixerLockPath(REPO_ROOT),
+    'scripts/fleet/lint.mts --fix',
+  )
+  if (!lock.acquired) {
+    logger.fail(`lint: ${describeHolder(lock.holder)}`)
+    process.exitCode = 1
+    return
+  }
+  try {
+    runLint()
+  } finally {
+    lock.release()
+  }
+}
+
+function runLint(): void {
+  // Explicit positional file paths win over every scope mode (including
+  // --all): they name exactly what to lint, tracked or brand-new, so the
+  // git-diff/whole-tree scoping below never gets a say over them.
+  const explicitFiles = resolveExplicitFiles(args)
+  if (explicitFiles.length > 0) {
+    lintFileSet('explicit', explicitFiles)
+    return
+  }
+
   if (mode === 'all') {
     log('Lint scope: all')
     process.exitCode = runAll()
@@ -423,10 +221,13 @@ function main(): void {
 
   if (files.length === 0) {
     log(`No ${mode} files; skipping lint.`)
+    if (fix) {
+      log(fixScopeReminder(mode))
+    }
     return
   }
 
-  if (shouldEscalate(files)) {
+  if (escalatesForScope(mode, files)) {
     log(`Config files changed; escalating to full lint.`)
     process.exitCode = runAll()
     if (process.exitCode === 0) {
@@ -437,16 +238,10 @@ function main(): void {
     return
   }
 
-  const lintable = filterLintable(files)
-  log(
-    `Lint scope: ${mode} (${lintable.length} of ${files.length} files lintable)`,
-  )
-  process.exitCode = runFiles(lintable)
-  if (process.exitCode === 0) {
-    log('Lint passed')
-  } else {
-    log('Lint failed')
-  }
+  lintFileSet(mode, files)
 }
 
-main()
+const invokedDirectly = isMainModule(import.meta.url)
+if (invokedDirectly) {
+  main()
+}

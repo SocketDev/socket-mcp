@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Code-is-law coverage gate: every HARD rule (a 🚨-marked paragraph) in
  *   the fleet block of CLAUDE.md and in docs/agents.md/fleet/_.md must resolve
  *   to an EXECUTABLE enforcer — a hook, a `socket/`+`typescript/` lint rule, or
@@ -22,7 +22,7 @@
  *   1. a hook — `.claude/hooks/{fleet,repo}/<name>/` that exists on disk with an
  *      index.mts OR install.mts (installer hooks enforce off the host
  *      machine);
- *   2. a lint rule — backticked `socket/<rule>` (registered in the plugin) or
+ *   2. a lint rule — backticked `socket/<rule>`, registered in the plugin, or
  *      `typescript/<rule>` (a key in .config/fleet/oxlintrc.json);
  *   3. a script — any `scripts/fleet/<path>.mts` that resolves on disk (a check/
  *      invariant OR build-step automation — both are executable law).
@@ -30,12 +30,12 @@
  *      an inline opt-out comment `<!-- enforcement: <category> — <reason> -->`
  *      with <category> in {human-review, off-machine, installer}; those pass
  *      and are listed in the report so the opt-out set stays visible and small.
- *      Gated surfaces (a finding fails the gate): the CLAUDE.md fleet block and
- *      docs/agents.md/fleet/*.md. Advisory surfaces (reported, never fail):
+ *      Gated surfaces, a finding fails the gate: the CLAUDE.md fleet block and
+ *      docs/agents.md/fleet/*.md. Advisory surfaces, reported, never fail:
  *      docs/** outside fleet, README.md, hook READMEs, SKILL.md — prose there
  *      is not a structured rule surface, so a 🚨 with no enforcer is surfaced,
  *      not enforced. Exit codes: 0 — every gated 🚨 rule resolves to an
- *      executable enforcer (or a declared opt-out); 1 — at least one gated 🚨
+ *      executable enforcer, or a declared opt-out; 1 — at least one gated 🚨
  *      rule is policy-on-paper. Fail-open: no CLAUDE.md → success;
  *      plugin-absent repo → arm 2's socket/ half is skipped (matches
  *      claude-md-citations-resolve).
@@ -44,11 +44,14 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
+import {
+  isFleetMarkerBeginLine,
+  isFleetMarkerEndLine,
+} from '../../../.claude/hooks/fleet/_shared/fleet-markers.mts'
 import {
   collectFleetDocs,
   collectHookEnforcers,
@@ -56,6 +59,8 @@ import {
   collectScriptPaths,
 } from '../lib/enforcer-inventory.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { hasFleetHookSource } from '../_shared/fleet-source-present.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -64,8 +69,6 @@ const logger = getDefaultLogger()
 const SIREN = '🚨'
 
 // Fleet-block delimiters (mirror claude-md-rules-are-informative.mts).
-const FLEET_BEGIN_RE = /<!--\s*BEGIN FLEET-CANONICAL/
-const FLEET_END_RE = /<!--\s*END FLEET-CANONICAL/
 
 // A hook citation anywhere in a paragraph: `.claude/hooks/{fleet,repo}/<name>/`.
 // Brace-grouped `{a,b,c}/` is expanded by expandNames (imported below via the
@@ -160,7 +163,7 @@ export function expandNames(raw: string): string[] {
 // whole enclosing section's links, while findings stay paragraph-granular.
 const SECTION_HEADER_RE = /^###\s+\S/
 
-export interface ParagraphScanOptions {
+export interface ParagraphScanConfig {
   // Restrict to the CLAUDE.md fleet block (BEGIN/END FLEET-CANONICAL). For docs
   // the whole body is in scope and each paragraph's "section" is delimited by
   // `###` headings.
@@ -174,14 +177,36 @@ export interface ParagraphScanOptions {
 export function sirenParagraphs(
   file: string,
   body: string,
-  options: ParagraphScanOptions,
+  config: ParagraphScanConfig,
 ): RuleParagraph[] {
-  const { fleetOnly } = { __proto__: null, ...options }
+  const { fleetOnly } = { __proto__: null, ...config } as typeof config
   const lines = body.split('\n')
   const out: RuleParagraph[] = []
-  let inFleet = !fleetOnly
-  // Buffer of (paragraph) awaiting its section text, which is only complete at
-  // the next heading / block end. Collect paragraphs per section, then flush.
+
+  // CLAUDE.md (fleetOnly) is a thin bullet index: each 🚨 `- ` bullet IS a rule,
+  // carrying its own enforcer citation / doc link on the line. The line is both
+  // the rule text and its own sectionText (no enclosing `###` section anymore).
+  if (fleetOnly) {
+    let inFleet = false
+    for (let i = 0, { length } = lines; i < length; i += 1) {
+      const line = lines[i] ?? ''
+      if (isFleetMarkerBeginLine(line)) {
+        inFleet = true
+        continue
+      }
+      if (isFleetMarkerEndLine(line)) {
+        inFleet = false
+        continue
+      }
+      if (inFleet && line.startsWith('- ') && line.includes(SIREN)) {
+        out.push({ file, line: i + 1, text: line, sectionText: line })
+      }
+    }
+    return out
+  }
+
+  // Docs, whole body: 🚨 paragraphs within `###` sections; sectionText is the
+  // enclosing section, for the detail-link fallback.
   let sectionLines: string[] = []
   let pending: Array<{ line: number; text: string }> = []
   let para: string[] = []
@@ -207,20 +232,6 @@ export function sirenParagraphs(
   }
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i] ?? ''
-    if (fleetOnly) {
-      if (FLEET_BEGIN_RE.test(line)) {
-        inFleet = true
-        continue
-      }
-      if (FLEET_END_RE.test(line)) {
-        endSection()
-        inFleet = false
-        continue
-      }
-    }
-    if (!inFleet) {
-      continue
-    }
     if (SECTION_HEADER_RE.test(line)) {
       endSection()
       sectionLines.push(line)
@@ -274,7 +285,7 @@ export function textCitesEnforcer(
   return false
 }
 
-// The fleet detail surfaces a paragraph links to (repo-root-relative paths):
+// The fleet detail surfaces a paragraph links to, repo-root-relative paths:
 // docs/agents.md/fleet/*.md pages and .claude/skills/**/SKILL.md procedures.
 export function linkedDetailDocs(text: string): string[] {
   const out: string[] = []
@@ -291,7 +302,6 @@ export function linkedDetailDocs(text: string): string[] {
 // 40 KB cap — a rule states the why inline and defers the citation to the
 // section's one detail link.
 export function paragraphIsEnforced(
-  text: string,
   sectionText: string,
   inv: EnforcerInventory,
   readDoc: (relPath: string) => string | undefined,
@@ -313,8 +323,8 @@ export function optOutCategory(text: string): string | undefined {
   return m ? m[1]!.toLowerCase() : undefined
 }
 
-export interface AuditOptions {
-  // Restrict to the CLAUDE.md fleet block (see ParagraphScanOptions).
+export interface AuditConfig {
+  // Restrict to the CLAUDE.md fleet block (see ParagraphScanConfig).
   readonly fleetOnly: boolean
   // Resolve a linked fleet detail doc's text (repo-root-relative path →
   // contents), undefined when the file is missing.
@@ -326,9 +336,12 @@ export function auditFile(
   file: string,
   body: string,
   inv: EnforcerInventory,
-  options: AuditOptions,
+  config: AuditConfig,
 ): AuditResult {
-  const { fleetOnly, readDoc } = { __proto__: null, ...options }
+  const { fleetOnly, readDoc } = {
+    __proto__: null,
+    ...config,
+  } as typeof config
   const findings: Finding[] = []
   const optOuts: OptOut[] = []
   const paras = sirenParagraphs(file, body, { fleetOnly })
@@ -339,7 +352,7 @@ export function auditFile(
       optOuts.push({ file: p.file, line: p.line, category })
       continue
     }
-    if (!paragraphIsEnforced(p.text, p.sectionText, inv, readDoc)) {
+    if (!paragraphIsEnforced(p.sectionText, inv, readDoc)) {
       const firstLine = p.text.split('\n')[0] ?? ''
       findings.push({
         file: p.file,
@@ -362,6 +375,15 @@ async function main(): Promise<void> {
   const claudeMdPath = path.join(REPO_ROOT, 'CLAUDE.md')
   if (!existsSync(claudeMdPath)) {
     logger.success('No CLAUDE.md to check.')
+    return
+  }
+  // A bundle-only member has no per-hook / per-rule SOURCE dirs — the enforcer
+  // inventory would come up empty and every hard rule would read as
+  // enforcerless. Coverage is validated at the source repo.
+  if (!hasFleetHookSource(REPO_ROOT)) {
+    logger.success(
+      'No fleet hook source in this repo (bundle-only) — enforcement coverage validated at the source repo.',
+    )
     return
   }
   const inv = loadInventory(REPO_ROOT)
@@ -395,7 +417,7 @@ async function main(): Promise<void> {
   optOuts.push(...claudeResult.optOuts)
   checked += claudeResult.checked
 
-  // Gated surface 2: docs/agents.md/fleet/*.md (fleet-canonical detail pages).
+  // Gated surface 2: docs/agents.md/fleet/*.md, fleet-canonical detail pages.
   for (const docPath of collectFleetDocs(REPO_ROOT)) {
     const rel = path.relative(REPO_ROOT, docPath)
     const result = auditFile(rel, readFileSync(docPath, 'utf8'), inv, {
@@ -444,7 +466,7 @@ async function main(): Promise<void> {
   )
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(
       `check-claude-md-rules-are-enforced failed: ${errorMessage(e)}`,

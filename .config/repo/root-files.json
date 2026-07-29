@@ -1,0 +1,14 @@
+{
+  "allow": {
+    ".mcpbignore": "mcpb pack reads its ignore file from the package root, like .npmignore for npm.",
+    ".npmignore": "npm pack reads the ignore file from the package root; curates the published tarball alongside package.json files.",
+    "hooks": "Source for the optional socket-gate Claude Code hook; rolldown bundles hooks/socket-gate into dist/socket-gate (scripts/repo/paths.mts SOCKET_GATE_SRC_DIR).",
+    "icon.png": "MCPB extension icon; manifest.json references it by root-relative path (\"icon\": \"icon.png\").",
+    "index.ts": "MCP server entry point; rolldown.config.mts bundles REPO_ROOT/index.ts into dist/index.cjs, the package bin.",
+    "lib": "TypeScript source tree imported by index.ts and the socket-gate hook; bundled into dist/ at build.",
+    "logo-black.png": "Socket logo referenced by README.md's root-relative picture srcset, rendered on GitHub and npm.",
+    "logo-white.png": "Socket logo (dark mode) referenced by README.md's root-relative picture srcset, rendered on GitHub and npm.",
+    "manifest.json": "MCPB (Claude extension) manifest; the mcpb packer requires it at the package root and its entry_point/icon paths resolve from there.",
+    "mock-client": "Local MCP debug clients (stdio/http) used to exercise the server during development; documented in mock-client/README.md."
+  }
+}

@@ -16,7 +16,7 @@
 
 import type { Plugin } from 'rolldown'
 
-export type LibStubOptions = {
+export type LibStubConfig = {
   /**
    * Regex matched against resolved module paths. Files matching get replaced
    * with an empty CJS module. Required.
@@ -29,9 +29,11 @@ export type LibStubOptions = {
   readonly stubCode?: string | undefined
 }
 
-export function createLibStubPlugin(options: LibStubOptions): Plugin {
-  const opts = { __proto__: null, ...options }
-  const { stubCode = 'module.exports = {}', stubPattern } = opts
+export function createLibStubPlugin(config: LibStubConfig): Plugin {
+  const { stubCode = 'module.exports = {}', stubPattern } = {
+    __proto__: null,
+    ...config,
+  } as LibStubConfig
   return {
     name: 'stub-unused-lib-internals',
     load(id) {

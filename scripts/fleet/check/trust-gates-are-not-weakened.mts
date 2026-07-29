@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Commit-time gate mirroring two edit-time hooks for the non-Claude edit
  *   path (manual `git checkout`, external editor, a merge):
  *
  *   - `trust-downgrade-guard` — the pnpm/npm trust-gate FLOORS. This script
  *     asserts the repo's `pnpm-workspace.yaml` still carries a
  *     `minimumReleaseAge` of at least 10080, `trustPolicy: no-downgrade`, and
- *     `blockExoticSubdeps: true`, and that `.npmrc` `min-release-age` (if set)
+ *     `blockExoticSubdeps: true`, and that `.npmrc` `min-release-age`, if set
  *     meets the 7-day floor.
  *   - `npmrc-trust-optout-guard` — the pnpm trust-aware env-expansion opt-out.
  *     This script scans tracked scripts / workflows / configs for a committed
  *     `PNPM_CONFIG_NPMRC_AUTH_FILE` / `NPM_CONFIG_USERCONFIG=<repo .npmrc>`
  *     assignment and for a `${ENV}` placeholder beside an `_authToken` /
- *     `registry` key in a committed `.npmrc`. Defense in depth (code is law):
+ *     `registry` key in a committed `.npmrc`. Defense in depth, code is law:
  *     the hooks block in-session; this catches anything that lands another way.
  *     All detection logic is imported from the SAME `_shared/` modules the
  *     hooks use, so the edit-time and commit-time surfaces never drift. Exit
@@ -25,9 +25,9 @@ import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import {
   detectAuthEnvPlaceholderInNpmrc,
@@ -35,6 +35,7 @@ import {
 } from '../../../.claude/hooks/fleet/_shared/npmrc-trust.mts'
 import { checkGateFloors } from '../../../.claude/hooks/fleet/_shared/trust-gates.mts'
 import { PNPM_WORKSPACE_YAML, REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -71,7 +72,24 @@ function trackedFiles(): string[] {
     stdio: 'pipe',
   })
   if (result.status !== 0) {
-    return []
+    // Fail LOUD. A non-zero `git ls-files` means git ITSELF errored — not "0
+    // matches" (that is exit 0 with empty stdout). Returning [] here would scan
+    // zero files and let `main()` report green: a vacuous pass that hides a
+    // committed trust-gate opt-out. A check that could not read its inputs must
+    // never report success.
+    const stderr =
+      typeof result.stderr === 'string'
+        ? result.stderr
+        : String(result.stderr ?? '')
+    logger.fail(
+      '[trust-gates-are-not-weakened] could not enumerate tracked files; the ' +
+        'opt-out scan did not run.\n' +
+        `  Where: ${REPO_ROOT}\n` +
+        `  Saw: git ls-files exited ${String(result.status)}${stderr ? ` — ${stderr.trim()}` : ''}\n` +
+        '  Fix: run the check inside a git work tree (a scan that reads zero ' +
+        'files must not report green).',
+    )
+    process.exit(1)
   }
   const out =
     typeof result.stdout === 'string' ? result.stdout : String(result.stdout)
@@ -94,7 +112,7 @@ const SELF_EXEMPT_PATH_RE =
 // the detector source itself names them — both would self-flag this gate. Skip
 // them, same exemption env-kill-switches-are-absent applies to its own.
 function isTestFile(relPath: string): boolean {
-  const p = relPath.replace(/\\/g, '/')
+  const p = normalizePath(relPath)
   const base = p.split('/').pop() ?? ''
   return (
     base.endsWith('.test.mts') ||
@@ -110,7 +128,7 @@ interface OptoutHit {
 
 // The opt-out detector + its hook are where these env-var names legitimately
 // live as detection literals, not as a real opt-out. Skip the guard's own dir
-// (in both the live and template trees) so the enforcer doesn't flag itself.
+// in both the live and template trees, so the enforcer doesn't flag itself.
 function isSelfDetectorPath(file: string): boolean {
   return file.includes('npmrc-trust-optout-guard/')
 }
@@ -207,6 +225,6 @@ export function main(): void {
 
 // Run only when invoked directly (CLI / CI), not when imported by unit tests
 // — main() calls process.exit, which would tear down the test runner.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

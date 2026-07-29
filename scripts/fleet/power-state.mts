@@ -1,12 +1,12 @@
-/**
- * @file Detect whether the host is currently on AC power (vs battery). Used by
+/*
+ * @file Detect whether the host is currently on AC power, vs battery. Used by
  *   long-running build/test scripts to size timeouts adaptively — laptops on
  *   battery throttle CPU hard (especially macOS), and a static timeout that
  *   fits AC will kill an otherwise-healthy run on battery. Two paths, in
  *   priority order:
  *
  *   1. `node:smol-power` — when running inside a node-smol binary that ships the
- *      smol_power native binding (socket-btm's custom Node distribution). Pure
+ *      smol_power native binding, socket-btm's custom Node distribution. Pure
  *      C++ syscalls, sub-millisecond.
  *   2. Shellout fallback — system Node doesn't have node:smol-power. Each platform
  *      has a different mechanism:
@@ -17,7 +17,7 @@
  *   - Windows: PowerShell `Get-CimInstance Win32_Battery` On detection failure we
  *     conservatively assume AC — the downstream timeout becomes the shorter /
  *     more aggressive value, which is appropriate for build servers and
- *     headless CI (those environments are expected to run at full speed).
+ *     headless CI, those environments are expected to run at full speed.
  *     Returns a Promise so callers don't block the event loop on shellout
  *     paths. Byte-identical across the fleet via socket-wheelhouse's
  *     sync-scaffolding (IDENTICAL_FILES).
@@ -57,7 +57,7 @@ async function getSmolPower(): Promise<SmolPower | undefined> {
 }
 
 // Coerce spawn's stdout (string | Buffer | undefined) to a string.
-function stdoutString(value: unknown): string {
+export function stdoutString(value: unknown): string {
   if (typeof value === 'string') {
     return value
   }
@@ -67,7 +67,7 @@ function stdoutString(value: unknown): string {
   return ''
 }
 
-async function detectMacOs(): Promise<boolean> {
+export async function detectMacOs(): Promise<boolean> {
   try {
     // `pmset -g batt` on macOS prints lines like
     //   Now drawing from 'AC Power'
@@ -83,7 +83,7 @@ async function detectMacOs(): Promise<boolean> {
   }
 }
 
-async function detectLinux(): Promise<boolean> {
+export async function detectLinux(): Promise<boolean> {
   // Linux exposes power state under /sys/class/power_supply. Each
   // AC adapter is its own dir (`AC`, `ADP1`, `AC0`, `ACAD`, …)
   // with an `online` file holding "1" when power is connected.
@@ -118,7 +118,7 @@ async function detectLinux(): Promise<boolean> {
   return false
 }
 
-async function detectWindows(): Promise<boolean> {
+export async function detectWindows(): Promise<boolean> {
   try {
     // Windows: query the battery status via PowerShell + CIM.
     // `Win32_Battery.BatteryStatus`:

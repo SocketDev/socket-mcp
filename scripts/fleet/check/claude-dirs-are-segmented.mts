@@ -1,8 +1,8 @@
-/**
+/*
  * @file Enforce `.claude/{agents,commands,hooks,skills}/` segmentation. Every
  *   entry in those four directories must live under `fleet/<name>/` (when the
  *   wheelhouse template ships an entry with that name) or `repo/<name>/`
- *   (everything else). Dangling top-level entries
+ *   everything else. Dangling top-level entries
  *   (`.claude/skills/<name>/SKILL.md` instead of
  *   `.claude/skills/fleet/<name>/SKILL.md`) are pre-segmentation leftovers and
  *   should be removed or rehomed. Why this matters: the wheelhouse cascade
@@ -29,12 +29,12 @@
 import { existsSync, promises as fs, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -55,7 +55,7 @@ const KINDS: readonly KindSpec[] = [
 interface DanglingEntry {
   kind: KindSpec['dir']
   name: string
-  // Absolute path of the dangling entry (dir or file).
+  // Absolute path of the dangling entry, dir or file.
   src: string
   // Resolution: 'dup-of-fleet' | 'rehome-to-fleet' | 'move-to-repo'.
   action: 'dup-of-fleet' | 'rehome-to-fleet' | 'move-to-repo'
@@ -115,7 +115,8 @@ export const BUILTIN_FLEET_SET: Readonly<Record<string, readonly string[]>> = {
   commands: [
     'audit-gha-settings',
     'green-ci',
-    'quality-loop',
+    'looping-quality',
+    'scanning-quality',
     'security-scan',
     'setup-security-tools',
     'squash-history',
@@ -136,10 +137,10 @@ export const BUILTIN_FLEET_SET: Readonly<Record<string, readonly string[]>> = {
     'plugging-promise-race',
     'prose',
     'refreshing-history',
-    'regenerating-patches',
     'reviewing-code',
     'migrating-rule-packs',
     'running-test262',
+    'looping-quality',
     'scanning-quality',
     'scanning-security',
     'squashing-history',
@@ -274,12 +275,14 @@ async function main(): Promise<void> {
     process.exitCode = 1
     return
   }
-  logger.log(`[check-claude-dirs-are-segmented] Applying ${entries.length} fix(es):`)
+  logger.log(
+    `[check-claude-dirs-are-segmented] Applying ${entries.length} fix(es):`,
+  )
   await applyFix(entries)
   logger.log('[check-claude-dirs-are-segmented] Done.')
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(`[check-claude-dirs-are-segmented] error: ${e}`)
     process.exitCode = 1

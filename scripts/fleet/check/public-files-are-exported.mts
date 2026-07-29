@@ -1,6 +1,6 @@
-/**
+/*
  * @file Fleet check — a package's `exports` map and its public file surface
- *   agree. Two failure modes, for every non-private workspace package that
+ *   agree. Three failure modes, for every non-private workspace package that
  *   declares `exports`:
  *
  *   1. **Stale export** — an `exports` target points at a file that does not exist
@@ -10,9 +10,20 @@
  *      privacy taxonomy: not `external/`, not `_`-prefixed, not dev-junk) but
  *      is reachable through NO `exports` entry. Either it should be exported,
  *      or it should be marked private (`_`-prefix / `external/`) so the intent
- *      is explicit. Complements (does not duplicate):
+ *      is explicit.
+ *   3. **Untyped export** — an export entry that resolves runtime JS carries no
+ *      `types` condition, its `types` condition trails a runtime condition, or
+ *      the `types` target is not a resolvable declaration file. TypeScript's
+ *      nodenext resolution matches export conditions in declaration ORDER, so
+ *      `types` must precede `default`/`import`/`require`/`node`; a missing or
+ *      trailing `types` ships an untyped package — consumers get TS7016.
+ *      Incident: packageurl-js 1.4.5 regenerated exports through an ignore
+ *      glob that swallowed `dist/{index,exists}.d.mts` and shipped `source` +
+ *      `default` only.
+ *
+ *   Complements, does not duplicate:
  *      `package-files-are-allowlisted` (files[] tarball hygiene) and
- *      socket-lib's repo-tier `dist-exports` (runtime require-ability). This
+ *      socket-lib's repo-tier `dist-exports`, runtime require-ability. This
  *      check is about the MAP ↔ FILES correspondence. Skips: private packages,
  *      packages with no `exports`, binary platform packages (`os`/`cpu` gated,
  *      no JS API), and packages with no built output. Per-package opt-out for a
@@ -24,7 +35,6 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
@@ -34,17 +44,23 @@ import {
   findWorkspacePackages,
   readPackageJson,
 } from './package-files-are-allowlisted.mts'
-import { isPrivatePath, matchesGlob } from '../make-package-exports.mts'
+import { isPrivatePath, matchesGlob } from '../gen/package-exports.mts'
+import {
+  collectTypesProblems,
+  collectTypesTargets,
+  exportEntriesOf,
+} from '../lib/exports-conditions.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
 export interface ExportsFinding {
-  readonly kind: 'stale_export' | 'orphaned_public_file'
+  readonly kind: 'stale_export' | 'orphaned_public_file' | 'untyped_export'
   readonly pkgName: string
   readonly detail: string
 }
 
-// Built output roots a public file may live under (or the package root itself).
+// Built output roots a public file may live under, or the package root itself.
 const OUTPUT_DIRS = ['dist', 'build']
 
 // Public-file candidate extensions (runtime + declarations).
@@ -54,13 +70,13 @@ const PUBLIC_EXT_RE = /\.(?:c?js|d\.c?ts|d\.mts|mjs)$/
 // DEFAULT_IGNORE_GLOBS without dragging fast-glob into a sync check).
 const JUNK_SEGMENT_RE =
   // Matches a junk directory segment anywhere in a normalized (unix-slash) path.
-  // (\/|^) — literal "/" or start-of-string (segment boundary on the left)
+  // (\/|^) — literal "/" or start-of-string, segment boundary on the left
   // (?:coverage|…|vendor) — non-capturing alternation of the known junk dir names
-  // ($|\/) — end-of-string or "/" (segment boundary on the right)
-  /(\/|^)(?:coverage|node_modules|scripts|src|test|tests|tools|vendor)($|\/)/
+  // ($|\/) — end-of-string or "/", segment boundary on the right
+  /(?:\/|^)(?:coverage|node_modules|scripts|src|test|tests|tools|vendor)(?:$|\/)/
 
 /**
- * Collect every export target (string leaf) from an `exports` value, descending
+ * Collect every export target, string leaf, from an `exports` value, descending
  * through condition objects. Returns relative file paths (the `./x` form).
  */
 export function collectExportTargets(
@@ -72,15 +88,16 @@ export function collectExportTargets(
     return out
   }
   if (exportsValue && typeof exportsValue === 'object') {
-    for (const v of Object.values(exportsValue as Record<string, unknown>)) {
-      collectExportTargets(v, out)
+    const values = Object.values(exportsValue as Record<string, unknown>)
+    for (let i = 0, { length } = values; i < length; i += 1) {
+      collectExportTargets(values[i], out)
     }
   }
   return out
 }
 
 /**
- * Walk a package's built output for public files (privacy taxonomy applied).
+ * Walk a package's built output for public files, privacy taxonomy applied.
  * `privateSegments` extends the built-in private set (external/, `_`-prefixed)
  * to match the same per-package config the generator uses. Returns paths
  * relative to the package root.
@@ -149,7 +166,7 @@ export interface CheckOptions {
 /**
  * Check one package. Returns findings (empty = clean). `exportsValue` is the
  * raw `exports` field; `pkgDir` the package root. A built file is "covered"
- * (not an orphan) when it is an export target, a `bin` target, or matches a
+ * not an orphan, when it is an export target, a `bin` target, or matches a
  * config `ignoreGlobs` entry.
  */
 export function checkPackageExports(
@@ -177,12 +194,19 @@ export function checkPackageExports(
   }
 
   // 1. Stale exports — every target file must exist. A target into an unbuilt
-  // output dir is skipped (can't validate output that was never produced).
+  // output dir is skipped, can't validate output that was never produced, and
+  // so is a config-ignored target: an ignoreGlobs entry declares a build
+  // artifact produced OUTSIDE the output dirs (e.g. a package-root wasm/mjs
+  // materialized by a fetch step), which is equally absent in an unbuilt
+  // checkout.
   const exportedFiles = new Set<string>()
   for (const target of targets) {
     const rel = target.replace(/^\.\//, '')
     exportedFiles.add(normalizePath(rel))
     if (pointsAtUnbuiltOutput(rel)) {
+      continue
+    }
+    if (ignoreGlobs.some(g => matchesGlob(normalizePath(rel), g))) {
       continue
     }
     if (!existsSync(path.join(pkgDir, rel))) {
@@ -214,6 +238,36 @@ export function checkPackageExports(
       detail: `public file "${rel}" is reachable through no exports entry. Export it, mark it private (prefix \`_\` / \`external/\`), or list it in the exports-config ignoreGlobs / package.json bin.`,
     })
   }
+
+  // 3. Untyped exports — every entry that resolves runtime code must carry a
+  // resolvable `types` condition ordered before the runtime conditions. The
+  // shape rules are judgeable in an unbuilt checkout; the on-disk existence of
+  // a `types` target into an unbuilt output dir is skipped like stale exports.
+  // Unlike the stale-export pass, `ignoreGlobs` does NOT excuse a `types`
+  // target: the globs declare files that are not export entries of their own,
+  // but a declaration the map references must ship.
+  for (const { 0: entryPath, 1: entryValue } of exportEntriesOf(exportsValue)) {
+    for (const problem of collectTypesProblems(entryPath, entryValue)) {
+      findings.push({
+        kind: 'untyped_export',
+        pkgName,
+        detail: problem.detail,
+      })
+    }
+    for (const target of collectTypesTargets(entryValue)) {
+      const rel = normalizePath(target.replace(/^\.\//, ''))
+      if (pointsAtUnbuiltOutput(rel)) {
+        continue
+      }
+      if (!existsSync(path.join(pkgDir, rel))) {
+        findings.push({
+          kind: 'untyped_export',
+          pkgName,
+          detail: `exports["${entryPath}"] "types" condition targets "${target}", which does not exist on disk. Restore the declaration or fix the target.`,
+        })
+      }
+    }
+  }
   return findings
 }
 
@@ -232,7 +286,7 @@ function shouldSkip(pkg: Record<string, unknown>): boolean {
   return false
 }
 
-// Bin targets from a package.json `bin` field (string or object form).
+// Bin targets from a package.json `bin` field, string or object form.
 export function binTargetsOf(pkg: Record<string, unknown>): string[] {
   const bin = pkg['bin']
   if (typeof bin === 'string') {
@@ -300,7 +354,7 @@ export async function runCheck(repoRoot: string): Promise<number> {
   return 1
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   void (async () => {
     process.exit(await runCheck(REPO_ROOT))
   })()

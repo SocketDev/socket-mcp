@@ -1,10 +1,10 @@
-// Fleet check — error messages are thorough (no vague-only throws).
+// Fleet check — error messages are thorough, no vague-only throws.
 //
-// Commit-time complement to the `error-message-quality-reminder` Stop hook. The
+// Commit-time complement to the `error-message-quality-nudge` Stop hook. The
 // reminder grades the error-message strings in code BLOCKS the assistant wrote
 // this turn; this check grades the same shape across the COMMITTED source tree,
 // so a vague message that slipped in before the hook existed (or in a turn the
-// hook didn't see) still gets swept. Same edit-reminder + commit-check twin
+// hook didn't see) still gets swept. Same edit-nudge + commit-check twin
 // pattern as no-env-kill-switch-guard / env-kill-switches-are-absent.
 //
 // The fleet rule (CLAUDE.md "Error messages"): an error message is UI — the
@@ -13,33 +13,34 @@
 //
 // Detection + grading are SHARED with the reminder via
 // `.claude/hooks/fleet/_shared/error-message-quality.mts` (ERROR_CLASS_RE +
-// gradeMessage) and `_shared/acorn` (findThrowNew), so the two surfaces never
+// gradeMessage) and `_shared/ast/literals.mts` (findThrowNew), so the two surfaces never
 // drift. AST-based: `findThrowNew` walks every `throw new <Ctor>(…)`, then the
 // static-string first arg runs through `gradeMessage`. Template literals with
 // interpolation, identifiers, and any message carrying a colon / quoted value /
-// length > 40 clear the bar (presumed specific).
+// length > 40 clear the bar, presumed specific.
 //
 // Scope: the repo's own source trees (src / scripts / packages), skipping
 // build output, vendored trees, node_modules, tests + fixtures, and the
 // `.claude/` hook tree (the reminder + the guard fixtures legitimately name the
 // vague phrases). Reporting-only candidates the human rewrites; never auto-fixed
-// (the right specific message needs judgment).
+// the right specific message needs judgment.
 //
 // Usage: node scripts/fleet/check/error-messages-are-thorough.mts [--quiet]
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { findThrowNew } from '../../../.claude/hooks/fleet/_shared/acorn/index.mts'
+import { findThrowNew } from '../../../.claude/hooks/fleet/_shared/ast/literals.mts'
 import {
   ERROR_CLASS_RE,
   gradeMessage,
 } from '../../../.claude/hooks/fleet/_shared/error-message-quality.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -48,7 +49,7 @@ const logger = getDefaultLogger()
 const SCAN_ROOTS = ['src', 'scripts', 'packages']
 
 // Directories never worth walking: build output, vendored trees, deps, and the
-// test/fixtures corpora (fixture files legitimately carry bad messages).
+// test/fixtures corpora, fixture files legitimately carry bad messages.
 const SKIP_DIRS = new Set([
   '.git',
   '.next',
@@ -69,10 +70,10 @@ const SCAN_EXTENSIONS = ['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts']
 
 // Path fragments (normalized to `/`) whose files are exempt: they legitimately
 // author the vague phrases (the shared classifier + the reminder that consumes
-// it), and test files (fixtures of bad messages).
+// it), and test files, fixtures of bad messages.
 const SELF_EXEMPT_FRAGMENTS = [
   '_shared/error-message-quality',
-  'error-message-quality-reminder/',
+  'error-message-quality-nudge/',
   'check/error-messages-are-thorough',
 ]
 
@@ -86,7 +87,7 @@ export interface VagueThrow {
 }
 
 export function isExempt(relFile: string): boolean {
-  const normalized = relFile.replace(/\\/g, '/')
+  const normalized = normalizePath(relFile)
   if (normalized.endsWith('.test.mts') || normalized.endsWith('.test.ts')) {
     return true
   }
@@ -198,6 +199,6 @@ function main(): void {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

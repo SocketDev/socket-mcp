@@ -95,10 +95,10 @@ export const scanWorkflowFile = (repoRoot: string, relPath: string): void => {
     while ((m = WORKFLOW_GH_EXPR_PATH_RE.exec(line)) !== null) {
       matches.push(m[0])
     }
-    for (let i = 0, { length } = matches; i < length; i += 1) {
-      const pathStr = matches[i]!
+    for (let j = 0, { length: len } = matches; j < len; j += 1) {
+      const pathStr = matches[j]!
       const list = occurrences.get(pathStr) ?? []
-      list.push({ line: i + 1, snippet: line.trim(), pathStr })
+      list.push({ line: j + 1, snippet: line.trim(), pathStr })
       occurrences.set(pathStr, list)
     }
   }
@@ -122,12 +122,17 @@ export const scanWorkflowFile = (repoRoot: string, relPath: string): void => {
   }
 
   // Rule D: comments encoding a fully-qualified multi-stage path
-  // (separate scan since it has different semantics).
+  // separate scan since it has different semantics.
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!
     if (!/^\s*#/.test(line)) {
       continue
     }
+    // Matches a fully-qualified build output path of the form
+    // build/<mode>/<platform-arch>/[wasm/]out/<stage>, where mode is dev/prod/shared,
+    // platform-arch is a lowercase alphanumeric-and-hyphen slug, and stage is one
+    // of the canonical output directory names (Compressed, Final, Optimized, Release,
+    // Stripped, Synced). Case-insensitive to catch mixed-case typos.
     const literalShape =
       /build\/(?:dev|prod|shared)\/[a-z0-9-]+\/(?:wasm\/)?out\/(?:Compressed|Final|Optimized|Release|Stripped|Synced)/i
     if (literalShape.test(line)) {

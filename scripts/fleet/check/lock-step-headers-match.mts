@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Lock-step header byte-equality gate. Mantra: the four impls of a
  *   quadruplet agree about WHAT THE FILE IS FOR. The `BEGIN LOCK-STEP HEADER` /
  *   `END LOCK-STEP HEADER` block names that contract; every member of the
@@ -22,7 +22,7 @@
  *   - A file with only `Lock-step from <Lang>: <path>` is a port and is checked
  *     against its canonical source. Header format (single-line `// ` across
  *     every language): // BEGIN LOCK-STEP HEADER // Class Parsing
- *     (Declarations, Expressions, Elements, Methods) // // Lock-step with Go:
+ *     Declarations, Expressions, Elements, Methods // // Lock-step with Go:
  *     src/parser/class.go // Lock-step with C++: src/parser/class.cpp // END
  *     LOCK-STEP HEADER Comparison strips the `// ` prefix from each line; an
  *     empty comment line (`//`) is preserved as an empty content line. The
@@ -30,14 +30,15 @@
  *     scripts/fleet/check/lock-step-headers-match.mts # report + fail node
  *     scripts/fleet/check/lock-step-headers-match.mts --json # machine-readable node
  *     scripts/fleet/check/lock-step-headers-match.mts --quiet # silent on clean Exit
- *     codes: 0 — clean (no quadruplets diverged, or config absent) 1 — at least
+ *     codes: 0 — clean, no quadruplets diverged, or config absent, 1 — at least
  *     one quadruplet has a header diff 2 — gate itself crashed
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
+import { REPO_ROOT } from '../paths.mts'
 
 // The config is repo-owned: prefer the `.config/repo/` location, fall back to
 // the legacy top-level `.config/` path during the migration soak.
@@ -162,6 +163,10 @@ function extractHeader(file: string): HeaderBlock | undefined {
     const stripped = stripCommentPrefix(raw)
     bodyLines.push(stripped)
   }
+  // Match a "Lock-step with <lang>: <ref>" annotation inside a comment block.
+  // Capture group 1 is the language name (letter-started, allows +, #, -).
+  // Capture group 2 is the reference path, which must contain at least one dot
+  // or slash and must not contain whitespace, colons, or commas.
   const withRe =
     /Lock-step with ([A-Za-z][A-Za-z0-9+#-]*): ([^\s:,]*[./][^\s:,]*)/g
   const withRefs: Array<{ lang: string; refPath: string }> = []
@@ -261,15 +266,22 @@ function main(): void {
     options: {
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', default: false },
+      // --root <dir>: explicit repo-root override — the seam fixture-driven
+      // tests use to point the gate at a temp repo. Production runs omit it
+      // and the script-location REPO_ROOT holds (cwd-independent by
+      // convention).
+      root: { type: 'string' },
     },
     allowPositionals: false,
   })
-  const repoRoot = process.cwd()
+  const repoRoot = values.root ?? REPO_ROOT
   let config: Config | undefined
   try {
     config = loadConfig(repoRoot)
   } catch (e) {
-    process.stderr.write(`check-lock-step-headers-match: ${(e as Error).message}\n`)
+    process.stderr.write(
+      `check-lock-step-headers-match: ${(e as Error).message}\n`,
+    )
     process.exitCode = 2
     return
   }

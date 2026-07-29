@@ -9,6 +9,7 @@
 import path from 'node:path'
 import process from 'node:process'
 
+import { isGeneratedPath } from '../constants/generated-globs.mts'
 import { AI_HANDLED_RULES, RULE_GUIDANCE } from './rule-guidance.mts'
 
 import type { OxlintFile, OxlintMessage } from './oxlint-json.mts'
@@ -19,6 +20,12 @@ export function bucketFindings(
   const byFile = new Map<string, OxlintMessage[]>()
   for (let i = 0, { length } = files; i < length; i += 1) {
     const f = files[i]!
+    // AI edits are only for repo-owned source. The raw JSON invocation does
+    // not load every repo-specific ignore overlay, so enforce the shared
+    // generated/vendored boundary again before an agent can touch a file.
+    if (isGeneratedPath(f.filePath)) {
+      continue
+    }
     const handled = f.messages.filter(
       m => m.ruleId !== undefined && AI_HANDLED_RULES.has(m.ruleId),
     )
@@ -53,7 +60,7 @@ export function renderRuleGuidance(findings: OxlintMessage[]): string {
     }
   }
   const entries = [...seen]
-    // oxlint-disable-next-line unicorn/no-array-sort -- the spread copies `seen` into a fresh array (no shared mutation); .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
+    // oxlint-disable-next-line unicorn/no-array-sort -- the spread copies `seen` into a fresh array, no shared mutation; .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
     .sort()
     .map(id => {
       const guidance = RULE_GUIDANCE[id]
@@ -78,7 +85,7 @@ export function renderRuleGuidance(findings: OxlintMessage[]): string {
  * - <task>: one-sentence framing.
  * - <file>: the target path. Edits must stay scoped to it.
  * - <findings>: machine-readable list of violations.
- * - <rules>: per-rule canonical rewrite + good/bad examples (low freedom).
+ * - <rules>: per-rule canonical rewrite + good/bad examples, low freedom.
  * - <process>: numbered steps that force a Read → reason → Edit → self-verify
  *   loop. Self-verify is the highest-leverage step — it catches the
  *   import/callsite mismatch class that produced past breakage.

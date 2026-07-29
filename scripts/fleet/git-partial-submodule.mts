@@ -16,15 +16,18 @@
 
 import process from 'node:process'
 
-import { checkGitVersion, logger } from './git-partial-submodule-internal.mts'
-import type { CommonOpts } from './git-partial-submodule-internal.mts'
-import type { AddOpts } from './git-partial-submodule-internal.mts'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
+
+import { checkGitVersion, logger } from './git-partial-submodule/internal.mts'
+import type { CommonOpts } from './git-partial-submodule/internal.mts'
+import type { AddOpts } from './git-partial-submodule/internal.mts'
 import {
   cmdAdd,
   cmdClone,
   cmdRestoreSparse,
   cmdSaveSparse,
-} from './git-partial-submodule-commands.mts'
+} from './git-partial-submodule/commands.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const USAGE = `git-partial-submodule — add / clone / save-sparse / restore-sparse partial submodules
 
@@ -42,7 +45,7 @@ Commands:
     Restore sparse-checkout patterns from .gitmodules.
 `
 
-function parseArgs(argv: string[]): {
+export function parseArgs(argv: string[]): {
   command: 'add' | 'clone' | 'help' | 'restore-sparse' | 'save-sparse'
   rest: string[]
   opts: CommonOpts
@@ -77,7 +80,7 @@ function parseArgs(argv: string[]): {
   return { command, opts, rest: remaining }
 }
 
-function parseAddArgs(common: CommonOpts, rest: string[]): AddOpts {
+export function parseAddArgs(common: CommonOpts, rest: string[]): AddOpts {
   let branch: string | undefined
   let name: string | undefined
   let sparse = false
@@ -138,8 +141,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  const msg = err instanceof Error ? err.message : String(err)
-  logger.error(`git-partial-submodule: ${msg}`)
-  process.exitCode = 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((err: unknown) => {
+    const msg = errorMessage(err)
+    logger.error(`git-partial-submodule: ${msg}`)
+    process.exitCode = 1
+  })
+}

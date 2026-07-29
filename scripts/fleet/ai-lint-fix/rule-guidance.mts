@@ -1,4 +1,4 @@
-/**
+/*
  * @file Rule allowlist + per-rule prompt guidance for the AI-fix orchestrator.
  *   Kept separate from `cli.mts` because:
  *
@@ -16,6 +16,8 @@
  *      becomes a concern.
  */
 
+import { AI_TIER } from '@socketsecurity/lib-stable/ai/tier'
+
 import type { AiEffort } from '@socketsecurity/lib-stable/ai/types'
 
 // Rules below need an AI-driven fix because the right rewrite
@@ -27,11 +29,17 @@ export const AI_HANDLED_RULES: ReadonlySet<string> = new Set([
   'socket/inclusive-language',
   'socket/max-file-lines',
   'socket/no-fetch-prefer-http-request',
+  'socket/no-malformed-bypass-marker',
+  'socket/no-namespace-import',
+  'socket/no-parenthetical-aside',
   'socket/no-placeholders',
+  'socket/no-source-sniffing',
   'socket/personal-path-placeholders',
   'socket/prefer-async-spawn',
   'socket/prefer-exists-sync',
   'socket/prefer-node-builtin-imports',
+  'socket/prefer-non-capturing-group',
+  'socket/prefer-normalize-path',
   'socket/prefer-undefined-over-null',
   'socket/require-regex-comment',
 ])
@@ -59,8 +67,11 @@ export const RULE_MODEL_TIER: Readonly<
 > = {
   __proto__: null,
   // Identifier renames, single-token substitutions, namespace rewrites.
-  // The right rewrite is fully determined by the pattern that fired.
+  // The right rewrite is fully determined by the pattern that fired
+  // (appending a `-- reason` to a marker, `import * as` → named imports).
   'socket/inclusive-language': 'haiku',
+  'socket/no-malformed-bypass-marker': 'haiku',
+  'socket/no-namespace-import': 'haiku',
   'socket/no-placeholders': 'haiku',
   'socket/personal-path-placeholders': 'haiku',
   'socket/prefer-node-builtin-imports': 'haiku',
@@ -70,12 +81,26 @@ export const RULE_MODEL_TIER: Readonly<
   // the sync→async caller chain, the fetch → httpJson error-handling
   // shape). Sonnet's reasoning is the right depth.
   'socket/no-fetch-prefer-http-request': 'sonnet',
+  // Source-sniffing: rewrite a text-scan into a typed-export read or AST parse
+  // or justify-disable when the scan is genuinely necessary — reads + reasons
+  // about surrounding code, not a mechanical substitution.
+  'socket/no-source-sniffing': 'sonnet',
   'socket/prefer-async-spawn': 'sonnet',
   'socket/prefer-exists-sync': 'sonnet',
+  // Capture group: decide used→named vs unused→non-capturing by reading how the
+  // match is consumed; normalize-path: pick the right import for a self-aliasing
+  // lib. Both read surrounding code, so Sonnet's depth over Haiku's.
+  'socket/prefer-non-capturing-group': 'sonnet',
+  'socket/prefer-normalize-path': 'sonnet',
   // Reading a regex and writing a part-by-part breakdown comment is reasoning
   // about pattern semantics — Sonnet's the right depth (Haiku tends to write a
   // shallow restatement; Opus is overkill).
   'socket/require-regex-comment': 'sonnet',
+  // Parenthetical aside: the right rewrite depends on where the prose lives.
+  // Drop the aside from a description or tagline, flesh it into a full sentence
+  // in a code comment, or promote it to a Note: sentence. Prose judgment, not a
+  // mechanical swap, so Sonnet's depth over Haiku's comma-flatten failure mode.
+  'socket/no-parenthetical-aside': 'sonnet',
   // Module decomposition. The model has to read the whole file, partition
   // by domain, decide what each new module exports, and rewrite imports
   // in every consumer. Real refactoring; Opus's depth pays back.
@@ -83,16 +108,17 @@ export const RULE_MODEL_TIER: Readonly<
 } as unknown as Readonly<Record<string, 'haiku' | 'opus' | 'sonnet'>>
 
 /**
- * Map a tier label to the canonical Claude Code model ID. Centralized here so a
- * global tier bump (Haiku 4.5 → 4.6, Sonnet 4.6 → 5.0, etc.) is a single-file
- * edit and won't drift across the orchestrator + the docs.
+ * Map a tier label to the canonical Claude Code model ID — derived from
+ * socket-lib's AI_TIER ladder (`@socketsecurity/lib-stable/ai/tier`), so a
+ * global tier bump lands in ONE place (socket-lib) and every orchestrator
+ * follows on the next lib-stable install.
  */
 export const TIER_MODEL: Readonly<Record<'haiku' | 'opus' | 'sonnet', string>> =
   {
     __proto__: null,
-    haiku: 'claude-haiku-4-5',
-    sonnet: 'claude-sonnet-4-6',
-    opus: 'claude-opus-4-8',
+    haiku: AI_TIER.haiku.model,
+    sonnet: AI_TIER.sonnet.model,
+    opus: AI_TIER.opus.model,
   } as Readonly<Record<'haiku' | 'opus' | 'sonnet', string>>
 
 /**
@@ -111,9 +137,9 @@ export const TIER_EFFORT: Readonly<
   Record<'haiku' | 'opus' | 'sonnet', AiEffort>
 > = {
   __proto__: null,
-  haiku: 'low',
-  sonnet: 'medium',
-  opus: 'high',
+  haiku: AI_TIER.haiku.effort,
+  sonnet: AI_TIER.sonnet.effort,
+  opus: AI_TIER.opus.effort,
 } as unknown as Readonly<Record<'haiku' | 'opus' | 'sonnet', AiEffort>>
 
 /**
@@ -144,18 +170,18 @@ export function escalateTier(
       highest = 'sonnet'
     }
   }
-  // No recognized rules → fall back to sonnet (historical default).
+  // No recognized rules → fall back to sonnet, historical default.
   return sawAny ? highest : 'sonnet'
 }
 
 /**
- * Per-rule guidance — concise, low-freedom (one canonical rewrite per rule).
+ * Per-rule guidance — concise, low-freedom, one canonical rewrite per rule.
  * Built per Anthropic's prompt-engineering best practices: direct instructions,
  * XML structure, examples per rule.
  *
  * Each entry is rendered into the prompt as `<rule id="...">…</rule>` inside a
- * `<rules>` block. Claude sees only the rules that fired in the current file,
- * so noise stays low.
+ * `<rules>` block. The agent sees only the rules that fired in the current
+ * file, so noise stays low.
  */
 export const RULE_GUIDANCE: Readonly<Record<string, string>> = {
   // oxlint-disable-next-line socket/prefer-undefined-over-null -- null-prototype object literal.
@@ -215,6 +241,16 @@ export const RULE_GUIDANCE: Readonly<Record<string, string>> = {
     'Implement the placeholder. If the work is too large, do NOT delete the marker — leave the file unchanged and explain in your final reply.',
   'socket/no-fetch-prefer-http-request':
     'Replace `fetch(url, opts)` with the right helper from `@socketsecurity/lib-stable/http-request`: `httpJson` when the caller calls `.json()` on the response, `httpText` when it calls `.text()`, `httpRequest` for raw access. Add the named import.',
+  'socket/no-malformed-bypass-marker':
+    'A disable marker (`oxlint-disable-next-line <rule>` or `socket-lint: allow <rule>`) is missing its required `-- <reason>`. Append ` -- <reason>` where the reason states WHY the waiver is correct, read from the disabled line plus any comment directly above it (for example `// oxlint-disable-next-line socket/prefer-undefined-over-null -- spec returns null here`). Keep the marker AND the code it guards exactly as-is; only add the reason. If multiple rules are listed, justify them all. Never delete the marker or change the guarded line.',
+  'socket/no-namespace-import':
+    'Rewrite a namespace import (`import * as X from "..."`) to named imports with the names actually used: inspect every `X.foo` reference in the file, import exactly those (`import { foo, bar } from "..."`), and change each `X.foo` to bare `foo`. If `X` is passed as a value (for example `someApi(X)`), or the import is a test module-mock or a bare Node builtin, keep the namespace form and add a `// no-namespace-import: passed-as-value` comment instead.',
+  'socket/no-source-sniffing':
+    'Code that scans source/file TEXT with a regex to infer behavior (for example, regex-testing a file string for a `module.exports =` assignment or an export keyword). Prefer rewriting to import the module and read its typed export (e.g. a `defineHook` instance), or parse the AST, instead of matching raw text. If a behavior-preserving rewrite is not safely possible because the text-scan is genuinely necessary (e.g. it lints raw source that cannot be imported), append `// oxlint-disable-next-line socket/no-source-sniffing -- <reason>` with a concrete justification. Never silently weaken behavior to satisfy the rule.',
+  'socket/prefer-non-capturing-group':
+    'A bare `(...)` capture group fired. If its captured text IS used (referenced by group index or name, or consumed by `String.prototype.split` / `matchAll` / `replace` group references), convert it to a NAMED group `(?<name>...)` with a descriptive name. If the group exists only for precedence or quantification and its capture is never read, convert it to non-capturing `(?:...)`. Read how the regex matches are consumed to decide. Do not change what the pattern matches.',
+  'socket/prefer-normalize-path':
+    'A manual path-separator rewrite fired (replacing backslashes with forward slashes on a path string). Replace the hand-rolled rewrite with `normalizePath(p)` and add the import, matching the import style the file already uses for sibling lib modules: the canonical `@socketsecurity/lib/paths/normalize` in `src/`/`test/` (vitest aliases it to local source), a relative path to `paths/normalize` when the module is nearby, or the `-stable` alias `@socketsecurity/lib-stable/paths/normalize` in scripts/hooks/config. Verify the rewrite is semantically identical (normalizePath yields one forward-slash-separated representation across platforms).',
   'socket/require-regex-comment': `Add a \`//\` comment that explains the flagged regex for a junior reader who won't mentally execute it. Put it on the line directly ABOVE the regex (preferred) or trailing the same line. Break the pattern into its parts and say what each MATCHES, not just what the variable is for.
 
 <process>
@@ -235,4 +271,45 @@ export const RULE_GUIDANCE: Readonly<Record<string, string>> = {
 + // check for model
   const hasModel = /(?:[\\s,{]|^)model\\s*[:,}]/.test(span)
 </bad-fix>`,
+  'socket/no-parenthetical-aside': `A prose parenthetical aside fired — text shaped like \`word (extra detail) more\`. The detector already skips code-shaped parens such as call args, \`(0o444)\`, and backtick spans, so what fired is genuine prose. Choose the rewrite by WHERE the prose lives. NEVER swap the parens for commas: mechanical comma-flattening is the exact failure this rule exists to stop — it is ungrammatical and cannot tell an aside from a list.
+
+<context-rules>
+  1. JSON "description" fields, package taglines, and README one-line headings: the aside is decoration the line does not need. DROP it and keep the sentence tight.
+  2. Code comments, \`//\` or block form: FLESH the parenthetical into a full-sentence thought. Fold the detail into a real sentence, or a following sentence, so the comment reads as prose rather than a note with a bracketed afterthought.
+  3. A detail that genuinely must stand apart: promote it to a \`Note: …\` sentence instead of a parenthetical.
+</context-rules>
+
+<hard-rules>
+  - NEVER rewrite \`(X)\` to \`, X,\`. Comma-flattening is banned.
+  - Preserve meaning. Only descriptions and taglines may shed a decorative aside; a code comment keeps its information, reshaped into a sentence.
+  - Rewrite ONLY the flagged prose span. Do not touch code, data string literals, or a paren the detector did not flag.
+</hard-rules>
+
+<bad-fix description="Mechanical comma-flatten. Ungrammatical, cannot tell an aside from a list. NEVER do this.">
+- // Resolve the config dir \`~/.gemini\` (all OSes).
++ // Resolve the config dir \`~/.gemini\`, all OSes.
+- // Read the config (and, for Claude, memory).
++ // Read the config, and, for Claude, memory,
+- // Match glob patterns (forward slashes on Win).
++ // Match glob patterns, forward slashes on Win.
+</bad-fix>
+
+<good-fix description="Flesh a code comment into a full sentence; the detail becomes prose.">
+- // Resolve the config dir \`~/.gemini\` (all OSes).
++ // Resolve the config dir \`~/.gemini\`, the same path on every OS.
+- // Read the config (and, for Claude, memory).
++ // Read the config, plus the memory file when the backend is Claude.
+- // Match glob patterns (forward slashes on Win).
++ // Match glob patterns. On Windows the separators are forward slashes.
+</good-fix>
+
+<good-fix description="Description or tagline: drop the decorative aside.">
+- "description": "Fast bundler (written in Rust)"
++ "description": "Fast bundler"
+</good-fix>
+
+<good-fix description="A detail that must stand apart becomes a Note: sentence.">
+- // Retry the request (only idempotent verbs are safe to replay).
++ // Retry the request. Note: only idempotent verbs are safe to replay.
+</good-fix>`,
 } as unknown as Readonly<Record<string, string>>

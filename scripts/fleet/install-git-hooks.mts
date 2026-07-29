@@ -1,18 +1,24 @@
 #!/usr/bin/env node
-/**
- * @file Configure git to use .git-hooks/fleet/ as the local hooks dir. Replaces
+/*
+ * @file Configure git to use .git-hooks/ as the local hooks dir. Replaces
  *   husky — same end-state (committed hook source + auto-install on `pnpm
  *   install`), one fewer dependency. Idempotent: re-running is a no-op when
- *   core.hooksPath already points at .git-hooks/fleet. Safe to invoke from
+ *   core.hooksPath already points at .git-hooks. Safe to invoke from
  *   `prepare`. Skipped when:
  *
  *   - Not inside a git repo (e.g. running in a tarball install).
- *   - .git-hooks/fleet/ doesn't exist (e.g. the template scaffold hasn't been
- *     cascaded into this repo yet). `.git-hooks/` carries two subdirs:
- *   - `fleet/` — hook entry points (commit-msg / pre-commit / pre-push + `.mts`
- *     implementations + tests). Git invokes scripts here as `<hook-name>` (e.g.
- *     `.git-hooks/fleet/pre-commit`).
- *   - `_shared/` — helpers consumed BY the entry points (helpers.mts,
+ *   - .git-hooks/ doesn't exist (e.g. the template scaffold hasn't been
+ *     cascaded into this repo yet).
+ *
+ *   `.git-hooks/` root holds a DISPATCHER per hook type (commit-msg /
+ *   pre-commit / pre-push / post-commit) — git invokes these as `<hook-name>`.
+ *   Each dispatcher runs the fleet hook then the repo hook, Option A, so both
+ *   tiers fire under git's single core.hooksPath. Subdirs:
+ *   - `fleet/` — fleet hook entry points + `.mts` implementations + tests,
+ *     called BY the root dispatchers, not by git directly.
+ *   - `repo/` — per-repo hook overrides, called BY the root dispatchers when
+ *     present. NOT cascaded (host-owned), so other fleet repos never get them.
+ *   - `_shared/` — helpers consumed by the entry points (helpers.mts,
  *     resolve-node.sh). Never invoked by git directly.
  */
 
@@ -21,13 +27,14 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { isMainModule } from './_shared/is-main-module.mts'
 
-const HOOKS_DIR = '.git-hooks/fleet'
+const HOOKS_DIR = '.git-hooks'
 
 // Resolve the repo root by walking up from this script's own location to the
 // nearest `package.json` ancestor. Inlined (not imported from paths.mts) on
 // purpose: this script runs at `pnpm prepare` time and gets copied/run in
-// isolation (tarball installs, the unit-test fixture), so it must stay
+// isolation, tarball installs, the unit-test fixture, so it must stay
 // self-contained with no sibling-module dependency. The walk is
 // depth-independent — unlike a hardcoded `..` count, it survives the script
 // moving between directories (the 73c691d9 scripts-into-fleet/ refactor broke
@@ -88,4 +95,8 @@ function main(): void {
   }
 }
 
-main()
+// Entrypoint-guarded: importing this module (unit tests of its exported
+// helpers) must not execute the script.
+if (isMainModule(import.meta.url)) {
+  main()
+}

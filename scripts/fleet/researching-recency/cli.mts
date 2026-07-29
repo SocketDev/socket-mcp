@@ -16,7 +16,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { RESEARCH_SAVE_DIR } from './paths.mts'
@@ -108,7 +108,7 @@ export function parseArgs(argv: readonly string[]): CliArgs {
 }
 
 // Resolve the plan: from --plan (a JSON string or a path to a JSON file), else a
-// default single-subquery plan over the requested (or keyless) sources.
+// default single-subquery plan over the requested, or keyless, sources.
 async function resolvePlan(args: CliArgs): Promise<QueryPlan> {
   if (args.planArg) {
     const trimmed = args.planArg.trim()

@@ -7,10 +7,10 @@
  *   so one bad pattern doesn't sink an otherwise-clean lockstep run.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
@@ -72,8 +72,8 @@ export function countPatternHits(files: string[], patterns: string[]): number {
   let hits = 0
   for (let i = 0, { length } = compiled; i < length; i += 1) {
     const pat = compiled[i]!
-    for (let i = 0, { length } = files; i < length; i += 1) {
-      const file = files[i]!
+    for (let j = 0, { length: len } = files; j < len; j += 1) {
+      const file = files[j]!
       let content: string
       try {
         content = readFileSync(file, 'utf8')

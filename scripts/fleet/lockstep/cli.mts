@@ -1,11 +1,11 @@
-/**
+/*
  * @file Lockstep harness CLI entry — dispatcher + `main()`. Reads
  *   `lockstep.json` (+ any `includes[]` sub-manifests) and validates each row
  *   against its upstream or sibling ports. Every supported `kind` has a
  *   checker; a repo populates its manifest only with the kinds it needs. Kinds:
  *   file-fork vendored upstream file with local deviations; drift = upstream
  *   moved since our fork SHA. version-pin submodule pinned to a specific
- *   SHA/tag; drift = upstream cut a new release (on default ref).
+ *   SHA/tag; drift = upstream cut a new release, on default ref.
  *   feature-parity local impl should match an upstream behavior; three-pillar
  *   score: code + test + fixture snapshot. spec-conformance local impl of an
  *   external spec at a known version. lang-parity N sibling language ports of
@@ -16,14 +16,13 @@
  *   human-readable, compact per-area summary + detailed rows. `--format=json`
  *   or `--json` — single JSON object for CI tooling. Sources and learnings:
  *
- *   - file-fork and version-pin semantics: stuie (this repo).
+ *   - file-fork and version-pin semantics: stuie, this repo.
  *   - feature-parity three-pillar scoring: sdxgen lock-step-features.json
  *     (snapshots replace the 20% tolerance).
  *   - lang-parity ports, rejected anti-pattern, per-area summaries, exit code 2
  *     semantics: ultrathink/acorn/scripts/xlang-harness.mts.
  */
 
-import path from 'node:path'
 import process from 'node:process'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
@@ -37,8 +36,9 @@ import {
   checkSpecConformance,
   checkVersionPin,
 } from './checks.mts'
-import { loadManifestTree } from './manifest.mts'
+import { loadManifestTree, resolveManifestRoot } from './manifest.mts'
 import { emitHuman, summarize } from './report.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 import type { Row } from './schema.mts'
 import type { Manifest, Report } from './types.mts'
@@ -94,9 +94,11 @@ function evaluate(
   return reports
 }
 
-function main(): void {
-  const rootManifestPath = path.join(rootDir, 'lockstep.json')
-  const { areas, merged } = loadManifestTree(rootManifestPath)
+export function main(): void {
+  const rootManifestPath = resolveManifestRoot(rootDir)
+  // Pass rootDir so version-pin rows without a stored pinned_sha get it derived
+  // from `<rootDir>/.gitmodules`, single source of truth.
+  const { areas, merged } = loadManifestTree(rootManifestPath, rootDir)
 
   const rowsWithArea: Array<{ row: Row; area: string }> = []
   for (const { area, manifest } of areas) {
@@ -141,4 +143,9 @@ function main(): void {
   }
 }
 
-main()
+// Direct execution (`node scripts/fleet/lockstep/cli.mts`) still runs the CLI;
+// importing this module no longer does — the lockstep.mts shim calls main()
+// explicitly under its own guard.
+if (isMainModule(import.meta.url)) {
+  void main()
+}

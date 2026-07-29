@@ -31,13 +31,18 @@ import type {
   VersionPinReport,
 } from './types.mts'
 
+import { resolvePinnedSha } from '../gen/gitmodules-hash.mts'
 import {
   driftCommitsSince,
+  fetchTagsQuiet,
   gitIn,
+  isShallowRepo,
+  lsRemoteHead,
   resolveUpstream,
   shaIsReachable,
   splitLines,
 } from './git.mts'
+import { resolveTarget } from './auto-bump.mts'
 import { countPatternHits, walkDirFiles } from './scan.mts'
 
 export function checkFileFork(
@@ -102,6 +107,82 @@ export function checkFileFork(
   return base
 }
 
+// Tag/head-based drift for a shallow submodule clone. Severity mapping: a
+// newer stable tag in the pin's scheme OR a moved origin/HEAD → drift; pin
+// current → ok; unreachable remote or an unparseable/ambiguous tag scheme →
+// error. Every non-ok path carries a message, so a shallow clone never reads
+// falsely clean.
+export function shallowVersionPinDrift(
+  base: VersionPinReport,
+  row: VersionPinRow,
+  effectivePin: string,
+  submodulePath: string,
+  submoduleDir: string,
+  options?: { tagsFetched?: boolean | undefined } | undefined,
+): VersionPinReport {
+  const { tagsFetched = false } = {
+    __proto__: null,
+    ...options,
+  } as { tagsFetched?: boolean | undefined }
+  const { messages } = base
+  if (!tagsFetched) {
+    base.severity = 'error'
+    messages.push(
+      `drift unknown — ${submodulePath} is a shallow clone (fleet-mandated) and the tag fetch failed; re-run online, or resolve via scripts/fleet/lockstep/auto-bump.mts --plan`,
+    )
+    return base
+  }
+  let tags: string[] = []
+  try {
+    tags = splitLines(gitIn(submoduleDir, ['tag', '--list'])).filter(t =>
+      t.trim(),
+    )
+  } catch {
+    // No readable tag list — the ls-remote HEAD compare below still runs.
+  }
+  // `track-latest` here regardless of the row's policy: this is the REPORT
+  // layer, and the signal is "a newer stable tag exists"; policy enforcement
+  // major-gate, locked, stays in the auto-bump planner.
+  const { skipReason, targetTag } = resolveTarget(
+    row.pinned_tag,
+    tags,
+    'track-latest',
+  )
+  if (targetTag) {
+    base.severity = 'drift'
+    messages.push(
+      `newer stable tag ${targetTag} (pinned ${row.pinned_tag ?? effectivePin.slice(0, 12)}); commit distance unavailable in a shallow clone — bump via scripts/fleet/lockstep/auto-bump.mts`,
+    )
+    return base
+  }
+  if (
+    skipReason &&
+    skipReason !== 'already at the latest stable tag' &&
+    skipReason !== 'no parseable stable tags found'
+  ) {
+    // Unparseable pinned tag or an ambiguous multi-scheme tag set — a human
+    // decision, surfaced loud.
+    base.severity = 'error'
+    messages.push(`drift unknown — ${skipReason}`)
+    return base
+  }
+  const remoteHead = lsRemoteHead(submoduleDir)
+  if (!remoteHead) {
+    base.severity = 'error'
+    messages.push(
+      `drift unknown — ${submodulePath} is a shallow clone (fleet-mandated) and \`git ls-remote origin HEAD\` failed; re-run online`,
+    )
+    return base
+  }
+  if (remoteHead !== effectivePin) {
+    base.severity = 'drift'
+    messages.push(
+      `origin/HEAD is ${remoteHead.slice(0, 12)} (pinned ${effectivePin.slice(0, 12)}${row.pinned_tag ? `, tag ${row.pinned_tag}` : ''}); commit distance unavailable in a shallow clone`,
+    )
+  }
+  return base
+}
+
 export function checkVersionPin(
   row: VersionPinRow,
   manifest: Manifest,
@@ -127,6 +208,34 @@ export function checkVersionPin(
     base.severity = 'error'
     return base
   }
+  // The authoritative pin is the `.gitmodules` `ref =`, single source of truth.
+  // `effectivePin` prefers a legacy stored `pinned_sha` (a belt for direct
+  // callers / unit tests that bypass loadManifestTree — the harness path already
+  // fills row.pinned_sha from the same ref), else derives it here.
+  const gmSha = resolvePinnedSha(
+    path.join(rootDir, '.gitmodules'),
+    upstream.submodule,
+  )
+  const effectivePin = row.pinned_sha ?? gmSha
+  base.pinned_sha = effectivePin
+  if (!effectivePin) {
+    base.severity = 'error'
+    messages.push(
+      `version-pin has no pinned_sha and no \`ref =\` resolvable in .gitmodules for ${upstream.submodule} — add the submodule's ref to .gitmodules`,
+    )
+    return base
+  }
+  // A legacy stored pinned_sha that disagrees with the authoritative
+  // `.gitmodules` ref is drift: pinned_sha is derived now, so a stale stored
+  // copy is a defect. Derived rows have pinned_sha === gmSha, so this never
+  // false-positives on the normal path.
+  if (row.pinned_sha && gmSha && row.pinned_sha !== gmSha) {
+    base.severity = 'error'
+    messages.push(
+      `manifest pinned_sha (${row.pinned_sha.slice(0, 12)}) disagrees with authoritative .gitmodules ref (${gmSha.slice(0, 12)}) — pinned_sha is derived; remove it so .gitmodules is the single source of truth`,
+    )
+    return base
+  }
   const submoduleDir = path.join(rootDir, upstream.submodule)
   if (!existsSync(submoduleDir)) {
     base.severity = 'error'
@@ -135,7 +244,7 @@ export function checkVersionPin(
     )
     return base
   }
-  if (!shaIsReachable(submoduleDir, row.pinned_sha)) {
+  if (!shaIsReachable(submoduleDir, effectivePin)) {
     base.severity = 'error'
     messages.push(`pinned_sha unreachable — submodule too shallow, or SHA typo`)
     return base
@@ -150,15 +259,41 @@ export function checkVersionPin(
   }
   base.head_sha = head
 
-  if (head !== row.pinned_sha) {
+  if (head !== effectivePin) {
     base.severity = 'error'
     messages.push(
-      `submodule HEAD (${head.slice(0, 12)}) does not match pinned_sha (${row.pinned_sha.slice(0, 12)}) — run \`git submodule update\``,
+      `submodule HEAD (${head.slice(0, 12)}) does not match .gitmodules ref (${effectivePin.slice(0, 12)}) — run \`git submodule update\``,
     )
     return base
   }
 
-  // Count commits on the upstream default branch since pinned SHA.
+  // Refresh remote-tracking refs + tags BEFORE counting. A shallow / partial /
+  // never-fetched submodule clone carries a STALE `origin/*` ref, so the
+  // `pinned_sha..origin` count silently under-reports — the opentui incident,
+  // where drift read "1 commit" while the true gap was 211 commits / 3 minor
+  // releases. Best-effort: an offline run falls through to the loud detection
+  // below rather than trusting an unrefreshed count.
+  const tagsFetched = fetchTagsQuiet(submoduleDir)
+
+  // A shallow clone can't yield a trustworthy count — `rev-list` truncates at
+  // the graft boundary — and fleet upstream submodules are MANDATED shallow
+  // single-branch, so "unshallow first" is never the answer. Derive drift from
+  // the fetched tag set and the remote default-branch head instead: the
+  // actionable signal for a version-pin is a newer stable tag (or untagged
+  // default-branch movement), not a local commit count.
+  if (isShallowRepo(submoduleDir)) {
+    return shallowVersionPinDrift(
+      base,
+      row,
+      effectivePin,
+      upstream.submodule,
+      submoduleDir,
+      { tagsFetched },
+    )
+  }
+
+  // Count commits on the upstream default branch since pinned SHA, using the
+  // ref refreshed above.
   let driftRef = ''
   try {
     const remoteRefs = gitIn(submoduleDir, [
@@ -181,25 +316,38 @@ export function checkVersionPin(
       }
     }
   } catch {
-    // no remotes available — drift can't be computed; report OK with a note.
+    // no remotes available — handled by the loud no-ref branch below.
   }
   if (!driftRef) {
-    messages.push(`no origin remote ref found; cannot compute upstream drift`)
+    // No origin remote ref even after a fetch attempt. A "0" here would read as
+    // clean, so report drift as UNKNOWN and LOUD — the clone hasn't fetched the
+    // refs/tags a count needs.
+    base.severity = 'error'
+    messages.push(
+      `drift unknown — no origin remote ref/tags fetched for ${upstream.submodule}; run \`git fetch --tags\` before trusting drift`,
+    )
     return base
   }
+  // adapt-step (`materialization: sparse`) scopes drift to the consumed cone:
+  // upstream commits outside `sparse_cone` don't touch what we vendor, so they
+  // are not drift. A `full` (lock-step) pin counts every commit on the branch.
+  const cone = row.materialization === 'sparse' ? (row.sparse_cone ?? []) : []
   try {
-    const count = gitIn(submoduleDir, [
-      'rev-list',
-      '--count',
-      `${row.pinned_sha}..${driftRef}`,
-    ]).trim()
+    const revArgs = ['rev-list', '--count', `${effectivePin}..${driftRef}`]
+    if (cone.length) {
+      revArgs.push('--', ...cone)
+    }
+    const count = gitIn(submoduleDir, revArgs).trim()
     const n = parseInt(count, 10)
     if (!Number.isNaN(n) && n > 0) {
       base.drift_count = n
       base.severity = 'drift'
       const tagSuffix = row.pinned_tag ? ` (from ${row.pinned_tag})` : ''
+      const coneSuffix = cone.length
+        ? ` (sparse: within ${cone.join(', ')})`
+        : ''
       messages.push(
-        `${n} upstream commit(s) since pin${tagSuffix} on ${driftRef.replace('refs/remotes/', '')}`,
+        `${n} upstream commit(s) since pin${tagSuffix} on ${driftRef.replace('refs/remotes/', '')}${coneSuffix}`,
       )
     }
   } catch {
@@ -238,7 +386,9 @@ export function checkFeatureParity(
 
   const codePatterns = row.code_patterns ?? []
   const testPatterns = row.test_patterns ?? []
-  const codeFiles = walkDirFiles(localAreaPath, /\.(?:m?[jt]sx?|json)$/).filter(
+  // Match source file extensions: .mjs, .mts, .js, .ts, .jsx, .tsx, and .json.
+  // Excludes test dirs and .test./.spec. files so only production code counts.
+  const codeFiles = walkDirFiles(localAreaPath, /\.(?:json|m?[jt]sx?)$/).filter(
     f => !/[/\\](?:__tests__|test|tests)[/\\]|\.test\.|\.spec\./.test(f),
   )
 
@@ -249,12 +399,17 @@ export function checkFeatureParity(
 
   // Test files: by default search local_area; if test_area is set, search
   // that directory instead (sdxgen-style where tests live outside the
-  // parser directory).
+  // parser directory). The extension regex matches the same source file types
+  // as above; the directory/name filter keeps only files inside __tests__,
+  // test, or tests folders or whose basename contains .test. or .spec.
   const testAreaPath = path.join(rootDir, row.test_area ?? row.local_area)
-  const testAreaFiles = walkDirFiles(testAreaPath, /\.(?:m?[jt]sx?|json)$/)
+  // Trailing .json, or .js/.ts/.jsx/.tsx with an optional leading m for .mjs/.mts.
+  const testAreaFiles = walkDirFiles(testAreaPath, /\.(?:json|m?[jt]sx?)$/)
   const testFiles = row.test_area
     ? testAreaFiles
     : testAreaFiles.filter(f =>
+        // Keep only files inside an __tests__/test/tests folder, or whose
+        // basename contains `.test.` or `.spec.`.
         /[/\\](?:__tests__|test|tests)[/\\]|\.test\.|\.spec\./.test(f),
       )
   const testScore =
@@ -286,7 +441,7 @@ export function checkFeatureParity(
   base.total_score = Math.round(total * 100) / 100
 
   // Floor: higher criticality = stricter. Cap at 0.85 so 10/10 criticality
-  // doesn't demand perfect pattern coverage (code is prose, patterns miss).
+  // doesn't demand perfect pattern coverage, code is prose, patterns miss.
   const floor = Math.min(0.85, row.criticality / 10)
   if (total < floor) {
     base.severity = 'drift'
@@ -367,7 +522,9 @@ export function checkLangParity(
       messages.push(`port '${site}' missing (declared in sites)`)
     }
   }
-  for (const port of Object.keys(row.ports)) {
+  const ports = Object.keys(row.ports)
+  for (let i = 0, { length } = ports; i < length; i += 1) {
+    const port = ports[i]!
     if (!declaredSites.includes(port)) {
       base.severity = 'error'
       messages.push(`port '${port}' not in sites map`)
@@ -380,7 +537,9 @@ export function checkLangParity(
   }
 
   if (row.category === 'rejected') {
-    for (const port of Object.keys(row.ports)) {
+    const rejectedPorts = Object.keys(row.ports)
+    for (let i = 0, { length } = rejectedPorts; i < length; i += 1) {
+      const port = rejectedPorts[i]!
       const state = row.ports[port]!
       if (state.status !== 'opt-out') {
         base.severity = 'drift'
@@ -395,15 +554,15 @@ export function checkLangParity(
 }
 
 // ---------------------------------------------------------------------------
-// Cross-row consistency checks (beyond zod's per-row validation).
+// Cross-row consistency checks, beyond the schema's per-row validation.
 // ---------------------------------------------------------------------------
 
 /**
- * Cross-row checks that zod validation can't express: unique ids, upstream refs
- * resolve to the `upstreams` map, port keys resolve to the `sites` map. Zod's
- * `LockstepManifestSchema.parse()` (called from `loadManifestTree`) already
- * covers per-row shape, enum values, id pattern, and required fields — this is
- * the referential-integrity layer on top.
+ * Cross-row checks that schema validation can't express: unique ids, upstream
+ * refs resolve to the `upstreams` map, port keys resolve to the `sites` map.
+ * The TypeBox pass (`validateSchema(LockstepManifestSchema, …)` in
+ * `readManifest`) already covers per-row shape, enum values, id pattern, and
+ * required fields — this is the referential-integrity layer on top.
  */
 export function checkCrossRowConsistency(
   rowsWithArea: Array<{ row: Row; area: string }>,
@@ -443,8 +602,23 @@ export function checkCrossRowConsistency(
       }
     }
 
+    // adapt-step: a `sparse` version-pin must name the cone it consumes, else
+    // the drift scope is undefined (it would silently fall back to counting the
+    // whole branch, defeating the point of sparse).
+    if (
+      row.kind === 'version-pin' &&
+      row.materialization === 'sparse' &&
+      !(row.sparse_cone && row.sparse_cone.length > 0)
+    ) {
+      errors.push(
+        `${loc} materialization 'sparse' requires a non-empty sparse_cone (the upstream paths the adapt-step consumes)`,
+      )
+    }
+
     if (row.kind === 'lang-parity') {
-      for (const port of Object.keys(row.ports)) {
+      const langPorts = Object.keys(row.ports)
+      for (let i = 0, { length } = langPorts; i < length; i += 1) {
+        const port = langPorts[i]!
         if (!siteKeys.has(port)) {
           errors.push(
             `${loc} port '${port}' not in sites map (known: ${[...siteKeys].join(', ') || '(none)'})`,

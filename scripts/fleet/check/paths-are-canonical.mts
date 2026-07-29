@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Path-hygiene gate. Mantra: 1 path, 1 reference. A path is constructed
  *   exactly once; everywhere else references the constructed value. Whole-repo
  *   scan complementing the per-edit `.claude/hooks/path-guard` hook. The hook
@@ -12,7 +12,7 @@
  *   - scan-code.mts — Rule A + B (.mts / .cts)
  *   - scan-workflow.mts — Rule C + D (.github/workflows/*.yml)
  *   - scan-script.mts — Rule G (Makefile / Dockerfile / shell)
- *   - rules.mts — Rule F (cross-file shape repetition)
+ *   - rules.mts — Rule F, cross-file shape repetition
  *   - state.mts — shared findings array + push/get helpers
  *   - types.mts — Finding + AllowlistEntry interfaces Rules enforced (full prose
  *     lives in each scanner module): A — Multi-stage path constructed inline. B
@@ -27,7 +27,7 @@
  *     scripts/fleet/check/paths-are-canonical.mts --explain # long-form explanation node
  *     scripts/fleet/check/paths-are-canonical.mts --json # machine-readable node
  *     scripts/fleet/check/paths-are-canonical.mts --quiet # silent on clean Exit codes: 0 —
- *     clean (no findings, or every finding is allowlisted) 1 — findings present
+ *     clean, no findings, or every finding is allowlisted, 1 — findings present
  *     2 — gate itself crashed
  */
 
@@ -54,12 +54,12 @@ import { walk } from './paths/walk.mts'
 // the gate is self-contained and works in socket-lib itself (which
 // would otherwise import itself).
 const logger = {
-  log: (msg: string) => process.stdout.write(msg + '\n'),
   error: (msg: string) => process.stderr.write(msg + '\n'),
+  log: (msg: string) => process.stdout.write(msg + '\n'),
   step: (msg: string) => process.stdout.write(`→ ${msg}\n`),
+  substep: (msg: string) => process.stdout.write(`  ${msg}\n`),
   // oxlint-disable-next-line socket/no-status-emoji -- local logger replica; can't import lib's logger because this gate runs in socket-lib itself.
   success: (msg: string) => process.stdout.write(`✔ ${msg}\n`),
-  substep: (msg: string) => process.stdout.write(`  ${msg}\n`),
 }
 
 const args = parseArgs({
@@ -96,7 +96,7 @@ const main = (): number => {
       scanWorkflowFile(REPO_ROOT, rel)
     }
   }
-  // Scan scripts/Makefiles/Dockerfiles (Rule G).
+  // Scan scripts/Makefiles/Dockerfiles, Rule G.
   for (const rel of walk(REPO_ROOT, REPO_ROOT, p => {
     const base = path.basename(p)
     return (

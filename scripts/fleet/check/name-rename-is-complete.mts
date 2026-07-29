@@ -4,10 +4,9 @@
  *   half-done. The fleet renames things (a check, script, hook, lint rule,
  *   skill) and the painful failure mode is a rename that lands across some
  *   surfaces but not all — the OLD name and the NEW name coexist, so a reader
- *   (or a cascade) can't tell which is canonical, and tooling that keys on the
+ *   or a cascade, can't tell which is canonical, and tooling that keys on the
  *   name silently splits. (Motivating churn: a make-/generate-/make- round-trip
  *   and a kind→repo.type schema migration that touched many files.)
- *
  *   The convention this enforces: when you rename a fleet name, record it with
  *   a `renamed-from: <old-name>` marker (in the renamed file's `@file` comment,
  *   or a doc, or the manifest) — a single hyphenated/scoped token naming the
@@ -15,16 +14,14 @@
  *   is fully gone — absent as a live fleet file (a `<old>.mts` script, a
  *   `<old>/index.mts` hook dir, a `<old>.mts` lint rule) AND absent from every
  *   reference in the fleet surfaces (so nothing still points at the prior
- *   name). It's the structural twin of the `plan-review-reminder` "settle the
+ *   name). It's the structural twin of the `plan-review-nudge` "settle the
  *   shape before the cascade" nudge: the reminder fires at plan time, this
  *   fails the gate if a rename lands half-finished.
- *
  *   Deterministic — file existence + a reference scan, no git history. Pairs
  *   with script-paths-resolve / doc-references-resolve (which catch a reference
  *   to a MISSING file); this catches the inverse — a recorded-renamed-from name
- *   whose prior form is still alive (the rename didn't finish).
- *
- *   Exit codes: 0 — every recorded rename is complete (or none recorded);
+ *   whose prior form is still alive, the rename didn't finish.
+ *   Exit codes: 0 — every recorded rename is complete, or none recorded;
  *   1 — at least one `renamed-from: <old>` whose prior name still lives / is
  *   referenced.
  */
@@ -32,11 +29,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -170,7 +167,7 @@ export function oldNameFileExists(repoRoot: string, oldName: string): boolean {
 }
 
 // True when the prior name is still REFERENCED in any scan file, excluding the
-// `renamed-from:` marker line itself (the marker mention is expected).
+// `renamed-from:` marker line itself, the marker mention is expected.
 export function oldNameReferenced(
   files: readonly string[],
   oldName: string,
@@ -184,7 +181,9 @@ export function oldNameReferenced(
     } catch {
       continue
     }
-    for (const line of text.split('\n')) {
+    const lines = text.split('\n')
+    for (let i = 0, { length } = lines; i < length; i += 1) {
+      const line = lines[i]!
       if (/renamed-from:/i.test(line)) {
         continue
       }
@@ -241,6 +240,6 @@ function main(): void {
   process.exitCode = 1
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

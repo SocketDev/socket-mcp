@@ -23,10 +23,10 @@
  *   `_npmUser.trustedPublisher` when the upload used GitHub Actions OIDC
  *   instead of a classic token. Both signals are independently verifiable via
  *   the registry's JSON packument; see
- *   `publish-shared.mts:fetchVersionTrustInfo`. This script is the audit
- *   surface — run it before / after a release to confirm the new version landed
- *   with the expected trust metadata, or sweep older versions to find ones that
- *   didn't.
+ *   `publish-infra/npm/registry.mts:fetchVersionTrustInfo`. This script is the
+ *   audit surface — run it before / after a release to confirm the new version
+ *   landed with the expected trust metadata, or sweep older versions to find
+ *   ones that didn't.
  */
 
 import process from 'node:process'
@@ -34,8 +34,9 @@ import process from 'node:process'
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
-import { fetchVersionTrustInfo } from '../publish-shared.mts'
-import type { RegistryVersionInfo } from '../publish-shared.mts'
+import { fetchVersionTrustInfo } from '../publish-infra/npm/registry.mts'
+import type { RegistryVersionInfo } from '../publish-infra/npm/registry.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
   // Use the full packument so we can report trustedPublisher status
   // alongside attestations. The abbreviated packument drops _npmUser.
   const versions = await fetchVersionTrustInfo(name, 'full')
-  // oxlint-disable-next-line unicorn/no-array-sort -- Object.keys() already returns a fresh array (no shared mutation); .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
+  // oxlint-disable-next-line unicorn/no-array-sort -- Object.keys() already returns a fresh array, no shared mutation; .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
   const allVersions = Object.keys(versions).sort(compareSemverDesc)
   if (allVersions.length === 0) {
     logger.fail(`No versions found for ${name} (or registry fetch failed).`)
@@ -111,12 +112,12 @@ async function main(): Promise<void> {
   renderTable(name, target, versions)
 }
 
-interface ReportRow {
+export interface ReportRow {
   attestation: string | undefined
   trustedPublisher: string | undefined
 }
 
-function toReportRow(info: RegistryVersionInfo | undefined): ReportRow {
+export function toReportRow(info: RegistryVersionInfo | undefined): ReportRow {
   return {
     attestation: info?.attestations?.url ?? undefined,
     trustedPublisher: info?.trustedPublisher
@@ -125,7 +126,7 @@ function toReportRow(info: RegistryVersionInfo | undefined): ReportRow {
   }
 }
 
-function renderTable(
+export function renderTable(
   name: string,
   versions: string[],
   data: Record<string, RegistryVersionInfo>,
@@ -168,11 +169,11 @@ function renderTable(
 }
 
 /**
- * Compare two semver strings descending (newest first). Falls back to
+ * Compare two semver strings descending, newest first. Falls back to
  * lexicographic when the strings aren't proper semver — good enough for sorting
  * registry packument versions, which are guaranteed semver-shaped by npm.
  */
-function compareSemverDesc(a: string, b: string): number {
+export function compareSemverDesc(a: string, b: string): number {
   const pa = a.split('.').map(n => Number.parseInt(n, 10))
   const pb = b.split('.').map(n => Number.parseInt(n, 10))
   for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
@@ -188,7 +189,9 @@ function compareSemverDesc(a: string, b: string): number {
   return 0
 }
 
-main().catch((e: unknown) => {
-  logger.error(e)
-  process.exitCode = 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.error(e)
+    process.exitCode = 1
+  })
+}

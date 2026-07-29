@@ -1,4 +1,4 @@
-/**
+/*
  * @file Enforce the canonical fleet README section list. Fires only on the
  *   repo-root `README.md` (skipped for nested READMEs under `packages/`,
  *   `docs/`, `.claude/`, etc. — those are scoped docs with their own shape).
@@ -14,9 +14,13 @@
  *      No autofix: a missing section needs content, not just a heading.
  */
 
-import path from 'node:path'
+import type { MarkdownlintRule } from './_shared/rule-types.mts'
 
+import { isFreeformReadmeOptIn } from './_shared/freeform-readme-optin.mts'
+import { isRootReadme } from './_shared/root-readme.mts'
 import { isInsideWheelhouse } from './_shared/wheelhouse-self-skip.mts'
+
+export { isRootReadme } from './_shared/root-readme.mts'
 
 const RULE_NAME = 'socket-readme-required-sections'
 const REQUIRED_SECTIONS = [
@@ -27,25 +31,7 @@ const REQUIRED_SECTIONS = [
   'License',
 ]
 
-export function isRootReadme(filePath) {
-  // markdownlint passes `params.name` as a path relative to the working
-  // dir. The root README is the one whose basename is README.md AND
-  // whose directory is the cwd or `.`.
-  if (!filePath) {
-    return false
-  }
-  const base = path.basename(filePath)
-  if (base !== 'README.md') {
-    return false
-  }
-  const dir = path.dirname(filePath)
-  return dir === '.' || dir === '' || dir === process.cwd()
-}
-
-/**
- * @type {import('markdownlint').Rule}
- */
-const rule = {
+const rule: MarkdownlintRule = {
   description:
     'Fleet root README must contain the canonical five sections in order',
   function(params, onError) {
@@ -55,12 +41,18 @@ const rule = {
     if (!isRootReadme(params.name)) {
       return
     }
+    // Product / marketplace repos, freeform-readme roster opt-in, carry public
+    // READMEs that don't fit the five-section infra skeleton. The universal
+    // badge / leak / sibling rules still apply; this section rule does not.
+    if (isFreeformReadmeOptIn()) {
+      return
+    }
     const headings = []
     for (let i = 0; i < params.lines.length; i += 1) {
-      const line = params.lines[i]
+      const line = params.lines[i]!
       const m = /^##\s+(.+?)\s*$/.exec(line)
       if (m) {
-        headings.push({ text: m[1], lineNumber: i + 1 })
+        headings.push({ text: m[1]!, lineNumber: i + 1 })
       }
     }
     let cursor = 0
@@ -68,7 +60,7 @@ const rule = {
       const want = REQUIRED_SECTIONS[r]
       let found = -1
       for (let h = cursor; h < headings.length; h += 1) {
-        if (headings[h].text === want) {
+        if (headings[h]!.text === want) {
           found = h
           break
         }

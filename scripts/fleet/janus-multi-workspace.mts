@@ -7,11 +7,10 @@
  *   MCP server can drive every repo's queue. This is the stopgap until the
  *   upstream `janus mcp --workspace name=path` lands (then this whole shim is
  *   deleted); see docs/agents.md/fleet/multi-agent-operating-procedure.md.
- *
  *   Discovery is zero-config: the wheelhouse-canonical fleet registry
  *   (`fleet-repos.json`) is the source of repo names; the parent dir of the
  *   wheelhouse root is the sibling search root. A repo with no `.janus/` is
- *   simply absent from the workspace list (it hasn't opted into Janus yet).
+ *   simply absent from the workspace list, it hasn't opted into Janus yet.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -84,7 +83,7 @@ export function readFleetRepoNames(): string[] {
   return names
 }
 
-// Discover the workspaces: every fleet repo (plus the wheelhouse itself) that
+// Discover the workspaces: every fleet repo, plus the wheelhouse itself, that
 // is a sibling directory and has a `.janus/`. Returned sorted by name so the
 // list is stable across runs.
 export function discoverWorkspaces(): Workspace[] {

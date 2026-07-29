@@ -22,35 +22,37 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { getSocketHomePath } from '@socketsecurity/lib-stable/paths/socket'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
+import { isMainModule } from './_shared/is-main-module.mts'
+import { REPO_ROOT } from './paths.mts'
 
 const logger = getDefaultLogger()
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 type ToolEntry = {
   version?: string | undefined
   checksums?: Record<string, unknown> | undefined
 }
 
-function readJanusEntry(): ToolEntry {
-  // The hook's external-tools.json is the single source of truth for
-  // version + supported-platform list. Read it directly rather than
-  // pinning a version here — drift between the installer and this
-  // launcher would silently point at a missing dir.
-  const configPath = path.join(
-    __dirname,
-    '..',
-    '.claude',
-    'hooks',
-    'setup-security-tools',
-    'external-tools.json',
-  )
+// The hook's external-tools.json is the single source of truth for
+// version + supported-platform list. Read it directly rather than
+// pinning a version here — drift between the installer and this
+// launcher would silently point at a missing dir.
+const DEFAULT_CONFIG_PATH = path.join(
+  REPO_ROOT,
+  '.claude',
+  'hooks',
+  'fleet',
+  'setup-security-tools',
+  'external-tools.json',
+)
+
+export function readJanusEntry(
+  configPath: string = DEFAULT_CONFIG_PATH,
+): ToolEntry {
   const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
     tools?: Record<string, ToolEntry> | undefined
   }
@@ -63,29 +65,53 @@ function readJanusEntry(): ToolEntry {
   return entry
 }
 
-function getPlatformKey(): string {
+export function getPlatformKey(): string {
   return `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
+}
+
+export function isPlatformSupported(
+  entry: ToolEntry,
+  platformKey: string,
+): boolean {
+  return Boolean(entry.checksums?.[platformKey])
+}
+
+export function resolveBinaryPath(
+  homePath: string,
+  entry: ToolEntry,
+  platformKey: string,
+  config: { win32: boolean },
+): string {
+  const cfg = { __proto__: null, ...config } as { win32: boolean }
+  const binaryName = cfg.win32 ? 'janus.exe' : 'janus'
+  return path.join(
+    homePath,
+    '_wheelhouse',
+    'janus',
+    entry.version!,
+    platformKey,
+    binaryName,
+  )
 }
 
 async function main(): Promise<void> {
   const entry = readJanusEntry()
   const platformKey = getPlatformKey()
 
-  if (!entry.checksums?.[platformKey]) {
+  if (!isPlatformSupported(entry, platformKey)) {
     logger.info(
       `janus has no upstream build for ${platformKey} (currently darwin-arm64 only); skipping`,
     )
     return
   }
 
-  const binaryName = process.platform === 'win32' ? 'janus.exe' : 'janus'
-  const binaryPath = path.join(
+  const binaryPath = resolveBinaryPath(
     getSocketHomePath(),
-    '_wheelhouse',
-    'janus',
-    entry.version!,
+    entry,
     platformKey,
-    binaryName,
+    {
+      win32: process.platform === 'win32',
+    },
   )
 
   if (!existsSync(binaryPath)) {
@@ -114,7 +140,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e: unknown) => {
-  logger.error(e)
-  process.exitCode = 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.error(e)
+    process.exitCode = 1
+  })
+}

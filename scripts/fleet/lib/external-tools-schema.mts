@@ -1,9 +1,9 @@
-/**
+/*
  * @file Canonical TypeBox schema for the fleet's external-tools data files.
  *   Every tool-data file across the fleet uses one container shape — `{ tools:
  *   { <name>: ToolEntry } }`:
  *
- *   - build/release tools — `external-tools.json` at repo root,
+ *   - build/release tools — `.config/repo/external-tools.json`,
  *   - security-hook tools —
  *     `.claude/hooks/fleet/setup-security-tools/external-tools.json`,
  *   - CLI-VFS-bundled tools — `packages/cli/bundle-tools.json`. They share one
@@ -29,11 +29,15 @@ export const PackageManager = Type.Union([
 ])
 
 // How a GitHub-hosted tool ships: a release asset, a source archive, or a
-// pipx-installed git ref (security-hook tools).
+// locked uv project, Python security-hook tools. The `uv-project` kind is a
+// package pinned via a committed pyproject.toml + uv.lock closure, installed
+// with `uv sync --locked` (e.g. headroom-ai — see
+// scripts/fleet/install-headroom.mts — and skillspector). The fleet installs
+// every Python tool through the pinned uv, never pipx.
 export const ReleaseKind = Type.Union([
-  Type.Literal('asset'),
   Type.Literal('archive'),
-  Type.Literal('pipx-git'),
+  Type.Literal('asset'),
+  Type.Literal('uv-project'),
 ])
 
 // One platform's downloadable artifact + its SRI integrity (sha256-…).
@@ -99,17 +103,22 @@ export const ToolEntry = Type.Object(
   {
     description: Type.Optional(Type.String()),
     version: Type.Optional(Type.String()),
-    // ISO date (YYYY-MM-DD) a pinned version was selected (security tools).
+    // ISO date (YYYY-MM-DD) a pinned version was selected, security tools.
     versionDate: Type.Optional(Type.String()),
     // GitHub release tag when it differs from `version` (e.g. python).
     tag: Type.Optional(Type.String()),
     packageManager: Type.Optional(PackageManager),
     repository: Type.Optional(Type.String()),
     release: Type.Optional(ReleaseKind),
+    // Upstream source repo URL + its tag for a tool built from source rather
+    // than fetched as a release artifact (e.g. socket-btm's zig, built from
+    // the Codeberg mirror).
+    source: Type.Optional(Type.String()),
+    sourceTag: Type.Optional(Type.String()),
     // npm SRI (sha512-…) or single-artifact SRI (sha256-…).
     integrity: Type.Optional(Type.String()),
     // checksum map: key → hex sha256 (bundle-tools) or { asset, sha256 }
-    // (external-tools per-platform). See ChecksumValue.
+    // external-tools per-platform. See ChecksumValue.
     checksums: Type.Optional(Type.Record(Type.String(), ChecksumValue)),
     // platform key → { asset, integrity } for per-platform binaries.
     platforms: Type.Optional(Type.Record(Type.String(), PlatformEntry)),
@@ -172,7 +181,7 @@ export interface ValidationFailure {
 
 /**
  * Non-throwing validation against the given schema. Returns the list of issues
- * (empty when valid). Lets a caller (e.g. the fleet check) report every file's
+ * empty when valid. Lets a caller (e.g. the fleet check) report every file's
  * problems without aborting on the first.
  */
 export function collectIssues(

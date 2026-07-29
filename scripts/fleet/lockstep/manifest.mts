@@ -1,8 +1,8 @@
 /**
  * @file Manifest loading + sub-manifest tree resolution. `readManifest` parses
- *   one `lockstep.json` (or sub-manifest) and runs it through the TypeBox
+ *   one `lockstep.json`, or sub-manifest, and runs it through the TypeBox
  *   schema; schema failures terminate the process with exit 1 and a per-issue
- *   error trail (deeper than a single throw). `loadManifestTree` walks the
+ *   error trail, deeper than a single throw. `loadManifestTree` walks the
  *   top-level manifest's `includes[]` array, reads each sub-manifest, and
  *   produces a flattened view: per-area manifest list (preserving file
  *   boundaries for per-area reports) plus a merged view (upstreams + sites
@@ -14,9 +14,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { validateSchema } from '@socketsecurity/lib-stable/schema/validate'
+
+import { resolvePinnedSha } from '../gen/gitmodules-hash.mts'
+import { lockstepManifestCandidates } from '../paths.mts'
 
 import { LockstepManifestSchema } from './schema.mts'
 import type { Row, Site, Upstream } from './schema.mts'
@@ -51,11 +54,55 @@ export function readManifest(manifestPath: string): Manifest {
 }
 
 /**
+ * Resolve the manifest tree's ROOT file for a repo, in preference order:
+ * `<root>/lockstep.json`, the shim-plus-includes layout, then the segregated
+ * `<root>/.config/repo/lockstep.json` (the manifest is repo-owned content —
+ * `.config/repo/` holds it, `.config/fleet/lockstep.schema.json` holds the
+ * fleet-identical schema), then the legacy loose `<root>/.config/lockstep.json`
+ * for repos not yet migrated. The harness and auto-bump both resolve through
+ * this so a config-dir migration can't strand them on a hardcoded path.
+ */
+export function resolveManifestRoot(repoRoot: string): string {
+  const candidates = lockstepManifestCandidates(repoRoot)
+  return (
+    candidates.find(p => existsSync(p)) ?? candidates[candidates.length - 1]!
+  )
+}
+
+/**
+ * List every manifest file in the tree: the root, then each `includes[]`
+ * sub-manifest (resolved relative to the root's directory — the same
+ * resolution `loadManifestTree` uses). Consumers that must WRITE a row need
+ * the owning file, not the merged view; `auto-bump --apply` walks this list
+ * to find which file physically holds a row before rewriting it.
+ */
+export function listManifestFiles(rootManifestPath: string): string[] {
+  const rootManifest = readManifest(rootManifestPath)
+  const files = [rootManifestPath]
+  const includes = rootManifest.includes ?? []
+  const baseDir = path.dirname(rootManifestPath)
+  for (let i = 0, { length } = includes; i < length; i += 1) {
+    files.push(path.resolve(baseDir, includes[i]!))
+  }
+  return files
+}
+
+/**
  * Resolve a manifest + all its `includes[]` sub-manifests into a single
  * flattened view. Each sub-manifest contributes its rows; the top-level
- * upstreams/sites maps are merged (top-level wins on conflict).
+ * upstreams/sites maps are merged, top-level wins on conflict.
+ *
+ * When `repoRoot` is supplied, every `version-pin` row that OMITS `pinned_sha`
+ * has it derived from the authoritative `<repoRoot>/.gitmodules` `ref =`
+ * single source of truth, so downstream consumers see a self-describing row.
+ * Fill-when-absent only: a legacy row that still carries `pinned_sha` is left
+ * untouched (backward-compat). Rows are shared object refs between `areas` and
+ * the merged view, so the in-place fill propagates to both.
  */
-export function loadManifestTree(rootManifestPath: string): {
+export function loadManifestTree(
+  rootManifestPath: string,
+  repoRoot?: string | undefined,
+): {
   areas: Array<{ area: string; manifest: Manifest }>
   merged: Manifest
 } {
@@ -100,6 +147,29 @@ export function loadManifestTree(rootManifestPath: string): {
   for (const { manifest } of areas) {
     mergedRows.push(...manifest.rows)
   }
+
+  // Derive `pinned_sha` from the authoritative `.gitmodules` `ref =` for every
+  // version-pin row that omits it (SHA-DRY: one source of truth). Fill-when-
+  // absent so a legacy stored `pinned_sha` stays intact and checkVersionPin
+  // behaves identically when it agrees with the ref.
+  if (repoRoot !== undefined) {
+    const gitmodulesPath = path.join(repoRoot, '.gitmodules')
+    for (let i = 0, { length } = mergedRows; i < length; i += 1) {
+      const row = mergedRows[i]!
+      if (row.kind !== 'version-pin' || row.pinned_sha !== undefined) {
+        continue
+      }
+      const submodule = mergedUpstreams[row.upstream]?.submodule
+      if (submodule === undefined) {
+        continue
+      }
+      const derived = resolvePinnedSha(gitmodulesPath, submodule)
+      if (derived !== undefined) {
+        row.pinned_sha = derived
+      }
+    }
+  }
+
   return {
     areas,
     merged: {

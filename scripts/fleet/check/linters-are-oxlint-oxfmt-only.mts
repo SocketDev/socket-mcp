@@ -1,6 +1,6 @@
 /**
  * @file Code-is-law check for the fleet "oxlint + oxfmt only" rule. Scans the
- *   COMMITTED state (git-tracked files) for foreign linter/formatter configs +
+ *   COMMITTED state, git-tracked files, for foreign linter/formatter configs +
  *   package.json deps that the edit-time `no-other-linters-guard` hook blocks —
  *   so a config/dep that slipped in before the hook existed (or via
  *   --no-verify) is caught at `check --all` time. The hook is the edit-time
@@ -28,6 +28,7 @@ import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import {
   auditForeignDeps,
   isForeignConfigFile,
+  isTestFixture,
   isVendoredUpstream,
 } from '../../../.claude/hooks/fleet/_shared/foreign-linters.mts'
 import { REPO_ROOT } from '../paths.mts'
@@ -43,7 +44,7 @@ function trackedFiles(): string[] {
 function main(): void {
   const failures: string[] = []
   for (const rel of trackedFiles()) {
-    if (isVendoredUpstream(rel)) {
+    if (isVendoredUpstream(rel) || isTestFixture(rel)) {
       continue
     }
     const basename = path.basename(rel)

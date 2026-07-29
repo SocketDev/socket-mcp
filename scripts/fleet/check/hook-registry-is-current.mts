@@ -23,6 +23,7 @@ import process from 'node:process'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { hasFleetHookSource } from '../_shared/fleet-source-present.mts'
 
 const logger = getDefaultLogger()
 
@@ -36,7 +37,9 @@ const REGISTRY_PATH = path.join(
 const FLEET_HOOKS_DIR = path.join(REPO_ROOT, '.claude', 'hooks', 'fleet')
 
 // Bullet shape: `- \`<name>\` — description`. Captures the backticked hook id.
-const REGISTRY_BULLET_RE = /^- `([a-z0-9-]+)`/gm
+// A leading underscore admits the infrastructure dirs (`_dispatch`) so they
+// can be registered like any hook instead of reading as omitted forever.
+const REGISTRY_BULLET_RE = /^- `(_?[a-z0-9-]+)`/gm
 
 // A bullet is "capability-gated" when its prose declares the hook installs only
 // in repos opting into a capability — the canonical phrasing cites the hook's
@@ -51,11 +54,11 @@ const REGISTRY_BULLET_RE = /^- `([a-z0-9-]+)`/gm
 //   ^- `         a registry bullet opens with "- `" at line start.
 //   ([a-z0-9-]+) the hook id (kebab-case), captured.
 //   `            closing backtick of the id.
-//   [^\n]*       the rest of the bullet's first line (its prose).
+//   [^\n]*       the rest of the bullet's first line, its prose.
 const REGISTRY_BULLET_LINE_RE = /^- `([a-z0-9-]+)`[^\n]*/gm
 
 // Marker in a bullet's prose that flags the hook as capability-gated. Matches
-// the canonical phrasing `@socket-capability <cap>` (in backticks in the prose).
+// the canonical phrasing `@socket-capability <cap>`, in backticks in the prose.
 const CAPABILITY_GATED_RE = /@socket-capability\s+[a-z0-9-]+/
 
 // The real fleet hook directory names (every `.claude/hooks/fleet/<name>/`
@@ -97,19 +100,27 @@ export function capabilityGatedBullets(registryText: string): Set<string> {
 // Bullets that name no real hook dir (stale / misnamed) — the hard-fail set.
 // A capability-gated bullet whose hook is absent is NOT stale: the cascade
 // intentionally skips installing it in repos lacking the capability, yet the
-// canonical registry (identical in every repo) still documents it.
+// canonical registry, identical in every repo, still documents it.
 export function staleBullets(
   bullets: readonly string[],
   real: ReadonlySet<string>,
   capabilityGated: ReadonlySet<string> = new Set(),
 ): string[] {
-  // oxlint-disable-next-line unicorn/no-array-sort -- .filter() already returns a fresh array (no shared mutation); .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
+  // oxlint-disable-next-line unicorn/no-array-sort -- .filter() already returns a fresh array, no shared mutation; .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
   return bullets.filter(id => !real.has(id) && !capabilityGated.has(id)).sort()
 }
 
 function main(): void {
   if (!existsSync(REGISTRY_PATH)) {
     logger.success('No hook-registry.md to check.')
+    return
+  }
+  // A bundle-only member runs hooks from _dist/bundle.cjs — the per-hook
+  // SOURCE dirs the registry bullets name live only in the wheelhouse.
+  if (!hasFleetHookSource(REPO_ROOT)) {
+    logger.success(
+      'No fleet hook source in this repo (bundle-only) — registry validated at the source repo.',
+    )
     return
   }
   const real = realFleetHooks(FLEET_HOOKS_DIR)

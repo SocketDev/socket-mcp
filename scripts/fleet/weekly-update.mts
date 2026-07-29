@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Weekly dependency update — the PLAIN (non-gh-aw) runner. Runs the same
  *   update the gh-aw `weekly-update.lock.yml` runs, but as an ordinary process,
  *   so the update is reachable locally and as a plain CI job without the gh-aw
@@ -8,15 +8,21 @@
  *   this is the escape hatch + the local-dev entry. Flow (mirrors the gh-aw
  *   .md):
  *
- *   1. check-updates gate — `pnpm outdated`, lockstep `--json` exit 2, and
- *      submodule-behind. No-op exit when nothing is actionable.
- *   2. deterministic update (ALWAYS) — runs `update.mts` (taze 2-pass + lockfile).
- *      The judgment-free npm/lockfile part.
- *   3. agentic update (OPTIONAL) — if a Claude agent is reachable, invoke the
+ *   1. check-updates gate — `pnpm outdated`, lockstep `--json` exit 2,
+ *      submodule-behind, vendored action reference pins behind their latest
+ *      soaked release, and soaked-cleared minimumReleaseAgeExclude entries.
+ *      No-op exit when nothing is actionable. Exposed as a
+ *      standalone `--check-updates` mode (exit 0 = updates, 1 = none) so the
+ *      gh-aw workflow's gate job calls THIS, not an inline bash port.
+ *   2. deterministic chain (ALWAYS, IN ORDER) — lockstep version-pin auto-bumps,
+ *      submodule remainder note, npm deps (`update.mts`), package-manager pins,
+ *      gh-aw action pins. The judgment-free part — see
+ *      `weekly-update/deterministic-chain.mts`.
+ *   3. agentic update (OPTIONAL) — if the Claude Code CLI is reachable, invoke the
  *      `/updating` umbrella via the locked-down `spawnAiAgent` (AI_PROFILE.full
  *      = the four-flag lockdown the Programmatic-Claude rule mandates). No
  *      agent → log a skip note and continue on the deterministic result. A
- *      missing key NEVER fails the run (the resilience point).
+ *      missing key NEVER fails the run, the resilience point.
  *   4. test — the configured setup and test commands.
  *   5. PR — on pass, open a PR via `gh` (unless --no-pr); on fail, print the logs
  *      and the next step without opening a PR. Flags mirror the gh-aw inputs
@@ -25,24 +31,35 @@
  *      flags.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { discoverAiAgents } from '@socketsecurity/lib-stable/ai/discover'
 import { AI_PROFILE } from '@socketsecurity/lib-stable/ai/profiles'
 import { spawnAiAgent } from '@socketsecurity/lib-stable/ai/spawn'
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 
 import type { AiEffort } from '@socketsecurity/lib-stable/ai/types'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
-import { REPO_ROOT } from './paths.mts'
+import { scan } from './check/soak-excludes-have-dates.mts'
+import {
+  lockstepManifestCandidates,
+  PNPM_WORKSPACE_YAML,
+  REPO_ROOT,
+} from './paths.mts'
+import {
+  runCheck as vendorActionsCheck,
+  vendoringEnrolled,
+} from './vendor-actions.mts'
+import { runDeterministicChain } from './weekly-update/deterministic-chain.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
-export interface WeeklyUpdateOptions {
+export interface WeeklyUpdateConfig {
   testSetupScript: string
   testScript: string
   updateModel: string
@@ -56,7 +73,7 @@ export interface WeeklyUpdateOptions {
 // Parse argv into options. Defaults mirror the gh-aw weekly-update inputs; --pr
 // is opt-in (local default leaves the branch) so a local run never surprises
 // with a PR.
-export function parseArgs(argv: readonly string[]): WeeklyUpdateOptions {
+export function parseArgs(argv: readonly string[]): WeeklyUpdateConfig {
   const flag = (name: string): string | undefined => {
     const i = argv.indexOf(name)
     return i !== -1 ? argv[i + 1] : undefined
@@ -70,7 +87,7 @@ export function parseArgs(argv: readonly string[]): WeeklyUpdateOptions {
     testScript: flag('--test-script') ?? 'pnpm test',
     testSetupScript: flag('--test-setup-script') ?? 'pnpm run build',
     // A weekly dependency update is mechanical — pair the cheap model with
-    // medium effort (token-spend rule). Override with --update-effort.
+    // medium effort, token-spend rule. Override with --update-effort.
     updateEffort: (flag('--update-effort') as AiEffort | undefined) ?? 'medium',
     updateModel: flag('--update-model') ?? 'haiku',
   }
@@ -94,6 +111,7 @@ async function capture(
   try {
     const r = await spawn(cmd, [...args], {
       cwd: REPO_ROOT,
+      shell: WIN32,
       stdioString: true,
     })
     return { ok: true, out: String(r.stdout ?? '') }
@@ -105,7 +123,11 @@ async function capture(
 
 // The deterministic check-updates gate, ported from the gh-aw workflow: true
 // when `pnpm outdated` reports drift, the lockstep manifest is behind (exit 2),
-// or a submodule is behind its remote.
+// a submodule is behind its remote, a vendored upstream action reference pin
+// is behind its latest soaked release, or a soaked minimumReleaseAgeExclude
+// entry has cleared its removable date. This is the single source of the gate logic —
+// the gh-aw `weekly-update.md` check-updates job calls
+// `weekly-update.mts --check-updates`, not an inline bash port of it.
 export async function hasActionableUpdates(): Promise<boolean> {
   // pnpm outdated exits non-zero WHEN there are outdated deps, so key on the
   // output, not the exit code.
@@ -113,20 +135,100 @@ export async function hasActionableUpdates(): Promise<boolean> {
   if (outdated.out && !/No outdated/i.test(outdated.out)) {
     return true
   }
-  if (existsSync(path.join(REPO_ROOT, '.config', 'lockstep.json'))) {
+  const hasLockstep = lockstepManifestCandidates(REPO_ROOT).some(candidate =>
+    existsSync(candidate),
+  )
+  if (hasLockstep) {
     // lockstep --json exits 2 when manifests are behind.
     try {
-      await spawn('pnpm', ['run', 'lockstep', '--json'], { cwd: REPO_ROOT })
+      await spawn('pnpm', ['run', 'lockstep', '--json'], {
+        cwd: REPO_ROOT,
+        shell: WIN32,
+      })
     } catch (e) {
       if ((e as { code?: unknown | undefined }).code === 2) {
         return true
       }
     }
   }
+  // A repo with submodules but NO lockstep manifest checks each submodule
+  // against its remote default branch (mirrors the gh-aw gate's third branch;
+  // lockstep-managed submodules are already covered by the exit-2 check above).
+  if (!hasLockstep && existsSync(path.join(REPO_ROOT, '.gitmodules'))) {
+    if (await anySubmoduleBehind()) {
+      return true
+    }
+  }
+  // A vendored upstream action reference behind its latest soaked release is
+  // actionable: the run surfaces the re-pin + re-port review for the AI pass.
+  // Enrollment-gated — members carry no reference pins — and a gh/network
+  // failure never fabricates work.
+  if (vendoringEnrolled()) {
+    try {
+      if (vendorActionsCheck() !== 0) {
+        return true
+      }
+    } catch {
+      // Transient gh/network failure — never a drift signal.
+    }
+  }
+  // Soaked-cleared minimumReleaseAgeExclude entries (their `removable:` date is
+  // now in the past) are actionable: the daily promotion pass removes them so
+  // the held release becomes installable on the next update. Reuses the soak
+  // gate's own scan so there is one source of the annotation-parsing logic.
+  if (existsSync(PNPM_WORKSPACE_YAML)) {
+    const todayISO = new Date().toISOString().slice(0, 10)
+    const cleared = scan(readFileSync(PNPM_WORKSPACE_YAML, 'utf8'), todayISO)
+    if (
+      cleared.some(
+        f => f.kind === 'stale' && f.block === 'minimumReleaseAgeExclude',
+      )
+    ) {
+      return true
+    }
+  }
   return false
 }
 
-// True when a Claude agent is reachable (CLI on PATH + resolvable). Mirrors the
+// True when any `.gitmodules` submodule is behind its remote default branch.
+// Best-effort: a fetch/rev-list failure on one submodule is treated as
+// not-behind so a transient network error never fabricates work.
+export async function anySubmoduleBehind(): Promise<boolean> {
+  const config = await capture('git', [
+    'config',
+    '--file',
+    '.gitmodules',
+    '--get-regexp',
+    'path',
+  ])
+  if (!config.ok) {
+    return false
+  }
+  const paths = config.out
+    .split('\n')
+    .map(line => line.trim().split(/\s+/u)[1])
+    .filter((sub): sub is string => Boolean(sub))
+  for (let i = 0, { length } = paths; i < length; i += 1) {
+    const sub = path.join(REPO_ROOT, paths[i]!)
+    if (!existsSync(sub)) {
+      continue
+    }
+    await run('git', ['-C', sub, 'fetch', 'origin', '--tags', '--quiet'])
+    const behind = await capture('git', [
+      '-C',
+      sub,
+      'rev-list',
+      '--count',
+      'HEAD..origin/HEAD',
+    ])
+    if (behind.ok && Number(behind.out.trim()) > 0) {
+      return true
+    }
+  }
+  return false
+}
+
+// True when the Claude Code CLI is reachable (on PATH + resolvable). Mirrors the
 // codify-rule.mts probe. A missing agent is fine — the caller degrades.
 export async function agentAvailable(): Promise<boolean> {
   try {
@@ -137,9 +239,24 @@ export async function agentAvailable(): Promise<boolean> {
   }
 }
 
-const UPDATING_PROMPT = `You are the fleet's weekly dependency-update agent, running outside gh-aw as a plain job. Run the /updating umbrella skill to update everything applicable to this repo — npm dependencies, the lockstep manifest, submodules, and workflow pins. Work in CI mode: skip builds/tests during the update. Make atomic commits (one logical change per commit) so the PR history is reviewable. Do NOT push or open a PR — the runner handles that.`
+const UPDATING_PROMPT = `You are the fleet's weekly dependency-update agent, running outside gh-aw as a plain job. The deterministic chain has ALREADY run and committed the mechanical updates: npm dependencies (update.mts), lockstep version-pin auto-bumps, package-manager pins, and gh-aw action pins. Do NOT redo any of those.
+
+Run the /updating umbrella skill ONLY for the advisory remainder that needs judgment: lockstep file-fork / feature-parity / spec-conformance / lang-parity rows, non-lockstep submodule bumps, vendored upstream action reference pins behind latest (run scripts/fleet/vendor-actions.mts to re-pin, re-review each ported composite against the upstream diff, then advance its portedAt in scripts/fleet/_shared/action-port-map.mts), open Dependabot security advisories, the coverage badge, model pricing, and GitHub settings drift. Work in CI mode: skip builds/tests during the update. Make atomic commits (one logical change per commit) so the PR history is reviewable. Do NOT push or open a PR — the runner handles that.`
 
 async function main(): Promise<void> {
+  // --check-updates: the deterministic gate as a standalone mode. Exits 0 when
+  // there is actionable drift, 1 when there is not — so the gh-aw
+  // `weekly-update.md` check-updates job runs `weekly-update.mts --check-updates`
+  // instead of an inline bash port, one source of the gate logic.
+  if (process.argv.includes('--check-updates')) {
+    const actionable = await hasActionableUpdates()
+    logger.info(
+      `[weekly-update] check-updates: ${actionable ? 'updates available' : 'nothing actionable'}.`,
+    )
+    process.exitCode = actionable ? 0 : 1
+    return
+  }
+
   const opts = parseArgs(process.argv.slice(2))
 
   logger.info('[weekly-update] checking for actionable updates…')
@@ -148,15 +265,12 @@ async function main(): Promise<void> {
     return
   }
 
-  // Deterministic update — always. Runs the taze 2-pass + lockfile via the
-  // existing update.mts (invoked as a subprocess so it stays untouched).
-  logger.info('[weekly-update] running deterministic update (update.mts)…')
-  const updateScript = path.join(REPO_ROOT, 'scripts', 'fleet', 'update.mts')
-  if (!(await run(process.execPath, [updateScript]))) {
-    logger.warn(
-      '[weekly-update] deterministic update reported a non-zero exit; continuing.',
-    )
-  }
+  // Deterministic chain — always, IN ORDER, before the AI advisory pass:
+  // lockstep version-pin bumps → submodule remainder note → npm deps
+  // (update.mts) → package-manager pins → gh-aw action pins. The chain is
+  // best-effort: a non-zero step warns, the chain + run continue.
+  logger.info('[weekly-update] running the deterministic chain…')
+  await runDeterministicChain()
 
   // Agentic update — optional. Only when an agent is reachable; a missing key
   // degrades to deterministic-only and NEVER fails the run.
@@ -179,7 +293,7 @@ async function main(): Promise<void> {
     }
   } else if (opts.agent) {
     logger.info(
-      '[weekly-update] agentic step skipped (no Claude agent on PATH); ran the deterministic update only.',
+      '[weekly-update] agentic step skipped (no Claude Code CLI on PATH); ran the deterministic update only.',
     )
   } else {
     logger.info('[weekly-update] --no-agent: deterministic update only.')
@@ -238,6 +352,6 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   void main()
 }

@@ -10,22 +10,23 @@
  *   scripts/fleet/audit-transcript.mts --recent # auto-pick most recent Output:
  *   human-readable report grouped by category. With --json, emits {findings:
  *   [...]} for programmatic consumption. The transcript JSONL lives at
- *   ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl on macOS / Linux.
+ *   ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl.
  *   --recent auto-picks the most-recently-modified transcript for the cwd the
  *   script is invoked from.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { parseShell } from '@socketsecurity/lib-stable/shell/parse'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
-interface Finding {
+export interface Finding {
   // Severity tier. critical = direct credential exfil risk; warn =
   // unusual but explainable; info = forensic record only.
   severity: 'critical' | 'warn' | 'info'
@@ -37,13 +38,13 @@ interface Finding {
   line: number
 }
 
-interface ToolUseEvent {
+export interface ToolUseEvent {
   name: string
   input: Record<string, unknown>
   line: number
 }
 
-function readToolUses(transcriptPath: string): ToolUseEvent[] {
+export function readToolUses(transcriptPath: string): ToolUseEvent[] {
   if (!existsSync(transcriptPath)) {
     throw new Error(`transcript not found: ${transcriptPath}`)
   }
@@ -104,7 +105,7 @@ function readToolUses(transcriptPath: string): ToolUseEvent[] {
  * `||`, `|` as segment terminators so chained commands each get their own
  * scan.
  */
-function findInvocations(
+export function findInvocations(
   command: string,
   cmdLine: readonly string[],
 ): readonly string[][] {
@@ -147,7 +148,10 @@ function findInvocations(
  * Equivalent to `findInvocations(command, cmdLine).length > 0`. The most common
  * audit-pattern shape.
  */
-function commandInvokes(command: string, cmdLine: readonly string[]): boolean {
+export function commandInvokes(
+  command: string,
+  cmdLine: readonly string[],
+): boolean {
   return findInvocations(command, cmdLine).length > 0
 }
 
@@ -180,7 +184,7 @@ const PATTERNS: ReadonlyArray<{
         const args = invocations[i]!
         for (let j = 0, { length: al } = args; j < al; j += 1) {
           const a = args[j]
-          if (a !== '-s' && a !== '--scopes') {
+          if (a !== '--scopes' && a !== '-s') {
             continue
           }
           const value = args[j + 1] ?? ''
@@ -236,7 +240,10 @@ const PATTERNS: ReadonlyArray<{
     category: 'security add-/delete-generic-password (keychain write)',
     tool: 'Bash',
     matches: c =>
+      // macOS `security add|delete-(generic|internet)-password` — keychain
+      // write/delete ops.
       /\bsecurity\s+(?:add|delete)-(?:generic|internet)-password\b/.test(c) ||
+      // Linux libsecret equivalents: `secret-tool store` / `secret-tool clear`.
       /\bsecret-tool\s+(?:clear|store)\b/.test(c),
   },
   {
@@ -263,7 +270,7 @@ const PATTERNS: ReadonlyArray<{
   },
 ]
 
-function scanToolUse(evt: ToolUseEvent): Finding[] {
+export function scanToolUse(evt: ToolUseEvent): Finding[] {
   const findings: Finding[] = []
   // Most patterns target Bash commands; some target file paths (Edit/Write).
   const command =
@@ -299,19 +306,28 @@ function scanToolUse(evt: ToolUseEvent): Finding[] {
   return findings
 }
 
-function findRecentTranscript(): string | undefined {
-  // ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl
-  // encoded-cwd is the cwd with every `/` replaced by `-`. The leading
-  // `/` becomes the leading `-` automatically since the replace
-  // operates on the whole path. (So `/Users/foo` → `-Users-foo`, not
-  // `--Users-foo`.)
+export function claudeProjectSlug(cwd: string): string {
+  // Claude's project directory is a flattened absolute path. Replace both
+  // platform separators and the Windows drive separator so the slug is one
+  // legal path segment everywhere (`C:\\repo` -> `C--repo`).
+  return cwd.replace(/[\\/:]/g, '-')
+}
+
+export function findRecentTranscript(
+  home: string = os.homedir(),
   // oxlint-disable-next-line socket/no-process-cwd-in-scripts-hooks -- audit-transcript intentionally reads the user-invoked cwd to look up the matching Claude Code transcript dir; anchoring on the script's own location would always return the wheelhouse transcripts.
-  const encoded = process.cwd().replace(/\//g, '-')
-  const dir = path.join(os.homedir(), '.claude', 'projects', encoded)
+  cwd: string = process.cwd(),
+): string | undefined {
+  // ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl
+  // encoded-cwd flattens path separators, and a Windows drive separator, to
+  // `-`. The leading `/` becomes the leading `-` automatically. For example,
+  // `/Users/foo` -> `-Users-foo`; `C:\\Users\\foo` -> `C--Users-foo`.
+  const encoded = claudeProjectSlug(cwd)
+  const dir = path.join(home, '.claude', 'projects', encoded)
   if (!existsSync(dir)) {
     return undefined
   }
-  // TOCTOU: another Claude session may rotate/delete a .jsonl between
+  // TOCTOU: another Claude Code session may rotate/delete a .jsonl between
   // readdir and stat. Tolerate missing entries instead of crashing.
   const entries = readdirSync(dir)
     .filter(f => f.endsWith('.jsonl'))
@@ -324,18 +340,18 @@ function findRecentTranscript(): string | undefined {
       }
     })
     .filter((x): x is { full: string; mtime: number } => x !== undefined)
-    // oxlint-disable-next-line unicorn/no-array-sort -- .filter() already returns a fresh array (no shared mutation); .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
+    // oxlint-disable-next-line unicorn/no-array-sort -- .filter() already returns a fresh array, no shared mutation; .toSorted() would trip socket/no-runtime-features-below-engine-floor in cascaded Node-18 repos.
     .sort((a, b) => b.mtime - a.mtime)
   return entries[0]?.full
 }
 
-interface Args {
+export interface Args {
   json: boolean
   transcript: string | undefined
   recent: boolean
 }
 
-function parseArgs(argv: readonly string[]): Args {
+export function parseArgs(argv: readonly string[]): Args {
   let json = false
   let recent = false
   let transcript: string | undefined
@@ -427,7 +443,9 @@ async function main(): Promise<void> {
     logger.log(`── ${severity.toUpperCase()} ──`)
     for (const [category, fs] of entries) {
       logger.log(`  ${category} (${fs.length})`)
-      for (const f of fs.slice(0, 5)) {
+      const fList = fs.slice(0, 5)
+      for (let i = 0, { length } = fList; i < length; i += 1) {
+        const f = fList[i]!
         logger.log(`    line ${f.line}: ${f.evidence}`)
       }
       if (fs.length > 5) {
@@ -438,7 +456,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(err => {
-  logger.error(String((err as Error)?.message ?? err))
-  process.exit(1)
-})
+if (isMainModule(import.meta.url)) {
+  main().catch(err => {
+    logger.error(String((err as Error)?.message ?? err))
+    process.exit(1)
+  })
+}

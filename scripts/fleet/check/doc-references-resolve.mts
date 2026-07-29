@@ -15,7 +15,7 @@
 // `node <path>` invocations whose path ends in a script extension, and fails
 // `check --all` when the target file does not exist under the repo root.
 //
-// Only `node <local-script>` is checked (same rule as script-paths-resolve):
+// Only `node <local-script>` is checked, same rule as script-paths-resolve:
 // bin tools, `pnpm run`, `node -e`, and bare `/command` mentions are out of
 // scope — a `/command` token space is too noisy to validate without a curated
 // registry, and would false-fire on path fragments (`/fleet`, `/run`, …).
@@ -25,13 +25,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
 import { extractNodeScriptPath } from './script-paths-resolve.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -68,7 +68,7 @@ export function isWheelhouseOwnedRef(scriptPath: string): boolean {
   return false
 }
 
-// The canonical fleet opt-out marker (the same one cross-repo-guard honors). A
+// The canonical fleet opt-out marker, the same one cross-repo-guard honors. A
 // SKILL that documents how to cascade FROM the wheelhouse INTO a member repo
 // prints a multi-line shell block — `cd <…>/socket-wheelhouse && \n node
 // scripts/repo/sync-scaffolding/cli.mts …` — where the `node` path resolves in
@@ -86,8 +86,21 @@ export function lineIsCrossRepoExempt(
   if (CROSS_REPO_ALLOW_RE.test(lines[index] ?? '')) {
     return true
   }
-  // The marker on the immediately-preceding line covers the `cd && node` pair.
-  return index > 0 && CROSS_REPO_ALLOW_RE.test(lines[index - 1] ?? '')
+  // The marker on the preceding line covers the `cd && node` pair. Walk back
+  // over BLANK lines only: in prose an HTML-comment marker sits in its own
+  // markdown block, so a blank line separates it from the paragraph it marks —
+  // stopping at the first blank missed those and reported documented-on-purpose
+  // refs as rot.
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const line = lines[i] ?? ''
+    if (CROSS_REPO_ALLOW_RE.test(line)) {
+      return true
+    }
+    if (line.trim() !== '') {
+      return false
+    }
+  }
+  return false
 }
 
 /**
@@ -203,7 +216,7 @@ function main(): void {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   try {
     main()
   } catch (e) {

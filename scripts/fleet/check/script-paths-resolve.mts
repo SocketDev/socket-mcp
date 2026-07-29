@@ -12,10 +12,23 @@
 // `scripts/fleet/check/prompt-less-setup.mts` — the regenerated script was dead
 // and no gate caught it.
 //
+// Past incident (2026-07-20, socket-btm aa138c6e): the root-scripts segregation
+// wave blanket-rewrote `scripts/<name>.mts` references to
+// `scripts/repo/<name>.mts` across the whole tree, including WORKSPACE MEMBER
+// package.json scripts whose paths are package-relative (e.g.
+// `packages/curl-builder` runs `node scripts/build.mts` against its OWN
+// `scripts/` dir, which never moved) — ~20 member build scripts went dead and
+// this check, which then scanned only the root package.json, stayed green.
+// Workspace member manifests are now scanned too, resolving each `node <path>`
+// against that package's directory (pnpm runs scripts with cwd = the package
+// dir), so a rewrite-without-move fails the gates instead of landing.
+//
 // This check fails `check --all` when:
-//   - a `package.json` `scripts` value invokes `node <path>` where <path> ends
-//     in .mts/.cts/.mjs/.cjs/.js and that file does not exist, OR
-//   - (wheelhouse only) a CANONICAL_SCRIPT_BODIES value names a script file that
+//   - a `package.json` `scripts` value (root OR any pnpm-workspace member
+//     package) invokes `node <path>` where <path> ends in
+//     .mts/.cts/.mjs/.cjs/.js and that file does not exist relative to the
+//     manifest's own directory, OR
+//   - wheelhouse only, a CANONICAL_SCRIPT_BODIES value names a script file that
 //     does not exist under the repo root.
 //
 // Only `node <local-path>` invocations are checked — bin tools (oxfmt, tsgo,
@@ -26,17 +39,19 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
+import { globSync } from '@socketsecurity/lib-stable/globs/match'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { parseListBlock } from '../lib/workspace-yaml.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
 // Wheelhouse-only: downstream fleet repos don't ship the manifest. Resolved
-// relative to the repo being scanned (not a module constant) so the check is
+// relative to the repo being scanned, not a module constant, so the check is
 // testable against a fixture repo and always points at the right manifest.
 function manifestPath(repoRoot: string): string {
   return path.join(repoRoot, 'scripts/repo/sync-scaffolding/manifest.mts')
@@ -77,7 +92,20 @@ export function extractNodeScriptPath(command: string): string | undefined {
     if (tok.startsWith('-')) {
       continue
     }
-    // The path token. Only treat it as a local script if it has a script ext.
+    // The path token. A `<placeholder>` segment, literal angle brackets, marks a
+    // doc/template stand-in like `node scripts/foo/<name>.mts` — it can never be
+    // a real on-disk file, so it's a documentation placeholder, not a broken
+    // reference. Skip it rather than flag a phantom "file not found".
+    if (tok.includes('<') || tok.includes('>')) {
+      return undefined
+    }
+    // A glob token (`node test/*.test.mts` in the oxlint-plugin packages) is
+    // expanded by the SHELL at run time — no literal file bears that name, so
+    // existsSync can't judge it. Skip rather than flag a phantom miss.
+    if (/[*?[\]{}]/.test(tok)) {
+      return undefined
+    }
+    // Only treat it as a local script if it has a script ext.
     const hasExt = SCRIPT_EXTS.some(ext => tok.endsWith(ext))
     return hasExt ? tok : undefined
   }
@@ -95,7 +123,9 @@ export function scanScriptMap(
   source: string,
 ): PathHit[] {
   const hits: PathHit[] = []
-  for (const key of Object.keys(scripts)) {
+  const keys = Object.keys(scripts)
+  for (let i = 0, { length } = keys; i < length; i += 1) {
+    const key = keys[i]!
     const command = scripts[key]
     if (typeof command !== 'string') {
       continue
@@ -115,24 +145,86 @@ export interface PackageJsonShape {
   readonly scripts?: Readonly<Record<string, string>> | undefined
 }
 
+/**
+ * Repo-relative directories of every pnpm-workspace member package (the dirs
+ * whose `package.json` a `packages:` glob matches). Empty when the repo has no
+ * pnpm-workspace.yaml, solo layout, or no resolvable `packages:` globs.
+ * Negation patterns (leading `!`) are pnpm excludes, not member roots — skip
+ * them, the fleet's globs don't rely on subtractive matching for members.
+ */
+export function findWorkspacePackageDirs(repoRoot: string): string[] {
+  const yamlPath = path.join(repoRoot, 'pnpm-workspace.yaml')
+  if (!existsSync(yamlPath)) {
+    return []
+  }
+  let content: string
+  try {
+    content = readFileSync(yamlPath, 'utf8')
+  } catch {
+    return []
+  }
+  const globs = parseListBlock(content, { blockKey: 'packages' })
+    .filter(g => !g.startsWith('!'))
+    .map(g => `${g.replace(/\/+$/, '')}/package.json`)
+  if (globs.length === 0) {
+    return []
+  }
+  const manifests = globSync(globs, {
+    cwd: repoRoot,
+    ignore: ['**/node_modules/**'],
+  })
+  return manifests.map(m => path.dirname(m)).toSorted()
+}
+
+/**
+ * Read a manifest's `scripts` map, tolerating a missing/malformed file (the
+ * package-scripts checker owns malformed-manifest reporting).
+ */
+function readScriptsMap(
+  pkgPath: string,
+): Readonly<Record<string, string>> | undefined {
+  if (!existsSync(pkgPath)) {
+    return undefined
+  }
+  let pkg: PackageJsonShape
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as PackageJsonShape
+  } catch {
+    pkg = {}
+  }
+  return pkg.scripts
+}
+
 export async function scanRepo(repoRoot: string): Promise<PathHit[]> {
   const hits: PathHit[] = []
 
-  // 1. The live package.json scripts (every fleet repo has this).
-  const pkgPath = path.join(repoRoot, 'package.json')
-  if (existsSync(pkgPath)) {
-    let pkg: PackageJsonShape
-    try {
-      pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as PackageJsonShape
-    } catch {
-      pkg = {}
-    }
-    if (pkg.scripts) {
-      hits.push(...scanScriptMap(pkg.scripts, repoRoot, 'package.json'))
+  // 1. The live package.json scripts, every fleet repo has this.
+  const rootScripts = readScriptsMap(path.join(repoRoot, 'package.json'))
+  if (rootScripts) {
+    hits.push(...scanScriptMap(rootScripts, repoRoot, 'package.json'))
+  }
+
+  // 1b. Workspace member manifests, mono layout. pnpm runs a member's scripts
+  //     with cwd = the member dir, so each `node <path>` resolves against THAT
+  //     dir — the guard the 2026-07-20 rewrite-without-move incident lacked.
+  const memberDirs = findWorkspacePackageDirs(repoRoot)
+  for (let i = 0, { length } = memberDirs; i < length; i += 1) {
+    const dir = memberDirs[i]!
+    const memberScripts = readScriptsMap(
+      path.join(repoRoot, dir, 'package.json'),
+    )
+    if (memberScripts) {
+      hits.push(
+        ...scanScriptMap(
+          memberScripts,
+          path.join(repoRoot, dir),
+          `${dir}/package.json`,
+        ),
+      )
     }
   }
 
-  // 2. The cascade synthesizer source-of-truth (wheelhouse only). Catching a
+  // 2. The cascade synthesizer source-of-truth, wheelhouse only. Catching a
   //    dangling path HERE stops the cascade from shipping it fleet-wide.
   const manifest = manifestPath(repoRoot)
   if (existsSync(manifest)) {
@@ -179,7 +271,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(`[check-script-paths-resolve] failed: ${errorMessage(e)}`)
     process.exitCode = 1

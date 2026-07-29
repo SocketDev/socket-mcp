@@ -19,7 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import {
@@ -41,7 +41,9 @@ export function hardeningViolations(
   config: Record<string, unknown>,
 ): HardeningViolation[] {
   const out: HardeningViolation[] = []
-  for (const key of Object.keys(HARDENED_GLOBAL_CONFIG)) {
+  const keys = Object.keys(HARDENED_GLOBAL_CONFIG)
+  for (let i = 0, { length } = keys; i < length; i += 1) {
+    const key = keys[i]!
     const expected = HARDENED_GLOBAL_CONFIG[key]
     if (config[key] !== expected) {
       out.push({ key, expected, actual: config[key] })

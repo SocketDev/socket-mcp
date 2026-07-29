@@ -1,4 +1,4 @@
-/**
+/*
  * @file TypeBox schema for lockstep.json — single source of truth. Everything
  *   else is derived:
  *
@@ -19,9 +19,11 @@ import type { Static } from '@sinclair/typebox'
 // Shared primitives.
 // ---------------------------------------------------------------------------
 
-// Full git commit SHA. Used by file-fork.forked_at_sha and
-// version-pin.pinned_sha. Centralized so adding a new SHA-bearing
-// field can't accidentally accept short SHAs.
+// Full git commit SHA. Used by file-fork.forked_at_sha and the OPTIONAL
+// version-pin.pinned_sha. Centralized so adding a new SHA-bearing field can't
+// accidentally accept short SHAs. version-pin.pinned_sha is now derived from
+// the `.gitmodules` `ref =` and optional; when a legacy manifest still carries
+// it, this pattern keeps it a full 40-hex.
 const FULL_SHA_PATTERN = '^[0-9a-f]{40}$'
 
 const IdSchema = Type.String({
@@ -55,6 +57,31 @@ const ConformanceTestSchema = Type.String({
 const NotesSchema = Type.String({
   description:
     'Free-form context: why this row exists, gotchas, links to related issues / PRs / upstream discussions. Read by humans, not by the harness.',
+})
+
+// PORT SCOPE — how much of a pinned upstream this port commits to tracking in
+// lock-step. This is NOT how the submodule is checked out: every upstream
+// submodule is shallow + single-branch + sparse regardless (see the
+// upstream-submodules-are-* checks). `full`, the default when omitted =
+// lock-step the WHOLE upstream, kept fleet-uniform across consumers so any
+// divergence is a defect. `sparse` = a PARTIAL lock-step port: track only the
+// `sparse_cone` subset of the same pin (e.g. one package of a monorepo, or one
+// file) — port what you want, leave the rest; the harness scopes drift to the
+// cone. Both share the pin, drift, and latest-release machinery; only the scope
+// differs. (file-fork is inherently a single-file subset, so it carries no
+// materialization field.) See docs/agents.md/fleet/lockstep.md.
+const MaterializationSchema = Type.Union(
+  [Type.Literal('full'), Type.Literal('sparse')],
+  {
+    description:
+      'Port scope — how much of the pinned upstream this port tracks in lock-step, NOT how the submodule is checked out (checkout is always shallow/single-branch/sparse). `full` (default when omitted) = lock-step the whole upstream, kept fleet-uniform. `sparse` = partial lock-step: track only the `sparse_cone` subset of the same pin. Drift for a `sparse` pin counts only commits touching the cone; a `full` pin counts every commit. Rows omitting this are `full`.',
+  },
+)
+
+const SparseConeSchema = Type.Array(Type.String(), {
+  minItems: 1,
+  description:
+    'For `materialization: sparse` — the repo-relative upstream paths this port actually tracks (e.g. one monorepo package, or one file). Declares PORT SCOPE and scopes drift: commits outside the cone are not drift. Not a git sparse-checkout directive — submodule checkout is always sparse regardless.',
 })
 
 const PortStatusSchema = Type.Object(
@@ -203,6 +230,12 @@ const FileForkRowSchema = Type.Object(
       description:
         'Full 40-char SHA of the upstream commit we forked from. The harness runs `git log <sha>..HEAD -- <upstream_path>` inside the submodule to surface drift.',
     }),
+    mirror: Type.Optional(
+      Type.Boolean({
+        description:
+          "True = this fork is a VERBATIM upstream mirror kept byte-close to upstream so it stays trivially diffable on the next bump (e.g. a conformance shim re-exposing upstream's API so upstream's own tests run against a port). A mirror MUST carry the `// @lockstep-mirror <upstream_path> @ <forked_at_sha>` header marker and a matching .config/fleet/.prettierignore entry; lockstep-mirror-markers-are-declared enforces both directions. Defaults to false — a deviating fork (mouse-parser, etc.) is NOT a mirror and may not carry the marker.",
+      }),
+    ),
     deviations: Type.Array(Type.String(), {
       minItems: 1,
       description:
@@ -224,15 +257,19 @@ const VersionPinRowSchema = Type.Object(
     criticality: Type.Optional(CriticalitySchema),
     conformance_test: Type.Optional(ConformanceTestSchema),
     notes: Type.Optional(NotesSchema),
-    pinned_sha: Type.String({
-      pattern: FULL_SHA_PATTERN,
-      description:
-        'Full 40-char SHA the submodule is pinned to. Authoritative — the harness compares this against the submodule HEAD, not against `pinned_tag`.',
-    }),
+    materialization: Type.Optional(MaterializationSchema),
+    sparse_cone: Type.Optional(SparseConeSchema),
+    pinned_sha: Type.Optional(
+      Type.String({
+        pattern: FULL_SHA_PATTERN,
+        description:
+          "OPTIONAL / derived — the authoritative pin is the submodule's `ref =` in `.gitmodules` (single source of truth, per no-upstream-gitlink-guard). When omitted the harness resolves it from there (`resolvePinnedSha`); this field is present only on legacy manifests, and auto-bump migrates a row to the derived model by dropping it on the next bump. When present it must still be a full 40-char SHA AND must not disagree with the `.gitmodules` ref (a stale stored copy is drift).",
+      }),
+    ),
     pinned_tag: Type.Optional(
       Type.String({
         description:
-          'Human-readable release tag for reports / PR titles (e.g. `v3.2.1`). Informational only — `pinned_sha` is the source of truth. Useful when an upstream cuts a release without changing semver but moves the SHA.',
+          'Human-readable release tag for reports / PR titles (e.g. `v3.2.1`). Informational only — the `.gitmodules` `ref =` is the source of truth. Useful when an upstream cuts a release without changing semver but moves the SHA.',
       }),
     ),
     upgrade_policy: Type.Union(
@@ -403,7 +440,7 @@ export const LockstepManifestSchema = Type.Object(
     $schema: Type.Optional(
       Type.String({
         description:
-          'JSON Schema reference for editor autocompletion. Conventionally `./lockstep.schema.json` — both the manifest and its schema live side-by-side at repo root.',
+          'JSON Schema reference for editor autocompletion. The repo-owned manifest lives at `.config/repo/lockstep.json` and the fleet-identical schema at `.config/fleet/lockstep.schema.json`, so the reference is `../fleet/lockstep.schema.json` (a repo using a root `lockstep.json` points at `./lockstep.schema.json`).',
       }),
     ),
     description: Type.Optional(
