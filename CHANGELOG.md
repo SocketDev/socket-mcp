@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The copyable socket-gate hook directory in the published package moved from
+  `hooks/socket-gate` to `dist/socket-gate`.
+
 ## [0.0.20]
 
 ### Fixed

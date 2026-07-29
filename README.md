@@ -1,8 +1,7 @@
 # Socket MCP Server
 
-[![Socket Badge](https://socket.dev/api/badge/npm/package/@socketsecurity/mcp)](https://socket.dev/npm/package/@socketsecurity/mcp)
-[![CI](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SocketDev/socket-mcp/actions/workflows/ci.yml)
-![Coverage](https://img.shields.io/badge/coverage-80%25-green)
+<a href="https://socket.dev/npm/package/@socketsecurity/mcp"><img src="https://socket.dev/api/badge/npm/package/@socketsecurity/mcp" alt="Socket Badge" height="20"></a>
+<img src="assets/repo/badges/coverage.svg" width="104" height="20" alt="Coverage" />
 
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
 [![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
@@ -35,27 +34,26 @@ The easiest way to get started. The public server uses OAuth — your MCP client
 
 <details><summary><b>Manual install — Claude Desktop / Claude Code</b></summary>
 
-> [!NOTE]
-> Custom integrations are not available to all paid versions of Claude. Check [here](https://support.anthropic.com/en/articles/11175166-about-custom-integrations-using-remote-mcp) for more information.
+Custom integrations are not available on every paid Claude plan. Check [Anthropic's remote-MCP article](https://support.anthropic.com/en/articles/11175166-about-custom-integrations-using-remote-mcp) before you start.
 
 1. In Claude Desktop, go to Settings > Developer > Edit Config.
 2. Add the Socket MCP server configuration:
 
-```json
-{
-  "mcpServers": {
-    "socket-mcp": {
-      "type": "http",
-      "url": "https://mcp.socket.dev/"
-    }
-  }
-}
-```
+   ```json
+   {
+     "mcpServers": {
+       "socket-mcp": {
+         "type": "http",
+         "url": "https://mcp.socket.dev/"
+       }
+     }
+   }
+   ```
 
 3. Save the configuration and restart Claude Desktop.
-4. Now you can ask Claude "Check the security score for express version 4.18.2".
+4. Ask Claude "Check the security score for express version 4.18.2".
 
-For Claude Code:
+For Claude Code, one command does all of it:
 
 ```sh
 claude mcp add --transport http socket-mcp https://mcp.socket.dev/
@@ -104,8 +102,7 @@ Or add to `.vscode/mcp.json`:
 
 <details><summary><b>Manual install — Windsurf</b></summary>
 
-> [!WARNING]
-> Windsurf does not support `http` type MCP servers yet. Use the stdio configuration in Option 2 below.
+Windsurf does not support `http` type MCP servers. Use the stdio configuration in Option 2 below, or the `serverUrl` form:
 
 ```json
 {
@@ -135,14 +132,27 @@ Alternatively, type `/mcp` within the Factory droid to manage MCP servers from a
 
 ### Option 2: Self-host the Socket MCP server
 
-To run your own instance, create an API key first (only the `packages:list` permission scope is needed; see [creating-and-managing-api-tokens](https://docs.socket.dev/reference/creating-and-managing-api-tokens)).
+Self-hosting keeps every request inside your own infrastructure. It needs a Socket API token and Node.js 24 or later.
+
+**Get a token first.** Sign in at [socket.dev](https://socket.dev/), open the API tokens page, and create a token with the `packages:list` scope. That single scope covers `depscore`; the org-scoped tools need whatever scopes your organization requires for the endpoints they call. Full walkthrough: [creating and managing API tokens](https://docs.socket.dev/reference/creating-and-managing-api-tokens).
+
+**Then pick a transport.** The server speaks the same MCP protocol either way; the difference is who launches it.
+
+|                        | Stdio (Option 2a)                             | HTTP (Option 2b)                                                     |
+| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------- |
+| Who starts the process | Your MCP client, on demand                    | You, as a long-running service                                       |
+| Who it serves          | One local user                                | Any client that can reach the port                                   |
+| Where the token lives  | The client's config, as an env var            | The server env, or per-request `Authorization` headers               |
+| Reach for it when      | You are a developer wiring up your own editor | You are deploying one instance for a team, or fronting it with OAuth |
+
+Stdio is the default and the right answer for a single developer. Choose HTTP when more than one person, or something that is not a local process, needs to reach the server.
 
 <details><summary><b>Option 2a — Stdio mode (default)</b></summary>
 
 Claude Code:
 
 ```sh
-claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- npx -y @socketsecurity/mcp@latest # socket-hook: allow npx
+claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- npx -y @socketsecurity/mcp@latest # socket-lint: allow npx
 ```
 
 Most other MCP clients:
@@ -151,7 +161,7 @@ Most other MCP clients:
 {
   "mcpServers": {
     "socket-mcp": {
-      "command": "npx", // socket-hook: allow npx
+      "command": "npx", // socket-lint: allow npx
       "args": ["@socketsecurity/mcp@latest"],
       "env": {
         "SOCKET_API_TOKEN": "your-api-token-here"
@@ -168,34 +178,87 @@ Most other MCP clients:
 Run the server in HTTP mode using npx:
 
 ```sh
-MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
+MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token npx @socketsecurity/mcp@latest --http # socket-lint: allow npx
 ```
+
+The server listens on `http://localhost:3000/`. The MCP endpoint is `/` and the health endpoint is `/health`; every other path answers `404`.
+
+The transport is stateless. Each `POST /` is self-contained, with no session to open, no `Mcp-Session-Id` header, and nothing to expire, so you can put several instances behind a load balancer without session affinity. `GET` and `DELETE` on the MCP endpoint answer `405`. Clients written against the 2025 protocol, which open with an `initialize` handshake, are still served.
 
 Environment variables for HTTP mode:
 
-| Variable                                   | Required                                                     | Default                                                          | Description                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SOCKET_API_TOKEN`                         | Required unless OAuth is enabled                             | None                                                             | Socket API token used for outbound API calls. Legacy aliases (`SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`, `SOCKET_SECURITY_API_TOKEN`, `SOCKET_SECURITY_API_KEY`) are accepted via the fleet's `getSocketApiToken()` helper. If unset in OAuth-enabled HTTP mode, the validated incoming bearer token is forwarded upstream instead. |
-| `SOCKET_OAUTH_ISSUER`                      | Set together with the two introspection vars to enable OAuth | None                                                             | OAuth issuer URL used for metadata discovery and incoming bearer-token validation.                                                                                                                                                                                                                                                                       |
-| `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                                                   | None                                                             | Client ID used for token introspection.                                                                                                                                                                                                                                                                                                                  |
-| `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                                                   | None                                                             | Client secret used for token introspection.                                                                                                                                                                                                                                                                                                              |
-| `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                                                           | _(none)_                                                         | Space-delimited scopes required on incoming access tokens. When unset, no scope is enforced — any active token passes.                                                                                                                                                                                                                                   |
-| `SOCKET_API_URL`                           | No                                                           | Production Socket API URL, or localhost when `SOCKET_DEBUG=true` | Override the upstream Socket API endpoint. Useful for local development and testing.                                                                                                                                                                                                                                                                     |
-| `SOCKET_DEBUG`                             | No                                                           | `false`                                                          | Switches the default upstream Socket API endpoint to localhost when `SOCKET_API_URL` is unset.                                                                                                                                                                                                                                                           |
-| `TRUST_PROXY`                              | No                                                           | `false`                                                          | When `true`, trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a trusted reverse proxy that rewrites these headers.                                                                                                                                                                                 |
-| `MCP_PORT`                                 | HTTP mode only                                               | `3000`                                                           | Port to bind the HTTP server to.                                                                                                                                                                                                                                                                                                                         |
+| Variable                                   | Required                         | Default | Description                                                                                                                                |
+| ------------------------------------------ | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MCP_HTTP_MODE`                            | Yes, unless you pass `--http`    | `false` | Set to `true` to serve HTTP instead of stdio. The `--http` CLI flag does the same thing.                                                   |
+| `MCP_PORT`                                 | No                               | `3000`  | Port to bind the HTTP server to.                                                                                                           |
+| `SOCKET_API_TOKEN`                         | Required unless OAuth is enabled | None    | Socket API token for outbound API calls. See the alias list below.                                                                         |
+| `SOCKET_OAUTH_ISSUER`                      | With OAuth                       | None    | OAuth issuer URL. Must be `https` on a public host. See "Enabling OAuth" below.                                                            |
+| `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                       | None    | Client ID used for RFC 7662 token introspection.                                                                                           |
+| `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                       | None    | Client secret used for RFC 7662 token introspection.                                                                                       |
+| `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                               | None    | Scopes required on incoming access tokens, separated by spaces or commas. When unset, any active token passes.                             |
+| `SOCKET_OAUTH_REQUIRE_AUDIENCE`            | No                               | `false` | When `true`, reject an access token whose introspection response carries no `aud` claim. Read the audience note below first.               |
+| `SOCKET_API_BASE_URL`                      | No                               | None    | Override the upstream Socket API endpoint. Falls back to `https://api.socket.dev` when unset.                                              |
+| `SOCKET_DEBUG`                             | No                               | `false` | Turns on verbose request and cache tracing on stderr, points `depscore` at `http://localhost:8866`, and permits a local OAuth issuer.      |
+| `TRUST_PROXY`                              | No                               | `false` | Trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a reverse proxy that rewrites them. |
 
-`SOCKET_API_URL` and `SOCKET_DEBUG` also apply in stdio mode.
+The three OAuth variables are a set: configure all three or none. Setting only some of them makes the server print `Incomplete OAuth configuration for HTTP mode` and exit `1`, rather than quietly start unauthenticated.
 
-To enable OAuth-backed auth for incoming MCP requests:
+`SOCKET_API_TOKEN` is canonical. These aliases are read in order, first non-empty wins: `SOCKET_API_TOKEN`, `SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`, `SOCKET_SECURITY_API_TOKEN`, `SOCKET_SECURITY_API_KEY`.
+
+`SOCKET_API_TOKEN`, `SOCKET_API_BASE_URL`, and `SOCKET_DEBUG` also apply in stdio mode. Everything else in the table is HTTP-only.
+
+<details>
+
+<summary>Tuning the package-file blob cache and its fetches</summary>
+
+`package_files`, `package_file_contents`, and `package_file_grep` fetch blobs from `socketusercontent.com` and hold them in a process-wide LRU cache. These knobs exist for operators running the server at volume; the defaults are fine otherwise.
+
+| Variable                     | Default                         | Description                                                                                                |
+| ---------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `SOCKET_BLOB_CACHE_BYTES`    | `67108864` (64 MB)              | Bytes the blob cache holds before evicting. A non-positive or unparseable value falls back to the default. |
+| `SOCKET_BLOB_URL`            | `https://socketusercontent.com` | Base URL blobs are fetched from.                                                                           |
+| `SOCKET_BROWSER_USER_AGENT`  | A Chrome UA string              | `User-Agent` sent on blob fetches.                                                                         |
+| `SOCKET_BYPASS_HEADER_NAME`  | None                            | Name of an extra header sent on every blob fetch. Both name and value must be set for it to apply.         |
+| `SOCKET_BYPASS_HEADER_VALUE` | None                            | Value for that header.                                                                                     |
+| `SOCKET_INTERNAL_USER_AGENT` | `socket-internal-tool/1.0`      | `User-Agent` sent on the authenticated file-list call.                                                     |
+
+</details>
+
+**Enabling OAuth.** Set all three OAuth variables to require an OAuth access token on every MCP request:
 
 ```sh
 MCP_HTTP_MODE=true \
 SOCKET_OAUTH_ISSUER=https://issuer.example.com \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_ID=your-client-id \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret \
-npx @socketsecurity/mcp@latest --http # socket-hook: allow npx
+npx @socketsecurity/mcp@latest --http # socket-lint: allow npx
 ```
+
+With OAuth enabled, every request to the MCP endpoint goes through RFC 7662 token introspection. A raw Socket API token is rejected with a `401`, whatever its prefix; a `sktsec_` token is no more privileged than any other string here. Callers send an OAuth access token, and the server uses that token for the Socket API calls it makes on their behalf. Run without the OAuth variables to accept raw Socket API tokens instead.
+
+At startup the server discovers the issuer's RFC 8414 metadata. An issuer that carries a path (`https://auth.example.com/tenant1`) is probed at the path-inserted well-known URL first (`https://auth.example.com/.well-known/oauth-authorization-server/tenant1`), and the metadata document's own `issuer` must match `SOCKET_OAUTH_ISSUER` byte for byte. The issuer must be `https` on a public host; a loopback or private-network issuer is refused outright unless `SOCKET_DEBUG=true` is set for local-stack work. The same rule applies to the `introspection_endpoint` the metadata advertises.
+
+Clients discover how to authenticate from `GET /.well-known/oauth-protected-resource` (RFC 9728), which the server publishes once OAuth is on:
+
+```json
+{
+  "resource": "https://mcp.example.com/",
+  "authorization_servers": ["https://issuer.example.com"],
+  "scopes_supported": ["packages:list"],
+  "bearer_methods_supported": ["header"],
+  "resource_name": "Socket MCP Server"
+}
+```
+
+A rejected request answers `401` with a `WWW-Authenticate` header naming that metadata URL and the scopes this resource requires:
+
+```text
+WWW-Authenticate: Bearer error="invalid_token", error_description="Invalid or expired token",
+  resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource", scope="packages:list"
+```
+
+> [!IMPORTANT]
+> **Audience validation.** When an introspection response includes an `aud` claim, the server requires it to name this resource and rejects the token otherwise. That check is always on and has no opt-out. When the response includes no `aud` at all, the token is accepted by default, because an authorization server that never emits the claim would otherwise fail every request. Audience validation therefore protects you exactly as far as your authorization server populates `aud`; if it does not, no audience is being checked. Set `SOCKET_OAUTH_REQUIRE_AUDIENCE=true` to additionally require the claim's presence, but only once you have confirmed your authorization server returns `aud` on introspection. Enabling it against a server that omits the claim rejects all traffic.
 
 Add `TRUST_PROXY=true` only when the server is deployed behind a trusted reverse proxy or load balancer that normalizes the forwarded host and protocol headers.
 
@@ -228,12 +291,13 @@ Once installed, ask your AI assistant questions like:
 
 Query the Socket API for dependency scoring information. Returns supply chain, quality, maintenance, vulnerability, and license scores per package.
 
-| Parameter              | Type   | Required | Default     | Description                                        |
-| ---------------------- | ------ | -------- | ----------- | -------------------------------------------------- |
-| `packages`             | Array  | ✅ Yes   | -           | Array of package objects to analyze                |
-| `packages[].ecosystem` | String | No       | `"npm"`     | Package ecosystem. See Supported ecosystems below. |
-| `packages[].depname`   | String | ✅ Yes   | -           | Name of the dependency/package                     |
-| `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                          |
+| Parameter              | Type   | Required | Default     | Description                                                                                                                                                                              |
+| ---------------------- | ------ | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages`             | Array  | ✅ Yes   | -           | Array of package objects to analyze                                                                                                                                                      |
+| `packages[].ecosystem` | String | No       | `"npm"`     | Package ecosystem. See Supported ecosystems below.                                                                                                                                       |
+| `packages[].depname`   | String | ✅ Yes   | -           | Name of the dependency/package                                                                                                                                                           |
+| `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                                                                                                                                                                |
+| `platform`             | String | No       | -           | OS-architecture hint (`linux-x64`, `darwin-arm64`, `win32-x64`) applied to every package in the request. Picks the most relevant artifact when a package ships platform-specific builds. |
 
 **Supported ecosystems**
 
@@ -251,6 +315,8 @@ Based on [Socket's language support](https://docs.socket.dev/docs/language-suppo
 | PHP                     | `composer` | Composer                  | Experimental                                        |
 | GitHub Actions          | `actions`  | GitHub Actions workflows  | Experimental (workflow scanning, not package-level) |
 
+`packagist` is accepted as an alias for `composer`, and `openvsx` for the `vscode` PURL type.
+
 Example request:
 
 ```json
@@ -262,20 +328,38 @@ Example request:
 }
 ```
 
-Sample response:
+Response, as a single block of text. Every score is an integer from 0 to 100, higher is better:
 
-```
-pkg:npm/express@4.18.2: supply_chain: 1.0, quality: 0.9, maintenance: 1.0, vulnerability: 1.0, license: 1.0
+```text
+Dependency scores:
+pkg:npm/express@4.18.2: license: 100, maintenance: 87, quality: 100, supplyChain: 97, vulnerability: 98
   Report: https://socket.dev/npm/package/express
-pkg:pypi/fastapi@0.100.0: supply_chain: 1.0, quality: 0.95, maintenance: 0.98, vulnerability: 1.0, license: 1.0
+pkg:pypi/fastapi@0.100.0: license: 100, maintenance: 100, quality: 100, supplyChain: 100, vulnerability: 100
   Report: https://socket.dev/pypi/package/fastapi
 ```
+
+Packages come back in the order the API returns them, not the order you asked for. A package Socket has no record of is left out of the list rather than reported as an error, so compare the response against your request when a name is missing.
 
 #### organizations
 
 List the Socket organizations the authenticated user belongs to. Takes no parameters. Use it to discover the `org_slug` value that the org-scoped tools (`alerts`, `threat_feed`) require.
 
 This tool needs a Socket API token. See [Authentication for organization-scoped tools](#authentication-for-organization-scoped-tools) below.
+
+The response is the Socket API's JSON, keyed by organization id. The `slug` is what the other tools want:
+
+```json
+{
+  "organizations": {
+    "1234": {
+      "id": "1234",
+      "name": "Acme Robotics",
+      "plan": "enterprise",
+      "slug": "acme-robotics"
+    }
+  }
+}
+```
 
 #### alerts
 
@@ -298,24 +382,24 @@ List the latest security alerts for one Socket organization: supply-chain, vulne
 
 Look up items in a Socket organization's threat feed: packages recently flagged as malware, typosquats, obfuscated code, and similar. Backed by `GET /v0/orgs/{org_slug}/threat-feed`. The response carries a `nextPageCursor`; pass it as `cursor` to page forward.
 
-| Parameter           | Type    | Required | Default      | Description                                                                                                |
-| ------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `org_slug`          | String  | ✅ Yes   | -            | Organization slug (get it from the `organizations` tool)                                                   |
-| `filter`            | String  | No       | `mal`        | Threat category: `mal` (malware), `vuln`, `typ` (typosquat), `obf` (obfuscated), `mjo`, `kes`, `spy`, etc. |
-| `ecosystem`         | String  | No       | -            | Ecosystem: `npm`, `pypi`, `gem`, `maven`, `golang`, `nuget`, `cargo`, `chrome`, `openvsx`, `huggingface`   |
-| `name`              | String  | No       | -            | Filter by package name                                                                                     |
-| `version`           | String  | No       | -            | Filter by package version                                                                                  |
-| `is_human_reviewed` | Boolean | No       | `false`      | Only return human-reviewed items                                                                           |
-| `sort`              | String  | No       | `updated_at` | Sort field: `id`, `created_at`, `updated_at`                                                               |
-| `direction`         | String  | No       | `desc`       | Sort direction: `asc`, `desc`                                                                              |
-| `updated_after`     | String  | No       | -            | ISO timestamp; only items updated after this                                                               |
-| `created_after`     | String  | No       | -            | ISO timestamp; only items created after this                                                               |
-| `per_page`          | Integer | No       | `30`         | Results per page (1–100)                                                                                   |
-| `cursor`            | String  | No       | -            | Pagination cursor — the `nextPageCursor` from a previous response                                          |
+| Parameter           | Type    | Required | Default      | Description                                                                                                        |
+| ------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `org_slug`          | String  | ✅ Yes   | -            | Organization slug (get it from the `organizations` tool)                                                           |
+| `filter`            | String  | No       | `mal`        | Threat category: `mal` (malware), `vuln`, `typ` (typosquat), `obf` (obfuscated), `mjo`, `kes`, `spy`, etc.         |
+| `ecosystem`         | String  | No       | -            | Ecosystem: `npm`, `pypi`, `gem`, `maven`, `golang`, `nuget`, `cargo`, `chrome`, `openvsx`, `vscode`, `huggingface` |
+| `name`              | String  | No       | -            | Filter by package name                                                                                             |
+| `version`           | String  | No       | -            | Filter by package version                                                                                          |
+| `is_human_reviewed` | Boolean | No       | `false`      | Only return human-reviewed items                                                                                   |
+| `sort`              | String  | No       | `updated_at` | Sort field: `id`, `created_at`, `updated_at`                                                                       |
+| `direction`         | String  | No       | `desc`       | Sort direction: `asc`, `desc`                                                                                      |
+| `updated_after`     | String  | No       | -            | ISO timestamp; only items updated after this                                                                       |
+| `created_after`     | String  | No       | -            | ISO timestamp; only items created after this                                                                       |
+| `per_page`          | Integer | No       | `30`         | Results per page (1–100)                                                                                           |
+| `cursor`            | String  | No       | -            | Pagination cursor — the `nextPageCursor` from a previous response                                                  |
 
 #### package_files
 
-List the files published in a package: a tree of paths and sizes for any package on a supported ecosystem. Use it to inspect what a dependency ships before installing it. Each entry prints a blob `hash` that `package_file_contents` and `package_file_grep` consume.
+List the files published in a package: a tree of file paths, each with its size and blob hash, for any package on a supported ecosystem. Use it to inspect what a dependency ships before installing it. Pass a file's `hash` to `package_file_contents` or `package_file_grep`.
 
 | Parameter    | Type   | Required | Default | Description                                                                             |
 | ------------ | ------ | -------- | ------- | --------------------------------------------------------------------------------------- |
@@ -324,6 +408,16 @@ List the files published in a package: a tree of paths and sizes for any package
 | `version`    | String | ✅ Yes   | -       | Package version                                                                         |
 | `artifactId` | String | No       | -       | Per-version disambiguator (PyPI filename, Maven artifact id, NuGet asset)               |
 | `platform`   | String | No       | -       | Platform qualifier for per-OS/arch artifacts (e.g. openvsx `linux-x64`, `darwin-arm64`) |
+
+Output is a header line and a tree. The token after each size is the blob `hash`:
+
+```text
+pkg:npm/lodash@4.17.21 — 1054 files, 1379.3 KB
+└── package/
+    ├── fp/
+    │   ├── __.js  43B  QlKUJ6782LHNEISw-t4uX1hyH1TCZye4ShYOMIAghheg
+    │   ├── _baseConvert.js  16.0K  QpGkoQltpQn5ZeTFxYQOnk8FWp-7yyeUQtyzdZXl48nA
+```
 
 #### package_file_contents
 
@@ -336,7 +430,7 @@ Read a single file from a package. Pass the `hash` printed next to an entry in `
 
 #### package_file_grep
 
-Search a single file from a package for lines matching a JavaScript regular expression, returning matches with line numbers (grep -n style). The file is fetched once per session and cached, so repeated greps on the same hash skip the network.
+Search a single file from a package for lines matching a JavaScript regular expression, returning matches with line numbers (grep -n style). Each blob is fetched once and held in a process-wide cache, so repeated reads and greps of the same hash skip the network.
 
 | Parameter         | Type    | Required | Default | Description                                             |
 | ----------------- | ------- | -------- | ------- | ------------------------------------------------------- |
@@ -354,7 +448,14 @@ Search a single file from a package for lines matching a JavaScript regular expr
 How the server resolves a token depends on the transport:
 
 - **stdio mode** reads one token at startup from the environment and uses it for every request. Set `SOCKET_API_TOKEN`. The server also accepts these aliases, in priority order: `SOCKET_API_TOKEN` → `SOCKET_API_KEY` → `SOCKET_CLI_API_TOKEN` → `SOCKET_CLI_API_KEY` → `SOCKET_SECURITY_API_TOKEN` → `SOCKET_SECURITY_API_KEY`. `SOCKET_API_TOKEN` is canonical; `SOCKET_API_KEY` is the alias most local setups already export. Because the process belongs to one user, this token is yours and scopes every tool to your account.
-- **HTTP mode** scopes the organization tools to the caller, never to the server's own token. Send your credential as an `Authorization: Bearer <token>` header on each request: a raw Socket API token (recognized by its `sktsec_` prefix) is used directly and works whether or not the server runs OAuth, while any other token is treated as an OAuth access token and validated through introspection when the server runs OAuth. The server uses that per-request token for the Socket API calls it makes on your behalf. A shared deployment never answers `organizations`, `alerts`, `threat_feed`, or `package_files` with the operator's data: when a request carries no token, those tools return the auth-required error. `depscore` alone may fall back to the server's startup token, since package scores are the same for every caller.
+- **HTTP mode** scopes the organization tools to the caller, never to the server's own token. Send your credential as an `Authorization: Bearer <token>` header on each request. Which credential to send depends on whether the deployment runs OAuth. On an OAuth-enabled server, send an OAuth access token: every bearer token is validated through introspection, and a raw Socket API token is rejected with a `401` challenge no matter what it starts with. On a server without OAuth, send your raw Socket API token and it is used directly. Either way the server uses that per-request token for the Socket API calls it makes on your behalf. A shared deployment never answers `organizations`, `alerts`, `threat_feed`, or `package_files` with the operator's data: when a request carries no token, those tools return the auth-required error. `depscore` alone may fall back to the server's startup token, since package scores are the same for every caller.
+
+When a token is missing, every affected tool returns the same message:
+
+```text
+Authentication is required. Set SOCKET_API_TOKEN for stdio mode, or send your Socket API
+token as an `Authorization: Bearer <token>` header (or connect through OAuth) in HTTP mode.
+```
 
 Generate a token from the [Socket dashboard](https://socket.dev/) under API tokens, then export it before launching the server:
 
@@ -362,25 +463,23 @@ Generate a token from the [Socket dashboard](https://socket.dev/) under API toke
 export SOCKET_API_TOKEN="your-socket-api-token"
 ```
 
-When no token is available, these tools return an authentication-required error explaining how to supply one for each transport.
-
 ### Worked example: organization details and alerts
 
 With `SOCKET_API_TOKEN` set, ask your assistant something like "show me the open critical alerts for my Socket org". Under the hood the assistant chains two tools:
 
-1. **Discover the org slug.** Call `organizations` (no arguments). The server reads your token, calls `GET /v0/organizations`, and returns the organizations your token can see. Pick the `slug` you want, e.g. `my-org`.
+1. **Discover the org slug.** Call `organizations` (no arguments). The server reads your token, calls `GET /v0/organizations`, and returns the organizations your token can see. Pick the `slug` you want, e.g. `acme-robotics`.
 
 2. **Fetch alerts for that org.** Call `alerts` with the slug and any filters:
 
    ```json
    {
-     "org_slug": "my-org",
+     "org_slug": "acme-robotics",
      "severity": "high,critical",
      "status": "open"
    }
    ```
 
-   The server calls `GET /v0/orgs/my-org/alerts` with the same token and returns the matching alerts plus pagination metadata. To page forward, pass the response's `endCursor` back as `cursor`.
+   The server calls `GET /v0/orgs/acme-robotics/alerts` with the same token and returns the matching alerts plus pagination metadata. To page forward, pass the response's `endCursor` back as `cursor`.
 
 The same token scopes every org-scoped tool, so `threat_feed` and `package_files` work the moment `organizations` confirms which slug the token belongs to.
 
@@ -417,17 +516,26 @@ Supported ecosystems and package managers:
 
 ### Setup
 
-**Prerequisites:** Node.js 22+.
+**Prerequisites:** Node.js 24+.
 
-1. Copy the whole `socket-gate` directory into your hooks folder. The bundled
-   `socket-gate.cjs` is self-contained, so it runs without any dependencies
-   beside it. From a checkout, run `pnpm run build` first to produce it; from a
-   published install, copy from `node_modules/@socketsecurity/mcp/`:
+1. Copy the whole `dist/socket-gate` directory into your hooks folder. The
+   bundled `socket-gate.cjs` is self-contained, so it runs without any
+   dependencies beside it.
 
-```bash
-mkdir -p ~/.claude/hooks
-cp -R hooks/socket-gate ~/.claude/hooks/
-```
+   From a published install:
+
+   ```bash
+   mkdir -p ~/.claude/hooks
+   cp -R node_modules/@socketsecurity/mcp/dist/socket-gate ~/.claude/hooks/
+   ```
+
+   From a checkout, build it first:
+
+   ```bash
+   pnpm run build
+   mkdir -p ~/.claude/hooks
+   cp -R dist/socket-gate ~/.claude/hooks/
+   ```
 
 2. Add to `~/.claude/settings.json`:
 
@@ -471,36 +579,53 @@ Inspired by [Jimmy Vo's dependency hook](https://blog.jimmyvo.com/posts/claudes-
 <details>
 <summary>Contributor commands</summary>
 
+This repo uses pnpm, and every command runs from the repo root. Node.js 24+ is required.
+
 ```sh
 git clone https://github.com/SocketDev/socket-mcp.git
 cd socket-mcp
-npm install
-npm run build
+pnpm install
 ```
 
-Run from source (stdio mode):
+Run from source. No build step is needed, because Node 24 strips the TypeScript itself:
 
 ```sh
 export SOCKET_API_TOKEN=your_api_token_here
-node --experimental-strip-types index.ts
+pnpm run server-stdio
 ```
 
 Or in HTTP mode:
 
 ```sh
-MCP_HTTP_MODE=true SOCKET_API_TOKEN=your_api_token_here node --experimental-strip-types index.ts --http
+pnpm run server-http
 ```
+
+Both scripts read `SOCKET_API_TOKEN` (falling back to `SOCKET_API_KEY`) from your environment. Append `:debug` to either one (`pnpm run server-http:debug`) to set `SOCKET_DEBUG=1` and get per-request tracing on stderr.
+
+| Task                      | Command                             |
+| ------------------------- | ----------------------------------- |
+| Test                      | `pnpm test`                         |
+| Test one file             | `pnpm test test/unit/purl.test.mts` |
+| Live-API end-to-end tests | `pnpm run test:e2e`                 |
+| Type check                | `pnpm run type`                     |
+| Lint and format           | `pnpm run fix --all`                |
+| Full check suite          | `pnpm run check --all`              |
+| Bundle to `dist/`         | `pnpm run build`                    |
+
+Never put `--` before a test path; that widens the run to the whole suite. Write `pnpm test test/unit/purl.test.mts`.
+
+To drive a running server by hand, see [mock-client debugging](docs/mock-client-debugging.md).
 
 ### Health check endpoint
 
-When running in HTTP mode, `GET /health` returns:
+When running in HTTP mode, `GET /health` returns the running server's version and skips origin validation, which makes it safe to call from a probe that sends no `Origin` header:
 
 ```json
 {
   "status": "healthy",
   "service": "socket-mcp",
-  "version": "0.0.18",
-  "timestamp": "2025-06-17T20:45:22.059Z"
+  "version": "0.0.20",
+  "timestamp": "2026-07-29T01:50:30.394Z"
 }
 ```
 
@@ -510,11 +635,13 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 
 **Q: The public server isn't responding** — Check the URL `https://mcp.socket.dev/`, verify your MCP client configuration, restart your MCP client.
 
-**Q: Local server fails to start** — Ensure Node.js 22+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission.
+**Q: Local server fails to start** — Ensure Node.js 24+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission. In stdio mode a missing token is fatal: the server prints `SOCKET_API_TOKEN environment variable is required in stdio mode` and exits `1`.
 
-**Q: Getting authentication errors with local server** — Double-check your API key is valid, ensure `packages:list` scope, regenerate if needed.
+**Q: The server exits with `Incomplete OAuth configuration for HTTP mode`** — `SOCKET_OAUTH_ISSUER`, `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`, and `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` must all be set or all be unset.
 
-**Q: AI assistant can't find the depscore tool** — Restart your MCP client after configuration changes, verify config is saved, check the server is running.
+**Q: Getting authentication errors with local server** — Double-check your API key is valid, ensure `packages:list` scope, regenerate if needed. If the tool that failed was `organizations`, `alerts`, `threat_feed`, or `package_files` on an HTTP deployment, the server is refusing to answer with the operator's token by design; send your own in an `Authorization: Bearer` header.
+
+**Q: AI assistant can't find the depscore tool** — Restart your MCP client after configuration changes, verify config is saved, check the server is running. `tools/list` advertises a one-hour public cache, so a client that caches the tool list may need a restart to pick up a newly added tool.
 
 ### Getting help
 

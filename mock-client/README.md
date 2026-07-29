@@ -1,82 +1,100 @@
 # Socket MCP Debug Clients
 
-Simple debug clients for testing the Socket MCP server in different modes.
+Three debug clients for exercising the Socket MCP server without a real MCP
+host. Run every command from the repo root.
 
-## Quick Start
+Deeper walkthrough, expected output, and error decoding:
+[`docs/mock-client-debugging.md`](../docs/mock-client-debugging.md).
 
-### 1. Build the project
+## Protocol eras
+
+The clients split across the two MCP protocol eras so both stay covered:
+
+| Client            | Script                 | Era                                                                              |
+| ----------------- | ---------------------- | -------------------------------------------------------------------------------- |
+| `debug-client.ts` | `pnpm run debug-stdio` | Legacy 2025 — raw JSON-RPC frames, `initialize` + `notifications/initialized`    |
+| `stdio-client.ts` | `pnpm run debug-sdk`   | Modern — SDK client, `versionNegotiation: { mode: 'auto' }` over stdio           |
+| `http-client.ts`  | `pnpm run debug-http`  | Modern — SDK client, `versionNegotiation: { mode: 'auto' }` over Streamable HTTP |
+
+`mode: 'auto'` probes the server with `server/discover` and falls back to the
+2025 `initialize` handshake when the server only speaks the legacy protocol.
+Each SDK client prints the negotiated era and protocol version at connect.
+
+## Quick start
+
+### 1. Check your Node version
 
 ```bash
-npm run build
+node --version
+# v24.0.0 or higher
 ```
 
-### 2. Start the MCP server
+### 2. Set the API token
 
-**STDIO mode:**
+Get one from the [Socket dashboard](https://socket.dev/) under API tokens; the
+`packages:list` scope covers `depscore`.
 
 ```bash
-SOCKET_API_KEY=your-api-key ./build/index.js
+export SOCKET_API_TOKEN=your-api-token
 ```
 
-**HTTP mode:**
+The debug clients read `SOCKET_API_TOKEN` and nothing else. The server accepts
+aliases such as `SOCKET_API_KEY`, but the clients do not.
+
+### 3. Start the MCP server
+
+The stdio clients spawn the server themselves, so this step is only needed for
+HTTP mode:
 
 ```bash
-MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key ./build/index.js
+pnpm run server-http
 ```
 
 **HTTP mode with custom port:**
 
 ```bash
-MCP_HTTP_MODE=true MCP_PORT=3901 SOCKET_API_KEY=your-api-key ./build/index.js
+MCP_PORT=3901 pnpm run server-http
 ```
 
-### 3. Test with debug clients
-
-**Test STDIO mode:**
+### 4. Run a debug client
 
 ```bash
-npm run debug:stdio
+pnpm run debug-stdio
+pnpm run debug-sdk
+pnpm run debug-http
 ```
 
-**Test HTTP mode (default port 3000):**
+**HTTP client against a custom URL:**
 
 ```bash
-npm run debug:http
-```
-
-**Test HTTP mode (custom URL):**
-
-```bash
-MCP_URL="http://localhost:3901/" npm run debug:http
-```
-
-**Test with MCP SDK client:**
-
-```bash
-npm run debug:sdk
+MCP_URL="http://localhost:3901" pnpm run debug-http
 ```
 
 ## What the debug clients test
 
-- **Initialize**: Connect to MCP server and get server info
-- **List tools**: Get available tools (should show `depscore`)
-- **Call depscore**: Test dependency scoring with sample packages
-- **Cleanup**: Close connection properly
+- **Connect**: reach the MCP server and report the negotiated protocol era
+- **List tools**: seven tools, starting with `depscore`
+- **Call depscore**: score a handful of sample npm and PyPI packages
+- **Cleanup**: close the connection
+
+No build is needed. Each client spawns `index.ts` and Node 24 strips the types.
 
 ## Troubleshooting
 
 **Server not responding?**
 
-- Check if server is running: `curl http://localhost:3000/health`
-- Verify API key is set
-- Check server logs for errors
+- Check the health endpoint: `curl http://localhost:3000/health`
+- Verify `SOCKET_API_TOKEN` is set
+- Re-run with `SOCKET_DEBUG=1` for per-request traces on stderr
 
 **HTTP client getting 404?**
 
-- Remove trailing slash from MCP_URL
-- Verify server is in HTTP mode (`MCP_HTTP_MODE=true`)
+- The MCP endpoint is `/`, so remove any path and any trailing slash from `MCP_URL`
+- Verify the server is in HTTP mode (`MCP_HTTP_MODE=true`, which
+  `pnpm run server-http` sets for you)
 
 **STDIO client hanging?**
 
 - Ctrl+C to exit
-- Check server is in STDIO mode (no `MCP_HTTP_MODE`)
+- Make sure `MCP_HTTP_MODE` is not exported in your shell; it would put the
+  spawned server into HTTP mode, where it never reads stdin
