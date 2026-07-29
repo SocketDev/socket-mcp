@@ -1,15 +1,20 @@
+/**
+ * @file The request-time OAuth surface: the bearer-token pipeline incoming MCP
+ *   requests run through, RFC 7662 introspection with RFC 8707 audience
+ *   validation, and the RFC 9728 protected-resource metadata this server
+ *   publishes. Settings live in `oauth-config.ts`, discovery in
+ *   `oauth-discovery.ts`.
+ */
+
 import {
-  getSocketOauthIntrospectionClientId,
-  getSocketOauthIntrospectionClientSecret,
-  getSocketOauthIssuer,
-  getSocketOauthRequiredScopes,
-} from './env.ts'
-import { getSocketDebug } from '@socketsecurity/lib/env/socket'
-import { errorMessage } from '@socketsecurity/lib/errors'
+  checkResourceAllowed,
+  resourceUrlFromServerUrl,
+} from '@modelcontextprotocol/server'
+import type { AuthInfo } from '@modelcontextprotocol/server'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
-import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
-import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+
 import {
   assertSafeHttpUrl,
   getRequestHeaderValue,
@@ -18,90 +23,65 @@ import {
   writeOAuthError,
 } from './http-helpers.ts'
 import { logger } from './logger.ts'
+import {
+  ALLOW_LOCAL_OAUTH,
+  buildOAuthScopeParameter,
+  buildResourceScopes,
+  defaultOAuthConfig,
+  REQUIRE_OAUTH_AUDIENCE,
+  splitScopes,
+} from './oauth-config.ts'
+import type { OAuthConfig } from './oauth-config.ts'
+import { loadOAuthMetadata } from './oauth-discovery.ts'
 
-// In SOCKET_DEBUG local-stack mode the issuer/introspection endpoints may be
-// on localhost; otherwise loopback/private hosts are refused as SSRF targets.
-const ALLOW_LOCAL_OAUTH = envAsBoolean(getSocketDebug())
+export {
+  buildOAuthScopeParameter,
+  buildResourceScopes,
+  hasAnyOAuthConfig,
+  isOauthEnabled,
+  resolveOAuthConfig,
+  setOauthEnabled,
+  SOCKET_OAUTH_REQUIRED_SCOPES,
+  splitScopes,
+} from './oauth-config.ts'
+export type {
+  OAuthAuthorizationServerMetadata,
+  OAuthConfig,
+} from './oauth-config.ts'
+export {
+  buildOAuthWellKnownUrls,
+  fetchOAuthMetadataDocument,
+  loadOAuthMetadata,
+  validateOAuthMetadataFields,
+} from './oauth-discovery.ts'
 
-export interface OAuthAuthorizationServerMetadata {
-  issuer: string
-  authorization_endpoint: string
-  token_endpoint: string
-  introspection_endpoint: string
-  [key: string]: unknown
-}
-
-// MCP SDK's `handleRequest` expects `{ auth?: AuthInfo }` (no
+// The MCP Node adapter reads `{ auth?: AuthInfo }` off the request (no
 // `| undefined`). Adding `| undefined` would satisfy our internal
 // `optional-explicit-undefined` lint rule but break the structural
 // match required by the SDK under `exactOptionalPropertyTypes: true`.
 // Third-party shape wins.
-// oxlint-disable-next-line socket/optional-explicit-undefined -- must match @modelcontextprotocol/sdk's AuthInfo container shape.
+// oxlint-disable-next-line socket/optional-explicit-undefined -- must match @modelcontextprotocol/node's AuthInfo container shape.
 export type AuthenticatedRequest = IncomingMessage & { auth?: AuthInfo }
 
 export const OAUTH_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource'
-const OAUTH_WELL_KNOWN_PATH = '/.well-known/oauth-authorization-server'
-
-// Resolved OAuth settings + per-config discovery cache. The module
-// default reads env (the production path); tests construct their own
-// config so introspection/discovery can be driven against a nock-mocked
-// issuer in-process, without env-driven module init or a spawned server.
-export interface OAuthConfig {
-  issuer: string
-  introspectionClientId: string
-  introspectionClientSecret: string
-  requiredScopes: string[]
-  // Cached discovery promise — populated on first call and cleared on
-  // failure so a transient discovery error doesn't permanently break the
-  // server. Lives on the config so each config has an isolated cache.
-  metadataPromise: Promise<OAuthAuthorizationServerMetadata> | undefined
-  // Tracks whether OAuth has been opted into for the running mode (only
-  // HTTP). Set once during boot to gate metadata loading on configuration.
-  enabled: boolean
-}
-
-// Module-default config (production path). HTTP-mode boot flips its
-// `enabled` flag via setOauthEnabled(). `resolveOAuthConfig` is a
-// function declaration so it hoists above this module-eval-time call
-// despite living lower in the file (sorted into its export group).
-const defaultConfig: OAuthConfig = resolveOAuthConfig()
-
-// Back-compat export — the required scopes the resource advertises.
-export const SOCKET_OAUTH_REQUIRED_SCOPES: string[] =
-  defaultConfig.requiredScopes
-
-// True when ANY of the three introspection settings are configured —
-// caller uses this to detect partial / incomplete configs and refuse to
-// start.
-export const hasAnyOAuthConfig: boolean = Boolean(
-  defaultConfig.introspectionClientId ||
-  defaultConfig.introspectionClientSecret ||
-  defaultConfig.issuer,
-)
-
-const allOAuthConfig = Boolean(
-  defaultConfig.introspectionClientId &&
-  defaultConfig.introspectionClientSecret &&
-  defaultConfig.issuer,
-)
-
-const REQUIRED_OAUTH_FIELDS = [
-  'issuer',
-  'authorization_endpoint',
-  'token_endpoint',
-  'introspection_endpoint',
-] as const
 
 // Run the bearer-token validation pipeline for incoming MCP requests:
-// presence check → format check → introspection → expiry → scope check.
-// Each failure step emits the matching RFC 6750 / RFC 7662 error.
+// presence check → format check → introspection → audience → expiry → scope
+// check. Each failure step emits the matching RFC 6750 / RFC 7662 error.
 export async function authenticateRequest(
   req: AuthenticatedRequest,
   res: ServerResponse,
-  resourceMetadataUrl: string,
-  config: OAuthConfig = defaultConfig,
+  baseUrl: URL,
+  options: OAuthConfig = defaultOAuthConfig,
 ): Promise<{ ok: false } | { ok: true; authInfo: AuthInfo }> {
+  // Both values derive from the same request base URL that
+  // `buildProtectedResourceMetadata` publishes from, so the audience this
+  // request is checked against is exactly the `resource` clients discover.
+  const resourceMetadataUrl = getProtectedResourceMetadataUrl(baseUrl)
+  const resourceIdentifier = getOAuthResourceIdentifier(baseUrl)
+  const scope = buildOAuthScopeParameter(options)
+
   const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
   if (!authHeader) {
     writeOAuthError(
@@ -110,27 +90,31 @@ export async function authenticateRequest(
       'invalid_request',
       'Missing Authorization header',
       resourceMetadataUrl,
+      scope,
     )
     return { ok: false }
   }
 
+  // `authHeader` is trimmed and non-empty, so splitting on whitespace always
+  // yields a non-empty first element.
   const [type, token] = authHeader.split(/\s+/u)
-  if ((type || '').toLowerCase() !== 'bearer' || !token) {
+  if (type!.toLowerCase() !== 'bearer' || !token) {
     writeOAuthError(
       res,
       401,
       'invalid_request',
       "Invalid Authorization header format, expected 'Bearer TOKEN'",
       resourceMetadataUrl,
+      scope,
     )
     return { ok: false }
   }
 
   let authInfo: AuthInfo | undefined
   try {
-    authInfo = await verifyAccessToken(token, config)
-  } catch (error) {
-    logger.error(`Token verification failed: ${errorMessage(error)}`)
+    authInfo = await verifyAccessToken(token, resourceIdentifier, options)
+  } catch (e) {
+    logger.error(`Token verification failed: ${errorMessage(e)}`)
     writeJson(res, 500, {
       error: 'server_error',
       error_description: 'Token verification failed',
@@ -145,6 +129,7 @@ export async function authenticateRequest(
       'invalid_token',
       'Invalid or expired token',
       resourceMetadataUrl,
+      scope,
     )
     return { ok: false }
   }
@@ -159,12 +144,13 @@ export async function authenticateRequest(
       'invalid_token',
       'Token has expired',
       resourceMetadataUrl,
+      scope,
     )
     return { ok: false }
   }
 
-  const missingScopes = config.requiredScopes.filter(
-    scope => !authInfo.scopes.includes(scope),
+  const missingScopes = options.requiredScopes.filter(
+    required => !authInfo.scopes.includes(required),
   )
   if (missingScopes.length > 0) {
     writeOAuthError(
@@ -173,6 +159,7 @@ export async function authenticateRequest(
       'insufficient_scope',
       `Missing required scopes: ${missingScopes.join(', ')}`,
       resourceMetadataUrl,
+      scope,
     )
     return { ok: false }
   }
@@ -184,19 +171,30 @@ export async function authenticateRequest(
   }
 }
 
-// RFC 8707-style protected-resource metadata pointing clients at the
-// upstream issuer with the scopes this resource requires.
+// RFC 9728 protected-resource metadata. `authorization_servers` publishes the
+// CONFIGURED issuer: discovery has already refused any document whose own
+// `issuer` differs, so config and document agree and sourcing from config
+// makes that invariant plain. `bearer_methods_supported` names only `header`
+// because the Authorization header is the sole form this server reads.
 export function buildProtectedResourceMetadata(
   baseUrl: URL,
-  oauthMetadata: OAuthAuthorizationServerMetadata,
-  config: OAuthConfig = defaultConfig,
+  options: OAuthConfig = defaultOAuthConfig,
 ): Record<string, unknown> {
   return {
-    resource: new URL('/', baseUrl).href,
-    authorization_servers: [oauthMetadata.issuer],
-    scopes_supported: config.requiredScopes,
+    resource: getOAuthResourceIdentifier(baseUrl).href,
+    authorization_servers: [options.issuer],
+    scopes_supported: buildResourceScopes(options),
+    bearer_methods_supported: ['header'],
     resource_name: 'Socket MCP Server',
   }
+}
+
+// The RFC 8707 resource identifier this server answers for. Derived from the
+// request's base URL so it matches the `resource` value
+// `buildProtectedResourceMetadata` publishes — the audience check and the
+// published identifier cannot drift because they call the same function.
+export function getOAuthResourceIdentifier(baseUrl: URL): URL {
+  return resourceUrlFromServerUrl(new URL('/', baseUrl))
 }
 
 // URL clients should hit (advertised in WWW-Authenticate) to learn the
@@ -205,133 +203,48 @@ export function getProtectedResourceMetadataUrl(baseUrl: URL): string {
   return new URL(OAUTH_PROTECTED_RESOURCE_METADATA_PATH, baseUrl).href
 }
 
-export function isOauthEnabled(): boolean {
-  return defaultConfig.enabled
-}
-
-// Discover the upstream issuer's authorization-server metadata
-// (RFC 8414). The fetched metadata is cached; failures clear the cache so
-// the next request retries.
-export async function loadOAuthMetadata(
-  config: OAuthConfig = defaultConfig,
-): Promise<OAuthAuthorizationServerMetadata | undefined> {
-  if (!config.enabled) {
-    return undefined
-  }
-
-  if (!config.metadataPromise) {
-    const metadataPromise = (async () => {
-      // `enabled` is only set when all three settings were present (see
-      // setOauthEnabled / allOAuthConfig), which requires `issuer` to be
-      // a non-empty string. SSRF-guard it: an operator-set issuer must not
-      // point the discovery request at an internal/loopback host.
-      const issuerUrl = assertSafeHttpUrl(
-        config.issuer,
-        'SOCKET_OAUTH_ISSUER',
-        ALLOW_LOCAL_OAUTH,
-      )
-      const response = await httpRequest(
-        new URL(OAUTH_WELL_KNOWN_PATH, issuerUrl).href,
-      )
-      const responseText = response.text()
-
-      if (!response.ok) {
-        throw new Error(
-          `OAuth metadata discovery failed with status ${response.status}: ${responseText}`,
-        )
-      }
-
-      const metadata = parseJsonObject(responseText, 'OAuth metadata discovery')
-
-      validateOAuthMetadataFields(metadata)
-
-      return metadata
-    })()
-
-    const retryableMetadataPromise = metadataPromise.catch(error => {
-      if (config.metadataPromise === retryableMetadataPromise) {
-        config.metadataPromise = undefined
-      }
-
-      throw error
+// Whether one `aud` entry names this resource server. An audience that is not
+// a URL at all can never match a URL resource identifier, so an unparseable
+// value fails closed rather than throwing.
+export function isOAuthAudienceAllowed(
+  audience: string,
+  resourceIdentifier: URL,
+): boolean {
+  try {
+    return checkResourceAllowed({
+      requestedResource: audience,
+      configuredResource: resourceIdentifier,
     })
-
-    config.metadataPromise = retryableMetadataPromise
-  }
-
-  return await config.metadataPromise
-}
-
-// Call this in HTTP mode after confirming all three settings are present.
-// Returns the SOCKET_OAUTH_ISSUER (for logging) when enabled.
-// Build an OAuthConfig from the fleet-canonical env helpers in
-// @socketsecurity/lib/env/socket. Centralizing the reads means an env-
-// var rename / alias-table change is a single-file edit upstream;
-// socket-mcp picks it up on the next dep bump. Tests call this with
-// explicit overrides instead of mutating process.env.
-export function resolveOAuthConfig(
-  overrides: Partial<Omit<OAuthConfig, 'enabled' | 'metadataPromise'>> = {},
-): OAuthConfig {
-  return {
-    issuer: overrides.issuer ?? getSocketOauthIssuer() ?? '',
-    introspectionClientId:
-      overrides.introspectionClientId ??
-      getSocketOauthIntrospectionClientId() ??
-      '',
-    introspectionClientSecret:
-      overrides.introspectionClientSecret ??
-      getSocketOauthIntrospectionClientSecret() ??
-      '',
-    requiredScopes: overrides.requiredScopes ?? getSocketOauthRequiredScopes(),
-    metadataPromise: undefined,
-    enabled: false,
+  } catch {
+    return false
   }
 }
 
-export function setOauthEnabled(): { issuer: string } | undefined {
-  if (!allOAuthConfig) {
-    return undefined
+// Read the RFC 7662 `aud` claim, which is a single string or an array of
+// strings, into a list of non-empty audience values.
+export function splitTokenAudience(audience: unknown): string[] {
+  if (typeof audience === 'string') {
+    return audience.trim() ? [audience] : []
   }
-  defaultConfig.enabled = true
-  // `allOAuthConfig` was checked above; issuer is a non-empty string here.
-  return { issuer: defaultConfig.issuer }
-}
-
-// Tokenize the introspection "scope" field per RFC 6749 §3.3: a
-// space-delimited list of bare scope strings.
-export function splitScopes(scope: unknown): string[] {
-  if (typeof scope !== 'string') {
-    return []
+  if (Array.isArray(audience)) {
+    return audience.filter(
+      (value): value is string =>
+        typeof value === 'string' && Boolean(value.trim()),
+    )
   }
-
-  return scope
-    .split(/\s+/u)
-    .map(value => value.trim())
-    .filter(Boolean)
-}
-
-// Validate that an arbitrary 401-from-introspection response is well-formed
-// for token verification — the introspection RFC requires `active` to be
-// boolean.
-export function validateOAuthMetadataFields(
-  metadata: Record<string, unknown>,
-): asserts metadata is OAuthAuthorizationServerMetadata {
-  for (let i = 0, { length } = REQUIRED_OAUTH_FIELDS; i < length; i += 1) {
-    const field = REQUIRED_OAUTH_FIELDS[i]!
-    if (typeof metadata[field] !== 'string' || !metadata[field]) {
-      throw new Error(`OAuth metadata missing required field: ${field}`)
-    }
-  }
+  return []
 }
 
 // RFC 7662 token introspection — POST the bearer token to the upstream
 // introspection endpoint using HTTP Basic auth for the introspection
-// client. Returns AuthInfo on `active:true`, undefined on inactive.
+// client. Returns AuthInfo on `active:true` whose audience names
+// `resourceIdentifier`, undefined on anything else.
 export async function verifyAccessToken(
   token: string,
-  config: OAuthConfig = defaultConfig,
+  resourceIdentifier: URL,
+  options: OAuthConfig = defaultOAuthConfig,
 ): Promise<AuthInfo | undefined> {
-  const oauthMetadata = await loadOAuthMetadata(config)
+  const oauthMetadata = await loadOAuthMetadata(options)
   if (!oauthMetadata) {
     throw new Error('OAuth is not configured for this server')
   }
@@ -348,7 +261,7 @@ export async function verifyAccessToken(
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      authorization: `Basic ${Buffer.from(`${config.introspectionClientId}:${config.introspectionClientSecret}`).toString('base64')}`,
+      authorization: `Basic ${Buffer.from(`${options.introspectionClientId}:${options.introspectionClientSecret}`).toString('base64')}`,
     },
     body: new URLSearchParams({ token }).toString(),
   })
@@ -365,10 +278,40 @@ export async function verifyAccessToken(
     return undefined
   }
 
+  // RFC 8707 §2 / MCP: a token that names an audience is only usable here if
+  // that audience is this resource. A PRESENT `aud` naming something else is
+  // always rejected. That is the substitution attack, and no flag opens it.
+  // An ABSENT `aud` is accepted unless SOCKET_OAUTH_REQUIRE_AUDIENCE is on,
+  // because an authorization server that never emits the claim would
+  // otherwise fail every request.
+  // oxlint-disable-next-line socket/no-placeholders -- deliberate deferral marker: the flip is a spec MUST held open only by an upstream dependency, and it must stay visible in the code, not just in issue #201.
+  // TODO: default SOCKET_OAUTH_REQUIRE_AUDIENCE to on and drop the
+  // accept-when-absent branch below, once Socket's authorization server
+  // reports `aud` at introspection (#201). Flipping it before then rejects
+  // every live OAuth request.
+  const audiences = splitTokenAudience(introspection['aud'])
+  if (audiences.length === 0) {
+    if (REQUIRE_OAUTH_AUDIENCE) {
+      logger.warn(
+        `Rejected an active token carrying no "aud" claim. Where: introspection of a request for ${resourceIdentifier.href}. Saw no audience, wanted one naming this resource. Fix: have the authorization server return "aud" on introspection, or unset SOCKET_OAUTH_REQUIRE_AUDIENCE to accept audience-less tokens.`,
+      )
+      return undefined
+    }
+  } else if (
+    !audiences.some(audience =>
+      isOAuthAudienceAllowed(audience, resourceIdentifier),
+    )
+  ) {
+    logger.warn(
+      `Rejected a token minted for another resource. Where: introspection of a request for ${resourceIdentifier.href}. Saw aud=[${audiences.join(', ')}], wanted ${resourceIdentifier.href}. Fix: request the token with resource=${resourceIdentifier.href}.`,
+    )
+    return undefined
+  }
+
   // Resolve the token's expiry from the introspection `exp` claim. A
-  // genuinely absent `exp` means a non-expiring token (left off the
-  // returned AuthInfo). But a PRESENT-yet-malformed `exp` (a string that
-  // doesn't parse, an object, NaN) must fail CLOSED: silently dropping it
+  // genuinely absent `exp` means a non-expiring token, left off the
+  // returned AuthInfo. But a PRESENT-yet-malformed `exp` — a string that
+  // doesn't parse, an object, NaN — must fail CLOSED: silently dropping it
   // would treat the token as never-expiring, so a buggy/compromised
   // introspection endpoint could hand out tokens that never age out.
   const rawExp = introspection['exp']
@@ -389,6 +332,10 @@ export async function verifyAccessToken(
         : 'unknown',
     scopes: splitScopes(introspection['scope']),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
+    // Bound only when the token actually named an audience that matched.
+    // Synthesizing one for an audience-less token would claim a binding the
+    // authorization server never asserted.
+    ...(audiences.length > 0 ? { resource: resourceIdentifier } : {}),
     extra: introspection,
   }
 }
