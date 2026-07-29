@@ -54,7 +54,7 @@
     "build-mcpb:validate": "mcpb validate ./",
     "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
     "build-mcpb:mcpb-pack": "mcpb pack ./",
-    "clean": "node -e \"require('node:fs').rmSync('node_modules/.cache', { force: true, maxRetries: 10, recursive: true, retryDelay: 100 })\"",
+    "clean": "node scripts/fleet/clean.mts",
     "debug-stdio": "node ./mock-client/debug-client.ts",
     "debug-sdk": "node ./mock-client/stdio-client.ts",
     "debug-http": "node ./mock-client/http-client.ts",

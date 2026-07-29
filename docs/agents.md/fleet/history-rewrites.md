@@ -62,6 +62,42 @@ is banned by `attribution-rewrite-nudge`: it is quoting-fragile, silently
 no-ops when the todo regex misses, and verifies nothing — all three failure
 modes happened live (socket-mcp, 2026-07-10) before the script existed.
 
+## Never `filter-branch` — it drops signatures and keeps the committer
+
+`history-rewrite-guard` BLOCKS `git filter-branch`, `git filter-repo` (both the
+subcommand and the standalone `git-filter-repo` binary), and a `git commit-tree`
+with no `-S`/`--gpg-sign`. Bypass slug: `history-rewrite`.
+
+Two defects, both silent, both fatal on a branch whose ruleset requires verified
+signatures:
+
+- **Signatures are dropped.** `filter-branch` re-creates every commit, and a
+  re-created commit is unsigned unless you ask for a signature. Nothing warns
+  you; the next `commits-are-signed` check or the push itself is the first
+  signal.
+- **The committer is restored.** `filter-branch` puts the ORIGINAL
+  `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` / `GIT_COMMITTER_DATE` back on
+  each rewritten commit. So even re-signing with
+  `--commit-filter 'git commit-tree -S "$@"'` fails GitHub verification: your
+  signature disagrees with the restored committer field.
+
+Two invariants hold for any rewrite:
+
+1. **Sign every re-minted commit** — pass `-S`.
+2. **Let the committer default** to whoever runs the rewrite. Set only
+   `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_AUTHOR_DATE`; never restore
+   `GIT_COMMITTER_*`.
+
+`git rebase` holds both naturally, and `scripts/fleet/strip-ai-attribution.mts`
+holds both explicitly (`commit-tree … -S`, author env only). BFG Repo-Cleaner
+has the same re-mint problem and is not a sanctioned path either.
+
+Both defects have landed for real: a hand-rolled `filter-branch --msg-filter`,
+reached for to strip one trailer instead of the script that already owned the
+operation, left a branch-worth of unsigned commits that only `commits-are-signed`
+caught, and the re-signed retry was still rejected — "Commits must have verified
+signatures."
+
 ## A rewrite base must sit on origin's lineage
 
 After a force-push rewrite, old anchors — version tags, npm `gitHead`
