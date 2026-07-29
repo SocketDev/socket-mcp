@@ -1,4 +1,4 @@
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { debug, logger } from './logger.ts'
 import type { ToolCallResult, ToolHandlerExtra } from './tool-types.ts'

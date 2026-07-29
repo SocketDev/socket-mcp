@@ -1,11 +1,10 @@
-// HTTP transport module: session lifecycle, request routing (GET/POST/DELETE),
-// and the post-body size guard — the cohesive request path that reads
+// HTTP transport module: request routing, the post-body size guard, and the
+// per-request auth handoff — the cohesive request path that reads
 // top-to-bottom. Origin/CORS/Accept-header validation lives in http-origin.ts.
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
-import crypto from 'node:crypto'
+import { toNodeHandler } from '@modelcontextprotocol/node'
+import type { NodeMcpRequestHandler } from '@modelcontextprotocol/node'
+import { createMcpHandler } from '@modelcontextprotocol/server'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createConfiguredServer } from './server.ts'
@@ -23,30 +22,12 @@ import { logger } from './logger.ts'
 import {
   authenticateRequest,
   buildProtectedResourceMetadata,
-  getProtectedResourceMetadataUrl,
   isOauthEnabled,
   loadOAuthMetadata,
   OAUTH_PROTECTED_RESOURCE_METADATA_PATH,
 } from './oauth.ts'
 import type { AuthenticatedRequest } from './oauth.ts'
 import { VERSION } from './version.ts'
-
-// Per-session record. Both transport and server must persist for the
-// session lifetime — storing the server prevents GC from reclaiming it
-// before subsequent RPC calls.
-export interface Session {
-  transport: StreamableHTTPServerTransport
-  server: Server
-  lastActivity: number
-}
-
-// 30 min idle TTL — well within MCP transport keep-alive expectations
-// while bounding memory for forgotten clients.
-const SESSION_TTL_MS = 30 * 60 * 1000
-
-// Reaper runs every 60 s; idle sessions older than SESSION_TTL_MS are
-// destroyed.
-const REAP_INTERVAL_MS = 60_000
 
 // Cap the buffered request body. readPostBody accumulates the whole body
 // in memory before JSON.parse, so an unbounded body is a single-request
@@ -74,221 +55,127 @@ export function applyClientApiKey(req: AuthenticatedRequest): void {
   if (!authHeader) {
     return
   }
+  // `authHeader` is trimmed and non-empty, so splitting on whitespace always
+  // yields a non-empty first element.
   const [type, token] = authHeader.split(/\s+/u)
-  if ((type || '').toLowerCase() !== 'bearer' || !token) {
+  if (type!.toLowerCase() !== 'bearer' || !token) {
     return
   }
   req.auth = { token, clientId: 'socket-api-key', scopes: [] }
 }
 
-// Socket API tokens carry this prefix (e.g. `sktsec_t_...`); OAuth access
-// tokens do not. We use it to recognize a raw Socket key sent over the
-// standard `Authorization: Bearer` header so it bypasses OAuth introspection.
-const SOCKET_API_KEY_PREFIX = 'sktsec_'
-
-// Recognize a Socket API key on the `Authorization: Bearer` header by its
-// `sktsec_` prefix and apply it to `req.auth`, returning true when matched.
-// Lets a caller authenticate with a raw Socket key even on an OAuth server:
-// the key skips introspection and acts on the caller's behalf, while a
-// non-prefixed token (an OAuth access token) falls through to OAuth. An
-// invalid key fails at the downstream Socket API call.
-export function applySocketApiKey(req: AuthenticatedRequest): boolean {
-  const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
-  const [type, token] = authHeader.split(/\s+/u)
-  if (
-    (type || '').toLowerCase() !== 'bearer' ||
-    !token ||
-    !token.startsWith(SOCKET_API_KEY_PREFIX)
-  ) {
-    return false
-  }
-  req.auth = { token, clientId: 'socket-api-key', scopes: [] }
-  return true
-}
-
-// Destroy a session — close transport (best-effort) and detach the MCP
-// server. Safe to call multiple times.
-export function destroySession(
-  sessions: Map<string, Session>,
-  id: string,
-): void {
-  const s = sessions.get(id)
-  if (!s) {
-    return
-  }
-  sessions.delete(id)
-  try {
-    s.transport.close()
-  } catch {}
-  s.server.close().catch(() => {})
-  logger.info(`Session ${id} destroyed`)
-}
-
-// Handle DELETE / on the MCP endpoint: close out an existing session.
-export async function handleDelete(
-  sessions: Map<string, Session>,
-  req: IncomingMessage,
+// Build one request's last-resort rejection handler. A `routeRequest`
+// rejection would otherwise be unhandled, which hangs the client and ends the
+// process under Node's default rejection policy — one request must never take
+// the server down. Once headers are out the status is already committed, so
+// the only move left is closing the response.
+export function createRouteFailureHandler(
   res: ServerResponse,
-): Promise<void> {
-  const sessionId =
-    getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
-  const transport = sessionId ? sessions.get(sessionId)?.transport : undefined
-  if (!transport) {
-    writeJson(res, 404, {
-      jsonrpc: '2.0',
-      error: {
-        code: -32_000,
-        message: 'Not Found: Invalid or expired session.',
-      },
-      id: undefined,
-    })
-    return
-  }
-  try {
-    await transport.handleRequest(req as AuthenticatedRequest, res)
-  } catch (error) {
-    logger.error(`Error processing DELETE request: ${error}`)
+): (error: unknown) => void {
+  return error => {
+    logger.error(`Unhandled request failure: ${errorMessage(error)}`)
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
         error: { code: -32_603, message: 'Internal server error' },
         id: undefined,
       })
+      return
     }
+    res.end()
   }
 }
 
-// Handle GET / on the MCP endpoint: open the SSE stream for an existing
-// session.
-export async function handleGet(
-  sessions: Map<string, Session>,
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const sessionId =
-    getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
-  const session = sessionId ? sessions.get(sessionId) : undefined
-  if (!session) {
-    writeJson(res, 404, {
-      jsonrpc: '2.0',
-      error: {
-        code: -32_000,
-        message: 'Not Found: Invalid or expired session. Re-initialize.',
-      },
-      id: undefined,
-    })
-    return
-  }
-  try {
-    session.lastActivity = Date.now()
-    await session.transport.handleRequest(req as AuthenticatedRequest, res)
-  } catch (error) {
-    logger.error(`Error processing GET request: ${error}`)
-    if (!res.headersSent) {
-      writeJson(res, 500, {
-        jsonrpc: '2.0',
-        error: { code: -32_603, message: 'Internal server error' },
-        id: undefined,
-      })
-    }
-  }
+// The Node adapter's `onerror` sink. Reached when the adapter itself fails
+// around an exchange — a mid-response socket abort, a transport-level write
+// error — rather than inside a tool.
+export function handleMcpAdapterError(error: unknown): void {
+  logger.error(`MCP adapter failed: ${errorMessage(error)}`)
 }
 
-// Handle POST / on the MCP endpoint: route to an existing session or
-// open a new one on receipt of an initialize request.
-export async function handlePost(
-  sessions: Map<string, Session>,
+// The MCP handler's `onerror` sink. Reached when serving one exchange throws
+// past the per-request handling in `handleMcpRequest`.
+export function handleMcpHandlerError(error: unknown): void {
+  logger.error(`MCP request failed: ${errorMessage(error)}`)
+}
+
+// Hand one request to the MCP handler. The adapter reads the request stream
+// itself and enforces no size limit of its own, so a body-bearing method is
+// buffered here under MAX_POST_BODY_BYTES and handed over pre-parsed — with a
+// parsed body the adapter reads nothing from `req`. Per-request auth rides on
+// `req.auth`, which the adapter forwards to handlers as `ctx.http.authInfo`.
+export async function handleMcpRequest(
+  mcpHandler: NodeMcpRequestHandler,
   req: IncomingMessage,
   res: ServerResponse,
-  origin: string,
-  host: string,
 ): Promise<void> {
-  let body: string
-  try {
-    body = await readPostBody(req)
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      logger.error(error.message)
+  let parsedBody: unknown
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    let body: string
+    try {
+      body = await readPostBody(req)
+    } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        logger.error(error.message)
+        if (!res.headersSent) {
+          // The client is still uploading, so the rest of the body would
+          // arrive with nobody reading it. Announce the close, write the 413,
+          // and only then drop the request stream — destroying it any earlier
+          // kills the socket before the status reaches the client.
+          writeJson(
+            res,
+            413,
+            {
+              jsonrpc: '2.0',
+              error: { code: -32_600, message: 'Request body too large' },
+              id: undefined,
+            },
+            { Connection: 'close' },
+          )
+          res.on('finish', () => {
+            req.destroy()
+          })
+        }
+        return
+      }
+      logger.error(`Error reading request body: ${errorMessage(error)}`)
       if (!res.headersSent) {
-        writeJson(res, 413, {
+        writeJson(res, 500, {
           jsonrpc: '2.0',
-          error: { code: -32_600, message: 'Request body too large' },
+          error: { code: -32_603, message: 'Internal server error' },
           id: undefined,
         })
       }
       return
     }
-    logger.error(`Error reading POST body: ${error}`)
-    if (!res.headersSent) {
-      writeJson(res, 500, {
-        jsonrpc: '2.0',
-        error: { code: -32_603, message: 'Internal server error' },
-        id: undefined,
-      })
+    if (body) {
+      try {
+        parsedBody = JSON.parse(body)
+      } catch (error) {
+        logger.error(`Malformed JSON in request body: ${errorMessage(error)}`)
+        writeJson(res, 400, {
+          jsonrpc: '2.0',
+          error: { code: -32_700, message: 'Parse error' },
+          id: undefined,
+        })
+        return
+      }
     }
-    return
   }
+  // The adapter's request shape types `method` and `url` as plain optional
+  // strings while @types/node types them `string | undefined`, which
+  // `exactOptionalPropertyTypes` refuses. Node always sets both on a server
+  // request, so re-state them rather than widen the adapter's contract.
+  const mcpReq = Object.assign(req, {
+    method: req.method ?? 'GET',
+    url: req.url ?? '/',
+  })
   try {
-    const jsonData = JSON.parse(body)
-    const sessionId =
-      getRequestHeaderValue(req.headers['mcp-session-id']) || undefined
-    const session = sessionId ? sessions.get(sessionId) : undefined
-    let transport = session?.transport
-
-    if (!transport && isInitializeRequest(jsonData)) {
-      const clientInfo = jsonData.params?.clientInfo
-      logger.info(
-        `Client connected: ${clientInfo?.name || 'unknown'} v${clientInfo?.version || 'unknown'} from ${origin || host}`,
-      )
-
-      const server = createConfiguredServer()
-      const newTransport = new StreamableHTTPServerTransport({
-        enableJsonResponse: true,
-        sessionIdGenerator: () => crypto.randomUUID(),
-        onsessioninitialized: id => {
-          sessions.set(id, {
-            transport: newTransport,
-            server,
-            lastActivity: Date.now(),
-          })
-        },
-        onsessionclosed: id => {
-          destroySession(sessions, id)
-        },
-      })
-      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- Transport.onclose is the SDK's documented callback property, not an EventTarget handler.
-      newTransport.onclose = () => {
-        const id = newTransport.sessionId
-        if (id) {
-          destroySession(sessions, id)
-        }
-      }
-      transport = newTransport
-      await server.connect(transport as Transport)
-    }
-
-    if (!transport) {
-      writeJson(res, 400, {
-        jsonrpc: '2.0',
-        error: {
-          code: -32_000,
-          message: 'Bad Request: No valid session. Send initialize first.',
-        },
-        id: undefined,
-      })
-      return
-    }
-
-    if (sessionId) {
-      const activeSession = sessions.get(sessionId)
-      if (activeSession) {
-        activeSession.lastActivity = Date.now()
-      }
-    }
-
-    await transport.handleRequest(req as AuthenticatedRequest, res, jsonData)
+    await mcpHandler(mcpReq, res, parsedBody)
   } catch (error) {
-    logger.error(`Error processing POST request: ${error}`)
+    logger.error(
+      `Error processing ${req.method} request: ${errorMessage(error)}`,
+    )
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -303,40 +190,36 @@ export async function handlePost(
 // Async iteration is modern stream consumption — equivalent to 'data' +
 // 'end' without the callback wiring. The running byte count is measured on
 // the raw chunks (Buffer.byteLength for the string case) so multibyte
-// payloads can't slip past a char-length check; exceeding the cap throws
-// PayloadTooLargeError before more memory is committed.
+// payloads can't slip past a char-length check; exceeding the cap stops the
+// read and throws PayloadTooLargeError before more memory is committed.
+//
+// `destroyOnReturn: false` keeps the socket alive when the loop breaks early.
+// Node's default async iterator destroys the stream on `break`, which tears
+// down the connection before the caller can write its 413 — the client would
+// see a socket error instead of the status. The caller owns the teardown and
+// destroys the request once the response has flushed.
 export async function readPostBody(req: IncomingMessage): Promise<string> {
   let body = ''
   let bytes = 0
-  for await (const chunk of req) {
+  let overLimit = false
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
     bytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length
     if (bytes > MAX_POST_BODY_BYTES) {
-      req.destroy()
-      throw new PayloadTooLargeError(MAX_POST_BODY_BYTES)
+      overLimit = true
+      break
     }
     body += typeof chunk === 'string' ? chunk : chunk.toString()
+  }
+  if (overLimit) {
+    throw new PayloadTooLargeError(MAX_POST_BODY_BYTES)
   }
   return body
 }
 
-// Iterate sessions, destroying any whose lastActivity is older than
-// SESSION_TTL_MS. We materialize the entries up front so deletes inside
-// the loop don't perturb iteration.
-export function reapIdleSessions(sessions: Map<string, Session>): void {
-  const now = Date.now()
-  // Snapshot entries so destroySession's deletes don't perturb iteration.
-  for (const [id, session] of Array.from(sessions.entries())) {
-    if (now - session.lastActivity > SESSION_TTL_MS) {
-      logger.info(`Reaping idle session ${id}`)
-      destroySession(sessions, id)
-    }
-  }
-}
-
 // Routes a single request: health endpoint, origin validation, OAuth
-// metadata exposure, then dispatch by HTTP method to the MCP handlers.
+// metadata exposure, then dispatch to the MCP handler.
 export async function routeRequest(
-  sessions: Map<string, Session>,
+  mcpHandler: NodeMcpRequestHandler,
   req: IncomingMessage,
   res: ServerResponse,
   port: number,
@@ -345,7 +228,7 @@ export async function routeRequest(
   try {
     url = new URL(req.url!, `http://localhost:${port}`)
   } catch (error) {
-    logger.warn(`Invalid URL in request: ${req.url} - ${error}`)
+    logger.warn(`Invalid URL in request: ${req.url} - ${errorMessage(error)}`)
     writeJson(res, 400, {
       jsonrpc: '2.0',
       error: { code: -32_000, message: 'Bad Request: Invalid URL' },
@@ -396,15 +279,21 @@ export async function routeRequest(
     isOauthEnabled() &&
     url.pathname === OAUTH_PROTECTED_RESOURCE_METADATA_PATH
   ) {
-    const oauthMetadata = await loadOAuthMetadata()
-    if (!oauthMetadata) {
+    // Discovery rejects when the issuer is unreachable or serves no usable
+    // metadata. Answering from the catch keeps a down issuer from becoming an
+    // unhandled rejection, which would hang the request and take the process
+    // with it.
+    try {
+      await loadOAuthMetadata()
+    } catch (error) {
+      logger.error(`OAuth metadata discovery failed: ${errorMessage(error)}`)
       writeJson(res, 500, {
         error: 'server_error',
         error_description: 'OAuth metadata is unavailable',
       })
       return
     }
-    writeJson(res, 200, buildProtectedResourceMetadata(baseUrl, oauthMetadata))
+    writeJson(res, 200, buildProtectedResourceMetadata(baseUrl))
     return
   }
 
@@ -416,51 +305,55 @@ export async function routeRequest(
 
   patchAcceptHeader(req)
 
-  // A `sktsec_`-prefixed Bearer token authenticates as a Socket API key in
-  // both modes; only a non-prefixed token on an OAuth server goes through
-  // introspection.
-  const hasApiKey = applySocketApiKey(req as AuthenticatedRequest)
-  if (!hasApiKey && isOauthEnabled()) {
-    const authResult = await authenticateRequest(
-      req as AuthenticatedRequest,
-      res,
-      getProtectedResourceMetadataUrl(baseUrl),
-    )
+  // On an OAuth-enabled deployment, OAuth is the only way in: every Bearer
+  // token goes through introspection, expiry, audience, and scope checks. A
+  // token prefix is not authentication, so a raw Socket API key is accepted
+  // only when OAuth is off.
+  if (isOauthEnabled()) {
+    const authResult = await authenticateRequest(req, res, baseUrl)
     if (!authResult.ok) {
       return
     }
-  } else if (!hasApiKey) {
-    applyClientApiKey(req as AuthenticatedRequest)
+  } else {
+    applyClientApiKey(req)
   }
 
-  if (req.method === 'POST') {
-    await handlePost(sessions, req, res, origin, host)
-  } else if (req.method === 'GET') {
-    await handleGet(sessions, req, res)
-  } else if (req.method === 'DELETE') {
-    await handleDelete(sessions, req, res)
+  // GET and DELETE reach the MCP handler too: it answers the 2025-era session
+  // operations with its own 405 rather than a hand-rolled session table.
+  if (
+    req.method === 'DELETE' ||
+    req.method === 'GET' ||
+    req.method === 'POST'
+  ) {
+    await handleMcpRequest(mcpHandler, req, res)
   } else {
     res.writeHead(405)
     res.end('Method not allowed')
   }
 }
 
-// Boot the HTTP MCP server: install the session-reaper, create the
-// Node HTTP server, route requests through `routeRequest`, listen, and
-// log the start banner.
+// Boot the HTTP MCP server: build the MCP handler, create the Node HTTP
+// server, route requests through `routeRequest`, listen, and log the start
+// banner.
 export function startHttpServer(port: number): void {
   logger.info(`Starting HTTP server on port ${port}`)
 
-  const sessions = new Map<string, Session>()
-
-  const reapInterval = setInterval(() => {
-    reapIdleSessions(sessions)
-  }, REAP_INTERVAL_MS)
-  // Don't keep the process alive just for the reaper.
-  reapInterval.unref()
+  // One handler for the process. It calls `createConfiguredServer` per
+  // exchange and closes the instance afterwards, so the factory — not a
+  // shared instance — is what gets passed in. Leaving `legacy` unset keeps
+  // its default stateless serving, so 2025-era clients are served alongside
+  // 2026-era ones.
+  const mcpHandler = toNodeHandler(
+    createMcpHandler(createConfiguredServer, {
+      onerror: handleMcpHandlerError,
+    }),
+    { onerror: handleMcpAdapterError },
+  )
 
   const httpServer = createServer((req, res) => {
-    void routeRequest(sessions, req, res, port)
+    routeRequest(mcpHandler, req, res, port).catch(
+      createRouteFailureHandler(res),
+    )
   })
 
   httpServer.listen(port, () => {

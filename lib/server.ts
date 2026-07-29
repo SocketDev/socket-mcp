@@ -1,8 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js'
+import { Server } from '@modelcontextprotocol/server'
+import type { ServerContext } from '@modelcontextprotocol/server'
 
 import { getSocketApiUrl } from './env.ts'
 import { defineAlertsTool } from './tool-alerts.ts'
@@ -17,11 +14,21 @@ import { defineThreatFeedTool } from './tool-threat-feed.ts'
 import { withToolLogging } from './tool-logging.ts'
 import type { ToolHandler } from './tool-logging.ts'
 import type {
-  ToolCallResult,
+  ToolAnnotations,
   ToolHandlerExtra,
+  ToolInputSchema,
   ToolSpec,
 } from './tool-types.ts'
 import { VERSION } from './version.ts'
+
+// One entry in the `tools/list` payload — the wire shape clients read.
+export interface ToolListEntry {
+  annotations?: ToolAnnotations | undefined
+  description: string
+  inputSchema: ToolInputSchema
+  name: string
+  title: string
+}
 
 export interface ToolErrorResult {
   [key: string]: unknown
@@ -52,6 +59,12 @@ export const AUTH_REQUIRED_MSG =
 let staticApiKey: string = ''
 let staticApiKeyShared = false
 
+// `tools/list` is a cacheable result on the 2026-07-28 revision: the SDK
+// stamps `ttlMs`/`cacheScope` onto the wire response from this hint. The tool
+// set only changes when a new socket-mcp ships and is identical for every
+// caller, so a one-hour shared-cache lifetime is safe.
+const TOOLS_LIST_CACHE_TTL_MS = 60 * 60 * 1000
+
 // Shared "auth missing" tool result — every tool returns the same shape so
 // clients get a consistent error.
 export function authRequiredResult(): ToolErrorResult {
@@ -61,7 +74,8 @@ export function authRequiredResult(): ToolErrorResult {
 /**
  * Build the canonical set of tool specs. Each tool ships its own
  * `define*Tool()` factory so the data + handler stay co-located; this function
- * just collects them. Order here is the order clients see in `tools/list`.
+ * just collects them and hands each schema through `toPlainSchemaSpec`. Order
+ * here is the order clients see in `tools/list`.
  */
 export function buildToolSpecs(): ToolSpec[] {
   return [
@@ -72,18 +86,21 @@ export function buildToolSpecs(): ToolSpec[] {
     definePackageFilesTool(),
     definePackageFileContentsTool(),
     definePackageFileGrepTool(),
-  ]
+  ].map(toPlainSchemaSpec)
 }
 
 /**
  * Build a configured low-level `Server` instance with every Socket tool
- * registered. Used for stdio (single instance) and HTTP (one per session).
+ * registered. Both serving entries take this as their factory and own the
+ * lifetime of what it returns — `serveStdio` closes its discarded
+ * `server/discover` probe instance and `createMcpHandler` closes the instance
+ * it built after each HTTP exchange — so every call must hand back a fresh
+ * `Server`.
  *
- * Migration note: previously this used the high-level `McpServer`, which bakes
- * zod adapters into `registerTool`. The low-level `Server` accepts raw JSON
- * Schema in `Tool.inputSchema` — which is exactly what TypeBox's
- * `Type.Object({...})` produces. So every tool's input schema flows through the
- * SDK to clients verbatim; no zod, no extra validation layer here.
+ * The low-level `Server` accepts raw JSON Schema in `Tool.inputSchema`, which
+ * is exactly what TypeBox's `Type.Object({...})` produces, and `tools/list`
+ * results are not re-parsed on the way out. So every tool's input schema flows
+ * through the SDK to clients verbatim; no zod, no extra validation layer here.
  */
 export function createConfiguredServer(): Server {
   const specs = buildToolSpecs()
@@ -96,38 +113,37 @@ export function createConfiguredServer(): Server {
 
   const server = new Server(
     { name: 'socket', version: VERSION },
-    { capabilities: { tools: {} } },
+    {
+      capabilities: { tools: {} },
+      cacheHints: {
+        'tools/list': {
+          ttlMs: TOOLS_LIST_CACHE_TTL_MS,
+          cacheScope: 'public',
+        },
+      },
+    },
   )
 
-  server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: specs.map(spec => ({
-      name: spec.name,
-      title: spec.title,
-      description: spec.description,
-      inputSchema: spec.inputSchema,
-      ...(spec.annotations ? { annotations: spec.annotations } : {}),
-    })),
+  server.setRequestHandler('tools/list', () => ({
+    tools: specs.map(toToolListEntry),
   }))
 
-  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  server.setRequestHandler('tools/call', async (request, ctx) => {
     const { name } = request.params
     const handler = handlers.get(name)
     if (!handler) {
-      // The SDK's CallTool spec returns an error result (not an exception)
-      // for an unknown name — clients render it the same way as any other
-      // tool error.
+      // The CallTool spec returns an error result (not an exception) for an
+      // unknown name — clients render it the same way as any other tool error.
       const message = `Unknown tool: ${name}`
       return {
         content: [{ type: 'text', text: message }],
         isError: true,
-      } as ToolCallResult
+      }
     }
     // `request.params.arguments` is optional in the SDK shape; tools that
     // declare empty inputSchemas (e.g. organizations) get undefined here.
-    const args = (request.params.arguments ?? {}) as Record<string, unknown>
-    // extra carries authInfo + transport extras; shape-cast to our local
-    // type so the handler sees a stable signature.
-    return handler(args, extra as unknown as ToolHandlerExtra)
+    const args = request.params.arguments ?? {}
+    return handler(args, toToolHandlerExtra(ctx))
   })
 
   return server
@@ -186,4 +202,52 @@ export function setStaticApiKey(
   }
   staticApiKey = value
   staticApiKeyShared = opts.shared ?? false
+}
+
+/**
+ * Return the spec with its `inputSchema` deep-copied into a plain JSON-Schema
+ * object. TypeBox's `Type.*` constructors hang symbol-keyed metadata —
+ * `Symbol(TypeBox.Kind)`, `Symbol(TypeBox.Optional)` — off every schema node
+ * they build, and a symbol key is not JSON Schema. Serializing transports
+ * (stdio, Streamable HTTP) drop those symbols on the way out, but a transport
+ * that hands objects over by reference passes them straight to the consumer,
+ * where a result validator rejects the payload. Copying here makes a spec
+ * structurally what it claims to be: raw JSON Schema, safe for any consumer.
+ *
+ * The JSON round trip is the copy: every schema node holds only strings,
+ * numbers, booleans, arrays and plain objects — no `undefined` values, no
+ * `Date`/`Map`/`Set` — so the result is byte-identical to what a serializing
+ * transport already writes.
+ */
+export function toPlainSchemaSpec(spec: ToolSpec): ToolSpec {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse widens to any; the value round-trips through the same encoding every shipping transport applies to it.
+  const inputSchema = JSON.parse(
+    JSON.stringify(spec.inputSchema),
+  ) as ToolInputSchema
+  return { ...spec, inputSchema }
+}
+
+// Adapt the SDK's per-request handler context to the local `ToolHandlerExtra`
+// shape the tool modules read. `ctx.http` is only populated on an HTTP
+// transport, so stdio callers get an empty extra and fall back to the
+// boot-time static key inside the tool body.
+export function toToolHandlerExtra(ctx: ServerContext): ToolHandlerExtra {
+  const authInfo = ctx.http?.authInfo
+  return authInfo ? { authInfo } : {}
+}
+
+/**
+ * Render one spec as its `tools/list` entry. `annotations` is optional on
+ * `ToolSpec`, so a tool that declares none is published without the key rather
+ * than with an empty object — clients treat a present-but-empty `annotations`
+ * as a set of explicit hints.
+ */
+export function toToolListEntry(spec: ToolSpec): ToolListEntry {
+  return {
+    name: spec.name,
+    title: spec.title,
+    description: spec.description,
+    inputSchema: spec.inputSchema,
+    ...(spec.annotations ? { annotations: spec.annotations } : {}),
+  }
 }

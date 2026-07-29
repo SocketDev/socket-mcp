@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs'
 import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 
 const MCP_URL = 'https://mcp.socket.dev/'
 const SUPPLY_CHAIN_THRESHOLD = 20
@@ -131,6 +131,7 @@ export async function checkPackage(
     throw new Error(`Socket MCP depscore returned ${callRes.status}`)
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
   const payload = (await callRes.json()) as {
     result?:
       | {
@@ -189,7 +190,7 @@ export function outputAllow(): void {
       permissionDecision: 'allow',
     },
   })
-  process.stdout.write(payload) // socket-lint: allow (process-stdio: stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection)
+  process.stdout.write(payload) // socket-lint: allow process-stdio -- stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection
 }
 
 export function outputDeny(reason: string): void {
@@ -200,7 +201,7 @@ export function outputDeny(reason: string): void {
       permissionDecisionReason: reason,
     },
   })
-  process.stdout.write(payload) // socket-lint: allow (process-stdio: stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection)
+  process.stdout.write(payload) // socket-lint: allow process-stdio -- stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection
 }
 
 export function parseSupplyChainScore(text: string): number | undefined {
@@ -210,12 +211,32 @@ export function parseSupplyChainScore(text: string): number | undefined {
   return match ? Number(match[1]) : undefined
 }
 
+// Read the hook event JSON off a file descriptor. An unreadable descriptor
+// reads as an empty event, which the caller answers with an allow.
+export function readHookEvent(fd: number): string {
+  try {
+    return readFileSync(fd, 'utf-8')
+  } catch {
+    return ''
+  }
+}
+
+// Run one hook event to completion, failing OPEN on anything `main` lets
+// escape — a malformed event that is valid JSON but not an object, a stdout
+// write error. An install is never blocked by a bug in the gate.
+export function runHook(fd: number, fetchImpl: typeof fetch): Promise<void> {
+  return main(fd, fetchImpl).catch(() => {
+    outputAllow()
+  })
+}
+
 export function stripVersion(pkg: string, ecosystem: Ecosystem): string {
   switch (ecosystem) {
     case 'npm':
       return pkg.replace(/@[\d^~].*/u, '').replace(/@latest$/u, '')
     case 'pypi':
-      return pkg.split(/[=<>!~[]/)[0] ?? pkg
+      // A split always yields a first element, even for an empty input.
+      return pkg.split(/[=<>!~[]/)[0]!
     case 'cargo':
     case 'golang':
     case 'nuget':
@@ -225,14 +246,14 @@ export function stripVersion(pkg: string, ecosystem: Ecosystem): string {
   }
 }
 
-async function main(): Promise<void> {
-  let raw: string
-  try {
-    raw = readFileSync(0, 'utf-8')
-  } catch {
-    outputAllow()
-    return
-  }
+/**
+ * Answer one hook event: read it off `fd`, decide, and write the permission
+ * decision to stdout. `fd` is 0 in production — the descriptor is a parameter
+ * so a test can hand over a file instead of the process stdin — and
+ * `fetchImpl` is the global `fetch` in production.
+ */
+export async function main(fd: number, fetchImpl: typeof fetch): Promise<void> {
+  const raw = readHookEvent(fd)
 
   if (!raw.trim()) {
     outputAllow()
@@ -252,10 +273,11 @@ async function main(): Promise<void> {
     return
   }
 
-  const command =
+  const rawCommand =
     typeof input.tool_input === 'string'
       ? input.tool_input
-      : (input.tool_input?.['command'] as string) || ''
+      : input.tool_input?.['command']
+  const command = typeof rawCommand === 'string' ? rawCommand : ''
 
   if (!command) {
     outputAllow()
@@ -269,7 +291,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    const result = await checkPackage(target.ecosystem, target.name)
+    const result = await checkPackage(target.ecosystem, target.name, fetchImpl)
     if (result.decision === 'deny') {
       outputDeny(result.reason)
     } else {
@@ -281,7 +303,7 @@ async function main(): Promise<void> {
     // not a hard gate — see the file header). Surface the error on stderr so
     // the failure is observable; stdout stays the allow/deny IPC channel.
     const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
-    process.stderr.write(errLine) // socket-lint: allow (process-stdio: stderr feedback for the harness; raw write keeps the bundled hook free of logger indirection)
+    process.stderr.write(errLine) // socket-lint: allow process-stdio -- stderr feedback for the harness; raw write keeps the bundled hook free of logger indirection
     outputAllow()
   }
 }
@@ -290,7 +312,6 @@ const isMainModule =
   argv[1] !== undefined && fileURLToPath(import.meta.url) === argv[1]
 
 if (isMainModule) {
-  main().catch(() => {
-    outputAllow()
-  })
+  // fd 0 is the hook event Claude Code pipes in on stdin.
+  void runHook(0, fetch)
 }

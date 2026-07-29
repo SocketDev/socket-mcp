@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox'
 
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
@@ -36,17 +36,21 @@ const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
 const depscoreInputSchema = Type.Object({
   packages: Type.Array(
     Type.Object({
-      ecosystem: Type.String({
-        description:
-          'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP; "packagist" also accepted). See https://docs.socket.dev/docs/language-support',
-        default: 'npm',
-      }),
+      ecosystem: Type.Optional(
+        Type.String({
+          description:
+            'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP; "packagist" also accepted). See https://docs.socket.dev/docs/language-support',
+          default: 'npm',
+        }),
+      ),
       depname: Type.String({ description: 'The name of the dependency' }),
-      version: Type.String({
-        description:
-          "The version of the dependency, use 'unknown' if not known",
-        default: 'unknown',
-      }),
+      version: Type.Optional(
+        Type.String({
+          description:
+            "The version of the dependency, use 'unknown' if not known",
+          default: 'unknown',
+        }),
+      ),
     }),
     { description: 'Array of packages to check' },
   ),
@@ -88,7 +92,9 @@ export function defineDepscoreTool(): ToolSpec {
     inputSchema: depscoreInputSchema,
     annotations: { readOnlyHint: true },
     handler(args, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const packages = args['packages'] as DepscorePackageInput[]
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const platform = args['platform'] as string | undefined
       return handleDepscore(packages, platform, extra.authInfo?.token)
     },
@@ -105,8 +111,9 @@ export function formatScoreEntries(score: Record<string, unknown>): string {
       const numValue = Number(value)
       if (!Number.isFinite(numValue)) {
         // A non-numeric score field would render the literal "NaN";
-        // pass the raw value through instead.
-        return `${key}: ${value}`
+        // pass the raw value through instead (JSON-encoded when non-string
+        // so objects can't collapse to "[object Object]").
+        return `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
       }
       const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
       return `${key}: ${displayValue}`
@@ -118,8 +125,19 @@ export function formatScoreEntries(score: Record<string, unknown>): string {
 // depscore output. `score.overall` being defined gates whether we have real
 // scores to render.
 export function formatScoreLine(jsonData: Record<string, unknown>): string {
-  const ns = jsonData['namespace'] ? `${jsonData['namespace']}/` : ''
-  const purl = `pkg:${jsonData['type'] || 'unknown'}/${ns}${jsonData['name'] || 'unknown'}@${jsonData['version'] || 'unknown'}`
+  // The API returns these purl parts as strings; anything else falls back so
+  // the template can't stringify an object into "[object Object]".
+  const nsRaw = jsonData['namespace']
+  const ns = typeof nsRaw === 'string' && nsRaw ? `${nsRaw}/` : ''
+  const typeRaw = jsonData['type']
+  const type = typeof typeRaw === 'string' && typeRaw ? typeRaw : 'unknown'
+  const nameRaw = jsonData['name']
+  const name = typeof nameRaw === 'string' && nameRaw ? nameRaw : 'unknown'
+  const versionRaw = jsonData['version']
+  const version =
+    typeof versionRaw === 'string' && versionRaw ? versionRaw : 'unknown'
+  const purl = `pkg:${type}/${ns}${name}@${version}`
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
   const score = jsonData['score'] as Record<string, unknown> | undefined
   if (score && score['overall'] !== undefined) {
     const reportUrl = buildSocketReportUrl(jsonData)
@@ -181,10 +199,7 @@ export async function handleDepscore(
   }
 
   try {
-    const contentType = response.headers['content-type']
-    const contentTypeValue = Array.isArray(contentType)
-      ? contentType.join(',')
-      : contentType || ''
+    const contentTypeValue = response.headers['content-type'] || ''
     const isNdjson = contentTypeValue.includes('x-ndjson')
 
     const parseResult = isNdjson
@@ -195,14 +210,14 @@ export async function handleDepscore(
       return errorResult(parseResult.error)
     }
 
+    // Both parsers yield at least one line for a body that reached here:
+    // the NDJSON parser returns an error object when no document parsed, and
+    // the single-document parser always formats exactly one line.
     return {
       content: [
         {
           type: 'text',
-          text:
-            parseResult.length > 0
-              ? `Dependency scores:\n${parseResult.join('\n')}`
-              : 'No scores found for the provided packages',
+          text: `Dependency scores:\n${parseResult.join('\n')}`,
         },
       ],
     }
@@ -232,6 +247,7 @@ export function parseNdjsonPackageBody(
     }
     let obj: Record<string, unknown>
     try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
       obj = JSON.parse(line) as Record<string, unknown>
     } catch (e) {
       logger.error(
@@ -258,6 +274,7 @@ export function parseNdjsonPackageBody(
 
 // Parse a non-NDJSON response (single JSON document) into one result line.
 export function parseSinglePackageBody(responseText: string): string[] {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
   const jsonData = JSON.parse(responseText) as Record<string, unknown>
   return [formatScoreLine(jsonData)]
 }

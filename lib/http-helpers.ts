@@ -1,7 +1,7 @@
 import readline from 'node:readline'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { getTrustProxy } from './env.ts'
 import { logger } from './logger.ts'
@@ -20,12 +20,15 @@ const PRIVATE_HOST_RE =
   /^(?:0\.0\.0\.0$|10\.|127\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.|\[?::1\]?$|\[?fc00:|\[?fd|\[?fe80:)/iu
 
 /**
- * SSRF guard for operator/issuer-supplied URLs (the OAuth issuer + the
- * introspection endpoint advertised in its metadata). Rejects non-HTTP(S)
- * schemes and hosts that resolve to loopback/private/link-local ranges, so a
- * malicious or MITM'd OAuth server can't pivot the server into internal
- * services (cloud metadata, redis, etc). `allowLocalhost` opens the gate for
- * `localhost`/127.0.0.1 in local-stack development only.
+ * SSRF + transport guard for operator/issuer-supplied URLs (the OAuth issuer +
+ * the introspection endpoint advertised in its metadata). Rejects non-HTTP(S)
+ * schemes, hosts that resolve to loopback/private/link-local ranges, and
+ * cleartext `http:` on a public host — those URLs carry the caller's bearer
+ * token and this server's introspection client secret, so a malicious or
+ * MITM'd OAuth server must not be able to pivot into internal services
+ * (cloud metadata, redis, etc) or read those credentials off the wire.
+ * `allowLocalhost` opens the gate for `localhost`/127.0.0.1, over either
+ * scheme, in local-stack development only.
  */
 export function assertSafeHttpUrl(
   rawUrl: string,
@@ -51,6 +54,11 @@ export function assertSafeHttpUrl(
       `${label} resolves to a private/loopback host and is refused: ${rawUrl}`,
     )
   }
+  if (url.protocol !== 'https:') {
+    throw new Error(
+      `${label} must use https on a public host. Saw ${url.protocol}// in ${rawUrl}, wanted https://. Fix: point it at an https URL, or run the local stack on localhost with SOCKET_DEBUG=true.`,
+    )
+  }
   return url
 }
 
@@ -58,21 +66,21 @@ export function assertSafeHttpUrl(
 // threat-feed, file-list): `accept: application/json` plus optional user-agent,
 // bearer token, and caller extra headers. Shared so the four data modules
 // don't each re-spell the same header-assembly block.
-export function buildJsonApiHeaders(options: {
+export function buildJsonApiHeaders(config: {
   userAgent?: string | undefined
   authToken?: string | undefined
   extraHeaders?: Record<string, string> | undefined
 }): Record<string, string> {
-  options = { __proto__: null, ...options } as typeof options
+  config = { __proto__: null, ...config } as typeof config
   const headers: Record<string, string> = { accept: 'application/json' }
-  if (options.userAgent) {
-    headers['user-agent'] = options.userAgent
+  if (config.userAgent) {
+    headers['user-agent'] = config.userAgent
   }
-  if (options.authToken) {
-    headers['authorization'] = `Bearer ${options.authToken}`
+  if (config.authToken) {
+    headers['authorization'] = `Bearer ${config.authToken}`
   }
-  if (options.extraHeaders) {
-    Object.assign(headers, options.extraHeaders)
+  if (config.extraHeaders) {
+    Object.assign(headers, config.extraHeaders)
   }
   return headers
 }
@@ -81,7 +89,7 @@ export function buildJsonApiHeaders(options: {
 // The Accept header pins NDJSON so the depscore handler can stream rows
 // instead of buffering a full JSON document.
 export function buildSocketHeaders(
-  accessToken?: string,
+  accessToken?: string | undefined,
 ): Record<string, string> {
   return {
     'user-agent': `socket-mcp/${VERSION}`,
@@ -151,6 +159,7 @@ export function getRequestBaseUrl(
     forwardedHost ||
     getRequestHeaderValue(req.headers.host).trim() ||
     `localhost:${fallbackPort}`
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node's TLSSocket adds `encrypted`; probing it through a structural cast is the standard HTTPS detection.
   const socketWithTls = req.socket as { encrypted?: boolean | undefined }
   const protocol =
     forwardedProto === 'http' || forwardedProto === 'https'
@@ -188,6 +197,7 @@ export function parseJsonObject(
       throw new Error('expected a JSON object')
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
     return parsed as Record<string, unknown>
   } catch (error) {
     throw new Error(`${context} returned invalid JSON: ${errorMessage(error)}`)
@@ -212,17 +222,26 @@ export function writeJson(
 
 // RFC 6750 §3 OAuth error responses: the JSON body carries
 // error / error_description and the WWW-Authenticate header signals the
-// realm + optional resource_metadata URL for discovery.
+// realm, the optional resource_metadata URL for discovery, and the optional
+// `scope` parameter. `scope` is a space-delimited list of the scopes the
+// resource requires; on an `insufficient_scope` 403 it is what tells the
+// client which scopes to ask for in a step-up authorization request.
 export function writeOAuthError(
   res: ServerResponse,
   statusCode: number,
   errorCode: string,
   message: string,
-  resourceMetadataUrl?: string,
+  resourceMetadataUrl?: string | undefined,
+  scope?: string | undefined,
 ): void {
-  const authenticateValue = resourceMetadataUrl
-    ? `Bearer error="${errorCode}", error_description="${message}", resource_metadata="${resourceMetadataUrl}"`
-    : `Bearer error="${errorCode}", error_description="${message}"`
+  const parts = [`error="${errorCode}"`, `error_description="${message}"`]
+  if (resourceMetadataUrl) {
+    parts.push(`resource_metadata="${resourceMetadataUrl}"`)
+  }
+  if (scope) {
+    parts.push(`scope="${scope}"`)
+  }
+  const authenticateValue = `Bearer ${parts.join(', ')}`
 
   writeJson(
     res,

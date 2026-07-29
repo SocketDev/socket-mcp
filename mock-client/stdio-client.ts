@@ -1,26 +1,35 @@
-#!/usr/bin/env node --experimental-strip-types
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+#!/usr/bin/env node
 import path from 'node:path'
+import process from 'node:process'
+
+import { Client } from '@modelcontextprotocol/client'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 const logger = getDefaultLogger()
 
-async function main() {
+// StdioClientTransport otherwise passes only its own safe-to-inherit
+// allowlist, which drops SOCKET_API_TOKEN. Hand it the full environment so the
+// spawned server resolves the token the same way `pnpm run server-stdio` does.
+export function buildServerEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      env[key] = value
+    }
+  }
+  return env
+}
+
+async function main(): Promise<void> {
   const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
   logger.log(`Using server script: ${serverPath}`)
 
   const transport = new StdioClientTransport({
     command: 'node',
-    args: ['--experimental-strip-types', serverPath],
-
-    env: {
-      ...(Object.fromEntries(
-        Object.entries(process.env).filter(([, value]) => value !== undefined),
-      ) as Record<string, string>),
-      // socket-api-token-getter: allow direct-env — mock client passes through to the spawned server's env.
-      SOCKET_API_KEY: process.env['SOCKET_API_TOKEN'] || '',
-    },
+    args: [serverPath],
+    env: buildServerEnv(),
+    stderr: 'inherit',
   })
 
   const client = new Client(
@@ -30,12 +39,20 @@ async function main() {
     },
     {
       capabilities: {},
+      // Probe `server/discover` at connect and negotiate the 2026-07-28 era.
+      // A server that only speaks the 2025 protocol makes the client fall
+      // back to the plain `initialize` handshake on its own.
+      versionNegotiation: { mode: 'auto' },
     },
   )
 
   try {
     await client.connect(transport)
     logger.info('Connected to MCP server')
+    logger.info(`Protocol era: ${client.getProtocolEra() ?? 'unknown'}`)
+    logger.info(
+      `Negotiated protocol version: ${client.getNegotiatedProtocolVersion() ?? 'unknown'}`,
+    )
 
     // List available tools
     const tools = await client.listTools()

@@ -1,7 +1,7 @@
 /**
  * @file Mcp-local env getters. Functions that `lib/*.ts` previously imported
  *   from `@socketsecurity/lib/env/socket`, but which aren't exported by
- *   `lib@5.28.0` (the version pinned in the catalog). The functions fall into
+ *   the catalog-pinned `lib@5.28.0`. The functions fall into
  *   two groups:
  *
  *   1. mcp-specific (MCP_HTTP_MODE, MCP_PORT, TRUST_PROXY) — these will never live
@@ -127,6 +127,14 @@ export function getSocketOauthIntrospectionClientSecret(): string | undefined {
 
 export function getSocketOauthIssuer(): string | undefined {
   return envString('SOCKET_OAUTH_ISSUER')
+}
+
+// Turns on strict RFC 8707 audience enforcement: an introspection response
+// with no `aud` claim is rejected. Off by default, because an authorization
+// server that omits `aud` would otherwise fail every request. An `aud` that
+// IS present and names a different resource is always rejected, flag or not.
+export function getSocketOauthRequireAudience(): boolean {
+  return envBool('SOCKET_OAUTH_REQUIRE_AUDIENCE')
 }
 
 export function getSocketOauthRequiredScopes(): string[] {

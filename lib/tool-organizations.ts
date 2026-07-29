@@ -1,6 +1,6 @@
 import { Type } from '@sinclair/typebox'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { logger } from './logger.ts'
 import { fetchOrganizations } from './organizations.ts'

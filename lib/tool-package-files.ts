@@ -1,6 +1,6 @@
 import { Type } from '@sinclair/typebox'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { getOrFetchBlob } from './blob-cache.ts'
 import { getSocketInternalUserAgent } from './env.ts'
@@ -40,11 +40,13 @@ export interface PackageFileGrepArgs {
 }
 
 const packageFilesInputSchema = Type.Object({
-  ecosystem: Type.String({
-    description:
-      'Package ecosystem (e.g., npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx)',
-    default: 'npm',
-  }),
+  ecosystem: Type.Optional(
+    Type.String({
+      description:
+        'Package ecosystem (e.g., npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx)',
+      default: 'npm',
+    }),
+  ),
   depname: Type.String({
     description:
       'Package name (e.g., "lodash", "@babel/core", "org.springframework:spring-core", "meta/pyrefly" for openvsx)',
@@ -119,8 +121,8 @@ export function buildPurlForFiles(
   ecosystem: string,
   depname: string,
   version: string,
-  artifactId?: string,
-  platform?: string,
+  artifactId?: string | undefined,
+  platform?: string | undefined,
 ): string {
   const qualifiers: Record<string, string> = {}
   if (artifactId) {
@@ -146,6 +148,7 @@ export function definePackageFileContentsTool(): ToolSpec {
     inputSchema: packageFileContentsInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFileContentsArgs
       const { hash, path } = args
       const label = path ?? hash
@@ -195,6 +198,7 @@ export function definePackageFileGrepTool(): ToolSpec {
     inputSchema: packageFileGrepInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFileGrepArgs
       const { hash, pattern, caseInsensitive, contextLines, maxMatches, path } =
         args
@@ -306,10 +310,11 @@ export function definePackageFilesTool(): ToolSpec {
     name: 'package_files',
     title: 'Package File List Tool',
     description:
-      "List the files published in a package using the `package_files` tool from Socket. Returns a tree of paths and sizes for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, use `package_file_contents` with one of the paths to read the file's contents.",
+      "List the files published in a package using the `package_files` tool from Socket. Returns a tree of file paths, each with its size and blob hash, for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, pass a file's `hash` to `package_file_contents` to read that file, or to `package_file_grep` to search it for a pattern.",
     inputSchema: packageFilesInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFilesArgs
       const { ecosystem, depname, version, artifactId, platform } = args
       const purlWithQualifiers = buildPurlForFiles(

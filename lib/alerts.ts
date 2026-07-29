@@ -23,7 +23,7 @@ export interface AlertsFilters {
   cursor?: string | undefined
 }
 
-export interface FetchAlertsOptions {
+export interface FetchAlertsConfig {
   baseUrl: string
   orgSlug: string
   filters?: AlertsFilters | undefined
@@ -39,7 +39,7 @@ export interface FetchAlertsOptions {
  */
 export function buildAlertsQuery(
   filters: AlertsFilters | undefined,
-  perPageFallback?: number,
+  perPageFallback?: number | undefined,
 ): URLSearchParams {
   const params = new URLSearchParams()
   const f = filters ?? {}
@@ -78,17 +78,15 @@ export function buildAlertsQuery(
  * Fetch the latest alerts for an organization from `GET
  * /v0/orgs/{org_slug}/alerts`. Returns the parsed JSON body untouched.
  */
-export async function fetchAlerts(
-  options: FetchAlertsOptions,
-): Promise<unknown> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = options.baseUrl.replace(/\/$/u, '')
-  const qs = buildAlertsQuery(options.filters).toString()
-  const url = `${baseUrl}/v0/orgs/${encodeURIComponent(options.orgSlug)}/alerts${qs ? `?${qs}` : ''}`
+export async function fetchAlerts(config: FetchAlertsConfig): Promise<unknown> {
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = config.baseUrl.replace(/\/$/u, '')
+  const qs = buildAlertsQuery(config.filters).toString()
+  const url = `${baseUrl}/v0/orgs/${encodeURIComponent(config.orgSlug)}/alerts${qs ? `?${qs}` : ''}`
 
-  const res = await httpRequest(url, { headers: buildJsonApiHeaders(options) })
+  const res = await httpRequest(url, { headers: buildJsonApiHeaders(config) })
   if (!res.ok) {
     throw new Error(`alerts endpoint ${res.status}: ${res.text()}`)
   }
-  return res.json<unknown>()
+  return res.json()
 }

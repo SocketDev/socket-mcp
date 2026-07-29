@@ -1,6 +1,6 @@
 import { Type } from '@sinclair/typebox'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { fetchAlerts } from './alerts.ts'
 import { logger } from './logger.ts'
@@ -90,6 +90,7 @@ export function defineAlertsTool(): ToolSpec {
     inputSchema: alertsInputSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as AlertsArgs
       logger.info(
         {

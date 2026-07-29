@@ -1,144 +1,90 @@
-#!/usr/bin/env node --experimental-strip-types
+#!/usr/bin/env node
 import path from 'node:path'
-import { httpRequest } from '@socketsecurity/lib/http-request/request'
-import type { HttpResponse } from '@socketsecurity/lib/http-request/response-types'
+import process from 'node:process'
+
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from '@modelcontextprotocol/client'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 const logger = getDefaultLogger()
 
-// Helper function to parse SSE or JSON response
-export function parseResponse(response: HttpResponse): unknown {
-  const contentType = response.headers['content-type']
-  const text = response.text()
-
-  if (
-    typeof contentType === 'string' &&
-    contentType.includes('text/event-stream')
-  ) {
-    // Parse SSE format: "event: message\ndata: {json}\n"
-    const dataMatch = text.match(/data: (.+)/)
-    if (dataMatch) {
-      return JSON.parse(dataMatch[1]!)
-    }
-    return undefined
-  }
-  return JSON.parse(text)
-}
-
-// Simple HTTP client for testing MCP server in HTTP mode
-export async function testHTTPMode() {
+// Exercises the Socket MCP server in HTTP mode over Streamable HTTP. No
+// session id is supplied, so the connection stays stateless.
+export async function testHTTPMode(): Promise<void> {
+  // Remove the trailing slash so the URL matches the server's `/` route.
   const baseUrl = (process.env['MCP_URL'] || 'http://localhost:3000').replace(
     /\/$/,
     '',
-  ) // Remove trailing slash
+  )
 
   logger.log('Testing Socket MCP in HTTP mode…')
   logger.info(`Server URL: ${baseUrl}`)
 
-  try {
-    // 1. Initialize connection (stateless)
-    logger.error('')
-    logger.info('1. Initializing connection…')
-    const initRequest = {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '0.1.0',
-        capabilities: {},
-        clientInfo: {
-          name: 'http-debug-client',
-          version: '1.0.0',
-        },
-      },
-    }
-
-    const initResponse = await httpRequest(`${baseUrl}/`, {
-      method: 'POST',
+  const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/`), {
+    requestInit: {
       headers: {
-        'Content-Type': 'application/json',
-        // SDK requires Accept to include both types even if server returns JSON
-        Accept: 'application/json, text/event-stream',
         'User-Agent': 'socket-mcp-debug-client/1.0.0',
       },
-      body: JSON.stringify(initRequest),
-    })
+    },
+  })
 
-    const initResult = parseResponse(initResponse)
-    logger.info('Initialize response:', JSON.stringify(initResult, null, 2))
+  const client = new Client(
+    {
+      name: 'http-debug-client',
+      version: '1.0.0',
+    },
+    {
+      capabilities: {},
+      // Probe `server/discover` at connect and negotiate the 2026-07-28 era.
+      // A server that only speaks the 2025 protocol makes the client fall
+      // back to the plain `initialize` handshake on its own.
+      versionNegotiation: { mode: 'auto' },
+    },
+  )
 
+  try {
+    // 1. Connect (stateless — no session id)
+    logger.error('')
+    logger.info('1. Initializing connection…')
+    await client.connect(transport)
+    logger.info(`Protocol era: ${client.getProtocolEra() ?? 'unknown'}`)
+    logger.info(
+      `Negotiated protocol version: ${client.getNegotiatedProtocolVersion() ?? 'unknown'}`,
+    )
     logger.info('Initialized (stateless)')
 
     // 2. List tools
     logger.error('')
     logger.info('2. Listing available tools…')
-    const toolsRequest = {
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/list',
-      params: {},
-    }
-
-    const toolsResponse = await httpRequest(`${baseUrl}/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify(toolsRequest),
-    })
-
-    const toolsResult = parseResponse(toolsResponse) as {
-      result?:
-        | { tools?: Array<{ name?: string | undefined }> | undefined }
-        | undefined
-    }
+    const toolsResult = await client.listTools()
     logger.info('Available tools:', JSON.stringify(toolsResult, null, 2))
-    // Assert that the 'depscore' tool exists in the toolsResult
-    if (
-      !toolsResult ||
-      !toolsResult.result ||
-      !Array.isArray(toolsResult.result.tools) ||
-      !toolsResult.result.tools.some(tool => tool.name === 'depscore')
-    ) {
+    if (!toolsResult.tools.some(tool => tool.name === 'depscore')) {
       throw new Error('depscore tool not found in available tools')
     }
 
     // 3. Call depscore
     logger.error('')
     logger.info('3. Calling depscore tool…')
-    const depscoreRequest = {
-      jsonrpc: '2.0',
-      id: 3,
-      method: 'tools/call',
-      params: {
-        name: 'depscore',
-        arguments: {
-          packages: [
-            { depname: 'express', ecosystem: 'npm', version: '4.18.2' },
-            { depname: 'fastapi', ecosystem: 'pypi', version: '0.100.0' },
-            { depname: 'react', ecosystem: 'npm', version: '18.2.0' },
-          ],
-        },
+    const depscoreResult = await client.callTool({
+      name: 'depscore',
+      arguments: {
+        packages: [
+          { depname: 'express', ecosystem: 'npm', version: '4.18.2' },
+          { depname: 'fastapi', ecosystem: 'pypi', version: '0.100.0' },
+          { depname: 'react', ecosystem: 'npm', version: '18.2.0' },
+        ],
       },
-    }
-
-    const depscoreResponse = await httpRequest(`${baseUrl}/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify(depscoreRequest),
     })
-
-    const depscoreResult = parseResponse(depscoreResponse)
     logger.info('Depscore result:', JSON.stringify(depscoreResult, null, 2))
 
     logger.error('')
     logger.info('4. HTTP mode test complete (no sessions)')
   } catch (error) {
     logger.error('Error:', error)
+  } finally {
+    await client.close()
   }
 }
 
@@ -151,16 +97,16 @@ Socket MCP HTTP Client Debugger
 
 Usage:
   # Start the MCP server in HTTP mode first:
-  MCP_HTTP_MODE=true SOCKET_API_KEY=your-api-key node --experimental-strip-types ${serverScript}
+  MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token node ${serverScript}
 
   # Then run this client:
-  node --experimental-strip-types ./mock-client/http-client.ts
+  node ./mock-client/http-client.ts
 
 Environment variables:
   MCP_URL - Server URL (default: http://localhost:3000)
 
 Example:
-  MCP_URL=http://localhost:8080 node --experimental-strip-types ./mock-client/http-client.ts
+  MCP_URL=http://localhost:8080 node ./mock-client/http-client.ts
 `)
   process.exit(0)
 }

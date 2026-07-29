@@ -1,11 +1,29 @@
 import { SocketSdk } from '@socketsecurity/sdk'
 
-export interface FetchOrganizationsOptions {
+export interface FetchOrganizationsConfig {
   baseUrl: string
   userAgent?: string | undefined
   // Socket access token. The SDK sends it as HTTP Basic auth (token as the
   // username, empty password).
   authToken?: string | undefined
+}
+
+// The failure fields the SDK reports on a non-2xx `listOrganizations()`.
+export interface OrganizationsFailure {
+  cause?: string | undefined
+  error: string
+  status: number
+}
+
+// Render an SDK failure into the message `fetchOrganizations` throws. The SDK
+// reports `cause` only for some failures, so it is appended in parentheses
+// when present and omitted otherwise.
+export function buildOrganizationsErrorMessage(
+  failure: OrganizationsFailure,
+): string {
+  return `organizations endpoint ${failure.status}: ${failure.error}${
+    failure.cause ? ` (${failure.cause})` : ''
+  }`
 }
 
 /**
@@ -18,22 +36,18 @@ export interface FetchOrganizationsOptions {
  * `baseUrl` (the bare API origin) gets `/v0/` appended.
  */
 export async function fetchOrganizations(
-  options: FetchOrganizationsOptions,
+  config: FetchOrganizationsConfig,
 ): Promise<unknown> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = `${options.baseUrl.replace(/\/$/u, '')}/v0/`
-  const sdk = new SocketSdk(options.authToken ?? '', {
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = `${config.baseUrl.replace(/\/$/u, '')}/v0/`
+  const sdk = new SocketSdk(config.authToken ?? '', {
     baseUrl,
-    ...(options.userAgent ? { userAgent: options.userAgent } : {}),
+    ...(config.userAgent ? { userAgent: config.userAgent } : {}),
   })
 
   const result = await sdk.listOrganizations()
   if (!result.success) {
-    throw new Error(
-      `organizations endpoint ${result.status}: ${result.error}${
-        result.cause ? ` (${result.cause})` : ''
-      }`,
-    )
+    throw new Error(buildOrganizationsErrorMessage(result))
   }
   return result.data
 }

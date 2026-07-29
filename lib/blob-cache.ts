@@ -41,15 +41,12 @@ export function blobWeight(blob: BlobResult): number {
 
 export function evict(): void {
   while (cacheBytes > BLOB_CACHE_MAX_BYTES && cache.size > 0) {
-    const oldest = cache.keys().next().value
-    if (oldest === undefined) {
-      break
-    }
-    const victim = cache.get(oldest)
+    // `cache.size > 0` guarantees a first key, and a key read out of
+    // `cache.keys()` always resolves through `cache.get`.
+    const oldest = cache.keys().next().value!
+    const victim = cache.get(oldest)!
     cache.delete(oldest)
-    if (victim) {
-      cacheBytes = Math.max(0, cacheBytes - blobWeight(victim))
-    }
+    cacheBytes = Math.max(0, cacheBytes - blobWeight(victim))
     debug(
       { hash: oldest, cacheBytes, cacheSize: cache.size },
       'blob cache evict',

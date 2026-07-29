@@ -14,7 +14,7 @@ export function buildPurl(
   ecosystem: string,
   depname: string,
   version: string,
-  qualifiers?: Record<string, string>,
+  qualifiers?: Record<string, string> | undefined,
 ): string {
   // `packagist` is the registry name people reach for; the canonical PURL type
   // is `composer`. Alias it so the composer namespace split + lookup apply.

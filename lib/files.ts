@@ -1,4 +1,6 @@
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
+import { normalizePath } from '@socketsecurity/lib/paths/normalize'
 
 import { buildJsonApiHeaders } from './http-helpers.ts'
 
@@ -6,7 +8,7 @@ export function buildTree(entries: FileListEntry[]): TreeNode {
   const root: TreeNode = { name: '', isFile: false, children: new Map() }
   for (let e = 0, { length } = entries; e < length; e += 1) {
     const entry = entries[e]!
-    const parts = entry.path.split('/').filter(Boolean)
+    const parts = normalizePath(entry.path).split('/').filter(Boolean)
     if (!parts.length) {
       continue
     }
@@ -49,7 +51,7 @@ export interface FileListResult {
   tree: string
 }
 
-export interface FetchFileListOptions {
+export interface FetchFileListConfig {
   baseUrl: string
   includeHashes?: boolean | undefined
   userAgent?: string | undefined
@@ -62,9 +64,13 @@ export interface FetchFileListOptions {
 }
 
 export interface RawFileEntry {
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   path?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   type?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   size?: unknown | undefined
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   hash?: unknown | undefined
 }
 
@@ -117,21 +123,19 @@ export function extractFileList(
  */
 export async function fetchFileList(
   purlStr: string,
-  options: FetchFileListOptions,
+  config: FetchFileListConfig,
 ): Promise<FileListResult> {
-  options = { __proto__: null, ...options } as typeof options
-  const baseUrl = options.baseUrl.replace(/\/$/u, '')
+  config = { __proto__: null, ...config } as typeof config
+  const baseUrl = config.baseUrl.replace(/\/$/u, '')
   const url = `${baseUrl}/v0/purl/file-list/${encodeURIComponent(purlStr)}`
 
-  const headers = buildJsonApiHeaders(options)
-  options.onRequest?.(url)
+  const headers = buildJsonApiHeaders(config)
+  config.onRequest?.(url)
   let res
   try {
     res = await httpRequest(url, { headers })
   } catch (e) {
-    throw new Error(
-      `file-list request to ${url} failed: ${(e as Error).message}`,
-    )
+    throw new Error(`file-list request to ${url} failed: ${errorMessage(e)}`)
   }
   if (!res.ok) {
     throw new Error(
@@ -140,7 +144,7 @@ export async function fetchFileList(
   }
 
   const data = res.json<RawFileListResponse>()
-  const includeHashes = options.includeHashes === true
+  const includeHashes = config.includeHashes === true
   const files = extractFileList(
     data,
     includeHashes ? { includeHashes: true } : {},
@@ -213,7 +217,9 @@ export function renderTree(
         line += '/'
       }
       lines.push(line)
-      if (!kid.isFile && kid.children.size > 0) {
+      // A degenerate listing can name a path as both a file and a parent
+      // (e.g. `a` and `a/b`); still walk the children so no leaf is dropped.
+      if (kid.children.size > 0) {
         walk(kid, prefix + cont)
       }
     }
