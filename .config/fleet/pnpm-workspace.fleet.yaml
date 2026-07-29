@@ -70,7 +70,7 @@ catalog:
   # stabilized 15.x when it ships.
   'nock': 14.0.16
   'npm-run-all2': 9.0.2
-  'oxfmt': 0.59.0
+  'oxfmt': 0.60.0
   'oxlint': 1.75.0
   # oxlint-tsgolint — tsgolint sidecar for oxlint --type-aware (same oxc release train).
   'oxlint-tsgolint': 7.0.2001

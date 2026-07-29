@@ -1216,6 +1216,12 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
+  .claude/hooks/fleet/memory-enforcement-stamp-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
   .claude/hooks/fleet/minimum-release-age-guard:
     dependencies:
       '@socketsecurity/lib-stable':
@@ -1536,6 +1542,16 @@ importers:
         version: 26.1.1
 
   .claude/hooks/fleet/no-private-ref-in-tests-docs-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@6.5.0(typescript@7.0.2)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
+  .claude/hooks/fleet/no-private-repo-leak-guard:
     dependencies:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
@@ -2099,7 +2115,7 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
-  .claude/hooks/fleet/rg-replace-flag-nudge:
+  .claude/hooks/fleet/rg-replace-flag-guard:
     devDependencies:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
@@ -2375,6 +2391,12 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
+  .claude/hooks/fleet/use-repo-test-script-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
   .claude/hooks/fleet/uses-sha-verify-guard:
     dependencies:
       '@socketsecurity/lib-stable':
@@ -2625,8 +2647,6 @@ importers:
 
   .config/fleet/oxlint-plugin/fleet/prefer-node-builtin-imports: {}
 
-  .config/fleet/oxlint-plugin/fleet/prefer-node-modules-dot-cache: {}
-
   .config/fleet/oxlint-plugin/fleet/prefer-non-capturing-group: {}
 
   .config/fleet/oxlint-plugin/fleet/prefer-normalize-path: {}
@@ -2634,6 +2654,8 @@ importers:
   .config/fleet/oxlint-plugin/fleet/prefer-optional-chain: {}
 
   .config/fleet/oxlint-plugin/fleet/prefer-pure-call-form: {}
+
+  .config/fleet/oxlint-plugin/fleet/prefer-repo-root-dot-cache: {}
 
   .config/fleet/oxlint-plugin/fleet/prefer-safe-delete: {}
 
