@@ -22,18 +22,12 @@
 // Bypass: `Allow immutable-release-pattern bypass` typed verbatim in a
 // recent user turn.
 
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow immutable-release-pattern bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { resolveEditedText } from '../_shared/payload.mts'
 
 // Match a `gh release create` invocation up to the next newline that isn't
 // continued by a backslash. The capture is the full call (incl. continued
@@ -71,15 +65,9 @@ export function callIsDraft(call: string): boolean {
 }
 
 export function isWorkflowYaml(filePath: string): boolean {
-  return /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/.test(filePath)
-}
-
-export function readFileSafe(p: string): string {
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
+  return /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/.test(
+    normalizePath(filePath),
+  )
 }
 
 // Return the first offending (non-draft) `gh release create` call, or
@@ -93,40 +81,23 @@ export function findUnsafeCall(text: string): string | undefined {
   return undefined
 }
 
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// content extraction (new_string / content), and fail-open on any throw.
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, _content, payload) => {
   if (!isWorkflowYaml(filePath)) {
-    return
+    return undefined
   }
 
-  let afterText: string
-  if (payload.tool_name === 'Write') {
-    afterText = content ?? ''
-  } else {
-    const currentText = readFileSafe(filePath)
-    const oldStr = (payload.tool_input?.old_string as string | undefined) ?? ''
-    const newStr = content ?? ''
-    if (!oldStr || !currentText.includes(oldStr)) {
-      return
-    }
-    afterText = currentText.replace(oldStr, newStr)
+  const afterText = resolveEditedText(payload)
+  if (afterText === undefined) {
+    return undefined
   }
 
   const unsafe = findUnsafeCall(afterText)
   if (!unsafe) {
-    return
-  }
-
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return
+    return undefined
   }
 
   const preview = unsafe.replace(/\s+/g, ' ').slice(0, 90)
-  logger.error(
+  return block(
     [
       '[immutable-release-guard] Blocked: single-call `gh release create` in workflow YAML',
       '',
@@ -150,9 +121,16 @@ await withEditGuard((filePath, content, payload) => {
       '',
       '  Detail: docs/agents.md/fleet/immutable-releases.md',
       '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['immutable-release-pattern'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

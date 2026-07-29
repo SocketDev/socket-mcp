@@ -7,6 +7,14 @@
 // suspicion window for typosquats / postinstall-script malware / etc.
 // Adding to the exclude list bypasses that protection.
 //
+// Socket-owned scopes are EXEMPT: `@socketregistry/*` and `@socketsecurity/*`
+// are first-party packages Socket itself publishes, blanket-excluded from the
+// soak in `.npmrc` (`min-release-age-exclude[]=@socketregistry/*` /
+// `@socketsecurity/*`). The soak defends against THIRD-PARTY supply-chain
+// attacks; there is no external attacker to soak against on a registry Socket
+// controls, so a same-day `@socketregistry/*` bump is never a soak violation and
+// this guard does not flag it.
+//
 // Detection model:
 //   - Fires only on Edit / Write to files named `pnpm-workspace.yaml`.
 //   - For Edit: applies new_string-over-old_string to current file contents,
@@ -24,24 +32,12 @@
 // Fails open on parse errors (better to under-block than to brick edits
 // when the file isn't parseable YAML).
 
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { safeReadFileSync } from '@socketsecurity/lib-stable/fs/read-file'
 
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-// `soak-time` is the canonical phrase; `minimumReleaseAge` is kept as an alias
-// so older transcripts / muscle memory still authorize the bypass. Both fold
-// through normalizeBypassText, so spacing/hyphen variants of each also match.
-const BYPASS_PHRASES = [
-  'Allow soak-time bypass',
-  'Allow minimumReleaseAge bypass',
-]
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { resolveEditedText } from '../_shared/payload.mts'
 
 // Permissive YAML extraction tailored to the `minimumReleaseAge.exclude`
 // block. We don't pull in a full YAML library — the block shape is narrow:
@@ -96,11 +92,12 @@ export function extractExcludeNames(yamlText: string): Set<string> {
       continue
     }
 
-    const itemMatch = /^-\s+(.+)$/.exec(trimmed)
+    const itemMatch = /^-\s+(?<item>.+)$/.exec(trimmed)
     if (!itemMatch) {
       continue
     }
-    let name = itemMatch[1]!.trim()
+    let name = itemMatch.groups!['item']!.trim()
+    // Strip a surrounding pair of single or double quotes from a YAML scalar value.
     name = name.replace(/^["']|["']$/g, '')
     if (name) {
       out.add(name)
@@ -109,36 +106,24 @@ export function extractExcludeNames(yamlText: string): Set<string> {
   return out
 }
 
-export function readFileSafe(p: string): string {
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
+// Socket-owned first-party scopes, blanket soak-excluded in `.npmrc`. An
+// exclude entry for one of these — the `@scope/*` glob itself or any concrete
+// member (`@socketregistry/packageurl-js`, `@socketregistry/foo@1.4.8`) — is
+// policy-exempt, not a bypass case, so the guard never blocks it.
+const SOCKET_OWNED_SCOPES = ['@socketregistry/', '@socketsecurity/'] as const
+
+export function isSocketOwnedScope(name: string): boolean {
+  return SOCKET_OWNED_SCOPES.some(scope => name.startsWith(scope))
 }
 
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// and fail-open on any throw.
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, _content, payload) => {
   if (path.basename(filePath) !== 'pnpm-workspace.yaml') {
-    return
+    return undefined
   }
-  const input = payload.tool_input
-
-  const currentText = readFileSafe(filePath)
-  let afterText: string
-  if (payload.tool_name === 'Write') {
-    afterText = content ?? ''
-  } else {
-    const oldStr = typeof input?.old_string === 'string' ? input.old_string : ''
-    const newStr = typeof input?.new_string === 'string' ? input.new_string : ''
-    if (!oldStr) {
-      return
-    }
-    if (!currentText.includes(oldStr)) {
-      return
-    }
-    afterText = currentText.replace(oldStr, newStr)
+  const currentText = safeReadFileSync(filePath) ?? ''
+  const afterText = resolveEditedText(payload)
+  if (afterText === undefined) {
+    return undefined
   }
 
   const beforeNames = extractExcludeNames(currentText)
@@ -146,23 +131,17 @@ await withEditGuard((filePath, content, payload) => {
 
   const added: string[] = []
   for (const name of afterNames) {
-    if (!beforeNames.has(name)) {
+    // Socket-owned first-party scopes are soak-exempt by policy — never flag them.
+    if (!beforeNames.has(name) && !isSocketOwnedScope(name)) {
       added.push(name)
     }
   }
   if (added.length === 0) {
-    return
-  }
-
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)
-  ) {
-    return
+    return undefined
   }
 
   added.sort()
-  logger.error(
+  return block(
     [
       '[minimum-release-age-guard] Blocked: minimumReleaseAge.exclude additions',
       '',
@@ -174,18 +153,26 @@ await withEditGuard((filePath, content, payload) => {
       '  postinstall-malware suspicion window. Adding to `exclude[]`',
       '  bypasses that protection for the listed packages.',
       '',
-      '  Legitimate cases (rare):',
-      '    - Emergency CVE patch published < 7 days ago.',
-      '    - First-party package you control.',
+      '  Socket-owned scopes (`@socketregistry/*`, `@socketsecurity/*`) are',
+      '  already soak-exempt in `.npmrc` and are never flagged here — this block',
+      '  is for a THIRD-PARTY package still inside the malware-suspicion window.',
+      '',
+      '  Legitimate case (rare): an emergency CVE patch published < 7 days ago.',
       '',
       "  Don't hand-edit the exclude list — run the canonical helper, which",
       '  looks up the npm publish date and writes the dated annotation for you:',
       '    node scripts/fleet/soak-bypass.mts <pkg>@<version>',
       '  (the daily updating-daily job removes the entry once its soak clears).',
-      '',
-      `  Bypass (to hand-edit anyway): type "${BYPASS_PHRASES[0]}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['soak-time', 'minimum-release-age'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

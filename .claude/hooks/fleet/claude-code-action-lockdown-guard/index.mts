@@ -31,31 +31,27 @@
 //
 // Exit codes: 0 — pass. 2 — block. Fails open on malformed payload.
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import process from 'node:process'
-
-import { withEditGuard } from '../_shared/payload.mts'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
 
 const BYPASS_PHRASE = 'Allow claude-action-lockdown bypass'
 
 export function isWorkflowPath(filePath: string): boolean {
-  return /\/\.github\/workflows\/[^/]+\.ya?ml$/.test(filePath)
+  return /\/\.github\/workflows\/[^/]+\.ya?ml$/.test(normalizePath(filePath))
 }
 
 // The action wiring. Matches `uses: anthropics/claude-code-action@<ref>` (any
 // ref / version suffix).
 const USES_ACTION_RE = /\buses\s*:\s*[^\n]*\banthropics\/claude-code-action\b/
 
-// Untrusted trigger in the `on:` block (any of the four). Same three on-shapes
-// pull-request-target-guard handles (scalar, array, mapping).
+// Untrusted trigger in the `on:` block, any of the four. Same three on-shapes
+// pull-request-target-guard handles, scalar, array, mapping.
 const UNTRUSTED_TRIGGER_RE =
   /^\s*on\s*:[\s\S]*?\b(?:issues|issue_comment|pull_request_target|pull_request)\b/m
 
-// An explicit `permissions:` block anywhere (top-level or job-level).
+// An explicit `permissions:` block anywhere, top-level or job-level.
 const PERMISSIONS_RE = /^\s*permissions\s*:/m
 
 // The lockdown `with:` inputs that pin the agent's surface. All three required:
@@ -72,7 +68,7 @@ export interface LockdownGap {
 }
 
 // Returns the lockdown gaps for a workflow body, or undefined when the hook
-// does not apply (not a claude-code-action workflow, or no untrusted trigger).
+// does not apply, not a claude-code-action workflow, or no untrusted trigger.
 export function findLockdownGaps(content: string): LockdownGap | undefined {
   if (!USES_ACTION_RE.test(content)) {
     return undefined
@@ -96,8 +92,19 @@ export function findLockdownGaps(content: string): LockdownGap | undefined {
   return missing.length ? { missing } : undefined
 }
 
-function block(filePath: string, gap: LockdownGap): void {
-  logger.error(
+export const check = editGuard((filePath, content, payload) => {
+  if (!isWorkflowPath(filePath) || !content) {
+    return undefined
+  }
+  const gap = findLockdownGaps(content)
+  if (!gap) {
+    return undefined
+  }
+  const transcript = payload.transcript_path
+  if (transcript && bypassPhrasePresent(transcript, [BYPASS_PHRASE], 3)) {
+    return undefined
+  }
+  return block(
     [
       `[claude-code-action-lockdown-guard] Blocked: ${filePath}`,
       '',
@@ -114,22 +121,14 @@ function block(filePath: string, gap: LockdownGap): void {
       `  Bypass: type "${BYPASS_PHRASE}" in a recent message, then retry.`,
     ].join('\n'),
   )
-  process.exitCode = 2
-}
+})
 
-if (process.argv[1]?.endsWith('index.mts')) {
-  await withEditGuard((filePath, content, payload) => {
-    if (!isWorkflowPath(filePath) || !content) {
-      return
-    }
-    const gap = findLockdownGaps(content)
-    if (!gap) {
-      return
-    }
-    const transcript = payload.transcript_path
-    if (transcript && bypassPhrasePresent(transcript, [BYPASS_PHRASE], 3)) {
-      return
-    }
-    block(filePath, gap)
-  })
-}
+export const hook = defineHook({
+  bypass: ['claude-action-lockdown'],
+  bypassMode: 'manual',
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

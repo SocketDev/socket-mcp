@@ -1,4 +1,4 @@
-/**
+/*
  * Lint guardrails the fleet enforces beyond what oxlint covers natively.
  *
  * Five checks, one pass:
@@ -16,7 +16,7 @@
  * 4. **Dynamic `import()` in non-bundled code** — banned. Scripts under `scripts/`
  *    run directly via `node`; nothing bundles them, so a dynamic import only
  *    adds a runtime async hop for no resolution win. Use static ES6 imports.
- *    Allowed inside `src/` (which gets bundled) and inside `.config/` bundler
+ *    Allowed inside `src/`, which gets bundled, and inside `.config/` bundler
  *    configs.
  *
  * (TypeScript `any` is enforced by oxlint's `typescript/no-explicit-any` rule —
@@ -24,8 +24,8 @@
  * duplicate that here.)
  *
  * Why a custom check instead of oxlint plugins: the rules above need either
- * custom matchers (the inline-logger hoist requirement) or conditional scope
- * (dynamic-import bans only outside the bundled tree) that oxlint's built-in
+ * custom matchers, the inline-logger hoist requirement, or conditional scope
+ * dynamic-import bans only outside the bundled tree, that oxlint's built-in
  * rule set doesn't express. A small TS scanner is cheaper than a full oxlint
  * plugin and runs in the existing scripts/fleet/check.mts pipeline.
  *
@@ -73,7 +73,7 @@ export type CheckLoggerGuardrailsOptions = {
   /**
    * Globs that ARE bundled. Dynamic `import()` is allowed inside these (the
    * bundler resolves the import statically at build time). Default is `src/**`
-   * + `.config/**` (bundler configs).
+   * \+ `.config/**`, bundler configs.
    */
   readonly bundledRoots?: readonly string[] | undefined
 }
@@ -88,7 +88,7 @@ const DEFAULT_EXCLUDE = [
   '**/dist/**',
   '**/node_modules/**',
   '**/coverage/**',
-  '**/.cache/**',
+  '**/node_modules/.cache/**',
   '**/test/fixtures/**',
   '**/test/packages/**',
   '**/*.d.ts',
@@ -126,6 +126,7 @@ function isCommentLine(trimmed: string): boolean {
 export async function checkLoggerGuardrails(
   options: CheckLoggerGuardrailsOptions = {},
 ): Promise<CheckLoggerGuardrailsResult> {
+  // oxlint-disable-next-line socket/no-process-cwd-in-scripts-hooks -- default fallback for an explicit caller-supplied `options.cwd`, not an anchor for this file's own location
   const cwd = options.cwd ?? process.cwd()
   const include = options.include ?? DEFAULT_INCLUDE
   const exclude = options.exclude ?? DEFAULT_EXCLUDE
@@ -162,8 +163,12 @@ export async function checkLoggerGuardrails(
       }
 
       // (1) Status-symbol emoji.
-      for (let i = 0, { length } = STATUS_EMOJI; i < length; i += 1) {
-        const emoji = STATUS_EMOJI[i]!
+      for (
+        let j = 0, { length: emojiCount } = STATUS_EMOJI;
+        j < emojiCount;
+        j += 1
+      ) {
+        const emoji = STATUS_EMOJI[j]!
         const col = line.indexOf(emoji)
         if (col >= 0) {
           violations.push({

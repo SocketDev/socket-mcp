@@ -17,26 +17,17 @@
 //
 // Fix: replace with `--body-file <path>` or `--body "$VAR"` where the
 // content is built via heredoc into a tempfile / shell var.
-//
-// Bypass: `Allow workflow-yaml-multiline-body bypass` typed verbatim in a
-// recent user turn.
 
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow workflow-yaml-multiline-body bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { resolveEditedText } from '../_shared/payload.mts'
 
 // Detect a multi-line `--body "..."` argument to gh. The match is
 // conservative: we look for the literal `--body "` opener, then scan to
-// the matching closing `"` (respecting backslash escapes), and check
+// the matching closing `"`, respecting backslash escapes, and check
 // whether the captured body contains a newline or a YAML-hazardous
 // character at a position that would break the surrounding YAML scalar.
 export function findUnsafeBody(text: string): string | undefined {
@@ -86,52 +77,29 @@ export function findUnsafeBody(text: string): string | undefined {
 
 export function isWorkflowYaml(filePath: string): boolean {
   // .github/workflows/*.yml or .github/workflows/*.yaml.
-  return /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/.test(filePath)
+  return /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/.test(
+    normalizePath(filePath),
+  )
 }
 
-export function readFileSafe(p: string): string {
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
-}
-
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// content extraction (new_string / content), and fail-open on any throw.
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, content, payload) => {
+  void content
   if (!isWorkflowYaml(filePath)) {
-    return
+    return undefined
   }
 
-  // Determine the after-text.
-  let afterText: string
-  if (payload.tool_name === 'Write') {
-    afterText = content ?? ''
-  } else {
-    const currentText = readFileSafe(filePath)
-    const oldStr = (payload.tool_input?.old_string as string | undefined) ?? ''
-    const newStr = content ?? ''
-    if (!oldStr || !currentText.includes(oldStr)) {
-      return
-    }
-    afterText = currentText.replace(oldStr, newStr)
+  const afterText = resolveEditedText(payload)
+  if (afterText === undefined) {
+    return undefined
   }
 
   const unsafe = findUnsafeBody(afterText)
   if (!unsafe) {
-    return
-  }
-
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return
+    return undefined
   }
 
   const preview = unsafe.split('\n').slice(0, 3).join('\\n')
-  logger.error(
+  return block(
     [
       '[workflow-multiline-body-guard] Blocked: multi-line --body in workflow YAML',
       '',
@@ -159,10 +127,17 @@ await withEditGuard((filePath, content, payload) => {
       '           EOF',
       '           )',
       '           gh pr create --body "$BODY"',
-      '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['workflow-yaml-multiline-body'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

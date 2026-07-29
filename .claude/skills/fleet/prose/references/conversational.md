@@ -12,7 +12,9 @@ The goal shifts from "complete, precise, durable" (documentation) to "land the p
 - Code beats prose
 - Plain, direct register
 - Ask when collaborating
+- Write like a decisive, generous maintainer
 - No structure for its own sake
+- Use GitHub's formatting when structure is earned
 - Drop the AI scaffolding
 
 ## Lead with the point
@@ -54,9 +56,69 @@ Contractions are fine. Casual is fine. A `:)` or `~~strikethrough~~` is fine whe
 
 A question pulls people in. "What do you think?" or "@person — thoughts?" beats a wall of unilateral justification. Credit good work plainly: "good catch", "nice, the perf is rad".
 
+## Write like a decisive, generous maintainer
+
+State the proposal or answer, name the concrete reason, and give the next action. For a
+breaking or architectural change, name the migration path and what would reverse the
+decision. Ask focused stakeholders for input when their code or users are affected.
+
+Use examples, links, and small code snippets instead of abstract explanation. A reviewer may
+write a short direct request, but write a complete sentence and explain any non-obvious
+mechanism at a junior-developer level. "Use `get(object, key)` here because it already handles
+the inherited-key case" is clearer than "Same here." A terse comment is fine only when the
+surrounding diff makes its meaning unambiguous.
+
+Be warm without service-desk padding: thank a contributor, say "no worries" when it fits, and
+credit useful work. Do not manufacture cheerfulness, vague praise, or a conclusion that the
+evidence does not support.
+
 ## No structure for its own sake
 
 Do not impose Summary / Changes / Testing headers on a PR a sentence describes. Use a list only when there genuinely are N parallel items. A small PR body is one sentence on what + why, then (if needed) a short list of the non-obvious changes, then the test note. Big PRs earn structure; small ones do not.
+
+## Use GitHub's formatting when structure is earned
+
+These render on every GitHub prose surface (PR/issue bodies, comments, reviews, discussions, release notes). Reach for them when a body has a decision plus supporting evidence, alternatives, migration notes, or a multi-item plan. Keep a one-line or 1-3 sentence reply flat; do not hide a simple answer in a fold.
+
+### Collapsed sections
+
+Long supporting material folds under `<details>`; the verdict stays outside the fold. A reader sees the point first and opens the evidence only when they want it. The blank line after `</summary>` is required or the markdown inside will not render.
+
+```markdown
+The fix is a one-line cache-key change; full benchmark matrix below.
+
+<details>
+<summary>Benchmarks (12 runs, M3 Max)</summary>
+
+| parser | p50   | p95   |
+| ------ | ----- | ----- |
+| acorn  | 700ms | 810ms |
+
+</details>
+```
+
+Write the `<summary>` as a specific label ("Benchmarks (12 runs, M3 Max)"). "Details" / "More info" / "Click to expand" tell the reader nothing about whether to open it.
+
+### Alerts
+
+GitHub renders five blockquote alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`. Use at most one per body, for the single thing a skimming reader must act on: a breaking change or a required migration step. Stacked alerts cancel each other out.
+
+```markdown
+> [!WARNING]
+> Rolling back past v3.2 loses the migrated soak annotations.
+```
+
+### Task lists
+
+`- [ ]` items in a PR/issue body are live checkboxes, and GitHub shows N-of-M progress wherever the issue is referenced. Use them for genuinely actionable follow-ups and check them off as they land. A task list nobody updates is worse than a sentence.
+
+### Autolinks and permalinks
+
+Bare references autolink: `#123`, `owner/repo#123` for cross-repo, full commit SHAs, and `@user`. Paste a file permalink with a line range (press `y` in the file view for the canonical URL, then select the lines) and GitHub embeds the code snippet inline in the body — better than a re-typed excerpt because it cannot drift.
+
+### Footnotes
+
+`[^1]` footnotes park an aside without derailing the paragraph. One or two per body at most; more than that means the body wants a `<details>` section instead.
 
 ## Drop the AI scaffolding
 

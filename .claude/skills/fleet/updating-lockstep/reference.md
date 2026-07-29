@@ -40,7 +40,7 @@ node scripts/fleet/lockstep/auto-bump.mts --plan --report /tmp/lockstep-report.j
 - **auto** — version-pin rows with an actionable `upgrade_policy` (`track-latest` / `major-gate`) AND a resolvable newer stable tag. Each carries the already-resolved `targetTag`.
 - **advisory** — everything else with `severity != "ok"`, plus any version-pin that can't auto-bump (locked, no-newer-tag, or a major bump gated by `major-gate`) — surfaced as an advisory line, never silently dropped.
 
-`--tags <tags.json>` is `{ "<upstream>": ["<tag>", …] }` (the fetched tags per upstream — `git -C <submodule> tag` after `git fetch --tags`); omit it and the auto list resolves no targets (the rows fall to advisory with "no parseable stable tags"). If both lists are empty: exit 0 with "no lockstep drift". The partition + the entire tag-scheme/semver/major-gate resolution (the old Phase 3a/3b inline jq) live in the engine — see its unit tests for the four tag schemes.
+`--tags <tags.json>` is `{ "<upstream>": ["<tag>", …] }`: the fetched tags per upstream — `git -C <submodule> tag` after `git fetch --tags`; omit it and the auto list resolves no targets — the rows fall to advisory with "no parseable stable tags". If both lists are empty: exit 0 with "no lockstep drift". The partition + the entire tag-scheme/semver/major-gate resolution, the old Phase 3a/3b inline jq, live in the engine — see its unit tests for the four tag schemes.
 
 ### Phase 3 — Auto-bump version-pin rows
 
@@ -85,10 +85,10 @@ jq --arg id "$ROW_ID" --arg sha "$NEW_SHA" --arg tag "$LATEST" \
   lockstep.json > lockstep.json.tmp && mv lockstep.json.tmp lockstep.json
 ```
 
-Update the submodule ref + its `.gitmodules` version comment through the canonical owner — don't hand-edit the comment (that re-implements `gen-gitmodules-hash.mts`):
+Update the submodule ref + its `.gitmodules` version comment through the canonical owner — don't hand-edit the comment (that re-implements `gen/gitmodules-hash.mts`):
 
 ```bash
-node scripts/fleet/gen-gitmodules-hash.mts --set "$SUBMODULE" "$LATEST"
+node scripts/fleet/gen/gitmodules-hash.mts --set "$SUBMODULE" "$LATEST"
 ```
 
 It bumps the gitlink and rewrites the `# <name>-<version>` comment in one place, so the comment can't drift from the pinned ref.
@@ -120,7 +120,7 @@ Record the bumped row in the summary accumulator.
 For each row in **advisory**, accumulate a markdown line:
 
 ```
-- **file-fork** `<id>`: `<local>` — <N> upstream commit(s) since <forked_at_sha[0:12]>. Review diff, cherry-pick if applicable, bump forked_at_sha.
+- **file-fork** `<id>`: `<local>` — <N> upstream commit(s) since <forked_at_sha[0:12]>. Review diff, cherry-pick if applicable, bump forked_at_sha. A `mirror: true` row re-copies verbatim instead: file bytes + `@lockstep-mirror` header sha + `forked_at_sha` move together, then `pnpm run lockstep:emit-mirror-globs`.
 - **feature-parity** `<id>`: parity score <score> below floor <floor>. Implement or downgrade criticality with reason.
 - **spec-conformance** `<id>`: upstream spec repo moved. Review for breaking changes before bumping spec_version.
 - **lang-parity** `<id>`: <details from messages[]>.

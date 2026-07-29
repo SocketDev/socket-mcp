@@ -14,18 +14,8 @@
 // the inline form is drift, and mixing the two defeats the sorted-imports rules
 // that group type imports separately.
 //
-// Bypass: "Allow separate-type-import bypass" in a recent user turn, or
-
-import process from 'node:process'
-
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow separate-type-import bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { isRepoTestHome } from '../_shared/repo-test-home.mts'
 
 // Match a value `import { ... }` statement (NOT already `import type { ... }`)
 // whose brace body contains at least one inline `type` specifier. The negative
@@ -41,7 +31,9 @@ function findInlineTypeImports(text: string): number {
   // whole file, to keep the count roughly per-statement.
   const normalized = text.replace(/\{[^{}]*\}/g, m => m.replace(/\s+/g, ' '))
   let count = 0
-  for (const line of normalized.split('\n')) {
+  const lines = normalized.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
     if (INLINE_TYPE_IMPORT_RE.test(line)) {
       count += 1
     }
@@ -49,46 +41,55 @@ function findInlineTypeImports(text: string): number {
   return count
 }
 
-await withEditGuard((filePath, content, payload) => {
-  // Only police TS/JS source.
-  if (!/\.(?:c|m)?[jt]sx?$/.test(filePath)) {
-    return
-  }
-  const text = content ?? ''
-  if (!text) {
-    return
-  }
+export const check = editGuard(
+  (filePath, content) => {
+    // Only police TS/JS source.
+    if (!/\.(?:c|m)?[jt]sx?$/.test(filePath)) {
+      return undefined
+    }
+    if (isRepoTestHome(filePath)) {
+      return undefined
+    }
+    const text = content ?? ''
+    if (!text) {
+      return undefined
+    }
 
-  const count = findInlineTypeImports(text)
-  if (count === 0) {
-    return
-  }
+    const count = findInlineTypeImports(text)
+    if (count === 0) {
+      return undefined
+    }
 
-  if (bypassPhrasePresent(payload.transcript_path, [BYPASS_PHRASE])) {
-    logger.error(
-      `prefer-type-import-guard: ${count} inline type specifier(s) — bypassed via "${BYPASS_PHRASE}"\n`,
+    return block(
+      [
+        `[prefer-type-import-guard] ${count} inline \`type\` specifier(s) in a value import.`,
+        '',
+        '  Split type-only specifiers into their own statement:',
+        '',
+        "    import { Value } from './mod'",
+        "    import type { TypeOnly } from './mod'",
+        '',
+        '  NOT the inline form:',
+        '',
+        "    import { Value, type TypeOnly } from './mod'   // ✗",
+        '',
+        '  Separate `import type` keeps the sorted-imports rules grouping type',
+        '  imports cleanly, and is the fleet-canonical shape (~200:1 over inline).',
+        '',
+      ].join('\n') + '\n',
     )
-    return
-  }
+  },
+  { fleetOnly: true },
+)
 
-  logger.error(
-    [
-      `[prefer-type-import-guard] ${count} inline \`type\` specifier(s) in a value import.`,
-      '',
-      '  Split type-only specifiers into their own statement:',
-      '',
-      "    import { Value } from './mod'",
-      "    import type { TypeOnly } from './mod'",
-      '',
-      '  NOT the inline form:',
-      '',
-      "    import { Value, type TypeOnly } from './mod'   // ✗",
-      '',
-      '  Separate `import type` keeps the sorted-imports rules grouping type',
-      '  imports cleanly, and is the fleet-canonical shape (~200:1 over inline).',
-      `  Bypass: type "${BYPASS_PHRASE}".`,
-      '',
-    ].join('\n') + '\n',
-  )
-  process.exitCode = 2
-}, { fleetOnly: true })
+export const hook = defineHook({
+  bypass: ['separate-type-import'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

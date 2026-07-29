@@ -26,7 +26,7 @@
 //        the npm-side parallel of the pnpm `minimumReleaseAge` soak.
 //
 // The Bash surface AST-parses the command via _shared/shell-command.mts
-// (per the no-command-regex-in-hooks rule) and inspects the pnpm/npm
+// per the no-command-regex-in-hooks rule, and inspects the pnpm/npm
 // segment args, so a downgrade flag can't be smuggled behind a `&&`
 // chain, quoting, or `$(…)` substitution, and a flag mentioned inside an
 // unrelated quoted string never false-fires.
@@ -43,39 +43,28 @@
 // that authorizes every future downgrade in the session) is itself a
 // trust downgrade. Each downgrade must be individually authorized.
 //
-// Exit codes:
-//   2 — blocked (a trust downgrade without an unconsumed bypass phrase).
-//   0 — allowed (not a downgrade, or an unconsumed bypass is present),
-//       and on any hook error (fail-open + stderr log).
+// Verdict:
+//   block — a trust downgrade without an unconsumed bypass phrase.
+//   undefined — allowed (not a downgrade, or an unconsumed bypass is
+//       present), and on any hook error (fail-open via runGuard).
 //
-// Reads a PreToolUse JSON payload from stdin:
+// Reads a PreToolUse JSON payload (via runGuard):
 //   { "tool_name": "Bash" | "Edit" | "Write" | "MultiEdit",
 //     "tool_input": { "command"? , "file_path"?, "content"?, "new_string"? },
 //     "transcript_path": "/.../session.jsonl" }
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
+import { block, defineHook, runHook } from '../_shared/guard.mts'
+import type { GuardResult } from '../_shared/guard.mts'
+import type { ToolCallPayload } from '../_shared/payload.mts'
 import { commandsFor, parseCommands } from '../_shared/shell-command.mts'
 import {
   detectNpmrcMinReleaseAgeDowngrade,
   MIN_RELEASE_AGE_MINUTES,
 } from '../_shared/trust-gates.mts'
-import { bypassPhraseRemaining, readStdin } from '../_shared/transcript.mts'
-
-interface Payload {
-  readonly tool_name?: string | undefined
-  readonly tool_input?:
-    | {
-        readonly command?: unknown | undefined
-        readonly file_path?: unknown | undefined
-        readonly content?: unknown | undefined
-        readonly new_string?: unknown | undefined
-      }
-    | undefined
-  readonly transcript_path?: string | undefined
-}
+import { bypassPhraseRemaining } from '../_shared/transcript.mts'
 
 const BYPASS_PHRASE = 'Allow trust-downgrade bypass'
 
@@ -111,17 +100,21 @@ function valueOf(
 }
 
 // Inspect ONE parsed pnpm/npm command segment's args for a downgrade flag.
-// AST-based (per the no-command-regex-in-hooks rule): the command line is
+// AST-based, per the no-command-regex-in-hooks rule: the command line is
 // tokenized by _shared/shell-command.mts first, so `&&` chains, quoting, and
 // `$(…)` substitution can't smuggle a flag past us, and a flag mentioned
-// inside an unrelated quoted string (a commit message, a grep arg) is not a
+// inside an unrelated quoted string, a commit message, a grep arg, is not a
 // segment arg and never matches.
 function downgradeFlagInArgs(args: readonly string[]): string | undefined {
   // `pnpm config set <key> <value>` is the persisted-config form of a flag.
   if (args[0] === 'config' && args[1] === 'set') {
     const key = args[2]
     const value = args[3]
-    if (key === 'trustPolicy' && value !== undefined && value !== 'no-downgrade') {
+    if (
+      key === 'trustPolicy' &&
+      value !== undefined &&
+      value !== 'no-downgrade'
+    ) {
       return 'trustPolicy override to a value other than no-downgrade'
     }
     if (key === 'minimumReleaseAge' && Number(value) === 0) {
@@ -183,7 +176,7 @@ export function detectBashDowngrade(command: string): string | undefined {
   // `$PM install --no-verify-store-integrity`) still disables the gate —
   // scan args of any segment whose binary we could not resolve.
   for (const cmd of commands) {
-    if (cmd.binary === 'pnpm' || cmd.binary === 'npm') {
+    if (cmd.binary === 'npm' || cmd.binary === 'pnpm') {
       continue
     }
     if (cmd.binary === '' || cmd.viaVariable) {
@@ -199,13 +192,13 @@ export function detectBashDowngrade(command: string): string | undefined {
 // Is the edited file a supply-chain policy file we gate?
 function isPolicyFile(filePath: string): boolean {
   const base = path.basename(filePath)
-  return base === 'pnpm-workspace.yaml' || base === '.npmrc'
+  return base === '.npmrc' || base === 'pnpm-workspace.yaml'
 }
 
 // Inspect the NEW text an Edit/Write would write. We can only see the
 // replacement fragment (Edit `new_string`) or full `content` (Write),
 // not the resulting whole file — so we flag the *removal/weakening
-// shapes* that appear in the new text, and (for Write) the absence of
+// shapes* that appear in the new text, and, for Write, the absence of
 // the no-downgrade line when the file is being rewritten wholesale.
 export function detectEditDowngrade(
   toolName: string,
@@ -221,8 +214,8 @@ export function detectEditDowngrade(
     return 'trustPolicy set to a value other than no-downgrade'
   }
   // Lowering minimumReleaseAge below the floor.
-  const m = /minimumReleaseAge\s*:\s*(\d+)/i.exec(newText)
-  if (m && Number(m[1]) < MIN_RELEASE_AGE_FLOOR) {
+  const m = /minimumReleaseAge\s*:\s*(?<value>\d+)/i.exec(newText)
+  if (m && Number(m.groups!['value']) < MIN_RELEASE_AGE_FLOOR) {
     return `minimumReleaseAge lowered below the ${MIN_RELEASE_AGE_FLOOR} floor`
   }
   // npm's `.npmrc` `min-release-age` (days) is the npm-side soak — a parallel
@@ -237,7 +230,7 @@ export function detectEditDowngrade(
     }
   }
   // A wholesale Write of pnpm-workspace.yaml that drops the
-  // no-downgrade line entirely is a downgrade (the gate vanishes).
+  // no-downgrade line entirely is a downgrade, the gate vanishes.
   if (
     (toolName === 'Write' || fullContent !== undefined) &&
     path.basename(filePath) === 'pnpm-workspace.yaml'
@@ -263,7 +256,7 @@ export function detectEditDowngrade(
 }
 
 // Count prior trust-downgrade actions in the assistant tool-use history
-// — each consumes one bypass-phrase occurrence (single-use semantics).
+// — each consumes one bypass-phrase occurrence, single-use semantics.
 // Mirrors release-workflow-guard's countPriorDispatches.
 export function countPriorDowngrades(
   transcriptPath: string | undefined,
@@ -278,7 +271,9 @@ export function countPriorDowngrades(
     return 0
   }
   let count = 0
-  for (const line of raw.split('\n')) {
+  const lines = raw.split('\n')
+  for (let j = 0, { length: jlen } = lines; j < jlen; j += 1) {
+    const line = lines[j]!
     if (!line) {
       continue
     }
@@ -295,10 +290,10 @@ export function countPriorDowngrades(
     ) {
       continue
     }
-    const msg = (evt as { message?: unknown }).message
+    const msg = (evt as { message?: unknown | undefined }).message
     const content =
       msg && typeof msg === 'object'
-        ? (msg as { content?: unknown }).content
+        ? (msg as { content?: unknown | undefined }).content
         : undefined
     if (!Array.isArray(content)) {
       continue
@@ -308,8 +303,8 @@ export function countPriorDowngrades(
       if (!part || typeof part !== 'object') {
         continue
       }
-      const name = (part as { name?: unknown }).name
-      const input = (part as { input?: unknown }).input
+      const name = (part as { name?: unknown | undefined }).name
+      const input = (part as { input?: unknown | undefined }).input
       if (typeof name !== 'string' || !input || typeof input !== 'object') {
         continue
       }
@@ -319,7 +314,7 @@ export function countPriorDowngrades(
           count += 1
         }
       } else if (
-        (name === 'Edit' || name === 'Write' || name === 'MultiEdit') &&
+        (name === 'Edit' || name === 'MultiEdit' || name === 'Write') &&
         typeof inp['file_path'] === 'string'
       ) {
         const newText =
@@ -336,15 +331,7 @@ export function countPriorDowngrades(
   return count
 }
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: Payload
-  try {
-    payload = JSON.parse(raw) as Payload
-  } catch {
-    process.exit(0)
-  }
-
+export const check = (payload: ToolCallPayload): GuardResult => {
   const tool = payload.tool_name
   const input = payload.tool_input
   let downgrade: string | undefined
@@ -354,7 +341,7 @@ async function main(): Promise<void> {
     if (typeof command === 'string' && command.trim()) {
       downgrade = detectBashDowngrade(command)
     }
-  } else if (tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit') {
+  } else if (tool === 'Edit' || tool === 'MultiEdit' || tool === 'Write') {
     const filePath = input?.file_path
     if (typeof filePath === 'string' && filePath) {
       const newText =
@@ -367,7 +354,7 @@ async function main(): Promise<void> {
   }
 
   if (!downgrade) {
-    process.exit(0)
+    return undefined
   }
 
   // Single-use bypass: total phrase occurrences minus prior downgrades
@@ -380,10 +367,10 @@ async function main(): Promise<void> {
     prior,
   )
   if (remaining > 0) {
-    process.exit(0)
+    return undefined
   }
 
-  process.stderr.write(
+  return block(
     [
       `[trust-downgrade-guard] Blocked: ${downgrade}`,
       '',
@@ -397,14 +384,16 @@ async function main(): Promise<void> {
       `  Bypass (single-use, NOT persisted): the user types`,
       `    "${BYPASS_PHRASE}"`,
       '  verbatim in chat, then retry. Each downgrade needs its own phrase.',
-    ].join('\n') + '\n',
+    ].join('\n'),
   )
-  process.exit(2)
 }
 
-main().catch(e => {
-  process.stderr.write(
-    `[trust-downgrade-guard] hook bug — fail-open. ${e instanceof Error ? e.message : String(e)}\n`,
-  )
-  process.exit(0)
+export const hook = defineHook({
+  bypass: ['trust-downgrade'],
+  bypassMode: 'manual',
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  type: 'guard',
 })
+void runHook(hook, import.meta.url)

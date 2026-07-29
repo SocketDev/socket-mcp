@@ -10,10 +10,10 @@
  *   unless the user manually exports the value from the keychain each session,
  *   every Socket tool launches with an empty token and the API returns 401. The
  *   block is delimited by canonical sentinels so re-running the install script
- *   updates the block in place (no duplicate appends). The block is small
+ *   updates the block in place, no duplicate appends. The block is small
  *   enough that the user can read it before sourcing. macOS only for now — zsh
  *   and bash. Linux's `secret-tool` works the same way but the rc-detection on
- *   Linux distros varies more (system vs user profile, multiple bash variants).
+ *   Linux distros varies more, system vs user profile, multiple bash variants.
  *   Windows uses PowerShell profiles; the equivalent is
  *   `$PROFILE.CurrentUserAllHosts`. Both are tractable but out of scope for
  *   this baseline. Read paths are silent (best-effort). Write paths surface
@@ -32,6 +32,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { MACOS_BREW_SECURITY_ENV } from '../../_shared/brew-supply-chain.mts'
+import { fleetEnvShellExports } from '../../_shared/fleet-env.mts'
 import { MACOS_PKG_AUTO_UPDATE_ENV } from '../../_shared/package-manager-auto-update.mts'
 
 // Sentinels are intentionally simple — no env-var names in the
@@ -50,6 +51,7 @@ const BLOCK_END = '# END socketsecurity env'
  */
 export function buildBlockBody(token: string): string {
   const quoted = shellSingleQuote(token)
+  const fleetEnvExports = fleetEnvShellExports().join('\n')
   const autoUpdateExports = MACOS_PKG_AUTO_UPDATE_ENV.map(
     knob => `export ${knob.name}=${shellSingleQuote(knob.value)}`,
   ).join('\n')
@@ -62,9 +64,13 @@ export function buildBlockBody(token: string): string {
 # SOCKET_API_KEY is universally supported across Socket tools (CLI, SDK, sfw,
 # fleet scripts) — one env var covers the whole surface with no fallback chain.
 export SOCKET_API_KEY=${quoted}
-# Disable package-manager auto-update so a mid-task brew/npm/pnpm run can't
-# change a tool version under a build/scan (reproducibility + supply-chain
-# hazard). Knobs sourced from _shared/package-manager-auto-update.mts.
+# Fleet no-phone-home posture: disable telemetry + update-notifiers across npm,
+# pnpm, Claude Code, and any DO_NOT_TRACK-honoring tool. Cross-platform; knobs
+# sourced from _shared/fleet-env.mts.
+${fleetEnvExports}
+# Disable macOS Homebrew auto-update so a mid-task brew run can't change a tool
+# version under a build/scan (reproducibility + supply-chain hazard). Knobs
+# sourced from _shared/package-manager-auto-update.mts.
 ${autoUpdateExports}
 # Enforce Homebrew 6.0.0 supply-chain controls: require explicit tap trust and
 # refuse unchecksummed cask downloads. Knobs sourced from
@@ -92,7 +98,7 @@ export interface BridgeWriteResult {
 
 /**
  * Insert / update the env-var block in the user's shell rc. macOS only — Linux
- * + Windows return `undefined` (the install script falls back to a one-line
+ * \+ Windows return `undefined` (the install script falls back to a one-line
  * instruction the user can paste).
  *
  * Takes the literal token value and embeds it as a static `export
@@ -141,7 +147,7 @@ export function installShellRcBridge(
   // block before writing the new one closes that loop without
   // double-appending.
   const legacyRe =
-    /\n*# BEGIN socket-cli (?:keychain bridge \(managed\)|env \(managed\))[\s\S]*?# END socket-cli (?:keychain bridge|env)\n?/g
+    /\n*# BEGIN socket-cli (?:env \(managed\)|keychain bridge \(managed\))[\s\S]*?# END socket-cli (?:env|keychain bridge)\n?/g
   existing = existing.replace(legacyRe, '\n')
 
   // Look for an existing canonical block. Capture the BEGIN line,

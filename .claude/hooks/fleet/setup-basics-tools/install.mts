@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * @file Install-only entry point for the socket-basics workflow stack:
- *   TruffleHog (secrets scanner), Trivy (vuln/SBOM scanner), OpenGrep (SAST),
- *   and uv (Python package manager bootstrap). Slim leaf of the
+ *   TruffleHog, secrets scanner, Trivy (vuln/SBOM scanner), OpenGrep (SAST),
+ *   and uv, Python package manager bootstrap. Slim leaf of the
  *   `setup-security-tools` umbrella. Run via: node
  *   .claude/hooks/fleet/setup-basics-tools/install.mts For the full setup
  *   (firewall + scanners + socket-basics + misc), use `node
@@ -11,6 +11,7 @@
 
 import process from 'node:process'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
@@ -47,7 +48,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((e: unknown) => {
-  const msg = e instanceof Error ? e.message : String(e)
+  const msg = errorMessage(e)
   logger.error(`setup-basics-tools install: ${msg}`)
   process.exitCode = 1
 })

@@ -19,6 +19,7 @@
  */
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { spawn } from '@socketsecurity/lib/process/spawn/child'
 
@@ -68,7 +69,7 @@ export type ResolveFormatterOptions = {
   readonly paths?: readonly string[] | undefined
 }
 
-export type ResolveTypeCheckerOptions = {
+export type ResolveTypeCheckerConfig = {
   /**
    * Path to the tsconfig that drives the type check.
    */
@@ -108,7 +109,7 @@ export type RunResolvedOptions = {
   readonly extraArgs?: readonly string[] | undefined
   /**
    * If true, `stdout` / `stderr` are buffered and returned on the resolved
-   * result. Default false (inherit terminal).
+   * result. Default false, inherit terminal.
    */
   readonly capture?: boolean | undefined
 }
@@ -118,7 +119,40 @@ const FLEET_FORMATTER_CONFIG = '.oxfmtrc.json'
 const FLEET_TEST_CONFIG = '.config/repo/vitest.config.mts'
 
 /**
- * Resolve the fleet's linter (currently Oxlint).
+ * Walk up from this module's own location to find the repo root — the
+ * nearest ancestor that has a `package.json`. Anchors the default `cwd` for
+ * `runResolved()` / `hasResolvedTool()` on a stable directory instead of the
+ * process's current working directory, which shifts with wherever the caller
+ * happened to invoke from.
+ *
+ * @throws If no package.json ancestor exists (= we're not in a repo).
+ */
+function resolveRepoRoot(): string {
+  let cur = path.dirname(fileURLToPath(import.meta.url))
+  const root = path.parse(cur).root
+  while (cur && cur !== root) {
+    if (existsSync(path.join(cur, 'package.json'))) {
+      return cur
+    }
+    const parent = path.dirname(cur)
+    if (parent === cur) {
+      break
+    }
+    cur = parent
+  }
+  throw new Error(
+    `Could not resolve repo root from ${fileURLToPath(import.meta.url)} (no ancestor has package.json).`,
+  )
+}
+
+/**
+ * Default `cwd` for `runResolved()` / `hasResolvedTool()` when the caller
+ * doesn't supply one.
+ */
+const DEFAULT_CWD = resolveRepoRoot()
+
+/**
+ * Resolve the fleet's linter, currently Oxlint.
  *
  * Returns argv ready for `pnpm exec`. `--config` is always emitted so a swap to
  * a tool with different config-discovery rules doesn't silently change
@@ -141,7 +175,7 @@ export function resolveLinter(
 }
 
 /**
- * Resolve the fleet's formatter (currently Oxfmt).
+ * Resolve the fleet's formatter, currently Oxfmt.
  */
 export function resolveFormatter(
   options: ResolveFormatterOptions = {},
@@ -162,24 +196,25 @@ export function resolveFormatter(
 }
 
 /**
- * Resolve the fleet's type checker (currently `tsgo`, the
- * `@typescript/native-preview` binary).
+ * Resolve the fleet's type checker (currently `tsc`, the `typescript` 7.x
+ * native binary — the renamed successor to the `@typescript/native-preview`
+ * `tsgo` preview).
  *
  * Always emits `--noEmit` because the fleet's `type` script is for checking
  * only — emitting goes through the bundler.
  */
 export function resolveTypeChecker(
-  options: ResolveTypeCheckerOptions,
+  config: ResolveTypeCheckerConfig,
 ): ResolvedTool {
-  const { project } = options
+  const { project } = { __proto__: null, ...config } as typeof config
   return {
-    args: ['tsgo', '--noEmit', '-p', project],
+    args: ['tsc', '--noEmit', '-p', project],
     envs: {},
   }
 }
 
 /**
- * Resolve the fleet's test runner (currently Vitest).
+ * Resolve the fleet's test runner, currently Vitest.
  */
 export function resolveTestRunner(
   options: ResolveTestRunnerOptions = {},
@@ -220,7 +255,7 @@ export async function runResolved(
   resolved: ResolvedTool,
   options: RunResolvedOptions = {},
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const { capture = false, cwd = process.cwd(), extraArgs = [] } = options
+  const { capture = false, cwd = DEFAULT_CWD, extraArgs = [] } = options
 
   const env = { ...process.env, ...resolved.envs }
   const argv = ['exec', ...resolved.args, ...extraArgs]
@@ -246,7 +281,7 @@ export async function runResolved(
  */
 export function hasResolvedTool(
   name: string,
-  cwd: string = process.cwd(),
+  cwd: string = DEFAULT_CWD,
 ): boolean {
   return existsSync(path.join(cwd, 'node_modules', '.bin', name))
 }

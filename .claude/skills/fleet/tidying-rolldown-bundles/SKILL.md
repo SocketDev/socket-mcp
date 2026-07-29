@@ -1,10 +1,12 @@
 ---
 name: tidying-rolldown-bundles
-description: Keeps rolldown-bundled fleet repos lean — reports (and with --fix, runs `pnpm dedupe` for) collapsible lockfile transitives, checks that Socket-published packages route through the `catalog:` overrides, and flags any `external/` re-export shim that has grown into a fat re-vendored tree. Conservative and no-prompt: the only mutation is a lockfile-only `pnpm dedupe`; anything that would change the published bundle is reported for a human. Use for periodic dependency hygiene on bundle repos, or before a release.
+description: Keep rolldown bundles lean by reporting collapsible deps, catalog drift, and fat external shims.
 user-invocable: true
 allowed-tools: Bash(node:*), Bash(pnpm dedupe:*), Bash(pnpm run build:*), Read
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # tidying-rolldown-bundles
@@ -58,7 +60,7 @@ The conservative contract makes an unattended `--fix` safe: its only mutation is
    fleet-canonical, sync-managed).
 3. **Fat shim** — an `external/<dep>.js` exceeds the re-export-shim size cap, meaning it
    likely re-vendors its own tree instead of delegating to a shared `*-pack` bundle
-   (the `*-pack.js` consolidation bundles are exempt). Reported for a human.
+   — the `*-pack.js` consolidation bundles are exempt. Reported for a human.
 
 ## Why external/ rarely needs hand-deduping
 

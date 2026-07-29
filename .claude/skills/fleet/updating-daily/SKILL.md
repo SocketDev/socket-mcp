@@ -1,10 +1,12 @@
 ---
 name: updating-daily
-description: Daily fleet-repo maintenance that promotes soak-cleared dependency exclusions. Runs check-soak-excludes-have-dates --fix to drop minimumReleaseAgeExclude entries whose 7-day soak has passed, then reconciles the lockfile. Sibling of updating-coverage / updating-security / updating-lockstep under the updating umbrella; the lightweight daily counterpart to the weekly /updating run.
+description: Promote soak-cleared dependency exclusions, drop expired dates, and reconcile the lockfile.
 user-invocable: true
 allowed-tools: Read, Bash(node scripts/fleet/check/soak-excludes-have-dates.mts:*), Bash(pnpm install:*), Bash(git:*)
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # updating-daily
@@ -26,7 +28,7 @@ The daily, cheap maintenance pass: promote dependency soak-exclusions that have 
 
 | #   | Phase     | Outcome                                                                                                                                                               |
 | --- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Promote   | `node scripts/fleet/check/soak-excludes-have-dates.mts --fix` removes every entry whose `removable:` date has passed (the bullet + its `# published/removable` annotation). |
+| 1   | Promote   | `node scripts/fleet/check/soak-excludes-have-dates.mts --fix` removes every entry whose `removable:` date has passed — the bullet plus its `# published/removable` annotation. |
 | 2   | Reconcile | If step 1 changed `pnpm-workspace.yaml`, run `pnpm install` so the lockfile matches the slimmed catalog/exclude set.                                                  |
 | 3   | Report    | If nothing was promoted, exit cleanly with no diff — the workflow opens no PR. Otherwise the changed files (`pnpm-workspace.yaml` + `pnpm-lock.yaml`) become the PR.  |
 

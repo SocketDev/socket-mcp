@@ -1,11 +1,13 @@
 ---
 name: handing-off
-description: Compact the current conversation into a handoff doc so a fresh agent can pick up the work. Use when context is getting thin, a session is about to end, or the next stage of the work needs a different agent / human.
+description: Write a compact handoff so another agent or human can continue the work without replaying context.
 user-invocable: true
 argument-hint: 'What will the next session focus on?'
 allowed-tools: Bash(mkdir:*), Bash(date:*), Read, Write
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # handing-off
@@ -39,7 +41,7 @@ PATH=".claude/reports/${DATE}-<slug>-handoff.md"
 
 ## What NOT to include
 
-- The full conversation (the next agent reads commits + diffs, not transcripts).
+- The full conversation — the next agent reads commits + diffs, not transcripts.
 - Code listings that exist verbatim in source files (link instead).
 - Decisions already captured in commit messages or ADRs (cite the SHA / file).
 - A retrospective "what I learned" section unless it's load-bearing for the next agent's choices.

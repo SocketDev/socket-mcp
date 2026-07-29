@@ -1,10 +1,12 @@
 ---
 name: greening-ci
-description: Drive a target repo's CI back to green. Watches GitHub Actions, surfaces the first failure log, fixes it locally, commits + pushes, and re-watches until the run lands green (or a wall-clock budget expires). Three modes: fast (ci.yml), release (build-server matrices, fail-fast 30s polls then cool down on first success), cool (just confirm the rest of a matrix). Use when main goes red, when a build-server dispatch is failing, or when babysitting a freshly-pushed fix to verify it lands green.
+description: Watch remote CI, pull the first failure log, fix locally, push, and loop until the run is green.
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash(gh:*), Bash(git:*), Bash(node:*), Bash(pnpm:*), Bash(rg:*), Bash(grep:*), Bash(find:*), Bash(ls:*), Bash(cat:*), Bash(head:*), Bash(tail:*)
 model: claude-sonnet-4-6
 context: fork
+metadata:
+  internal: true
 ---
 
 # greening-ci
@@ -27,7 +29,7 @@ Watch a target repo's CI, surface failures the moment they land, and drive a fix
 | `release` | 30s           | Any job fails OR any job succeeds    | Build-server matrices. Matrix slots run in parallel; one slot's outcome is enough to start reacting. |
 | `cool`    | 120s          | Whole run completes                  | After `release` reported a first success: just confirming the rest of the matrix. No fast polls.     |
 
-The skill picks `fast` by default. After running `release` and getting a first success, the orchestrator (the agent invoking this skill) flips to `cool` for the remainder.
+The skill picks `fast` by default. After running `release` and getting a first success, the orchestrator — the agent invoking this skill — flips to `cool` for the remainder.
 
 ## How the skill drives the fix-and-push loop
 
@@ -79,27 +81,9 @@ Budget tiers:
 
 ## Companion: `auditing-gha`
 
-Some CI failures aren't code; they're GitHub Actions policy. If you see `denied by enterprise admin` or `the action <name> is not allowed to be used`, that's a GH org-level setting drift, not a code fix. Run `/audit-gha-settings <owner/repo>` (when available) to diff the repo's policy + allowlist against the fleet baseline. The current baseline must include:
+Some CI failures aren't code; they're GitHub Actions policy. If you see `denied by enterprise admin` or `the action <name> is not allowed to be used`, that's a GH org-level setting drift, not a code fix. Run `/audit-gha-settings <owner/repo>` (when available) to diff the repo's policy + allowlist against the fleet baseline. The baseline policy is **Allow enterprise, and select non-enterprise, actions and reusable workflows**, and the allowlist must be a superset of the canonical patterns in `.claude/skills/fleet/auditing-gha/canonical-patterns.mts` — the single source of truth, enforced against the template's workflow surface by the `gha-allowlist-matches-template-uses` fleet check, so this document intentionally does not carry a copy that can drift.
 
-- Policy: **Allow enterprise, and select non-enterprise, actions and reusable workflows**
-- Allowlist (each must be present and active):
-  - `actions/cache/restore@*`
-  - `actions/cache/save@*`
-  - `actions/cache@*`
-  - `actions/checkout@*`
-  - `actions/download-artifact@*`
-  - `actions/setup-node@*`
-  - `actions/setup-python@*`
-  - `actions/upload-artifact@*`
-  - `depot/build-push-action@*`
-  - `depot/setup-action@*`
-  - `dtolnay/rust-toolchain@*`
-  - `github/codeql-action/upload-sarif@*`
-  - `hendrikmuhs/ccache-action@*`
-  - `mlugg/setup-zig@*`
-  - `swatinem/rust-cache@*`
-
-Each entry is here because at least one fleet workflow references it through the socket-registry shared workflows. Removing one breaks every consumer that pins through those shared workflows. Add a new entry only when a new shared workflow references it, and cascade the allowlist entry to every consumer org.
+Each canonical entry has a named consumer — a template workflow/composite, or a fleet member's own workflow declared in `EXTERNALLY_CONSUMED_PATTERNS`. Removing one breaks its consumer at plan time. Add a new entry only with a real consumer, then run the auditing-gha `--conform` pass across the fleet roster so repo settings pick it up.
 
 ## Anti-patterns
 

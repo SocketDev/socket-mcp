@@ -1,20 +1,13 @@
 ---
 name: threat-modeling
-description: >-
-  Build a threat model for a target codebase. Three modes: "interview" walks an
-  application owner through the four-question framework and produces a threat
-  model from their answers; "bootstrap" derives one from the code plus past
-  vulnerabilities (CVEs, git history, advisories) when no owner is available;
-  "bootstrap-then-interview" chains the two when both owner and codebase are
-  present. All write THREAT_MODEL.md in a shared schema. Use when asked to
-  "threat model", "build a threat model", "map the attack surface", or "what
-  should we be worried about in this codebase". Feeds scanning-vulns focus
-  areas and triaging-findings severity boosts.
+description: Build or interview for a threat model covering assets, attackers, trust boundaries, and mitigations.
 argument-hint: "[bootstrap-then-interview|bootstrap|interview] <target-dir> [--vulns FILE] [--design-doc FILE] [--seed THREAT_MODEL.md] [--depth recon|full] [--fresh]"
 user-invocable: true
 allowed-tools: Workflow, Task, Read, Glob, Grep, Write, AskUserQuestion, Bash(git:*), Bash(gh api:*), Bash(find:*), Bash(ls:*), Bash(node .claude/skills/fleet/_shared/scripts/checkpoint.mts:*)
 model: claude-opus-4-8
 context: fork
+metadata:
+  internal: true
 ---
 
 # threat-modeling
@@ -24,7 +17,7 @@ and what should we do about it?"** independently of whether any specific bug has
 been found yet. It is the map; vulnerability discovery is the metal detector. A
 good threat model tells [`scanning-vulns`](../scanning-vulns/SKILL.md) where to
 look and tells [`triaging-findings`](../triaging-findings/SKILL.md) which
-findings matter (its threat-model boost reads this file's section 4).
+findings matter — its threat-model boost reads this file's section 4.
 
 **Litmus test:** If patching one line of code makes an entry disappear, it was a
 vulnerability, not a threat. A threat ("attacker achieves RCE via untrusted media
@@ -137,7 +130,7 @@ After writing the file, print to the user:
    `interview` pass) and the Stage-3b sibling locations (candidate leads for
    `scanning-vulns`).
 4. For `interview`: any owner statements that could not be verified in code
-   (these seed follow-up code review).
+   — these seed follow-up code review.
 
 ---
 

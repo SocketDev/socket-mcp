@@ -4,8 +4,9 @@
 // Blocks Edit/Write to `pnpm-workspace.yaml` that add a non-Socket-
 // scoped entry to `minimumReleaseAgeExclude:`. The soak gate is
 // malware protection; bypassing it for third-party packages
-// weakens the policy without justification. Third-party version
-// pins go in `overrides:` instead.
+// weakens the policy without justification. Such a dep should wait
+// out the soak — `overrides:` pins a version but does NOT bypass
+// minimumReleaseAge.
 //
 // Sibling guard: `soak-exclude-date-guard` enforces
 // `# published: ... | removable: ...` annotations on entries. This
@@ -16,29 +17,30 @@
 //
 // Fails open on YAML parse errors.
 
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { safeReadFileSync } from '@socketsecurity/lib-stable/fs/read-file'
 
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow soak-exclude-third-party bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { resolveEditedText } from '../_shared/payload.mts'
 
 // Fleet-internal first-party scopes published by trusted Socket pipelines —
-// soak-exempt by design. The danger the guard targets is a third-party
-// scope-glob (the 2026-04-06 `@anthropic-ai/*` incident), not a fleet repo's
-// own scope. `@stuie` is the first-party scope of the stuie fleet repo.
+// soak-exempt by design. What the guard targets is a third-party entry: a
+// bare package like `cowsay`, or worse a scope glob like `@types/*` that
+// exempts everything ever published under it. A fleet repo's own scope is
+// not that risk. Besides the `@socket*` publishing scopes, every entry
+// below belongs to a fleet repo that publishes from its own OIDC pipeline,
+// so soaking it only delays the fleet behind itself.
 const ALLOWED_SCOPES = new Set([
+  '@abitious',
+  '@decmpfs',
+  '@node-smol',
   '@socketaddon',
   '@socketbin',
   '@socketregistry',
   '@socketsecurity',
   '@stuie',
+  '@ultrathink',
 ])
 
 const SECTION_HEADER = /^minimumReleaseAgeExclude:\s*$/
@@ -50,13 +52,13 @@ const ANY_TOP_LEVEL_KEY = /^[A-Za-z_][\w-]*:\s*(?:\S.*)?$/
 //   - '@scope/*'            (glob)
 //   - 'bare-name@1.2.3'
 //   - 'bare-name'
-// Quoted or unquoted. Captures group 1 = full entry (no quotes).
-const ENTRY_RE = /^\s*-\s*['"]?([^'"\s]+)['"]?\s*$/
+// Quoted or unquoted. Captures group 1 = full entry, no quotes.
+const ENTRY_RE = /^\s*-\s*['"]?(?<entry>[^'"\s]+)['"]?\s*$/
 
 interface OffendingEntry {
   readonly line: number
   readonly entry: string
-  readonly scope: string | null
+  readonly scope: string | undefined
 }
 
 export function isPnpmWorkspaceYaml(filePath: string): boolean {
@@ -64,13 +66,14 @@ export function isPnpmWorkspaceYaml(filePath: string): boolean {
 }
 
 // Extract every per-entry value inside `minimumReleaseAgeExclude:`.
-// Returns a Map keyed by entry value (the raw package selector) →
+// Returns a Map keyed by entry value, the raw package selector →
 // line number (1-indexed) where the entry sits in the file.
 export function parseExcludeEntries(text: string): Map<string, number> {
   const out = new Map<string, number>()
   const lines = text.split('\n')
   let inBlock = false
   for (let i = 0; i < lines.length; i += 1) {
+    /* c8 ignore next - split('\n') always yields defined strings */
     const line = lines[i] ?? ''
     if (SECTION_HEADER.test(line)) {
       inBlock = true
@@ -85,60 +88,40 @@ export function parseExcludeEntries(text: string): Map<string, number> {
     }
     const m = ENTRY_RE.exec(line)
     if (m) {
-      out.set(m[1]!, i + 1)
+      out.set(m.groups!['entry']!, i + 1)
     }
   }
   return out
 }
 
 // Pull the scope from an entry. Returns the scope token (e.g.
-// `@socketsecurity`) or `null` for un-scoped entries (`defu`,
+// `@socketsecurity`) or `undefined` for un-scoped entries (`defu`,
 // `defu@6.1.6`).
-export function entryScope(entry: string): string | null {
+export function entryScope(entry: string): string | undefined {
   if (!entry.startsWith('@')) {
-    return null
+    return undefined
   }
   const slash = entry.indexOf('/')
   if (slash < 0) {
     // `@scope` with no `/name` — malformed; treat as un-scoped.
-    return null
+    return undefined
   }
   return entry.slice(0, slash)
 }
 
-export function isAllowedScope(scope: string | null): boolean {
-  return scope !== null && ALLOWED_SCOPES.has(scope)
+export function isAllowedScope(scope: string | undefined): boolean {
+  return scope !== undefined && ALLOWED_SCOPES.has(scope)
 }
 
-export function readFileSafe(p: string): string {
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
-}
-
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// content extraction (new_string / content), and fail-open on any throw.
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, _content, payload) => {
   if (!isPnpmWorkspaceYaml(filePath)) {
-    return
+    return undefined
   }
 
-  const currentText = readFileSafe(filePath)
-  let afterText: string
-  if (payload.tool_name === 'Write') {
-    afterText = content ?? ''
-  } else {
-    const oldStr = (payload.tool_input?.old_string as string | undefined) ?? ''
-    const newStr = content ?? ''
-    if (!oldStr) {
-      return
-    }
-    if (!currentText.includes(oldStr)) {
-      return
-    }
-    afterText = currentText.replace(oldStr, newStr)
+  const currentText = safeReadFileSync(filePath) ?? ''
+  const afterText = resolveEditedText(payload)
+  if (afterText === undefined) {
+    return undefined
   }
 
   let beforeEntries: Map<string, number>
@@ -147,7 +130,8 @@ await withEditGuard((filePath, content, payload) => {
     beforeEntries = parseExcludeEntries(currentText)
     afterEntries = parseExcludeEntries(afterText)
   } catch {
-    return
+    /* c8 ignore next - parseExcludeEntries only does string ops and cannot throw */
+    return undefined
   }
 
   const offending: OffendingEntry[] = []
@@ -161,13 +145,7 @@ await withEditGuard((filePath, content, payload) => {
     }
   }
   if (offending.length === 0) {
-    return
-  }
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return
+    return undefined
   }
 
   const lines: string[] = [
@@ -176,7 +154,8 @@ await withEditGuard((filePath, content, payload) => {
     `  File: ${filePath}`,
     '',
   ]
-  for (const o of offending) {
+  for (let i = 0, { length } = offending; i < length; i += 1) {
+    const o = offending[i]!
     lines.push(`  • line ${o.line}: \`${o.entry}\``)
   }
   lines.push(
@@ -184,19 +163,28 @@ await withEditGuard((filePath, content, payload) => {
     '  `minimumReleaseAgeExclude:` is a security-policy bypass for Socket',
     '  first-party scopes only:',
     '',
-    '    @socketaddon/* @socketbin/* @socketregistry/* @socketsecurity/* @stuie/*',
+    `    ${[...ALLOWED_SCOPES].map(scope => `${scope}/*`).join(' ')}`,
     '',
     '  Adding a third-party package weakens the malware-protection soak gate.',
     '',
-    '  Fix: move the entry to `overrides:` in the same file. Overrides bypass',
-    '  the soak check without weakening the policy:',
+    '  Fix: wait for the package to clear the 7-day soak — the gate is doing its',
+    '  job. (`overrides:` pins a version but does NOT bypass minimumReleaseAge,',
+    '  so it is not a soak escape hatch.)',
     '',
-    '    overrides:',
-    `      ${offending[0]!.entry.split('@')[0]}: '>=X.Y.Z'`,
-    '',
-    `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-    '',
+    '  Last resort — to use it before the soak clears, add it (and any',
+    '  `@scope/*` platform binaries) here with a',
+    '  `# published: <date> | removable: <date + 7d>` annotation. That knowingly',
+    '  weakens the soak for those exact pins.',
   )
-  logger.error(lines.join('\n'))
-  process.exitCode = 2
+  return block(lines.join('\n'))
 })
+
+export const hook = defineHook({
+  bypass: ['soak-exclude-third-party'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

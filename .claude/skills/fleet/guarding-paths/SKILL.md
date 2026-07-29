@@ -1,10 +1,12 @@
 ---
 name: guarding-paths
-description: Audits and fixes path duplication in a Socket repo. Applies the strict "1 path, 1 reference" rule: every build/test/runtime/config path is constructed exactly once; everywhere else references the constructed value. Default mode finds and fixes; `check` mode reports only; `install` mode drops the gate + hook + rule into a fresh repo. Use when path drift surfaces from `pnpm check`, when a new sibling package needs path conventions, or when bootstrapping a fresh Socket repo.
+description: Enforce one constructed path per concern; audit and fix duplicated build, test, runtime, or config paths.
 user-invocable: true
 allowed-tools: Task, Read, Edit, Write, Grep, Glob, AskUserQuestion, Bash(pnpm run check:*), Bash(node scripts/fleet/check/paths-are-canonical.mts:*), Bash(rg:*), Bash(grep:*), Bash(find:*), Bash(git:*)
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # guarding-paths
@@ -61,10 +63,8 @@ Comments may describe path _structure_ with placeholders (`<mode>/<arch>` or `${
 Worktree setup uses the default-branch fallback from CLAUDE.md:
 
 ```bash
-BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-if [ -z "$BASE" ] && git show-ref --verify --quiet refs/remotes/origin/main;   then BASE=main;   fi
-if [ -z "$BASE" ] && git show-ref --verify --quiet refs/remotes/origin/master; then BASE=master; fi
-BASE="${BASE:-main}"
+# Resolved by the shared runner so the chain lives in exactly one place.
+BASE=$(node .claude/skills/fleet/_shared/scripts/git-default-branch.mts)
 git worktree add -b paths-audit ../<repo>-paths-audit "$BASE"
 ```
 

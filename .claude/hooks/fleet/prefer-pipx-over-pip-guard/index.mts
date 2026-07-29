@@ -9,31 +9,18 @@
 //   3. Edit/Write on shell scripts (`*.sh`, `*.bash`)
 //
 // Allowed: `pip install pipx` (bootstrap), `pip install -e .`
-// (editable install of the current project), `pip install -r
+// editable install of the current project, `pip install -r
 // <file>` (requirements file), comment-only mentions, and
 // `pip install --user pipx` patterns used by setup-pipx itself.
 //
 // Bypass: `Allow pip-install bypass` typed verbatim in a recent
 // user turn. Fails open on regex / parse errors.
 
-import { readFileSync } from 'node:fs'
-import process from 'node:process'
+import { safeReadFileSync } from '@socketsecurity/lib-stable/fs/read-file'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
-
-interface ToolInput {
-  readonly tool_name?: string | undefined
-  readonly tool_input?:
-    | {
-        readonly command?: string | undefined
-        readonly file_path?: string | undefined
-        readonly new_string?: string | undefined
-        readonly old_string?: string | undefined
-        readonly content?: string | undefined
-      }
-    | undefined
-  readonly transcript_path?: string | undefined
-}
+import { block, defineHook, runHook } from '../_shared/guard.mts'
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
 const BYPASS_PHRASE = 'Allow pip-install bypass'
 
@@ -41,7 +28,7 @@ const BYPASS_PHRASE = 'Allow pip-install bypass'
 // messages telling the human user "install with: pip install X" live
 // in docs and are recovery instructions, not active build steps.
 const FILE_SCOPE_RE =
-  /(?:^|\/)Dockerfile(?:\.[^\s/]+)?$|\.(?:sh|bash|dockerfile)$/i
+  /(?:^|\/)Dockerfile(?:\.[^\s/]+)?$|\.(?:bash|dockerfile|sh)$/i
 
 // Match a pip-install invocation anywhere in a line. Tolerates:
 //   pip install <pkg>
@@ -54,18 +41,18 @@ const PIP_INSTALL_RE =
   /(?<![\w/-])(?:(?:python[\d.]*|py)\s+-m\s+)?\b(?:sudo\s+)?(?:[/\w.-]+\/)?pip[\d.]*\s+install\b([^\n;&|]*)/g
 
 // Allowlist matchers applied to the captured "rest of args" string.
-//   - Bootstrap pipx itself: `pip install pipx` (any flags, any version)
+//   - Bootstrap pipx itself: `pip install pipx`, any flags, any version
 //   - Editable install of current project: `-e .` or `-e ./`
 //   - Requirements file: `-r <path>` or `--requirement <path>`
 //   - Setup-pipx self-bootstrap: `--user pipx` with no other targets
 //   - `--help` / `-h` invocations
 function isAllowedInstall(restOfArgs: string): boolean {
   const trimmed = restOfArgs.trim()
-  if (trimmed === '' || /^(?:-h|--help)\b/.test(trimmed)) {
+  if (trimmed === '' || /^(?:--help|-h)\b/.test(trimmed)) {
     return true
   }
   // `pip install pipx`, `pip install --user pipx`, `pip install -U pipx`
-  // (any flags but the only target is pipx).
+  // any flags but the only target is pipx.
   if (/(?:^|\s)pipx(?:==|\s|$)/.test(trimmed)) {
     const targets = trimmed.split(/\s+/).filter(t => t && !t.startsWith('-'))
     if (targets.length === 1 && /^pipx(==.*)?$/.test(targets[0]!)) {
@@ -77,7 +64,7 @@ function isAllowedInstall(restOfArgs: string): boolean {
     return true
   }
   // Requirements file install.
-  if (/(?:^|\s)(?:-r|--requirement)\s+\S/.test(trimmed)) {
+  if (/(?:^|\s)(?:--requirement|-r)\s+\S/.test(trimmed)) {
     return true
   }
   return false
@@ -123,13 +110,14 @@ interface Finding {
   args: string
 }
 
-// Scan a text buffer (Bash command, Dockerfile body, shell script)
+// Scan a text buffer, Bash command, Dockerfile body, shell script
 // for `pip install <not-allowed>` patterns. Returns one Finding per
 // hit line. Comments are stripped before matching.
 export function findPipInstalls(text: string): Finding[] {
   const lines = text.split('\n')
   const findings: Finding[] = []
   for (let i = 0; i < lines.length; i += 1) {
+    /* c8 ignore next - String.prototype.split always returns defined elements */
     const raw = lines[i] ?? ''
     const code = stripLineComment(raw)
     if (!code.includes('pip')) {
@@ -138,6 +126,7 @@ export function findPipInstalls(text: string): Finding[] {
     PIP_INSTALL_RE.lastIndex = 0
     let m: RegExpExecArray | null
     while ((m = PIP_INSTALL_RE.exec(code)) !== null) {
+      /* c8 ignore next - regex group 1 is always defined when the pattern matches */
       const args = (m[1] ?? '').trim()
       if (isAllowedInstall(args)) {
         continue
@@ -152,105 +141,22 @@ export function findPipInstalls(text: string): Finding[] {
   return findings
 }
 
-export function readFileSafe(p: string): string {
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
+export function isFileInScope(filePath: string): boolean {
+  return FILE_SCOPE_RE.test(normalizePath(filePath))
 }
 
-function isFileInScope(filePath: string): boolean {
-  return FILE_SCOPE_RE.test(filePath)
-}
-
-async function main(): Promise<void> {
-  let raw: string
-  try {
-    raw = await readStdin()
-  } catch {
-    process.exit(0)
-  }
-  if (!raw) {
-    process.exit(0)
-  }
-  let payload: ToolInput
-  try {
-    payload = JSON.parse(raw) as ToolInput
-  } catch {
-    process.exit(0)
-  }
-
-  let scanText = ''
-  let context = ''
-  if (payload.tool_name === 'Bash') {
-    const cmd = payload.tool_input?.command
-    if (!cmd) {
-      process.exit(0)
-    }
-    scanText = cmd
-    context = '<Bash command>'
-  } else if (payload.tool_name === 'Edit' || payload.tool_name === 'Write') {
-    const filePath = payload.tool_input?.file_path
-    if (!filePath || !isFileInScope(filePath)) {
-      process.exit(0)
-    }
-    if (payload.tool_name === 'Write') {
-      scanText =
-        payload.tool_input?.content ?? payload.tool_input?.new_string ?? ''
-    } else {
-      const oldStr = payload.tool_input?.old_string ?? ''
-      const newStr = payload.tool_input?.new_string ?? ''
-      if (!oldStr) {
-        process.exit(0)
-      }
-      const currentText = readFileSafe(filePath)
-      if (!currentText.includes(oldStr)) {
-        process.exit(0)
-      }
-      const afterText = currentText.replace(oldStr, newStr)
-      // Only flag NEW violations the edit introduces.
-      const beforeFindings = findPipInstalls(currentText).map(
-        f => `${f.line}:${f.source}`,
-      )
-      const beforeSet = new Set(beforeFindings)
-      const afterFindings = findPipInstalls(afterText)
-      const newFindings = afterFindings.filter(
-        f => !beforeSet.has(`${f.line}:${f.source}`),
-      )
-      if (newFindings.length === 0) {
-        process.exit(0)
-      }
-      reportFindings(filePath, newFindings, payload.transcript_path)
-      return
-    }
-    context = filePath
-  } else {
-    process.exit(0)
-  }
-
-  const findings = findPipInstalls(scanText)
-  if (findings.length === 0) {
-    process.exit(0)
-  }
-  reportFindings(context, findings, payload.transcript_path)
-}
-
-function reportFindings(
+export function buildBlockMessage(
   context: string,
   findings: Finding[],
-  transcriptPath: string | undefined,
-): void {
-  if (transcriptPath && bypassPhrasePresent(transcriptPath, BYPASS_PHRASE)) {
-    process.exit(0)
-  }
+): string {
   const lines: string[] = [
     '[prefer-pipx-over-pip-guard] Blocked: `pip install <pkg>` is not the fleet path',
     '',
     `  Context: ${context}`,
     '',
   ]
-  for (const f of findings) {
+  for (let i = 0, { length } = findings; i < length; i += 1) {
+    const f = findings[i]!
     lines.push(`  • line ${f.line}: pip install ${f.args || '<args>'}`)
   }
   lines.push(
@@ -273,12 +179,91 @@ function reportFindings(
     `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
     '',
   )
-  process.stderr.write(lines.join('\n'))
-  process.exit(2)
+  return lines.join('\n')
 }
 
-main().catch(e => {
-  process.stderr.write(
-    `[prefer-pipx-over-pip-guard] hook error (allowing): ${(e as Error).message}\n`,
-  )
+export const hook = defineHook({
+  bypass: ['pip-install'],
+  bypassMode: 'manual',
+  bypassOptional: true,
+  check(payload) {
+    const tool = payload?.tool_name
+    if (tool !== 'Bash' && tool !== 'Edit' && tool !== 'Write') {
+      return undefined
+    }
+    const input = payload.tool_input as
+      | {
+          command?: string | undefined
+          file_path?: string | undefined
+          new_string?: string | undefined
+          old_string?: string | undefined
+          content?: string | undefined
+        }
+      | undefined
+    let scanText = ''
+    let context = ''
+    if (tool === 'Bash') {
+      const cmd = input?.command
+      if (!cmd) {
+        return undefined
+      }
+      scanText = cmd
+      context = '<Bash command>'
+    } else {
+      const filePath = input?.file_path
+      if (!filePath || !isFileInScope(filePath)) {
+        return undefined
+      }
+      if (tool === 'Write') {
+        scanText = input?.content ?? input?.new_string ?? ''
+        context = filePath
+      } else {
+        const oldStr = input?.old_string ?? ''
+        const newStr = input?.new_string ?? ''
+        if (!oldStr) {
+          return undefined
+        }
+        const currentText = safeReadFileSync(filePath) ?? ''
+        if (!currentText.includes(oldStr)) {
+          return undefined
+        }
+        const afterText = currentText.replace(oldStr, newStr)
+        // Only flag NEW violations the edit introduces.
+        const beforeFindings = findPipInstalls(currentText).map(
+          f => `${f.line}:${f.source}`,
+        )
+        const beforeSet = new Set(beforeFindings)
+        const afterFindings = findPipInstalls(afterText)
+        const newFindings = afterFindings.filter(
+          f => !beforeSet.has(`${f.line}:${f.source}`),
+        )
+        if (newFindings.length === 0) {
+          return undefined
+        }
+        if (
+          payload.transcript_path &&
+          bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
+        ) {
+          return undefined
+        }
+        return block(buildBlockMessage(filePath, newFindings))
+      }
+    }
+    const findings = findPipInstalls(scanText)
+    if (findings.length === 0) {
+      return undefined
+    }
+    if (
+      payload.transcript_path &&
+      bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
+    ) {
+      return undefined
+    }
+    return block(buildBlockMessage(context, findings))
+  },
+  event: 'PreToolUse',
+  matcher: ['Bash', 'Edit', 'Write'],
+  scope: 'convention',
+  type: 'guard',
 })
+void runHook(hook, import.meta.url)

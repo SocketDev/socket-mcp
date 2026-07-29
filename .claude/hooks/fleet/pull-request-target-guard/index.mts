@@ -21,7 +21,7 @@
 // Reference threat write-up:
 //   https://bsky.app/profile/43081j.com/post/3mlnme43qnc2e
 //
-// What zizmor already covers (we don't duplicate):
+// What zizmor already covers, we don't duplicate:
 //   - `dangerous-triggers`: flags ANY `pull_request_target` use.
 //   - `bot-conditions`, `github-env`, `template-injection`,
 //     `overprovisioned-secrets`, `artipacked`: collateral patterns.
@@ -33,7 +33,7 @@
 //
 // Bypass: `Allow pr-target-execution bypass` in a recent user turn.
 // Use case: a workflow that genuinely needs to execute fork code in
-// the privileged context (rare, reviewer-acknowledged trade-off).
+// the privileged context, rare, reviewer-acknowledged trade-off.
 //
 // Exit codes:
 //   0 — pass (not a workflow file, not the dangerous combo, or all
@@ -43,20 +43,15 @@
 // Fails open on parse errors (exit 0 + stderr log).
 
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow pr-target-execution bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 
 // Workflow-file shape.
 export function isWorkflowPath(filePath: string): boolean {
-  return /\/\.github\/workflows\/[^/]+\.ya?ml$/.test(filePath)
+  const normalized = normalizePath(filePath)
+  return /\/\.github\/workflows\/[^/]+\.ya?ml$/.test(normalized)
 }
 
 // 1. `on:` block declares `pull_request_target`. Match in three
@@ -98,6 +93,7 @@ const EXECUTE_PATTERNS: ReadonlyArray<{
   // default. --ignore-scripts neutralizes the install-script vector
   // but a build step on the next line can still execute fork code.
   {
+    // Matches "bun/npm/pnpm/yarn add|ci|i|install" — package install commands that run lifecycle scripts.
     re: /\b(?:bun|npm|pnpm|yarn)\s+(?:add|ci|i|install)\b/,
     cmd: 'package-manager install',
     safeIf: /--ignore-scripts\b/,
@@ -105,11 +101,13 @@ const EXECUTE_PATTERNS: ReadonlyArray<{
   // Node build steps (no install-script bypass; the build itself
   // runs fork-controlled code).
   {
+    // Matches "bun/npm/pnpm/yarn [run] build" — build commands that execute fork-controlled code.
     re: /\b(?:bun|npm|pnpm|yarn)\s+(?:run\s+)?build\b/,
     cmd: 'node build',
   },
   // Generic `npm test` / `pnpm test` etc.
   {
+    // Matches "bun/npm/pnpm/yarn [run] test" — test commands that execute fork-controlled code.
     re: /\b(?:bun|npm|pnpm|yarn)\s+(?:run\s+)?test\b/,
     cmd: 'node test',
   },
@@ -187,15 +185,15 @@ export function findUnsafeForkExecution(content: string): Finding[] {
   const lines = content.split('\n')
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!
-    // Only inspect `run:` lines (and block-scalar continuations).
+    // Only inspect `run:` lines, and block-scalar continuations.
     // A coarse signal — when a `run:` step contains the pattern,
     // count it as an execute. Multi-line `run: |` blocks with the
     // pattern on a later line also hit because we're scanning every
     // line.
-    const runHit = /^\s*-?\s*run\s*:\s*(.*)/.exec(line)
-    const bodyLine = runHit ? runHit[1]! : line
-    for (let i = 0, { length } = EXECUTE_PATTERNS; i < length; i += 1) {
-      const ep = EXECUTE_PATTERNS[i]!
+    const runHit = /^\s*-?\s*run\s*:\s*(?<body>.*)/.exec(line)
+    const bodyLine = runHit ? runHit.groups!['body']! : line
+    for (let j = 0, { length: len } = EXECUTE_PATTERNS; j < len; j += 1) {
+      const ep = EXECUTE_PATTERNS[j]!
       if (!ep.re.test(bodyLine)) {
         continue
       }
@@ -205,7 +203,7 @@ export function findUnsafeForkExecution(content: string): Finding[] {
       }
       findings.push({
         cmd: ep.cmd,
-        line: i + 1,
+        line: j + 1,
         snippet:
           bodyLine.trim().length > 90
             ? bodyLine.trim().slice(0, 87) + '…'
@@ -217,22 +215,17 @@ export function findUnsafeForkExecution(content: string): Finding[] {
   return findings
 }
 
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// content extraction (new_string / content), and fail-open on any throw.
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, content) => {
   if (!isWorkflowPath(filePath)) {
-    return
+    return undefined
   }
   const text = content ?? ''
   if (!text) {
-    return
+    return undefined
   }
   const findings = findUnsafeForkExecution(text)
   if (findings.length === 0) {
-    return
-  }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return
+    return undefined
   }
   const lines: string[] = []
   lines.push(
@@ -282,10 +275,15 @@ await withEditGuard((filePath, content, payload) => {
   lines.push(
     '  Reference: https://bsky.app/profile/43081j.com/post/3mlnme43qnc2e',
   )
-  lines.push('')
-  lines.push(
-    `  Bypass (rare; requires a deliberate review trade-off): type "${BYPASS_PHRASE}".`,
-  )
-  logger.error(lines.join('\n') + '\n')
-  process.exitCode = 2
+  return block(lines.join('\n') + '\n')
 })
+
+export const hook = defineHook({
+  bypass: ['pr-target-execution'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

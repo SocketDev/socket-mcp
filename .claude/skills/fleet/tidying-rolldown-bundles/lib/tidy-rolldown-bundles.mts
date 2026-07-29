@@ -3,7 +3,7 @@
 // Keeps a repo's dependency graph and its rolldown `external/` bundle lean: it
 // reports (and with --fix, applies) the lockfile dedupes pnpm can collapse,
 // checks that Socket-published packages are routed through the `catalog:`
-// overrides (not duplicated at floating versions), and flags any `external/`
+// overrides, not duplicated at floating versions, and flags any `external/`
 // entry that has grown from a thin re-export shim into a fat re-vendored tree.
 // Low-friction "care and feeding": dry-run by default, no prompting, safe to
 // run unattended (e.g. on a /loop).
@@ -17,9 +17,9 @@
 // bundles consolidate shared deps into mega-bundles (e.g. socket-lib's
 // `npm-pack` / `external-pack`) and expose per-dep files as thin re-export
 // shims (`module.exports = require('./npm-pack').semver`). A shim that stops
-// being thin (re-vendors its own tree) is the regression this sweep catches.
+// being thin, re-vendors its own tree, is the regression this sweep catches.
 //
-// Default is --dry-run (report only). Pass --fix to run `pnpm dedupe`.
+// Default is --dry-run, report only. Pass --fix to run `pnpm dedupe`.
 //
 // Usage:
 //   node tidy-rolldown-bundles.mts            # dry-run: report dedupe + override drift
@@ -29,8 +29,7 @@
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
@@ -51,7 +50,7 @@ export { readRoster }
 export const SHIM_MAX_BYTES = 4096
 
 // Socket-published packages that must resolve through the `catalog:` overrides
-// rather than a floating version (the dedupe lever for the Socket surface).
+// rather than a floating version, the dedupe lever for the Socket surface.
 export const CATALOG_PINNED_PREFIXES = [
   '@socketsecurity/',
   '@socketregistry/',
@@ -106,7 +105,7 @@ export function findFatShims(repoDir: string): string[] {
       continue
     }
     // The consolidation bundles themselves (`*-pack.js`) are legitimately large.
-    if (/-pack\.js$/.test(name)) {
+    if (name.endsWith('-pack.js')) {
       continue
     }
     if (size > SHIM_MAX_BYTES) {
@@ -167,7 +166,11 @@ export async function dedupeCheck(
   }).then(
     () => ({ code: 0, stdout: '', stderr: '' }),
     (e: unknown) => {
-      const err = e as { code?: number; stdout?: string; stderr?: string }
+      const err = e as {
+        code?: number | undefined
+        stdout?: string | undefined
+        stderr?: string | undefined
+      }
       return {
         code: typeof err?.code === 'number' ? err.code : 1,
         stdout: String(err?.stdout ?? ''),
@@ -202,8 +205,9 @@ export async function dedupeFix(repoDir: string): Promise<boolean> {
 
 export async function sweepRepo(
   repo: string,
-  options: { fix: boolean },
+  config: { fix: boolean },
 ): Promise<RepoFinding[]> {
+  const cfg = { __proto__: null, ...config } as typeof config
   const repoDir = path.join(PROJECTS, repo)
   if (!existsSync(path.join(repoDir, '.git'))) {
     return []
@@ -233,7 +237,7 @@ export async function sweepRepo(
 
   const dedupe = await dedupeCheck(repoDir)
   if (dedupe.hasChanges) {
-    if (options.fix) {
+    if (cfg.fix) {
       const ok = await dedupeFix(repoDir)
       findings.push({
         repo,
@@ -271,7 +275,7 @@ export async function main(): Promise<void> {
     const repo = roster[i]!
     const findings = await sweepRepo(repo, { fix })
     const notable = findings.filter(
-      f => f.kind !== 'no-bundle' && f.kind !== 'clean',
+      f => f.kind !== 'clean' && f.kind !== 'no-bundle',
     )
     if (!notable.length) {
       continue

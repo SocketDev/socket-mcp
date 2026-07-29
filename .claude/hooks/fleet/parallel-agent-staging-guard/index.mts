@@ -7,19 +7,28 @@
 // set), changed recently — see `_shared/foreign-paths.mts`.
 //
 // Gated operations (only blocked WHEN foreign paths exist):
-//   • `git add -A` / `.` / `--all` / `-u` / `--update`  (broad stage)
+//   • `git add -A` / `.` / `--all` / `-u` / `--update`, broad stage
 //   • `git commit -a` / `--all`                          (stage+commit)
-//   • `git stash` / `git stash push`                     (hides theirs)
-//   • `git reset --hard`                                 (destroys theirs)
-//   • `git checkout <branch>` / `git switch <branch>`    (may clobber)
-//   • `git restore <path>`                               (reverts theirs)
+//   • `git stash` / `git stash push`, hides theirs
+//   • `git reset --hard`, destroys theirs
+//   • `git checkout <branch>` / `git switch <branch>`, may clobber
+//   • `git restore <path>`, reverts theirs
 //
 // Surgical `git add <file>` and every op when NO foreign paths are
 // present pass through untouched.
 //
+// Squash-history relaxation: in a repo opted into `squash-history` (the
+// cascade roster's `optIns`), the default branch flattens to one commit
+// before every push, so commit order/granularity are meaningless. The
+// NON-destructive staging sweeps (`git add -A`, `git commit -a`) relax
+// there — they LAND foreign work, then the pre-push squash collapses it.
+// The destructive ops (stash / reset --hard / restore / checkout) stay
+// gated: squashing rewrites commits, it does not un-destroy uncommitted
+// work.
+//
 // Relationship to overeager-staging-guard: that hook owns the GENERAL
 // staging-sweep rules regardless of parallel-agent signal — it blocks
-// `git add -A` AND a bare `git commit` (no pathspec) whose index holds
+// `git add -A` AND a bare `git commit`, no pathspec, whose index holds
 // files this session didn't touch, steering to `git commit -o <paths>`.
 // This hook adds the parallel-agent-specific destructive-op coverage
 // (commit -a / stash / reset --hard / checkout / restore) that the
@@ -29,8 +38,8 @@
 // paths). The bare-commit sweep is left to overeager-staging-guard so a
 // single shape never double-blocks with two different bypass phrases.
 //
-// Why this exists (incident 2026-05-27, socket-lib): see
-// parallel-agent-on-stop-reminder. The Stop reminder surfaces the
+// Why this exists, incident, socket-lib: see
+// parallel-agent-on-stop-nudge. The Stop reminder surfaces the
 // signal; this guard refuses the destructive action before it lands.
 //
 // Reuses the shared shell AST parser (`_shared/shell-command.mts`) so
@@ -43,36 +52,43 @@
 //   • `Allow parallel-agent-staging bypass` in a recent user turn
 //     (case-sensitive) — one action.
 //
-// Fails open on hook bugs (exit 0 + stderr log). Reads a PreToolUse JSON
+// Fails open on hook bugs (handled by runGuard). Reads a PreToolUse JSON
 // payload from stdin:
 //   { "tool_name": "Bash",
 //     "tool_input": { "command": "..." },
 //     "transcript_path": "/.../session.jsonl" }
 
-import process from 'node:process'
-
+import { isSquashOptIn } from '../_shared/fleet-roster.mts'
 import {
   listForeignDirtyPaths,
   readSessionTouchedPaths,
   recordTouchedFromBash,
 } from '../_shared/foreign-paths.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import {
+  commandWorkingDir,
   detectBroadGitAdd,
   findInvocation,
   invocationHasFlag,
+  isFleetSyncCommand,
 } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
-
-interface ToolPayload {
-  readonly tool_name?: string | undefined
-  readonly tool_input?: { readonly command?: unknown | undefined } | undefined
-  readonly transcript_path?: string | undefined
-}
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import { resolveProjectDir } from '../_shared/project-dir.mts'
 
 const BYPASS_PHRASES = ['Allow parallel-agent-staging bypass'] as const
 
+// Pre-flight trigger for the dispatcher: it imports + runs this guard only when
+// the raw payload contains at least one of these substrings. Every gated op
+// detected by `detectGatedGitOp` runs through `findInvocation`/`commandsFor`
+// with `binary: 'git'`, which can match only when the literal `git` token is
+// present (a `$VAR`-sourced binary collapses to '' and never equals 'git'). So
+// `check` can only ever block when the command contains `git` — making this the
+// complete, minimal trigger set.
+export const triggers: readonly string[] = ['git']
+
 function getProjectDir(): string {
-  return process.env['CLAUDE_PROJECT_DIR'] || process.cwd()
+  // c8 ignore next
+  return resolveProjectDir()
 }
 
 // Return a short label for the gated op the command performs, or undefined.
@@ -116,84 +132,93 @@ export function detectGatedGitOp(command: string): string | undefined {
   return undefined
 }
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: ToolPayload
-  try {
-    payload = JSON.parse(raw) as ToolPayload
-  } catch {
-    process.exit(0)
-  }
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
-  }
-  const command = (payload.tool_input as { command?: unknown } | undefined)
-    ?.command
-  if (typeof command !== 'string' || !command.trim()) {
-    process.exit(0)
-  }
-
+export const check = bashGuard((command, payload) => {
   // Record any `git add|mv|rm <path>` targets into the session ledger BEFORE
-  // any exit. The transcript lags within a turn, so without this a `git mv old
-  // new` here followed by an Edit to `new` next would read `new` as foreign
-  // (a parallel agent's file) and block the session's own rename. This is the
+  // any return. The transcript lags within a turn, so without this a `git mv
+  // old new` here followed by an Edit to `new` next would read `new` as foreign
+  // a parallel agent's file, and block the session's own rename. This is the
   // only PreToolUse hook that sees every Bash command, so it owns the recording.
   recordTouchedFromBash(payload.transcript_path, command)
 
   // Fleet-sync cascade sentinel: no parallel-session hazard in a fresh
   // cascade worktree off origin/main.
-  if (/(?:^|\s)FLEET_SYNC\s*=\s*1\b/.test(command)) {
-    process.exit(0)
+  if (isFleetSyncCommand(command)) {
+    return undefined
   }
 
   const gatedOp = detectGatedGitOp(command)
   if (!gatedOp) {
-    process.exit(0)
+    return undefined
   }
 
-  const repoDir = getProjectDir()
+  // Resolve the repo the command actually targets (a cd chain or git -C):
+  // a git op against a scratch repo elsewhere must be judged by THAT
+  // repo's state, not the primary checkout's foreign dirt.
+  const commandDir = commandWorkingDir(command)
+  const repoDir =
+    commandDir && commandDir !== '.' ? commandDir : getProjectDir()
+
+  // Squash-history relaxation. A repo opted into `squash-history` flattens its
+  // default branch to one commit before every push, so commit order and
+  // granularity carry no meaning — a broad `git add -A` / `git commit -a` that
+  // sweeps a parallel actor's in-flight work into a shared commit is harmless:
+  // the work LANDS, not lost, then the pre-push squash collapses it. Only the
+  // NON-destructive staging sweeps relax here; stash / reset --hard / restore /
+  // checkout still hide or DESTROY uncommitted work, which squashing does not
+  // undo, so they stay gated even in a squash repo.
+  const isStagingSweep =
+    detectBroadGitAdd(command) !== undefined || gatedOp === 'git commit -a'
+  if (isStagingSweep && isSquashOptIn(repoDir)) {
+    return undefined
+  }
+
   const touched = readSessionTouchedPaths(payload.transcript_path)
   const foreign = listForeignDirtyPaths(repoDir, touched)
   if (foreign.length === 0) {
     // No parallel-agent signal — let the op through (overeager-staging-
     // guard still owns the general broad-add rule independently).
-    process.exit(0)
+    return undefined
   }
 
   if (
     payload.transcript_path &&
     bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES, 3)
   ) {
-    process.exit(0)
+    return undefined
   }
 
-  process.stderr.write(
+  return block(
     [
       `[parallel-agent-staging-guard] Blocked: ${gatedOp}`,
       '',
-      `  ${foreign.length} dirty path(s) here were NOT authored by this`,
-      '  session and changed recently — likely another agent on the',
-      '  same checkout. This operation would sweep up, hide, or destroy',
-      '  their in-flight work:',
+      `  ${foreign.length} dirty path(s) here are NOT from this session's edits`,
+      '  and changed recently — most likely your OWN earlier work or an',
+      '  aligned session. This operation would sweep up, hide, or destroy',
+      '  those uncommitted changes:',
       ...foreign.slice(0, 10).map(p => `    ${p}`),
       ...(foreign.length > 10
         ? [`    ... and ${foreign.length - 10} more`]
         : []),
       '',
-      '  Fix: stage only YOUR files by explicit path, and avoid stash /',
-      '  reset --hard / checkout while the other agent is active.',
-      '    git add path/to/your-file.ts',
+      "  Do this instead — land, don't sweep:",
+      '  • Stage only YOUR files by explicit path: git add path/to/your-file.ts',
+      '  • Land what is ready — `node scripts/fleet/land-work.mts --commit` or',
+      '    `git commit -o <file>` — instead of stash / reset --hard / checkout.',
+      '  • Unsure whose it is? `node scripts/fleet/whose-work.mts`.',
       '',
-      '  Bypass (only if you are certain): user types',
+      '  Bypass (you are certain): user types',
       '    "Allow parallel-agent-staging bypass" in chat, then retry.',
-    ].join('\n') + '\n',
+    ].join('\n'),
   )
-  process.exit(2)
-}
-
-main().catch(e => {
-  process.stderr.write(
-    `[parallel-agent-staging-guard] hook bug — fail-open. ${e instanceof Error ? e.message : String(e)}\n`,
-  )
-  process.exit(0)
 })
+
+export const hook = defineHook({
+  bypass: ['parallel-agent-staging'],
+  bypassMode: 'manual',
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

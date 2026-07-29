@@ -1,10 +1,12 @@
 ---
 name: refreshing-history
-description: Squashes the repo's default branch (main, falling back to master) to a single signed "Initial commit", refreshes deps + lockfile, runs format / fix / check / type passes, amends results, and force-pushes. Wraps the lower-level `squashing-history` skill with a dep-refresh + integrity check + verified-signature workflow. Use when cutting a fleet-wide history reset or preparing a clean baseline before a major release.
+description: Refresh a default branch to one signed initial commit, update deps, verify, and force-push with backup.
 user-invocable: true
 allowed-tools: AskUserQuestion, Bash(git:*), Bash(pnpm:*), Bash(diff:*), Bash(ls:*)
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # refreshing-history
@@ -21,7 +23,7 @@ Resets the default branch to a single signed commit, with deps freshly resolved 
 
 ## Boundary with `squashing-history`
 
-`squashing-history` is the lower-level "squash to 1 commit" primitive. This skill layers on dep refresh + signed commit + integrity check + force-push contract. The org's `required_signatures` branch protection mandates `git commit-tree -S` (the bare config flag is unreliable for plumbing commands).
+`squashing-history` is the lower-level "squash to 1 commit" primitive. This skill layers on dep refresh + signed commit + integrity check + force-push contract. The org's `required_signatures` branch protection mandates `git commit-tree -S` — the bare config flag is unreliable for plumbing commands.
 
 ## Run
 

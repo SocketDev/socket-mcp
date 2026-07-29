@@ -1,20 +1,19 @@
 /**
  * @file Single source of truth for "is this macOS app's Sparkle auto-updater
  *   disabled on this machine?" — shared by the sparkle-auto-update-is-disabled
- *   check (drift report in `check --all`) and setup-security-tools (which writes
- *   the disable). Companion to package-manager-auto-update.mts: that module owns
- *   package managers (`brew`/`npm`/…) whose binary an agent runs from Bash; this
- *   one owns GUI apps that self-update via the Sparkle framework (e.g. OrbStack)
- *   with no Bash invocation to gate — so the enforcement surfaces are persist +
- *   audit, not a PreToolUse guard.
- *
- *   A Sparkle app that auto-updates can swap a tool version under a running
- *   build / scan (reproducibility + supply-chain hazard); the install also rides
- *   the app's own update channel, outside the fleet's soak gate. Sparkle reads
+ *   check (drift report in `check --all`) and setup-security-tools (which
+ *   writes the disable). Companion to package-manager-auto-update.mts: that
+ *   module owns package managers (`brew`/`npm`/…) whose binary an agent runs
+ *   from Bash; this one owns GUI apps that self-update via the Sparkle
+ *   framework (e.g. OrbStack) with no Bash invocation to gate — so the
+ *   enforcement surfaces are persist + audit, not a PreToolUse guard. A Sparkle
+ *   app that auto-updates can swap a tool version under a running build / scan
+ *   (reproducibility + supply-chain hazard); the install also rides the app's
+ *   own update channel, outside the fleet's soak gate. Sparkle reads
  *   `SUEnableAutomaticChecks` / `SUAutomaticallyUpdate` from the app's macOS
- *   defaults domain (the app bundle id); a user-level `defaults write` overrides
- *   the Info.plist default, so writing them `false` durably disables both the
- *   background check and silent install.
+ *   defaults domain, the app bundle id; a user-level `defaults write`
+ *   overrides the Info.plist default, so writing them `false` durably disables
+ *   both the background check and silent install.
  */
 
 // oxlint-disable-next-line socket/prefer-async-spawn -- detection + apply run in a sync audit script + sync installer; need typed string stdout, no async.
@@ -55,15 +54,15 @@ export interface SparkleStatus {
   domain: string
   // 'disabled' = both keys read false (good); 'enabled' = at least one key is
   // not false (drift); 'absent' = not macOS / the app's defaults domain has no
-  // Sparkle keys (app not installed or never launched) — not applicable.
+  // Sparkle keys, app not installed or never launched — not applicable.
   state: 'disabled' | 'enabled' | 'absent'
-  // The disable keys whose value is not `false` (drives the fix list).
+  // The disable keys whose value is not `false`, drives the fix list.
   enabledKeys: readonly string[]
   reason: string
 }
 
 // Read one `defaults read <domain> <key>` value, or undefined when the key /
-// domain is unset (exit non-zero). Never throws. Array args — no shell parsing.
+// domain is unset, exit non-zero. Never throws. Array args — no shell parsing.
 export function readDefault(domain: string, key: string): string | undefined {
   try {
     const result = spawnSync('defaults', ['read', domain, key], {
@@ -80,7 +79,7 @@ export function readDefault(domain: string, key: string): string | undefined {
 }
 
 // A defaults bool reads back as `0` (false) or `1` (true). True when the value
-// is explicitly `0` — i.e. the key is set to false (auto-update disabled).
+// is explicitly `0` — i.e. the key is set to false, auto-update disabled.
 export function defaultIsFalse(value: string | undefined): boolean {
   return value === '0'
 }
@@ -99,7 +98,7 @@ export function classifySparkle(
     return { ...base, state: 'absent', enabledKeys: [], reason: 'not macOS' }
   }
   // If neither key is present in the domain at all, the app isn't installed /
-  // never launched (no Sparkle prefs written) — not applicable.
+  // never launched, no Sparkle prefs written — not applicable.
   if (values.every(v => v.value === undefined)) {
     return {
       ...base,

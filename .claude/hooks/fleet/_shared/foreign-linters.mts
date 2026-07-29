@@ -1,7 +1,7 @@
-/**
+/*
  * @file Shared foreign-linter detection — the single classifier consumed by
  *   the `no-other-linters-guard` hook (edit-time) and the
- *   `linters-are-oxlint-oxfmt-only` check (committed state). The fleet lints +
+ *   `linters-are-oxlint-oxfmt-only` check, committed state. The fleet lints +
  *   formats with oxlint + oxfmt ONLY; foreign tools (ESLint, Prettier, Biome,
  *   dprint, rome) are blocked as configs and as package.json deps.
  *
@@ -13,7 +13,7 @@
  *     "fleet": { "hostTestDeps": ["eslint"] }
  *
  *   The allowance holds only while ALL of:
- *     1. the dep name is listed in `fleet.hostTestDeps` (exact match);
+ *     1. the dep name is listed in `fleet.hostTestDeps`, exact match;
  *     2. the dep appears only in devDependencies / peerDependencies — a
  *        runtime `dependencies` / `optionalDependencies` entry ships the
  *        foreign tool to consumers and stays blocked;
@@ -26,8 +26,10 @@
 
 import path from 'node:path'
 
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+
 // One whole-basename pattern per foreign linter/formatter config file shape.
-// One regex per tool (rather than a single mega-alternation) keeps each
+// One regex per tool, rather than a single mega-alternation, keeps each
 // pattern simple to read and sidesteps alternation-ordering churn. Sorted by
 // tool name.
 export const CONFIG_FILE_PATTERNS: readonly RegExp[] = [
@@ -46,9 +48,13 @@ export const CONFIG_FILE_PATTERNS: readonly RegExp[] = [
 ]
 
 export interface ForeignDepAudit {
-  /** Deps allowed under the `fleet.hostTestDeps` contract, sorted. */
+  /**
+   * Deps allowed under the `fleet.hostTestDeps` contract, sorted.
+   */
   allowed: string[]
-  /** Deps that violate the rule, sorted by name, each with the reason. */
+  /**
+   * Deps that violate the rule, sorted by name, each with the reason.
+   */
   blocked: ForeignDepFinding[]
 }
 
@@ -57,7 +63,9 @@ export interface ForeignDepFinding {
   reason: string
 }
 
-/** Foreign config file by basename (biome.json, .eslintrc*, …). */
+/**
+ * Foreign config file by basename (biome.json, .eslintrc*, …).
+ */
 export function isForeignConfigFile(basename: string): boolean {
   return CONFIG_FILE_PATTERNS.some(pattern => pattern.test(basename))
 }
@@ -91,7 +99,7 @@ export function isForeignToolPackage(name: string): boolean {
 }
 
 export function isVendoredUpstream(filePath: string): boolean {
-  const p = filePath.replace(/\\/g, '/')
+  const p = normalizePath(filePath)
   return (
     // A path segment that is exactly one of the vendored-tree dir names,
     // anchored at start or a "/" on the left and "/" or end on the right.
@@ -101,9 +109,26 @@ export function isVendoredUpstream(filePath: string): boolean {
   )
 }
 
-/** CLI binary a foreign package family runs as (eslint-plugin-* → eslint). */
+/**
+ * Test-fixture trees (`test/fixtures/`, `tests/fixtures/`, any nested
+ * `fixtures/` under a test dir) hold DATA — a fixture package.json that
+ * declares eslint/prettier deps is simulating a foreign host for parser or
+ * integration tests, not adopting the toolchain. Same doctrine as
+ * `isVendoredUpstream`: exempt from the foreign-linter surface checks.
+ */
+export function isTestFixture(filePath: string): boolean {
+  const p = normalizePath(filePath)
+  // A "fixtures" segment that sits anywhere under a "test"/"tests" segment.
+  return /(?:^|\/)tests?\/(?:[^/]+\/)*fixtures(?:\/|$)/.test(p)
+}
+
+/**
+ * CLI binary a foreign package family runs as (eslint-plugin-* → eslint).
+ */
 export function foreignToolBinary(name: string): string {
+  // oxlint-disable-next-line socket/no-eslint-biome-config-ref -- detection data, not a config reference.
   if (name === '@biomejs/biome') {
+    // oxlint-disable-next-line socket/no-eslint-biome-config-ref -- detection data, not a config reference.
     return 'biome'
   }
   if (name === 'dprint') {
@@ -117,20 +142,24 @@ export function foreignToolBinary(name: string): string {
   }
   // Every remaining foreign family is ESLint-adjacent (@eslint/*,
   // @typescript-eslint/*, eslint-config-*, eslint-plugin-*, @<scope>/eslint-*).
+  // oxlint-disable-next-line socket/no-eslint-biome-config-ref -- detection data, not a config reference.
   return 'eslint'
 }
 
 /**
  * Command words of a package.json script value: the head token of each
- * `&&` / `||` / `;` / `|` segment (after env-var assignments), plus the tool
+ * `&&` / `||` / `;` / `|` segment, after env-var assignments, plus the tool
  * token behind runner indirection (`npx eslint`, `pnpm exec eslint`). Words
  * are reduced to their basename so `node_modules/.bin/eslint` reads as
- * `eslint`. Bare arguments (file paths, test names) are NOT command words —
+ * `eslint`. Bare arguments, file paths, test names, are NOT command words —
  * `vitest run to-eslint.test.ts` yields only `vitest`.
  */
 export function commandWords(script: string): string[] {
   const words: string[] = []
-  for (const segment of script.split(/&&|\|\||[;|]/)) {
+  // Split on shell logical operators (&&, ||) and separators (; |) to isolate individual command segments.
+  const segmentList = script.split(/&&|\|\||[;|]/)
+  for (let j = 0, { length: jlen } = segmentList; j < jlen; j += 1) {
+    const segment = segmentList[j]!
     const tokens = segment.trim().split(/\s+/).filter(Boolean)
     let i = 0
     // Skip leading VAR=value env assignments.
@@ -144,7 +173,11 @@ export function commandWords(script: string): string[] {
     words.push(path.posix.basename(head))
     // Runner indirection — surface the executed tool as a command word too.
     const next = tokens[i + 1]
-    if ((head === 'bunx' || head === 'npx' || head === 'yarn') && next && !next.startsWith('-')) {
+    if (
+      (head === 'bunx' || head === 'npx' || head === 'yarn') &&
+      next &&
+      !next.startsWith('-')
+    ) {
       words.push(path.posix.basename(next))
     }
     const sub = tokens[i + 2]
@@ -163,7 +196,7 @@ export function commandWords(script: string): string[] {
 /**
  * Audit a package.json's text for foreign linter/formatter deps under the
  * `fleet.hostTestDeps` contract (see @file). Fails open: unparseable JSON
- * yields an empty audit (better to under-block than brick a non-JSON edit).
+ * yields an empty audit, better to under-block than brick a non-JSON edit.
  */
 export function auditForeignDeps(jsonText: string): ForeignDepAudit {
   const empty: ForeignDepAudit = { allowed: [], blocked: [] }
@@ -188,7 +221,9 @@ export function auditForeignDeps(jsonText: string): ForeignDepAudit {
   ]) {
     const deps = pkg[block]
     if (deps && typeof deps === 'object') {
-      for (const name of Object.keys(deps as Record<string, unknown>)) {
+      const nameItems = Object.keys(deps as Record<string, unknown>)
+      for (let i = 0, { length } = nameItems; i < length; i += 1) {
+        const name = nameItems[i]!
         if (isForeignToolPackage(name)) {
           const existing = blocksByName.get(name)
           if (existing) {
@@ -221,7 +256,9 @@ export function auditForeignDeps(jsonText: string): ForeignDepAudit {
       : {}
 
   const audit: ForeignDepAudit = { allowed: [], blocked: [] }
-  for (const name of [...blocksByName.keys()].sort()) {
+  const nameList = [...blocksByName.keys()].toSorted()
+  for (let i = 0, { length } = nameList; i < length; i += 1) {
+    const name = nameList[i]!
     if (!hostTestDeps.has(name)) {
       audit.blocked.push({
         name,

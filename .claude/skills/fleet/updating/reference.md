@@ -47,7 +47,7 @@ fi
 | Exit | Meaning                                                 | Action                                                                                                                                                                                                                                             |
 | ---- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0    | Manifest valid, no drift                                | Skip lockstep step in Phase 4                                                                                                                                                                                                                      |
-| 1    | Schema violation, missing file, or unreachable baseline | Stop and investigate via `scripts/lockstep-schema.mts` and the failing row's `local_*`/`upstream` fields. Do not auto-retry.                                                                                                                       |
+| 1    | Schema violation, missing file, or unreachable baseline | Stop and investigate via `scripts/fleet/lockstep/schema.mts` and the failing row's `local_*`/`upstream` fields. Do not auto-retry.                                                                                                                       |
 | 2    | Drift detected                                          | Phase 4 invokes `updating-lockstep`. Auto-bumps mechanical `version-pin` rows per `upgrade_policy`; everything else (`file-fork` / `feature-parity` / `spec-conformance` / `lang-parity` / `locked` version-pins) becomes advisory in the PR body. |
 
 `locked` version-pin rows never auto-bump — they need a coordinated upstream change first (e.g., `temporal-rs` is `locked` because Node vendors it and bumping is gated on a Node bump landing first).
@@ -77,17 +77,15 @@ If no `.gitmodules` exists, skip 4b.
 Resolve the default branch (per CLAUDE.md _Default branch fallback_), then compare:
 
 ```bash
-BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-if [ -z "$BASE" ] && git show-ref --verify --quiet refs/remotes/origin/main;   then BASE=main;   fi
-if [ -z "$BASE" ] && git show-ref --verify --quiet refs/remotes/origin/master; then BASE=master; fi
-BASE="${BASE:-main}"
+# Resolved by the shared runner so the chain lives in exactly one place.
+BASE=$(node .claude/skills/fleet/_shared/scripts/git-default-branch.mts)
 
 PINNED_SHA=$(grep -ohP '(?<=@)[0-9a-f]{40}' .github/workflows/_local-not-for-reuse-ci.yml 2>/dev/null | head -1)
 DEFAULT_SHA=$(git rev-parse "origin/$BASE" 2>/dev/null || echo "")
 
 if [ -n "$PINNED_SHA" ] && [ -n "$DEFAULT_SHA" ] && [ "$PINNED_SHA" != "$DEFAULT_SHA" ]; then
   echo "Workflow SHA pins are stale: $PINNED_SHA → $DEFAULT_SHA (origin/$BASE)"
-  echo "Run the updating-workflows skill to cascade."
+  echo "Repin .github/workflows/_local-not-for-reuse-*.yml manually before merging."
 else
   echo "Workflow SHA pins are up to date (or no _local-not-for-reuse-*.yml pins in this repo)"
 fi
@@ -180,6 +178,6 @@ fi
 
 ## Failure recovery
 
-- **Phase 3 exit 1 (schema error):** stop. Read `scripts/lockstep-schema.mts` output and the offending row's `local_*` / `upstream` fields. Fix the manifest, then re-run.
+- **Phase 3 exit 1 (schema error):** stop. Read `scripts/fleet/lockstep/schema.mts` output and the offending row's `local_*` / `upstream` fields. Fix the manifest, then re-run.
 - **Phase 4a (lockstep drift) commits but Phase 6 tests fail:** the per-row commits are atomic — `git revert <sha>` for the offending row, leave the others, file an advisory.
-- **Phase 5 stale SHA pin:** run `/updating-workflows` to cascade the bump.
+- **Phase 5 stale SHA pin:** repin `.github/workflows/_local-not-for-reuse-*.yml` manually against `origin/$BASE`, then re-run the check.

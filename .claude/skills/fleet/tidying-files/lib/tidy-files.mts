@@ -10,7 +10,7 @@
 // `.DS_Store`, edit-time) into a fleet-wide, multi-pattern engine. The hook
 // stays as the in-session complement; this is the periodic sweep.
 //
-// Default is --dry-run (report only). Pass --fix to delete.
+// Default is --dry-run, report only. Pass --fix to delete.
 //
 // Usage:
 //   node tidy-files.mts            # dry-run: report what WOULD be deleted
@@ -20,8 +20,7 @@
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
@@ -40,23 +39,23 @@ export { readRoster }
 // tooling that manages its own cleanup.
 export const SKIP_DIRS = new Set<string>([
   '.git',
-  'node_modules',
-  'dist',
+  '.pnpm-store',
   'build',
   'coverage',
-  '.pnpm-store',
+  'dist',
+  'node_modules',
 ])
 
 // Exact basenames that are never wanted in a repo.
 export const JUNK_BASENAMES = new Set<string>([
+  '._.DS_Store',
   '.DS_Store',
   '.DS_Store?',
-  '._.DS_Store',
-  'Thumbs.db',
-  'ehthumbs.db',
-  'Desktop.ini',
   '.Spotlight-V100',
   '.Trashes',
+  'Desktop.ini',
+  'ehthumbs.db',
+  'Thumbs.db',
 ])
 
 // Suffixes that mark editor / merge / build stragglers.
@@ -112,7 +111,7 @@ export async function isSafeToDelete(
     () => ({ tracked: true, stderr: '' }),
     (e: unknown) => ({
       tracked: false,
-      stderr: String((e as { stderr?: string })?.stderr ?? ''),
+      stderr: String((e as { stderr?: string | undefined })?.stderr ?? ''),
     }),
   )
   if (result.tracked) {
@@ -171,8 +170,9 @@ export interface RepoFilesResult {
 
 export async function tidyRepoFiles(
   repo: string,
-  options: { fix: boolean },
+  config: { fix: boolean },
 ): Promise<RepoFilesResult> {
+  const cfg = { __proto__: null, ...config } as typeof config
   const repoDir = path.join(PROJECTS, repo)
   if (!existsSync(path.join(repoDir, '.git'))) {
     return { repo, deleted: [], missing: true }
@@ -185,7 +185,7 @@ export async function tidyRepoFiles(
     if (!safe) {
       continue
     }
-    if (options.fix) {
+    if (cfg.fix) {
       const ok = await safeDelete(candidate).then(
         () => true,
         () => false,
@@ -253,7 +253,7 @@ export async function main(): Promise<void> {
     }
   }
 
-  // Stray tmp scratch (only when sweeping the whole fleet, not a single repo).
+  // Stray tmp scratch, only when sweeping the whole fleet, not a single repo.
   if (!onlyRepo) {
     const stray = findStrayTmp(os.tmpdir())
     if (stray.length) {

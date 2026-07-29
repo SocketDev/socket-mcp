@@ -14,14 +14,14 @@ scripts. A test under `scripts/**` is invisible to the vitest runner — the fle
 runs it — so it silently never executes. That's worse than no test: it looks
 green while proving nothing.
 
-Reusable test helpers belong in `test/_shared/fleet/lib/`, not a
+Reusable test helpers belong in `test/fleet/_shared/lib/`, not a
 `scripts/**/test/helpers.mts`.
 
 ## What it allows
 
 - `*.test.*` under `test/**` — the canonical home.
 - The co-located test homes that own their own runners and are NOT under
-  `scripts/`: `.config/oxlint-plugin/fleet/<id>/test/`, `.claude/hooks/**/test/`,
+  `scripts/`: `.config/fleet/oxlint-plugin/fleet/<id>/test/`, `.claude/hooks/**/test/`,
   `.git-hooks/**/test/`.
 - Non-test files under `scripts/` — only `*.test.*` paths are blocked.
 

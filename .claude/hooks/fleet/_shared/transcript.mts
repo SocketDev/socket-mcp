@@ -1,4 +1,4 @@
-/**
+/*
  * @file Shared helpers for Claude Code PreToolUse / Stop hooks. Two
  *   responsibilities the fleet's hooks were each duplicating:
  *
@@ -19,17 +19,33 @@
  *      hook wedges the session."
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readSync,
+  statSync,
+} from 'node:fs'
+
+/**
+ * How many recent USER turns the bypass-phrase scans read by default. Small
+ * enough that a phrase typed early in a long session can't silently authorize
+ * a much-later action, large enough that interleaved tool-heavy turns don't
+ * evict a freshly typed phrase. Hooks pass this shared constant to
+ * `bypassPhrasePresent` so the fleet-wide lookback window is a single-edit
+ * change instead of a per-hook magic number.
+ */
+export const BYPASS_LOOKBACK_USER_TURNS = 8
 
 /**
  * Is any canonical bypass phrase present in a recent user turn? Substring
- * match, case-sensitive (intentional — `allow X bypass` lowercase doesn't
- * count, matches the fleet rule stated in docs/agents.md/bypass-phrases.md).
+ * match on the separator-folded, case-folded form (see normalizeBypassText) —
+ * `allow x bypass`, `Allow X bypass`, and `ALLOW X-BYPASS` all count.
  *
  * Accepts a string or string[] so callers with a single canonical spelling and
- * callers with equivalent spellings (e.g. "soaktime" / "soak time" /
- * "soak-time") share the same helper. The transcript is read once; each phrase
- * substring-checks against the same text.
+ * callers with distinct wordings share the same helper. The transcript is read
+ * once; each phrase substring-checks against the same text.
  *
  * Use this when the bypass is **broad** — one phrase authorizes any matching
  * action for the rest of the conversation window. For **per-trigger**
@@ -38,13 +54,15 @@ import { existsSync, readFileSync } from 'node:fs'
  * shape later.
  */
 /**
- * Normalize a bypass phrase / haystack so hyphens and runs of whitespace
- * collapse to a single space. `Allow workflow-scope bypass`, `Allow workflow
- * scope bypass`, and `Allow workflow—scope bypass` all collapse to the same
- * canonical form for matching. The transcript-reading helpers run user text
- * through this so minor punctuation variations don't break the bypass match.
+ * Normalize a bypass phrase / haystack so hyphens and whitespace are removed
+ * entirely. `Allow workflow-scope bypass`, `Allow workflow scope bypass`, and
+ * `Allow workflowscope bypass` all collapse to the same canonical form for
+ * matching — likewise `Opt-in` / `Opt in` / `Optin` and `non-fleet` /
+ * `non fleet` / `nonfleet`. The transcript-reading helpers run user text
+ * through this so separator variations don't break the phrase match: only the
+ * letters + their order are load-bearing.
  */
-function normalizeBypassText(text: string): string {
+export function normalizeBypassText(text: string): string {
   // NFKC: canonical-decompose + compose + compatibility-fold so
   // visually-similar variants collapse — smart quotes, full-width,
   // ligatures all map to ASCII-canonical.
@@ -57,8 +75,9 @@ function normalizeBypassText(text: string): string {
   // and `ALLOW FLEET-FORK BYPASS` count the same as the canonical mixed
   // case. Typing the phrase is already a deliberate act; casing carries no
   // extra signal, and requiring exact case just trips up a hurried user.
-  // Combined with the dash/whitespace fold below, only the words + their
-  // order are load-bearing.
+  // Combined with the dash/whitespace fold below (and the optional-space
+  // matching in phrasePattern), only the letters + their order are
+  // load-bearing.
   return text
     .normalize('NFKC')
     .replace(/\p{Cf}/gu, '')
@@ -66,28 +85,115 @@ function normalizeBypassText(text: string): string {
     .toLowerCase()
 }
 
+export interface BypassMatchOptions {
+  // LOW-RISK guards ONLY (opt-in): when true, the trailing `bypass` keyword is
+  // OPTIONAL — `Allow <slug>` authorizes the same as `Allow <slug> bypass`.
+  // SECURITY guards, the default, omit this: the `bypass` suffix stays REQUIRED
+  // as the anti-false-positive anchor that keeps a bare `Allow <slug>` in casual
+  // prose from disarming a supply-chain / destructive / exfil guard. See
+  // docs/agents.md/fleet/bypass-phrases.md.
+  readonly optionalSuffix?: boolean | undefined
+}
+
+/**
+ * Compile a normalized phrase into a matcher where every inter-word gap is
+ * OPTIONAL. `opt in readme fleet shape` then matches `Opt-in`, `Opt in`, and
+ * `Optin` spellings alike (normalizeBypassText already folds dashes/whitespace
+ * to one space; this makes that one space elidable), and `non fleet` matches
+ * `nonfleet`. Regex metacharacters in the phrase (`:` targets, dots) are
+ * escaped literally. With `optionalSuffix` the reserved `bypass` keyword is
+ * also elidable (LOW-RISK guards only — see BypassMatchOptions).
+ */
+export function phrasePattern(
+  normalizedPhrase: string,
+  options?: BypassMatchOptions | undefined,
+): RegExp {
+  const opts = { __proto__: null, ...options } as BypassMatchOptions
+  // Collapse whitespace on BOTH sides of a `:` target separator to a bare colon
+  // first, so the emitted pattern makes surrounding space optional on either
+  // side — `Allow x bypass: t`, `bypass :t`, `bypass  :  t`, and `bypass:t` all
+  // match (normalizeBypassText already folded newlines + runs of space to one
+  // space before this). Plain colon-free phrases are unaffected.
+  const collapsed = normalizedPhrase.replace(/ *: */g, ':')
+  const escaped = collapsed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  let src = escaped.replace(/ /g, ' ?').replace(/:/g, ' ?: ?')
+  if (opts.optionalSuffix) {
+    // Make the reserved ` bypass` keyword elidable (` ?bypass` is how it lands
+    // in `src` after the space-optional pass — at the end, or before a ` ?: ?`
+    // target). A non-bypass phrase has no `bypass` token, so this is a no-op.
+    src = src.replace(/ \?bypass/g, '(?: ?bypass)?')
+  }
+  return new RegExp(src, 'g')
+}
+
 export function bypassPhrasePresent(
   transcriptPath: string | undefined,
   phrases: string | readonly string[],
   lookbackUserTurns?: number | undefined,
+  options?: BypassMatchOptions | undefined,
 ): boolean {
   const list = typeof phrases === 'string' ? [phrases] : phrases
   const { length } = list
   if (length === 0) {
     return false
   }
-  const text = readUserText(transcriptPath, lookbackUserTurns)
+  // A bypass authorization must be DELIBERATE user prose — not a phrase the user
+  // or an injected summary, merely quoted, code-spanned, or described. Strip
+  // code fences/inline-code and quoted spans before matching (system-reminder
+  // spans are already dropped in extractTurnPieces). Without this, a guard
+  // self-disarms whenever its phrase appears as `Allow X bypass` in a code span,
+  // a quote, a doc list, or a recap — which it did (no-direct-linter-guard).
+  // HUMAN turns only: a phrase another agent/session/orchestrator delivered
+  // (peer SendMessage relay, sdk prompt, meta feedback) is not a grant.
+  const text = stripQuotedSpans(
+    stripCodeFences(readHumanUserText(transcriptPath, lookbackUserTurns)),
+  )
   if (!text) {
     return false
   }
   const haystack = normalizeBypassText(text)
   for (let i = 0; i < length; i += 1) {
     const needle = normalizeBypassText(list[i]!)
-    if (haystack.includes(needle)) {
+    if (phrasePattern(needle, options).test(haystack)) {
       return true
     }
   }
   return false
+}
+
+/**
+ * {@link bypassPhrasePresent} for an IRREVERSIBLE operation — force-push,
+ * history revert, protected-branch push. Identical, except a SUBAGENT can
+ * never satisfy it.
+ *
+ * The operator's grant authorizes the turn they typed it in, not every later
+ * destructive op a delegate happens to reach while the phrase is still in
+ * lookback. A subagent reads the SAME transcript as its orchestrator, so a
+ * plain `bypassPhrasePresent` hands a delegate the operator's authority for
+ * an operation the operator never saw. (Incident: an operator granted
+ * `Allow force-push bypass` to reconcile one repo; a delegate spawned later
+ * in the same session force-pushed a DIFFERENT repo on that inherited grant.)
+ *
+ * A delegate that needs an irreversible op names this guard in its FINAL TEXT
+ * — the only channel back to its parent, since a delegate cannot SendMessage
+ * the orchestrator — and the orchestrator, whose turns the operator actually
+ * reads, runs the op itself.
+ */
+export function operatorBypassPresent(
+  transcriptPath: string | undefined,
+  phrases: string | readonly string[],
+  lookbackUserTurns?: number | undefined,
+  options?: BypassMatchOptions | undefined,
+): boolean {
+  if (mostRecentAssistantIsSidechain(transcriptPath)) {
+    return false
+  }
+  return bypassPhrasePresent(
+    transcriptPath,
+    phrases,
+    lookbackUserTurns,
+    options,
+  )
 }
 
 /**
@@ -97,7 +203,7 @@ export function bypassPhrasePresent(
  * phrase budget is replenished by every fresh user-typed occurrence.
  *
  * Remaining = phraseCount - priorActionCount remaining > 0 → caller may proceed
- * (one slot consumed by this action) remaining <= 0 → caller must block; phrase
+ * one slot consumed by this action, remaining <= 0 → caller must block; phrase
  * budget exhausted.
  *
  * Per-trigger semantics: a single `Allow X bypass` authorizes exactly one
@@ -144,7 +250,12 @@ export function countBypassPhrases(
   if (length === 0) {
     return 0
   }
-  const rawText = readUserText(transcriptPath, lookbackUserTurns)
+  // Same use-vs-mention + human-provenance filters as bypassPhrasePresent: a
+  // quoted, code-spanned, summarized, or agent-relayed occurrence is not a
+  // fresh authorization slot.
+  const rawText = stripQuotedSpans(
+    stripCodeFences(readHumanUserText(transcriptPath, lookbackUserTurns)),
+  )
   if (!rawText) {
     return 0
   }
@@ -166,11 +277,20 @@ export function countBypassPhrases(
   const claimed: Array<[number, number]> = []
   let total = 0
   for (let i = 0, sortedLen = sorted.length; i < sortedLen; i += 1) {
-    const phrase = sorted[i]!
-    let idx = 0
-    while ((idx = text.indexOf(phrase, idx)) !== -1) {
-      const start = idx
-      const end = idx + phrase.length
+    // Optional-space matching (see phrasePattern): `Opt-in` / `Opt in` /
+    // `Optin` spellings occupy different span widths, so iterate real regex
+    // matches rather than fixed-length indexOf hops.
+    const pattern = phrasePattern(sorted[i]!)
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(text)) !== null) {
+      const start = match.index
+      const end = start + match[0].length
+      if (end === start) {
+        // A degenerate all-separator phrase matches empty — step past it so
+        // the exec loop can't spin in place.
+        pattern.lastIndex = start + 1
+        continue
+      }
       const overlaps = claimed.some(([cs, ce]) => start < ce && end > cs)
       if (!overlaps) {
         // Word-boundary check on the trailing edge: the char right
@@ -192,19 +312,131 @@ export function countBypassPhrases(
           claimed.push([start, end])
         }
       }
-      idx = end
+      pattern.lastIndex = end
     }
   }
   return total
 }
 
 /**
+ * Laundering detector — is a grant phrase present in AGENT-DELIVERED content
+ * near the current action? The inverse question to `bypassPhrasePresent`:
+ * that scanner asks "did the human authorize?", this one asks "is someone
+ * trying to smuggle the authorization in through a non-human channel?" —
+ * a cross-session SendMessage relay (peer-origin turn / agent-message
+ * wrapper), or an orchestrator/sdk prompt. A guard that finds no human grant
+ * but DOES find its phrase here should refuse with a laundering-specific
+ * message demanding a fresh human grant, so the pattern is taught at the
+ * moment it is attempted.
+ *
+ * Deliberately does NOT strip quotes/code spans: a quoted or code-fenced
+ * relay is still a laundering attempt worth naming. Reminder spans ARE
+ * stripped (harness background like CLAUDE.md legitimately mentions
+ * phrases), and only user-role events are scanned — assistant prose and
+ * tool_result content never count (a guard's own refusal text echoes the
+ * phrase and must not self-trigger).
+ *
+ * Window: stops after `lookbackUserTurns` (default
+ * BYPASS_LOOKBACK_USER_TURNS) HUMAN turns, mirroring the grant scanner's
+ * window.
+ */
+export function bypassPhraseInAgentContent(
+  transcriptPath: string | undefined,
+  phrases: string | readonly string[],
+  lookbackUserTurns?: number | undefined,
+  options?: BypassMatchOptions | undefined,
+): boolean {
+  const list = typeof phrases === 'string' ? [phrases] : phrases
+  if (list.length === 0) {
+    return false
+  }
+  const lookback = lookbackUserTurns ?? BYPASS_LOOKBACK_USER_TURNS
+  const lines = readLines(transcriptPath)
+  const collected: string[] = []
+  let humanTurns = 0
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (!r || r.role !== 'user') {
+      continue
+    }
+    const raw = extractRawTurnPieces(r.content).join('\n')
+    if (!raw) {
+      continue
+    }
+    if (r.isHumanAuthored) {
+      // A human-authored turn may still EMBED a relayed wrapper (a queued
+      // mid-work delivery) — only the wrapped bodies are agent content.
+      AGENT_MESSAGE_BODY.lastIndex = 0
+      let m: RegExpExecArray | null
+      while ((m = AGENT_MESSAGE_BODY.exec(raw)) !== null) {
+        collected.push(m[1]!)
+      }
+      humanTurns += 1
+      if (humanTurns >= lookback) {
+        break
+      }
+    } else {
+      collected.push(
+        raw.replace(REMINDER_SPAN, ' ').replace(REMINDER_TAIL, ' '),
+      )
+    }
+  }
+  if (collected.length === 0) {
+    return false
+  }
+  const haystack = normalizeBypassText(collected.join('\n'))
+  for (let i = 0, { length } = list; i < length; i += 1) {
+    const needle = normalizeBypassText(list[i]!)
+    if (phrasePattern(needle, options).test(haystack)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Raw (unstripped) author-text pieces of a turn — the laundering detector's
+ * reader. Same block selection as `extractTurnPieces` (genuine text blocks
+ * only, never tool_result/tool_use content) but WITHOUT
+ * `stripInjectedContext`, so an agent-message wrapper survives for
+ * inspection instead of being erased.
+ */
+function extractRawTurnPieces(content: unknown): string[] {
+  const pieces: string[] = []
+  if (typeof content === 'string') {
+    pieces.push(content)
+  } else if (Array.isArray(content)) {
+    for (let i = 0, { length } = content; i < length; i += 1) {
+      const block = content[i]!
+      if (typeof block === 'string') {
+        pieces.push(block)
+      } else if (block && typeof block === 'object') {
+        const b = block as Record<string, unknown>
+        if (b['type'] === 'tool_result' || b['type'] === 'tool_use') {
+          continue
+        }
+        if (typeof b['text'] === 'string') {
+          pieces.push(b['text'])
+        }
+      }
+    }
+  }
+  return pieces
+}
+
+/**
  * Inverse of `stripCodeFences`: extract the contents of fenced code blocks.
- * Returns each block's body (the lines between the opening and closing fence)
+ * Returns each block's body, the lines between the opening and closing fence
  * as a separate string. The leading language tag (e.g. ` ```ts `) is stripped —
  * only the code lines are kept.
  *
- * Used by hooks (error-message-quality-reminder) that need to inspect the code
+ * Used by hooks (error-message-quality-nudge) that need to inspect the code
  * the assistant wrote rather than the prose around it.
  */
 export interface CodeFence {
@@ -218,12 +450,12 @@ export function extractCodeFences(text: string): CodeFence[] {
   // The lang tag is optional; the content is anything (non-greedy) up
   // to the closing fence. We're permissive — bad markdown still gets
   // captured as a block.
-  const re = /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g
+  const re = /```(?<lang>[a-zA-Z0-9_+-]*)\n?(?<body>[\s\S]*?)```/g
   let match: RegExpExecArray | null
   while ((match = re.exec(text)) !== null) {
-    const body = match[2]
+    const body = match.groups?.['body']
     if (body !== undefined) {
-      out.push({ lang: match[1] ?? '', body })
+      out.push({ lang: match.groups?.['lang'] ?? '', body })
     }
   }
   return out
@@ -283,22 +515,95 @@ type Role = 'user' | 'assistant'
  * SECURITY: `tool_result` and `tool_use` blocks are EXCLUDED. A `role: user`
  * message in the transcript carries two very different kinds of content —
  * genuine user typing (`{type:'text'}`) and tool results the harness injected
- * (`{type:'tool_result', content:…}`, e.g. the bytes of a file the agent read or
- * a command's stdout). Counting tool-result text as "user text" makes every
+ * (`{type:'tool_result', content:…}`, e.g. the bytes of a file the agent read
+ * or a command's stdout). Counting tool-result text as "user text" makes every
  * bypass-phrase check spoofable: a dependency file or command output containing
  * "Allow <X> bypass" would defeat the guard. So we only collect genuine `text`
- * blocks (and bare strings) and never a block's `content` field. Same reasoning
+ * blocks, and bare strings, and never a block's `content` field. Same reasoning
  * for assistant turns: `tool_use` inputs are not prose.
  */
+// The harness-injected reminder element name. Built into tags at runtime so the
+// literal closing tag never appears in this source (it reads as a fake
+// system-tag to the prompt-injection scanner).
+const REMINDER_TAG = 'system-reminder'
+
+// The element wrapping a message ANOTHER agent/session delivered into this
+// conversation (the harness's "another session sent a message" preamble + the
+// wrapper, or the same wrapper enqueued mid-work). The author is an AGENT,
+// never the user — a
+// bypass/authorization phrase inside it must not count as a human grant.
+// Incident (2026-07): a session blocked by push-protected-branch-guard messaged
+// a second session asking it to send back the literal grant phrase; had the
+// relay been sent, the wrapper text would have ridden into a user-role turn.
+// Same runtime tag construction as REMINDER_TAG, see above.
+const AGENT_MESSAGE_TAG = 'agent-message'
+// The open tag carries attributes (`from="<sender>"`), so match to the `>`.
+const AGENT_MESSAGE_SPAN = new RegExp(
+  `<${AGENT_MESSAGE_TAG}[^>]*>[\\s\\S]*?</${AGENT_MESSAGE_TAG}>`,
+  'g',
+)
+// A truncated relay, unclosed open tag, must not leak its tail either.
+const AGENT_MESSAGE_TAIL = new RegExp(`<${AGENT_MESSAGE_TAG}[^>]*>[\\s\\S]*$`)
+// Span-BODY extractor for the laundering detector: same shape as
+// AGENT_MESSAGE_SPAN but capturing the wrapped content.
+const AGENT_MESSAGE_BODY = new RegExp(
+  `<${AGENT_MESSAGE_TAG}[^>]*>([\\s\\S]*?)</${AGENT_MESSAGE_TAG}>`,
+  'g',
+)
+
+// Reminder-span erasers, hoisted so the laundering detector can strip
+// harness-injected background (CLAUDE.md block, memories — which legitimately
+// MENTION bypass phrases) without also erasing the agent-relayed content it
+// exists to inspect.
+const REMINDER_SPAN = new RegExp(
+  `<${REMINDER_TAG}>[\\s\\S]*?</${REMINDER_TAG}>`,
+  'g',
+)
+const REMINDER_TAIL = new RegExp(`<${REMINDER_TAG}>[\\s\\S]*$`)
+
+// Opening of the harness's context-compaction recap. The whole message is an
+// injected summary of past work — "not the user" — so it's blanked wholesale.
+const CONTINUATION_RECAP_PREFIX =
+  'This session is being continued from a previous conversation'
+
+/**
+ * Strip harness-INJECTED content from a turn so only genuine author text
+ * remains. Two injected shapes ride inside user-role turns and are explicitly
+ * "not the user": (1) reminder spans the harness wraps around background
+ * context (the CLAUDE.md block, recalled memories, task lists); (2) the
+ * context- compaction recap that opens a continued session. Counting either as
+ * author text makes every bypass-phrase check spoofable — a reminder, doc, or
+ * recap that merely MENTIONS "Allow <X> bypass" silently disarms the guard (it
+ * did: a no-direct-linter bypass matched CLAUDE.md / docs / the session recap,
+ * never a user authorization). Same "never trust harness-injected content" rule
+ * the tool_result/tool_use exclusion already applies.
+ */
+export function stripInjectedContext(text: string): string {
+  // The compaction recap is a whole injected message — blank it entirely.
+  if (text.trimStart().startsWith(CONTINUATION_RECAP_PREFIX)) {
+    return ' '
+  }
+  // Closed spans first, then a trailing unclosed open-tag to EOF so a truncated
+  // reminder can't leak its tail. Single literal tag name, no alternation.
+  // Agent-message relays are stripped the same way: text another agent/session
+  // sent is harness-delivered, not user-typed, wherever it rides (a peer-origin
+  // turn, a queued mid-work delivery).
+  return text
+    .replace(REMINDER_SPAN, ' ')
+    .replace(REMINDER_TAIL, ' ')
+    .replace(AGENT_MESSAGE_SPAN, ' ')
+    .replace(AGENT_MESSAGE_TAIL, ' ')
+}
+
 export function extractTurnPieces(content: unknown): string[] {
   const pieces: string[] = []
   if (typeof content === 'string') {
-    pieces.push(content)
+    pieces.push(stripInjectedContext(content))
   } else if (Array.isArray(content)) {
     for (let i = 0, { length } = content; i < length; i += 1) {
       const block = content[i]!
       if (typeof block === 'string') {
-        pieces.push(block)
+        pieces.push(stripInjectedContext(block))
       } else if (block && typeof block === 'object') {
         const b = block as Record<string, unknown>
         // Never trust harness-injected blocks as author text.
@@ -306,7 +611,7 @@ export function extractTurnPieces(content: unknown): string[] {
           continue
         }
         if (typeof b['text'] === 'string') {
-          pieces.push(b['text'])
+          pieces.push(stripInjectedContext(b['text']))
         }
       }
     }
@@ -322,14 +627,153 @@ export function extractTurnPieces(content: unknown): string[] {
 export function readLastAssistantText(
   transcriptPath: string | undefined,
 ): string {
-  return readRoleText(transcriptPath, 'assistant', 1)
+  // Delegates to the turn-scoped reader: the documented contract was always
+  // "the most-recent assistant TURN", but the old lookback=1 readRoleText
+  // returned only the newest transcript ENTRY — a streamed reply spans many
+  // entries, so mid-reply prose escaped every Stop scan built on this helper
+  // reply-prose-nudge's honesty verdict included.
+  return readLastAssistantTurnText(transcriptPath)
+}
+
+// Entry cap for the turn-scoped reader below: bounds the backward scan so a
+// megatranscript can't make every Stop event pay a full-file parse. A turn
+// with 400+ trailing assistant/tool entries is far beyond any real reply.
+const TURN_SCAN_CAP = 400
+
+/**
+ * Read the text of the entire most-recent assistant TURN — every trailing
+ * assistant entry back to, but excluding, the last human message.
+ *
+ * A long streamed reply lands in the transcript as MULTIPLE assistant
+ * entries (per content block / API response, interleaved with tool events),
+ * so the lookback=1 entry read (`readLastAssistantText`) sees only the final
+ * block. That let mid-message prose escape Stop-hook scans entirely: a
+ * banned honesty-framing word in a reply's middle section sailed past
+ * reply-prose for a whole session because the closing paragraph was clean.
+ *
+ * Turn boundary: a user entry whose content carries real text (a human
+ * message). Tool-result user entries contribute no pieces — extractTurnPieces
+ * skips tool_result blocks — so tool traffic inside the turn does not end it.
+ * Sidechain scoping matches readLastAssistantTextSameActor: the newest
+ * assistant entry fixes the scope, and entries of the other scope are
+ * skipped, so a parent Stop never scans subagent prose, or vice versa.
+ */
+export function readLastAssistantTurnText(
+  transcriptPath: string | undefined,
+): string {
+  const lines = readLines(transcriptPath)
+  const out: string[] = []
+  let scope: boolean | undefined
+  const stop = Math.max(0, lines.length - TURN_SCAN_CAP)
+  for (let i = lines.length - 1; i >= stop; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (!r) {
+      continue
+    }
+    if (r.role === 'assistant') {
+      if (scope === undefined) {
+        scope = r.isSidechain
+      } else if (r.isSidechain !== scope) {
+        continue
+      }
+      const pieces = extractTurnPieces(r.content)
+      if (pieces.length) {
+        out.push(pieces.join('\n'))
+      }
+      continue
+    }
+    if (r.role === 'user' && extractTurnPieces(r.content).length > 0) {
+      break
+    }
+  }
+  return out.toReversed().join('\n')
+}
+
+/**
+ * Like readLastAssistantText, but SCOPED to the sidechain status of the
+ * most-recent assistant turn: returns the newest NON-EMPTY assistant turn whose
+ * `isSidechain` matches the most-recent assistant turn, stopping at the first
+ * turn of the OTHER scope. A subagent (Task) turn carries `isSidechain:true`,
+ * the parent orchestrator's turns carry false. So a subagent's commit is gated
+ * by the SUBAGENT's own recent claim and NEVER by the parent orchestrator's
+ * prose, a different scope — fixing the cross-actor false positive where an
+ * orchestrator's unverified success claim blocked a subagent's commit. When the
+ * most-recent assistant turn is the parent's, this reads the parent's turn and
+ * the gate is unchanged.
+ */
+/**
+ * True when the most-recent assistant turn is a subagent (Task/sidechain) turn.
+ * Claude Code marks a subagent turn with `isSidechain:true` and the parent
+ * orchestrator's turns with false. A hook gating on "did a subagent do this"
+ * reads this: the newest assistant turn is the actor whose tool call is
+ * running. Returns false when the transcript is missing or has no assistant
+ * turn.
+ *
+ * Limit: this only sees turns written into THIS transcript. An inline Task
+ * subagent's turns are inlined here (`isSidechain:true`); a background/workflow
+ * subagent writes to its own transcript and never appears here, so a caller
+ * cannot attribute a background child's tool call from this alone.
+ */
+export function mostRecentAssistantIsSidechain(
+  transcriptPath: string | undefined,
+): boolean {
+  const lines = readLines(transcriptPath)
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (r?.role === 'assistant') {
+      return r.isSidechain
+    }
+  }
+  return false
+}
+
+export function readLastAssistantTextSameActor(
+  transcriptPath: string | undefined,
+): string {
+  const lines = readLines(transcriptPath)
+  let scope: boolean | undefined
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (!r || r.role !== 'assistant') {
+      continue
+    }
+    if (scope === undefined) {
+      scope = r.isSidechain
+    } else if (r.isSidechain !== scope) {
+      // Crossed into the other actor's turns — stop before reading them.
+      break
+    }
+    const pieces = extractTurnPieces(r.content)
+    if (pieces.length) {
+      return pieces.join('\n')
+    }
+  }
+  return ''
 }
 
 /**
  * Walk the transcript newest → oldest, return every tool-use event from the
  * most recent assistant turn. Returns an empty array if the transcript is
  * missing or the most recent assistant turn has no tool uses. Used by hooks
- * that gate on what the assistant just did (e.g. file-size-reminder reading
+ * that gate on what the assistant just did (e.g. file-size-nudge reading
  * Write/Edit events).
  */
 export function readLastAssistantToolUses(
@@ -354,11 +798,11 @@ export function readLastAssistantToolUses(
 
 /**
  * Walk the transcript newest → oldest, return tool-use events from the
- * **prior** assistant turns (skipping the most-recent one). `lookback` caps how
+ * **prior** assistant turns, skipping the most-recent one. `lookback` caps how
  * far back to walk in assistant turns; pass a small N (e.g. 5) so the scan
  * stays cheap on long transcripts. Used by hooks that compare what the
  * assistant is doing now to what it did earlier in the session — e.g.
- * compound-lessons-reminder detecting repeated edits to the same hook/skill
+ * compound-lessons-nudge detecting repeated edits to the same hook/skill
  * without rule promotion.
  */
 export function readPriorAssistantToolUses(
@@ -401,13 +845,43 @@ export function readPriorAssistantToolUses(
  * array on missing path or read error — every caller in this module wants the
  * same empty-on-failure semantics.
  */
+// Read at most this many bytes from the transcript TAIL. A long session grows
+// past Node's max-string size (~536MB), where a whole-file readFileSync throws
+// ERR_STRING_TOO_LONG and every phrase/turn scan silently sees an EMPTY
+// transcript: bypass phrases stop working and guards fail closed. The signals
+// these scans need, bypass phrases, recent turns, are recent by contract, so a
+// bounded tail is both correct and far cheaper than slurping the whole file on
+// every hook invocation.
+const TRANSCRIPT_TAIL_BYTES = 8 * 1024 * 1024
+
 export function readLines(transcriptPath: string | undefined): string[] {
   if (!transcriptPath || !existsSync(transcriptPath)) {
     return []
   }
   let raw: string
   try {
-    raw = readFileSync(transcriptPath, 'utf8')
+    const { size } = statSync(transcriptPath)
+    if (size > TRANSCRIPT_TAIL_BYTES) {
+      const fd = openSync(transcriptPath, 'r')
+      try {
+        const buf = Buffer.alloc(TRANSCRIPT_TAIL_BYTES)
+        const read = readSync(
+          fd,
+          buf,
+          0,
+          TRANSCRIPT_TAIL_BYTES,
+          size - TRANSCRIPT_TAIL_BYTES,
+        )
+        raw = buf.subarray(0, read).toString('utf8')
+      } finally {
+        closeSync(fd)
+      }
+      // Drop the first, almost certainly partial, line of the tail window.
+      const firstNewline = raw.indexOf('\n')
+      raw = firstNewline === -1 ? '' : raw.slice(firstNewline + 1)
+    } else {
+      raw = readFileSync(transcriptPath, 'utf8')
+    }
   } catch {
     return []
   }
@@ -422,12 +896,21 @@ export function readLines(transcriptPath: string | undefined): string[] {
  * `lookback` (optional) limits the search to the most-recent N matching turns
  * so callers don't pay the full-transcript cost when they only need recent
  * context.
+ *
+ * `options.humanOnly`, user role: keep only turns whose provenance markers
+ * say the HUMAN typed them (see eventIsHumanAuthored) — the authorization
+ * scanners' reader.
  */
+export interface ReadRoleTextOptions {
+  readonly humanOnly?: boolean | undefined
+}
 export function readRoleText(
   transcriptPath: string | undefined,
   role: Role,
   lookback?: number | undefined,
+  options?: ReadRoleTextOptions | undefined,
 ): string {
+  const opts = { __proto__: null, ...options } as ReadRoleTextOptions
   const lines = readLines(transcriptPath)
   const out: string[] = []
   let matched = 0
@@ -442,12 +925,24 @@ export function readRoleText(
     if (!r || r.role !== role) {
       continue
     }
-    const pieces = extractTurnPieces(r.content)
-    if (pieces.length) {
-      // Buffer this turn's blocks together so the final reverse swaps
-      // *turn order*, not intra-turn block order.
-      out.push(pieces.join('\n'))
+    if (opts.humanOnly && !r.isHumanAuthored) {
+      // Positive non-human provenance (peer relay, sdk/system prompt,
+      // meta-injected feedback): not the operator. Skipped WITHOUT consuming a
+      // lookback slot — agent traffic must not evict a freshly typed phrase.
+      continue
     }
+    const pieces = extractTurnPieces(r.content)
+    if (!pieces.length) {
+      // Tool-result carrier events share the user role but hold no author
+      // prose. They must not consume lookback slots — a lookback of "8 user
+      // turns" means 8 things the USER said, not 8 tool calls; otherwise a
+      // busy turn evicts a freshly typed bypass phrase before the very
+      // command it authorizes runs.
+      continue
+    }
+    // Buffer this turn's blocks together so the final reverse swaps
+    // *turn order*, not intra-turn block order.
+    out.push(pieces.join('\n'))
     matched += 1
     if (lookback !== undefined && matched >= lookback) {
       break
@@ -462,14 +957,30 @@ export function readRoleText(
  * Read the entire stdin buffer into a string. Used by every PreToolUse hook to
  * slurp the JSON payload Claude Code sends.
  */
+// A per-event dispatcher reads stdin ONCE and re-exposes the raw payload via
+// this env var, so many guards run in a single process without each racing for
+// the already-consumed stdin fd. Not a kill switch — it carries the payload, it
+// doesn't gate behavior.
+const STDIN_ENV = 'CLAUDE_HOOK_STDIN'
+let cachedStdin: string | undefined
 export function readStdin(): Promise<string> {
+  const injected = process.env[STDIN_ENV]
+  if (typeof injected === 'string') {
+    return Promise.resolve(injected)
+  }
+  if (cachedStdin !== undefined) {
+    return Promise.resolve(cachedStdin)
+  }
   return new Promise(resolve => {
     let buf = ''
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', chunk => {
       buf += chunk
     })
-    process.stdin.on('end', () => resolve(buf))
+    process.stdin.on('end', () => {
+      cachedStdin = buf
+      resolve(buf)
+    })
   })
 }
 
@@ -477,13 +988,29 @@ export function readStdin(): Promise<string> {
  * Read every user-turn text content from a transcript JSONL, joined by
  * newlines. Returns empty string when the path is unset, missing, or
  * unparseable. `lookbackUserTurns` limits to the most-recent N user turns
- * (counted from the tail); omit to read all turns.
+ * counted from the tail; omit to read all turns.
  */
 export function readUserText(
   transcriptPath: string | undefined,
   lookbackUserTurns?: number | undefined,
 ): string {
   return readRoleText(transcriptPath, 'user', lookbackUserTurns)
+}
+
+/**
+ * Like `readUserText`, but ONLY turns the human operator personally typed
+ * (provenance-checked — see eventIsHumanAuthored). This is the reader every
+ * grant/bypass-phrase scan uses: a phrase delivered by another agent, session,
+ * or orchestrator prompt rides in a user-ROLE turn but is not the user, and
+ * must never authorize anything, cross-agent permission laundering.
+ */
+export function readHumanUserText(
+  transcriptPath: string | undefined,
+  lookbackUserTurns?: number | undefined,
+): string {
+  return readRoleText(transcriptPath, 'user', lookbackUserTurns, {
+    humanOnly: true,
+  })
 }
 
 /**
@@ -499,6 +1026,8 @@ export function readUserText(
 export function resolveRoleAndContent(evt: unknown):
   | {
       content: unknown
+      isHumanAuthored: boolean
+      isSidechain: boolean
       role: string | undefined
     }
   | undefined {
@@ -506,6 +1035,30 @@ export function resolveRoleAndContent(evt: unknown):
     return undefined
   }
   const e = evt as Record<string, unknown>
+  // A message the user types WHILE the assistant is working is recorded as a
+  // queued-input event, not a `role:'user'` turn:
+  // `{type:'queue-operation', operation:'enqueue', content:'<what they typed>'}`.
+  // It IS genuine user prose — the user typed it, the harness only deferred
+  // delivery — so a bypass phrase queued mid-work must count exactly like one
+  // typed at an idle prompt. Without this, a user can authorize repeatedly and
+  // be silently ignored (a lease-force-push phrase typed 4× mid-task never
+  // registered). Mostly not injectable: a human enqueues input, and
+  // extractTurnPieces still runs stripInjectedContext over the string, so a
+  // reminder/tool/agent-message span can't ride in (a cross-session
+  // SendMessage delivered mid-work lands here WRAPPED in the agent-message
+  // element, which that strip removes). Non-`enqueue` queue ops carry no
+  // author prose → skipped.
+  if (e['type'] === 'queue-operation') {
+    if (e['operation'] !== 'enqueue' || typeof e['content'] !== 'string') {
+      return undefined
+    }
+    return {
+      content: e['content'],
+      isHumanAuthored: true,
+      isSidechain: false,
+      role: 'user',
+    }
+  }
   const role =
     typeof e['role'] === 'string'
       ? e['role']
@@ -518,7 +1071,56 @@ export function resolveRoleAndContent(evt: unknown):
     (message && typeof message === 'object'
       ? (message as Record<string, unknown>)['content']
       : undefined)
-  return { content, role }
+  // Claude Code marks a subagent (Task/sidechain) turn with `isSidechain:true`;
+  // the parent orchestrator's turns carry false/absent.
+  return {
+    content,
+    isHumanAuthored: eventIsHumanAuthored(e),
+    isSidechain: e['isSidechain'] === true,
+    role,
+  }
+}
+
+/**
+ * Provenance: was this user-role event TYPED by the human operator? The
+ * harness routes several NON-human payloads through `role:'user'` turns, each
+ * carrying a positive marker:
+ *
+ * - `isMeta: true` — harness-injected (Stop-hook feedback, local-command caveats,
+ *   scheduled prompts).
+ * - `origin.kind` other than `'human'` — `'peer'` (a cross-session SendMessage
+ *   relay: THE permission-laundering vector), `'task-notification'`, etc.
+ *   Genuine typing carries `'human'`.
+ * - `promptSource` other than `'typed'` / `'queued'` — `'sdk'` (an
+ *   orchestrator/workflow prompt driving a headless session), `'system'`.
+ *
+ * Rejection is POSITIVE-SIGNAL only: an event with none of these fields (older
+ * harness versions, minimal test fixtures) still counts as human, so the
+ * bypass path can't silently break for the operator on a format change. The
+ * grant-phrase scanners (`bypassPhrasePresent` / `countBypassPhrases`) read
+ * only human-authored turns — a phrase an agent relays, however delivered,
+ * never authorizes anything.
+ */
+export function eventIsHumanAuthored(e: Record<string, unknown>): boolean {
+  if (e['isMeta'] === true) {
+    return false
+  }
+  const origin = e['origin']
+  if (origin && typeof origin === 'object') {
+    const kind = (origin as Record<string, unknown>)['kind']
+    if (typeof kind === 'string' && kind !== 'human') {
+      return false
+    }
+  }
+  const promptSource = e['promptSource']
+  if (
+    typeof promptSource === 'string' &&
+    promptSource !== 'typed' &&
+    promptSource !== 'queued'
+  ) {
+    return false
+  }
+  return true
 }
 
 /**
@@ -547,7 +1149,7 @@ export function stripCodeFences(text: string): string {
  * content.
  *
  * Combine with `stripCodeFences` for full noise filtering. Order doesn't matter
- * (the two strip disjoint surfaces).
+ * the two strip disjoint surfaces.
  */
 export function stripQuotedSpans(text: string): string {
   // ASCII double quotes: "…" — up to 80 chars, single line.
@@ -559,7 +1161,7 @@ export function stripQuotedSpans(text: string): string {
   // the ASCII charset and benefit from a separate, simpler regex.
   return text
     .replace(/"[^"\n]{1,80}"/g, ' ')
-    .replace(/(^|[\s([{,;:>])'[^'\n]{1,80}'/g, '$1 ')
+    .replace(/(?<boundary>^|[\s([{,;:>])'[^'\n]{1,80}'/g, '$<boundary> ')
     .replace(/“[^”\n]{1,80}”/g, ' ')
     .replace(/‘[^’\n]{1,80}’/g, ' ')
 }

@@ -1,7 +1,7 @@
 /**
  * @file Cross-platform secure storage for the Socket API token. Wraps each OS's
  *   native credential store: macOS → `security add-generic-password` /
- *   `find-generic-password` (Keychain Access). Linux → `secret-tool store` /
+ *   `find-generic-password`, Keychain Access. Linux → `secret-tool store` /
  *   `secret-tool lookup` (libsecret). Windows → `cmdkey /add` plus PowerShell
  *   readback via `Get-StoredCredential` (CredentialManager module). Falls back
  *   to `DPAPI`-encrypted file under `%APPDATA%\\socketsecurity\\token.enc` when
@@ -17,14 +17,9 @@
  *   persistence failed.
  */
 
+import { safeDeleteSync } from '@socketsecurity/lib-stable/fs/safe'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -37,9 +32,9 @@ const SERVICE_LEGACY = 'socket-cli'
 // SOCKET_API_KEY) both find the token without a second prompt. macOS triggers
 // one Keychain auth prompt per `add-generic-password` call, so writing two
 // slots means two prompts on first install — acceptable for a one-time setup.
-const WRITE_SLOTS = ['SOCKET_API_TOKEN', 'SOCKET_API_KEY'] as const
-const READ_SLOTS = ['SOCKET_API_TOKEN', 'SOCKET_API_KEY'] as const
-const DELETE_SLOTS = ['SOCKET_API_TOKEN', 'SOCKET_API_KEY'] as const
+const WRITE_SLOTS = ['SOCKET_API_TOKEN', 'SOCKET_API_TOKEN'] as const
+const READ_SLOTS = ['SOCKET_API_TOKEN', 'SOCKET_API_TOKEN'] as const
+const DELETE_SLOTS = ['SOCKET_API_TOKEN', 'SOCKET_API_TOKEN'] as const
 
 export function deleteLinux(account: string, service = SERVICE): void {
   spawnSync('secret-tool', ['clear', 'service', service, 'user', account], {
@@ -50,7 +45,7 @@ export function deleteLinux(account: string, service = SERVICE): void {
 export function deleteMacOS(account: string, service = SERVICE): void {
   // Exit code 44 = entry not found, which is fine. Any other non-
   // zero is an error worth surfacing — but since delete is best-
-  // effort we swallow it (a stale entry is annoying but not blocking).
+  // effort we swallow it, a stale entry is annoying but not blocking.
   spawnSync(
     'security',
     ['delete-generic-password', '-s', service, '-a', account],
@@ -103,7 +98,7 @@ export function deleteWindows(account: string, service = SERVICE): void {
   const filePath = getWindowsDpapiFilePath()
   if (existsSync(filePath)) {
     try {
-      rmSync(filePath, { force: true })
+      safeDeleteSync(filePath)
     } catch {
       // best-effort
     }
@@ -449,7 +444,7 @@ export function writeWindowsDpapiFile(token: string): void {
 }
 
 // Hide unused-import lint when readFileSync / writeFileSync aren't
-// used (Windows-only fallback path). Reference them once at module
+// used, Windows-only fallback path. Reference them once at module
 // scope so the bundler still tree-shakes correctly on non-Windows.
 void readFileSync
 void writeFileSync

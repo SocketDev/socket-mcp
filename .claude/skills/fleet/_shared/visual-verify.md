@@ -28,15 +28,15 @@ source read fine; the pixels exposed it instantly.
 - **Page mode** — any URL or local HTML file → PNG.
 - **Extension mode** — load an unpacked Chrome MV3 extension with its REAL powers (background
   service worker, content scripts, `chrome.*` APIs) via `launchPersistentContext` +
-  `channel: 'chromium'` (the documented way to run extensions in headless Chromium), then
-  screenshot a page inside it (the popup by default). This is the actual in-browser render,
+  `channel: 'chromium'` — the documented way to run extensions in headless Chromium — then
+  screenshot a page inside it, the popup by default. This is the actual in-browser render,
   not a `file://` approximation.
 
 ## When to reach for it
 
 - **Before redesigning UI** — see the current state, don't redesign blind.
 - **Before committing a UI/render change** — the fleet rule + the
-  `verify-render-pre-commit-reminder` hook expect it.
+  `verify-render-pre-commit-nudge` hook expect it.
 - **To inspect an extension popup** with its live `chrome.*` context.
 - Iteratively: render → read → fix → render again, each state its own screenshot.
 
@@ -50,7 +50,7 @@ source read fine; the pixels exposed it instantly.
 - **MV3 service workers suspend** after ~30s idle; long-lived `evaluate()` may throw
   "Service worker restarted" — keep interactions short.
 - **No browser available** (headless CI without chromium): say so explicitly rather than
-  claiming you verified. Install with `pnpm exec playwright install chromium`.
+  claiming you verified. Install with `node_modules/.bin/playwright install chromium`.
 
 ## The discipline
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Audit logging + slopsquatting (Threat 2.2) tracking for the check-new-deps
  * hook.
  *
@@ -28,7 +28,7 @@ import { stringify } from '@socketregistry/packageurl-js-stable'
 import type { PackageURL } from '@socketregistry/packageurl-js-stable'
 import { createTtlCache } from '@socketsecurity/lib-stable/cache/ttl/store'
 import type { TtlCache } from '@socketsecurity/lib-stable/cache/ttl/types'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 
 import type {
   AuditRecord,
@@ -39,11 +39,12 @@ import type {
   NotFoundEntry,
   Verdict,
 } from './types.mts'
+import { resolveProjectDir } from '../_shared/project-dir.mts'
 
 // How long (ms) we remember that a package didn't exist (7 days).
 // Long enough to survive a typical AI hallucination cycle; short enough
 // that a newly-registered legitimate name eventually clears.
-const NOT_FOUND_CACHE_TTL = 7 * 24 * 60 * 60 * 1_000
+const NOT_FOUND_CACHE_TTL = 7 * 24 * 60 * 60 * 1000
 // Repeated 404s on the same package before we surface a slopsquatting
 // warning. One miss is a typo; three is a pattern worth flagging.
 const NOT_FOUND_THRESHOLD = 3
@@ -130,7 +131,7 @@ function buildAuditRecords(
   outcome: BatchOutcome,
 ): AuditRecord[] {
   const session = deriveSessionId(hook)
-  const repo = path.basename(process.cwd())
+  const repo = path.basename(resolveProjectDir())
   const ts = Date.now()
   const blockedByPurl = new Map<string, CheckResult>()
   for (const b of outcome.blocked) {
@@ -258,6 +259,19 @@ async function bumpNotFoundCounters(notFound: Set<string>): Promise<string[]> {
 // than a noisy fuzzy match. Add new entries when a repeat 404 lands.
 const KNOWN_GOOD_NAMES: Record<string, string[]> = {
   __proto__: null as unknown as string[],
+  cargo: [
+    'serde',
+    'serde_json',
+    'tokio',
+    'reqwest',
+    'clap',
+    'anyhow',
+    'thiserror',
+    'tracing',
+    'rayon',
+    'regex',
+  ],
+  gem: ['rails', 'rspec', 'sinatra', 'puma', 'rake', 'devise', 'sidekiq'],
   npm: [
     'react',
     'react-dom',
@@ -309,19 +323,6 @@ const KNOWN_GOOD_NAMES: Record<string, string[]> = {
     'click',
     'rich',
   ],
-  cargo: [
-    'serde',
-    'serde_json',
-    'tokio',
-    'reqwest',
-    'clap',
-    'anyhow',
-    'thiserror',
-    'tracing',
-    'rayon',
-    'regex',
-  ],
-  gem: ['rails', 'rspec', 'sinatra', 'puma', 'rake', 'devise', 'sidekiq'],
 }
 
 // Suggest the nearest known-good name for `bad` within `ecosystem`,

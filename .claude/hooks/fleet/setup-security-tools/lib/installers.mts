@@ -3,100 +3,82 @@
 //
 // Configures three tools:
 // 1. AgentShield — scans Claude AI config for prompt injection / secrets.
-//    Downloaded as npm package via dlx (pinned version, cached).
+//    Downloaded as npm package via dlx, pinned version, cached.
 // 2. Zizmor — static analysis for GitHub Actions workflows. Downloads the
 //    correct binary, verifies SHA-256, cached via the dlx system.
-// 3. SFW (Socket Firewall) — intercepts package manager commands to scan
+// 3. SFW, Socket Firewall — intercepts package manager commands to scan
 //    for malware. Downloads binary, verifies SHA-256, creates PATH shims.
 //    Enterprise vs free determined by SOCKET_API_KEY (primary; universally
 //    supported) or SOCKET_API_TOKEN (forward-canonical; accepted as secondary)
 //    in env / .env / .env.local.
+//
+// Each tool's install workflow lives in its own sibling file (github-
+// release.mts, agentshield.mts, janus.mts, sfw.mts, zizmor.mts,
+// skillspector.mts, run-all.mts) because this file is at the 500-line soft
+// cap; every exported function below stays here as a thin wrapper so
+// existing importers keep working unchanged.
 
-import { existsSync, promises as fs, readFileSync } from 'node:fs'
-
-import { findApiToken as findApiTokenCanonical } from './api-token.mts'
-import os from 'node:os'
-import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { PackageURL } from '@socketregistry/packageurl-js-stable'
-import { Type } from '@sinclair/typebox'
 
-import { whichSync } from '@socketsecurity/lib-stable/bin/which'
-import { downloadBinary } from '@socketsecurity/lib-stable/dlx/binary'
-import { downloadPackage } from '@socketsecurity/lib-stable/dlx/package'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
-import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
+import { findApiToken as findApiTokenCanonical } from './api-token.mts'
+import { downloadNpmPackage } from '@socketsecurity/lib-stable/dlx/package'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
-import { getSocketHomePath } from '@socketsecurity/lib-stable/paths/socket'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
-import { parseSchema } from '@socketsecurity/lib-stable/schema/parse'
+
+import { runSetupAgentShield } from './agentshield.mts'
+import {
+  runInstallGitHubReleaseTool,
+  runInstallGitHubReleaseToolWithTag,
+} from './github-release.mts'
+import type { InstallGitHubToolConfig } from './github-release.mts'
+import { runEnsureJanusQueue, runSetupJanus } from './janus.mts'
+import { runSetupAll } from './run-all.mts'
+import { runSetupSfw } from './sfw.mts'
+import {
+  runCheckSkillSpectorVersion,
+  runSetupSkillSpector,
+} from './skillspector.mts'
+import {
+  ACTIONLINT,
+  CDXGEN,
+  OPENGREP,
+  SYNP,
+  TRIVY,
+  TRUFFLEHOG,
+  UV,
+  ZIZMOR,
+} from './tool-config.mts'
+import type { PlatformEntry, ToolEntry } from './tool-config.mts'
+import { runSetupZizmor } from './zizmor.mts'
 
 const logger = getDefaultLogger()
 
-// ── Tool config loaded from external-tools.json (self-contained) ──
-
-const platformEntrySchema = Type.Object({
-  asset: Type.String(),
-  integrity: Type.String(),
-})
-
-const toolSchema = Type.Object({
-  description: Type.Optional(Type.String()),
-  version: Type.Optional(Type.String()),
-  versionDate: Type.Optional(Type.String()),
-  purl: Type.Optional(Type.String()),
-  integrity: Type.Optional(Type.String()),
-  repository: Type.Optional(Type.String()),
-  release: Type.Optional(Type.String()),
-  installDir: Type.Optional(Type.String()),
-  platforms: Type.Optional(Type.Record(Type.String(), platformEntrySchema)),
-  ecosystems: Type.Optional(Type.Array(Type.String())),
-})
-
-const configSchema = Type.Object({
-  description: Type.Optional(Type.String()),
-  tools: Type.Record(Type.String(), toolSchema),
-})
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// external-tools.json lives one level up at the hook root
-// (.claude/hooks/fleet/setup-security-tools/external-tools.json) — keep it
-// out of `lib/` so it's discoverable as a top-level config file rather
-// than buried as an implementation detail. Fall back to a sibling path
-// so an early-installed copy in lib/ still resolves during onboarding.
-const configPath = (() => {
-  const parentPath = path.join(__dirname, '..', 'external-tools.json')
-  if (existsSync(parentPath)) {
-    return parentPath
-  }
-  return path.join(__dirname, 'external-tools.json')
-})()
-const rawConfig = JSON.parse(readFileSync(configPath, 'utf8'))
-const config = parseSchema(configSchema, rawConfig)
-
-const AGENTSHIELD = config.tools['agentshield']!
-const CDXGEN = config.tools['cdxgen']!
-const SYNP = config.tools['synp']!
-const ZIZMOR = config.tools['zizmor']!
-const SFW_FREE = config.tools['sfw-free']!
-const SFW_ENTERPRISE = config.tools['sfw-enterprise']!
-const TRUFFLEHOG = config.tools['trufflehog']!
-const TRIVY = config.tools['trivy']!
-const OPENGREP = config.tools['opengrep']!
-const UV = config.tools['uv']!
-const JANUS = config.tools['janus']!
-const SKILLSPECTOR = config.tools['skillspector']!
-
 // ── Shared helpers ──
+
+// GitHub release tag for a tool-config version: prepend `v` unless the
+// version already carries one. The manifest historically holds BOTH forms
+// (the updater once stored raw tag_names), so every release-URL site goes
+// through this instead of assuming one shape — a wrong assumption 404s the
+// download (the zizmor `vv1.26.1` incident).
+export function releaseTag(version: string): string {
+  return version.startsWith('v') ? version : `v${version}`
+}
+
+// The inverse boundary: bare semver for version-output comparisons and
+// display (`zizmor --version` prints `zizmor 1.26.1`, never `v1.26.1`).
+export function bareVersion(version: string): string {
+  return version.replace(/^v/, '')
+}
 
 export async function checkZizmorVersion(binPath: string): Promise<boolean> {
   try {
     const result = await spawn(binPath, ['--version'], { stdio: 'pipe' })
     const output = String(result.stdout).trim()
-    return ZIZMOR.version ? output.includes(ZIZMOR.version) : false
+    return ZIZMOR.version ? output.includes(bareVersion(ZIZMOR.version)) : false
   } catch {
     return false
   }
@@ -118,325 +100,79 @@ export function findApiToken(): string | undefined {
   return findApiTokenCanonical().token
 }
 
-type ToolEntry = (typeof config.tools)[string]
+// The host platform-arch key used to index a tool's `platforms` map, e.g.
+// `darwin-arm64`, `linux-x64`, `win-arm64`. Single source of the key format so
+// every installer resolves the same way.
+export function hostPlatformKey(): string {
+  return `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
+}
 
-interface InstallGitHubToolOptions {
-  /**
-   * Logical tool name (used for log banner + cache key).
-   */
-  name: string
-  /**
-   * Display name for human-readable logs.
-   */
-  displayName: string
-  /**
-   * Tool config entry from external-tools.json.
-   */
-  tool: ToolEntry
-  /**
-   * Name of the binary inside the archive (without extension). For bare-binary
-   * assets (no archive), pass the same string used as the asset name — the
-   * helper detects and skips extraction.
-   */
-  binaryNameInArchive: string
-  /**
-   * Final binary name on disk (without extension). Usually same as
-   * `binaryNameInArchive`.
-   */
-  finalBinaryName: string
-  /**
-   * Optional path within the archive where the binary lives. Defaults to the
-   * archive root.
-   */
-  pathInArchive?: string | undefined
-  /**
-   * Optional absolute directory to install the final binary into. When set, the
-   * binary is copied here (creating parent dirs as needed) instead of landing
-   * alongside the dlx-cached archive. Use for shared cross-fleet locations
-   * (e.g. `~/.socket/_wheelhouse/<tool>/`) so multiple consumers reuse the same
-   * install.
-   */
-  installDir?: string | undefined
+// Resolve a tool's asset entry for `hostKey`, applying the win-arm64→win-x64
+// fallback: Windows-on-ARM runs win-x64 binaries under emulation and upstreams
+// rarely ship a native win-arm64 asset, so an ARM-Windows host gets the win-x64
+// build rather than a spurious "unsupported platform". Pure, host key passed in
+// so it's unit-testable; `resolvePlatformEntry` supplies the live host key.
+export function pickPlatformEntry(
+  platforms: ToolEntry['platforms'],
+  hostKey: string,
+): PlatformEntry | undefined {
+  const direct = platforms?.[hostKey]
+  if (direct) {
+    return direct
+  }
+  if (hostKey === 'win-arm64') {
+    return platforms?.['win-x64']
+  }
+  return undefined
+}
+
+// The host-key + resolved-entry pair. `platformKey` is the host key (for
+// messaging / install-dir paths); `entry` is resolved with the win-arm64
+// fallback via pickPlatformEntry.
+export function resolvePlatformEntry(platforms: ToolEntry['platforms']): {
+  entry: PlatformEntry | undefined
+  platformKey: string
+} {
+  const platformKey = hostPlatformKey()
+  return { entry: pickPlatformEntry(platforms, platformKey), platformKey }
 }
 
 /**
  * Common path for tools downloaded from GitHub Releases: PATH check → download
- * + sha256-verify → cache hit / extract → chmod 0o755.
- *
- * Handles three archive shapes: - `.tar.gz` / `.tgz` → tar xzf - `.zip` →
- * PowerShell Expand-Archive (Windows) or unzip - bare binary → copy as-is (used
- * by opengrep manylinux/osx assets)
+ * + sha256-verify → cache hit / extract → chmod 0o755. Full implementation in
+ * `github-release.mts`; see that file's docblock for the archive-shape matrix.
  */
 export async function installGitHubReleaseTool(
-  options: InstallGitHubToolOptions,
+  config: InstallGitHubToolConfig,
 ): Promise<boolean> {
-  const opts = { __proto__: null, ...options } as InstallGitHubToolOptions
-  const { binaryNameInArchive, displayName, finalBinaryName, name, tool } = opts
-  logger.log(`=== ${displayName} ===`)
-
-  // Check PATH first (e.g. brew install).
-  const systemBin = whichSync(finalBinaryName, { nothrow: true })
-  if (systemBin && typeof systemBin === 'string') {
-    logger.log(`Found on PATH: ${systemBin}`)
-    return true
-  }
-
-  const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = tool.platforms?.[platformKey]
-  if (!platformEntry) {
-    logger.warn(`${displayName}: unsupported platform ${platformKey}`)
-    return false
-  }
-  const { asset, integrity: expectedIntegrity } = platformEntry
-  const repo = tool.repository?.replace(/^[^:]+:/, '') ?? ''
-  // Most GitHub release URLs use a `v` prefix on the tag (`v1.2.3`); a
-  // few projects don't (`uv` uses `0.10.11`). The tool config's
-  // `version` field is the bare semver — prepend `v` unless it already
-  // starts with one. astral-sh/uv is the lone exception and is handled
-  // by setupUv() passing the literal tag.
-  const tagPrefix = tool.version?.startsWith('v') ? '' : 'v'
-  const tag = `${tagPrefix}${tool.version}`
-  const url = `https://github.com/${repo}/releases/download/${tag}/${asset}`
-
-  logger.log(`Downloading ${displayName} v${tool.version} (${asset})...`)
-  const { binaryPath: downloadPath, downloaded } = await downloadBinary({
-    url,
-    name: `${name}-${tool.version}-${asset}`,
-    integrity: expectedIntegrity,
-  })
-  logger.log(
-    downloaded
-      ? 'Download complete, checksum verified.'
-      : `Using cached: ${downloadPath}`,
-  )
-
-  const ext = process.platform === 'win32' ? '.exe' : ''
-  const finalDir = opts.installDir ?? path.dirname(downloadPath)
-  await fs.mkdir(finalDir, { recursive: true })
-  const finalBinPath = path.join(finalDir, `${finalBinaryName}${ext}`)
-  if (existsSync(finalBinPath)) {
-    logger.log(`Cached: ${finalBinPath}`)
-    return true
-  }
-
-  const isTar = asset.endsWith('.tar.gz') || asset.endsWith('.tgz')
-  const isZip = asset.endsWith('.zip')
-  // Bare-binary assets (opengrep's manylinux/osx variants) — the asset
-  // IS the binary, no extraction needed. Copy + chmod and exit.
-  if (!isTar && !isZip) {
-    await fs.copyFile(downloadPath, finalBinPath)
-    await fs.chmod(finalBinPath, 0o755)
-    logger.log(`Installed to ${finalBinPath}`)
-    return true
-  }
-
-  const extractDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), `${name}-extract-`),
-  )
-  try {
-    if (isZip) {
-      if (process.platform === 'win32') {
-        await spawn(
-          'powershell',
-          [
-            '-NoProfile',
-            '-Command',
-            `Expand-Archive -Path '${downloadPath}' -DestinationPath '${extractDir}' -Force`,
-          ],
-          { stdio: 'pipe' },
-        )
-      } else {
-        await spawn('unzip', ['-q', downloadPath, '-d', extractDir], {
-          stdio: 'pipe',
-        })
-      }
-    } else {
-      await spawn('tar', ['xzf', downloadPath, '-C', extractDir], {
-        stdio: 'pipe',
-      })
-    }
-    const extractedRel = opts.pathInArchive
-      ? path.join(opts.pathInArchive, `${binaryNameInArchive}${ext}`)
-      : `${binaryNameInArchive}${ext}`
-    const extractedBin = path.join(extractDir, extractedRel)
-    if (!existsSync(extractedBin)) {
-      throw new Error(`Binary not found after extraction: ${extractedBin}`)
-    }
-    await fs.copyFile(extractedBin, finalBinPath)
-    await fs.chmod(finalBinPath, 0o755)
-  } finally {
-    await safeDelete(extractDir).catch(e => {
-      const msg = e instanceof Error ? e.message : String(e)
-      logger.warn(`cleanup of extract dir failed (${extractDir}): ${msg}`)
-    })
-  }
-
-  logger.log(`Installed to ${finalBinPath}`)
-  return true
+  return runInstallGitHubReleaseTool(config)
 }
 
 /**
  * Variant of `installGitHubReleaseTool` for projects that don't tag with a `v`
- * prefix (astral-sh/uv). Takes an explicit `tag` field instead of synthesizing
- * one from `tool.version`.
+ * prefix (astral-sh/uv). Full implementation in `github-release.mts`.
  */
 export async function installGitHubReleaseToolWithTag(
-  options: InstallGitHubToolOptions & { tag: string },
+  config: InstallGitHubToolConfig & { tag: string },
 ): Promise<boolean> {
-  const opts = { __proto__: null, ...options } as InstallGitHubToolOptions & {
-    tag: string
-  }
-  const { binaryNameInArchive, displayName, finalBinaryName, name, tag, tool } =
-    opts
-  logger.log(`=== ${displayName} ===`)
-
-  const systemBin = whichSync(finalBinaryName, { nothrow: true })
-  if (systemBin && typeof systemBin === 'string') {
-    logger.log(`Found on PATH: ${systemBin}`)
-    return true
-  }
-
-  const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = tool.platforms?.[platformKey]
-  if (!platformEntry) {
-    logger.warn(`${displayName}: unsupported platform ${platformKey}`)
-    return false
-  }
-  const { asset, integrity: expectedIntegrity } = platformEntry
-  const repo = tool.repository?.replace(/^[^:]+:/, '') ?? ''
-  const url = `https://github.com/${repo}/releases/download/${tag}/${asset}`
-
-  logger.log(`Downloading ${displayName} ${tag} (${asset})...`)
-  const { binaryPath: downloadPath, downloaded } = await downloadBinary({
-    url,
-    name: `${name}-${tag}-${asset}`,
-    integrity: expectedIntegrity,
-  })
-  logger.log(
-    downloaded
-      ? 'Download complete, checksum verified.'
-      : `Using cached: ${downloadPath}`,
-  )
-
-  const ext = process.platform === 'win32' ? '.exe' : ''
-  const finalBinPath = path.join(
-    path.dirname(downloadPath),
-    `${finalBinaryName}${ext}`,
-  )
-  if (existsSync(finalBinPath)) {
-    logger.log(`Cached: ${finalBinPath}`)
-    return true
-  }
-
-  const isZip = asset.endsWith('.zip')
-  const extractDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), `${name}-extract-`),
-  )
-  try {
-    if (isZip) {
-      if (process.platform === 'win32') {
-        await spawn(
-          'powershell',
-          [
-            '-NoProfile',
-            '-Command',
-            `Expand-Archive -Path '${downloadPath}' -DestinationPath '${extractDir}' -Force`,
-          ],
-          { stdio: 'pipe' },
-        )
-      } else {
-        await spawn('unzip', ['-q', downloadPath, '-d', extractDir], {
-          stdio: 'pipe',
-        })
-      }
-    } else {
-      await spawn('tar', ['xzf', downloadPath, '-C', extractDir], {
-        stdio: 'pipe',
-      })
-    }
-    const extractedRel = opts.pathInArchive
-      ? path.join(opts.pathInArchive, `${binaryNameInArchive}${ext}`)
-      : `${binaryNameInArchive}${ext}`
-    const extractedBin = path.join(extractDir, extractedRel)
-    if (!existsSync(extractedBin)) {
-      throw new Error(`Binary not found after extraction: ${extractedBin}`)
-    }
-    await fs.copyFile(extractedBin, finalBinPath)
-    await fs.chmod(finalBinPath, 0o755)
-  } finally {
-    await safeDelete(extractDir).catch(e => {
-      const msg = e instanceof Error ? e.message : String(e)
-      logger.warn(`cleanup of extract dir failed (${extractDir}): ${msg}`)
-    })
-  }
-
-  logger.log(`Installed to ${finalBinPath}`)
-  return true
+  return runInstallGitHubReleaseToolWithTag(config)
 }
 
-export async function setupAgentShield(): Promise<boolean> {
-  logger.log('=== AgentShield ===')
-  const purl = PackageURL.fromString(AGENTSHIELD.purl!)
-  if (purl.type !== 'npm') {
-    throw new Error(
-      `Unsupported PURL type "${purl.type}" — only npm is supported`,
-    )
-  }
-  const npmPackage = purl.namespace
-    ? `${purl.namespace}/${purl.name}`
-    : purl.name!
-  const version = AGENTSHIELD.version ?? purl.version
-  const packageSpec = version ? `${npmPackage}@${version}` : npmPackage
-
-  logger.log(`Installing ${packageSpec} via dlx…`)
-  const { binaryPath, installed } = await downloadPackage({
-    package: packageSpec,
-    binaryName: 'agentshield',
+export async function setupActionlint(): Promise<boolean> {
+  return installGitHubReleaseTool({
+    name: 'actionlint',
+    displayName: 'actionlint',
+    tool: ACTIONLINT,
+    binaryNameInArchive: 'actionlint',
+    finalBinaryName: 'actionlint',
   })
+}
 
-  // Verify the installed package matches the pinned version.
-  //
-  // Don't trust the binary's --version self-report: ecc-agentshield's
-  // compiled bundle has a hardcoded version string that has drifted
-  // from the published package.json (e.g. binary reports "1.5.0"
-  // while npm latest + published package.json both say "1.4.0").
-  // That's an upstream packaging issue; the authoritative answer
-  // is the dlx-cached package.json, which is what npm actually
-  // delivered after integrity-hash verification.
-  if (version) {
-    const pkgJsonPath = path.join(
-      path.dirname(binaryPath),
-      '..',
-      'ecc-agentshield',
-      'package.json',
-    )
-    let installedVersion: string | undefined
-    try {
-      const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf8')) as {
-        version?: unknown | undefined
-      }
-      if (typeof pkgJson.version === 'string') {
-        installedVersion = pkgJson.version
-      }
-    } catch {
-      // Fall through — treat as unverifiable rather than fail.
-    }
-    if (installedVersion && installedVersion !== version) {
-      logger.warn(
-        `Version mismatch: pinned ${version}, installed ${installedVersion}`,
-      )
-      return false
-    }
-    const reportedVersion = installedVersion ?? version
-    logger.log(
-      installed
-        ? `Installed: ${binaryPath} (${reportedVersion})`
-        : `Cached: ${binaryPath} (${reportedVersion})`,
-    )
-  } else {
-    logger.log(installed ? `Installed: ${binaryPath}` : `Cached: ${binaryPath}`)
-  }
-  return true
+/**
+ * Full implementation in `agentshield.mts`.
+ */
+export async function setupAgentShield(): Promise<boolean> {
+  return runSetupAgentShield()
 }
 
 export async function setupCdxgen(): Promise<boolean> {
@@ -455,37 +191,22 @@ export async function setupCdxgen(): Promise<boolean> {
   })
 }
 
+/**
+ * Full implementation in `janus.mts`.
+ */
 export async function setupJanus(): Promise<boolean> {
-  // janus ships darwin-arm64 only at v1.22.0. On every other platform,
-  // skip the install with a quiet log rather than emitting a warning —
-  // janus isn't a fleet-critical dependency, just a tool some Socket
-  // workflows opt into. Install lands in the shared
-  // ~/.socket/_wheelhouse/janus/<version>/ dir so every fleet member's
-  // hook reuses the same binary.
-  const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  if (!JANUS.platforms?.[platformKey]) {
-    logger.log('=== janus ===')
-    logger.log(`Skipped: no janus build for ${platformKey} (mac-arm64 only)`)
-    return true
-  }
-  const installDir = path.join(
-    getSocketHomePath(),
-    '_wheelhouse',
-    'janus',
-    JANUS.version!,
-    platformKey,
-  )
-  return installGitHubReleaseTool({
-    name: 'janus',
-    displayName: 'janus',
-    tool: JANUS,
-    binaryNameInArchive: 'janus',
-    finalBinaryName: 'janus',
-    installDir,
-  })
+  return runSetupJanus()
 }
 
-interface NpmToolInstallOptions {
+/**
+ * Best-effort `janus init` so a repo that just received the janus binary has a
+ * `.janus/` queue without a manual step. Full implementation in `janus.mts`.
+ */
+export async function ensureJanusQueue(janusBin: string): Promise<void> {
+  return runEnsureJanusQueue(janusBin)
+}
+
+interface NpmToolInstallConfig {
   /**
    * Logical tool name (used for log banner + bin name).
    */
@@ -497,21 +218,25 @@ interface NpmToolInstallOptions {
   /**
    * Tool config entry from external-tools.json (must carry `purl`).
    */
-  readonly tool: (typeof config.tools)[string]
+  readonly tool: ToolEntry
 }
 
 /**
  * Install an npm-only tool via dlx. Mirrors the upper half of
- * `setupAgentShield()` — purl → package spec → `downloadPackage`. No
+ * `setupAgentShield()` — purl → package spec → `downloadNpmPackage`. No
  * version-mismatch verification: the dlx layer SRI-verifies the tarball against
  * the `integrity` from external-tools.json, which is the authoritative answer
  * (binary --version self-reports can drift from package.json — see the
  * AgentShield comment for the documented case).
  */
 export async function setupNpmTool(
-  opts: NpmToolInstallOptions,
+  // oxlint-disable-next-line no-shadow -- required config param name matches the module-level tool-manifest `config` by convention
+  config: NpmToolInstallConfig,
 ): Promise<boolean> {
-  const { displayName, name, tool } = opts
+  const { displayName, name, tool } = {
+    __proto__: null,
+    ...config,
+  } as typeof config
   logger.log(`=== ${displayName} ===`)
   if (!tool.purl) {
     logger.warn(`${displayName}: missing purl in external-tools.json`)
@@ -529,8 +254,8 @@ export async function setupNpmTool(
   const version = tool.version ?? purl.version
   const packageSpec = version ? `${npmPackage}@${version}` : npmPackage
   logger.log(`Installing ${packageSpec} via dlx…`)
-  const { binaryPath, installed } = await downloadPackage({
-    package: packageSpec,
+  const { binaryPath, installed } = await downloadNpmPackage({
+    spec: packageSpec,
     binaryName: name,
   })
   logger.log(
@@ -557,139 +282,11 @@ export async function setupOpengrep(): Promise<boolean> {
   })
 }
 
+/**
+ * Full implementation in `sfw.mts`.
+ */
 export async function setupSfw(apiToken: string | undefined): Promise<boolean> {
-  const isEnterprise = !!apiToken
-  const sfwConfig = isEnterprise ? SFW_ENTERPRISE : SFW_FREE
-  logger.log(
-    `=== Socket Firewall (${isEnterprise ? 'enterprise' : 'free'}) ===`,
-  )
-
-  // Platform.
-  const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = sfwConfig.platforms?.[platformKey]
-  if (!platformEntry) {
-    throw new Error(`Unsupported platform: ${platformKey}`)
-  }
-
-  // Integrity + asset.
-  const { asset, integrity } = platformEntry
-  const repo = sfwConfig.repository?.replace(/^[^:]+:/, '') ?? ''
-  const url = `https://github.com/${repo}/releases/download/${sfwConfig.version}/${asset}`
-  const binaryName = isEnterprise ? 'sfw' : 'sfw-free'
-
-  // Download (with cache + integrity check).
-  const { binaryPath, downloaded } = await downloadBinary({
-    url,
-    name: binaryName,
-    integrity,
-  })
-  logger.log(
-    downloaded ? `Downloaded to ${binaryPath}` : `Cached at ${binaryPath}`,
-  )
-
-  // Create shims.
-  const isWindows = process.platform === 'win32'
-
-  const shimDir = path.join(getSocketHomePath(), 'sfw', 'shims')
-  await fs.mkdir(shimDir, { recursive: true })
-  const ecosystems = [...(sfwConfig.ecosystems ?? [])]
-  if (isEnterprise && process.platform === 'linux') {
-    ecosystems.push('go')
-  }
-  const cleanPath = (process.env['PATH'] ?? '')
-    .split(path.delimiter)
-    .filter(p => p !== shimDir)
-    .join(path.delimiter)
-  const sfwBin = normalizePath(binaryPath)
-  const created: string[] = []
-  for (let i = 0, { length } = ecosystems; i < length; i += 1) {
-    const cmd = ecosystems[i]!
-    let realBin = whichSync(cmd, { nothrow: true, path: cleanPath })
-    if (!realBin || typeof realBin !== 'string') {
-      continue
-    }
-    realBin = normalizePath(realBin)
-
-    // Bash shim (macOS/Linux/Windows Git Bash).
-    const bashLines = [
-      '#!/bin/bash',
-      `export PATH="$(echo "$PATH" | tr ':' '\\n' | grep -vxF '${shimDir}' | paste -sd: -)"`,
-    ]
-    if (isEnterprise) {
-      // Read API token from env at runtime — never embed secrets in
-      // scripts. Either SOCKET_API_KEY or SOCKET_API_TOKEN is accepted;
-      // whichever is set gets exported under both so downstream tools
-      // see the value regardless of which name they read.
-      //
-      // Dotfile fallback (`.env` / `.env.local`) is intentionally NOT
-      // checked here per CLAUDE.md token-hygiene: tokens belong in env
-      // (CI) or the OS keychain (dev local), never in dotfiles. The
-      // shell-rc bridge installed by setup-security-tools writes the
-      // export line into ~/.zshenv so every new shell already has the
-      // env var set.
-      bashLines.push(
-        'if [ -z "$SOCKET_API_KEY" ] && [ -n "$SOCKET_API_TOKEN" ]; then',
-        '  SOCKET_API_KEY="$SOCKET_API_TOKEN"',
-        'fi',
-        'if [ -n "$SOCKET_API_KEY" ]; then',
-        '  export SOCKET_API_KEY',
-        '  SOCKET_API_TOKEN="$SOCKET_API_KEY"',
-        '  export SOCKET_API_TOKEN',
-        'fi',
-      )
-    }
-    bashLines.push(`exec "${sfwBin}" "${realBin}" "$@"`)
-    const bashContent = bashLines.join('\n') + '\n'
-    const bashPath = path.join(shimDir, cmd)
-    if (
-      !existsSync(bashPath) ||
-      (await fs.readFile(bashPath, 'utf8').catch(() => '')) !== bashContent
-    ) {
-      await fs.writeFile(bashPath, bashContent, { mode: 0o755 })
-    }
-    created.push(cmd)
-
-    // Windows .cmd shim (strips shim dir from PATH, then execs through sfw).
-    if (isWindows) {
-      let cmdApiTokenBlock = ''
-      if (isEnterprise) {
-        // Mirror the bash-shim env-only resolution. Dotfile fallback
-        // (`.env` / `.env.local`) is intentionally not read here — see
-        // the bash-shim comment for the token-hygiene rationale. The
-        // Windows CredentialManager shell-rc bridge installed by
-        // setup-security-tools writes the env var for every new
-        // session.
-        cmdApiTokenBlock =
-          `if not defined SOCKET_API_KEY (\r\n` +
-          `  if defined SOCKET_API_TOKEN set "SOCKET_API_KEY=%SOCKET_API_TOKEN%"\r\n` +
-          `)\r\n` +
-          `if defined SOCKET_API_KEY set "SOCKET_API_TOKEN=%SOCKET_API_KEY%"\r\n`
-      }
-      const cmdContent =
-        `@echo off\r\n` +
-        `set "PATH=;%PATH%;"\r\n` +
-        `set "PATH=%PATH:;${shimDir};=%"\r\n` +
-        `set "PATH=%PATH:~1,-1%"\r\n` +
-        cmdApiTokenBlock +
-        `"${sfwBin}" "${realBin}" %*\r\n`
-      const cmdPath = path.join(shimDir, `${cmd}.cmd`)
-      if (
-        !existsSync(cmdPath) ||
-        (await fs.readFile(cmdPath, 'utf8').catch(() => '')) !== cmdContent
-      ) {
-        await fs.writeFile(cmdPath, cmdContent)
-      }
-    }
-  }
-
-  if (created.length) {
-    logger.log(`Shims: ${created.join(', ')}`)
-    logger.log(`Shim dir: ${shimDir}`)
-    logger.log(`Activate: export PATH="${shimDir}:$PATH"`)
-  } else {
-    logger.warn('No supported package managers found on PATH.')
-  }
-  return !!created.length
+  return runSetupSfw(apiToken)
 }
 
 export async function setupSynp(): Promise<boolean> {
@@ -726,8 +323,7 @@ export async function setupUv(): Promise<boolean> {
   // tarball also wraps the binary one level deep: e.g.
   // `uv-x86_64-apple-darwin/uv`. Pin the tag literally and tell the
   // helper which subdirectory holds the binary.
-  const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = UV.platforms?.[platformKey]
+  const { entry: platformEntry } = resolvePlatformEntry(UV.platforms)
   const pathInArchive = platformEntry?.asset.replace(/\.(tar\.gz|zip)$/, '')
   return installGitHubReleaseToolWithTag({
     name: 'uv',
@@ -740,271 +336,32 @@ export async function setupUv(): Promise<boolean> {
   })
 }
 
+/**
+ * Full implementation in `zizmor.mts`.
+ */
 export async function setupZizmor(): Promise<boolean> {
-  logger.log('=== Zizmor ===')
-
-  // Check PATH first (e.g. brew install).
-  const systemBin = whichSync('zizmor', { nothrow: true })
-  if (systemBin && typeof systemBin === 'string') {
-    if (await checkZizmorVersion(systemBin)) {
-      logger.log(`Found on PATH: ${systemBin} (v${ZIZMOR.version})`)
-      return true
-    }
-    logger.log(`Found on PATH but wrong version (need v${ZIZMOR.version})`)
-  }
-
-  // Download archive via dlx (handles caching + checksum).
-  const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = ZIZMOR.platforms?.[platformKey]
-  if (!platformEntry) {
-    throw new Error(`Unsupported platform: ${platformKey}`)
-  }
-  const { asset, integrity: expectedIntegrity } = platformEntry
-  const repo = ZIZMOR.repository?.replace(/^[^:]+:/, '') ?? ''
-  const url = `https://github.com/${repo}/releases/download/v${ZIZMOR.version}/${asset}`
-
-  logger.log(`Downloading zizmor v${ZIZMOR.version} (${asset})...`)
-  const { binaryPath: archivePath, downloaded } = await downloadBinary({
-    url,
-    name: `zizmor-${ZIZMOR.version}-${asset}`,
-    integrity: expectedIntegrity,
-  })
-  logger.log(
-    downloaded
-      ? 'Download complete, checksum verified.'
-      : `Using cached archive: ${archivePath}`,
-  )
-
-  // Extract binary from the cached archive.
-  const ext = process.platform === 'win32' ? '.exe' : ''
-  const binPath = path.join(path.dirname(archivePath), `zizmor${ext}`)
-  if (existsSync(binPath) && (await checkZizmorVersion(binPath))) {
-    logger.log(`Cached: ${binPath} (v${ZIZMOR.version})`)
-    return true
-  }
-
-  const isZip = asset.endsWith('.zip')
-  // mkdtemp is collision-safe, unlike Date.now()-only naming.
-  const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zizmor-extract-'))
-  try {
-    if (isZip) {
-      await spawn(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          `Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}' -Force`,
-        ],
-        { stdio: 'pipe' },
-      )
-    } else {
-      await spawn('tar', ['xzf', archivePath, '-C', extractDir], {
-        stdio: 'pipe',
-      })
-    }
-    const extractedBin = path.join(extractDir, `zizmor${ext}`)
-    if (!existsSync(extractedBin)) {
-      throw new Error(`Binary not found after extraction: ${extractedBin}`)
-    }
-    await fs.copyFile(extractedBin, binPath)
-    await fs.chmod(binPath, 0o755)
-  } finally {
-    // Cleanup is fail-open by design — a tempdir we couldn't delete
-    // (EPERM / EBUSY / ENOTEMPTY) shouldn't prevent the install from
-    // reporting success — but the silent swallow loses the signal,
-    // and orphaned tempdirs accumulate on the user's machine. Log
-    // and continue.
-    await safeDelete(extractDir).catch(e => {
-      const msg = e instanceof Error ? e.message : String(e)
-      logger.warn(`cleanup of extract dir failed (${extractDir}): ${msg}`)
-    })
-  }
-
-  logger.log(`Installed to ${binPath}`)
-  return true
+  return runSetupZizmor()
 }
 
-// Check whether the locally-installed skillspector matches the SHA we
-// pinned. The CLI doesn't print a SHA via --version (no upstream releases
-// exist), so we fall back to comparing the installed package metadata
-// version string. Fail-closed: any check error means "not the right version".
+/**
+ * Check whether the locally-installed skillspector matches the SHA we
+ * pinned. Full implementation in `skillspector.mts`.
+ */
 export async function checkSkillSpectorVersion(
   binPath: string,
 ): Promise<boolean> {
-  try {
-    const result = await spawn(binPath, ['--version'], { stdio: 'pipe' })
-    const output = String(result.stdout).trim()
-    // skillspector --version prints "skillspector <semver-from-pyproject>".
-    // The pinned SHA may correspond to any pyproject version; treat any
-    // non-empty output as "installed". The strict version check would
-    // require a new upstream invariant.
-    return output.length > 0
-  } catch {
-    return false
-  }
+  return runCheckSkillSpectorVersion(binPath)
 }
 
-// SkillSpector — pipx-from-git install. Upstream NVIDIA/skillspector has
-// no PyPI release / no GH releases / no tags as of 2026-06-01, so the SHA
-// IS the pin. pipx isolates the install in its own venv — no host Python
-// site-packages pollution.
-//
-// Requirements:
-//   - pipx on PATH. If absent, log a clear error pointing at the install
-//     command (`uv tool install pipx` or `python3 -m pip install --user
-//     pipx`). We do not auto-bootstrap pipx because that's a separate
-//     security-relevant decision (touches the user's Python toolchain).
-//   - Python 3.12+ (upstream requirement). pipx will fail with a clear
-//     message if the host's Python is older.
+/**
+ * SkillSpector setup. Full implementation in `skillspector.mts`.
+ */
 export async function setupSkillSpector(): Promise<boolean> {
-  logger.log('=== SkillSpector ===')
-
-  // Pinned SHA — see SKILLSPECTOR.version in external-tools.json.
-  const sha = SKILLSPECTOR.version
-  if (!sha) {
-    logger.error(
-      'skillspector entry in external-tools.json is missing `version`',
-    )
-    return false
-  }
-  const repo = SKILLSPECTOR.repository?.replace(/^[^:]+:/, '') ?? ''
-  if (!repo) {
-    logger.error(
-      'skillspector entry in external-tools.json is missing `repository`',
-    )
-    return false
-  }
-
-  // Check PATH first — a system install via `pipx install skillspector`
-  // or a venv-pinned install on PATH would already satisfy this.
-  const systemBin = whichSync('skillspector', { nothrow: true })
-  if (systemBin && typeof systemBin === 'string') {
-    if (await checkSkillSpectorVersion(systemBin)) {
-      logger.log(`Found on PATH: ${systemBin}`)
-      return true
-    }
-    logger.log('Found on PATH but --version check failed; reinstalling')
-  }
-
-  // Verify pipx is available before attempting install.
-  const pipxBin = whichSync('pipx', { nothrow: true })
-  if (!pipxBin || typeof pipxBin !== 'string') {
-    logger.error('pipx not on PATH. Install pipx first:')
-    logger.error('  uv tool install pipx                  # if uv present')
-    logger.error('  python3 -m pip install --user pipx    # vanilla path')
-    logger.error('Then re-run this installer.')
-    return false
-  }
-
-  const gitUrl = `git+https://github.com/${repo}.git@${sha}`
-  logger.log(`Installing via pipx: ${gitUrl}`)
-  try {
-    const result = await spawn(pipxBin, ['install', '--force', gitUrl], {
-      stdio: 'pipe',
-    })
-    const stdout = String(result.stdout).trim()
-    if (stdout) {
-      logger.log(stdout)
-    }
-  } catch (e) {
-    logger.error(`pipx install failed: ${errorMessage(e)}`)
-    return false
-  }
-
-  // Confirm by re-running --version.
-  const installedBin = whichSync('skillspector', { nothrow: true })
-  if (!installedBin || typeof installedBin !== 'string') {
-    logger.error('pipx install succeeded but `skillspector` is not on PATH.')
-    logger.error('Try `pipx ensurepath` and reopen your shell.')
-    return false
-  }
-  if (!(await checkSkillSpectorVersion(installedBin))) {
-    logger.error(`Installed but --version check failed: ${installedBin}`)
-    return false
-  }
-  logger.log(`Installed at: ${installedBin}`)
-  return true
-}
-
-async function main(): Promise<void> {
-  logger.log('Setting up Socket security tools…')
-  logger.log('')
-
-  const apiToken = findApiToken()
-
-  const agentshieldOk = await setupAgentShield()
-  logger.log('')
-  const zizmorOk = await setupZizmor()
-  logger.log('')
-  const sfwOk = await setupSfw(apiToken)
-  logger.log('')
-  // socket-basics SAST + secrets stack + janus (shared wheelhouse) +
-  // npm-only tools (cdxgen, synp) — non-fatal if any individual tool
-  // fails (the basics workflow degrades cleanly when a scanner is
-  // absent; janus is opt-in and mac-only; cdxgen + synp are consumed
-  // by socket-cli scan/lockfile codepaths). Install in parallel since
-  // they don't share state.
-  const [
-    cdxgenOk,
-    janusOk,
-    opengrepOk,
-    skillspectorOk,
-    synpOk,
-    trivyOk,
-    trufflehogOk,
-    uvOk,
-  ] = await Promise.all([
-    setupCdxgen(),
-    setupJanus(),
-    setupOpengrep(),
-    setupSkillSpector(),
-    setupSynp(),
-    setupTrivy(),
-    setupTrufflehog(),
-    setupUv(),
-  ])
-  logger.log('')
-
-  logger.log('=== Summary ===')
-  logger.log(`AgentShield:  ${agentshieldOk ? 'ready' : 'NOT AVAILABLE'}`)
-  logger.log(`cdxgen:       ${cdxgenOk ? 'ready' : 'FAILED'}`)
-  logger.log(`janus:        ${janusOk ? 'ready' : 'FAILED'}`)
-  logger.log(`OpenGrep:     ${opengrepOk ? 'ready' : 'FAILED'}`)
-  logger.log(`SFW:          ${sfwOk ? 'ready' : 'FAILED'}`)
-  // SkillSpector is opt-in — pipx-dependent. Don't fail the umbrella
-  // run if it isn't installed; surface it as "OPTIONAL" so the
-  // operator knows it's an extra they can enable.
-  logger.log(
-    `SkillSpector: ${skillspectorOk ? 'ready' : 'OPTIONAL (pipx required)'}`,
-  )
-  logger.log(`synp:         ${synpOk ? 'ready' : 'FAILED'}`)
-  logger.log(`Trivy:        ${trivyOk ? 'ready' : 'FAILED'}`)
-  logger.log(`TruffleHog:   ${trufflehogOk ? 'ready' : 'FAILED'}`)
-  logger.log(`uv:           ${uvOk ? 'ready' : 'FAILED'}`)
-  logger.log(`Zizmor:       ${zizmorOk ? 'ready' : 'FAILED'}`)
-
-  const allOk =
-    agentshieldOk &&
-    cdxgenOk &&
-    janusOk &&
-    opengrepOk &&
-    sfwOk &&
-    synpOk &&
-    trivyOk &&
-    trufflehogOk &&
-    uvOk &&
-    zizmorOk
-  if (allOk) {
-    logger.log('')
-    logger.log('All security tools ready.')
-  } else {
-    logger.error('')
-    logger.warn('Some tools not available. See above.')
-  }
+  return runSetupSkillSpector()
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main().catch((e: unknown) => {
+  runSetupAll().catch((e: unknown) => {
     logger.error(errorMessage(e))
     process.exitCode = 1
   })

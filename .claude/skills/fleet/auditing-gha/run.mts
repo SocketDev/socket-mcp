@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * @file Check (and optionally conform) a repo's GitHub Actions permissions +
+ * @file Check, and optionally conform, a repo's GitHub Actions permissions +
  *   allowlist against the fleet baseline. Default is read-only audit (reports
  *   drift, exits non-zero on failure); `--conform` (alias `--fix`) WRITES the
- *   baseline via `gh api` PUT (needs admin scope). Conform is superset-safe: it
+ *   baseline via `gh api` PUT, needs admin scope. Conform is superset-safe: it
  *   sets allowed_actions=selected, github_owned_allowed=false,
  *   verified_allowed=false, and the UNION of the repo's current patterns + the
  *   canonical set — a repo's extra pins are preserved, only missing canonical
- *   patterns are added, never pruned. Baseline (every fleet repo must match):
+ *   patterns are added, never pruned. Baseline, every fleet repo must match:
  *   permissions.enabled = true permissions.allowed_actions = 'selected'
  *   selected_actions.github_owned_allowed = false (don't allow github-owned
  *   actions implicitly — the patterns_allowed list IS the canonical set; an
@@ -17,71 +17,106 @@
  *   is allowed — a repo can pin additional actions if it has a real consumer,
  *   but every canonical pattern must be present since they're referenced
  *   through the socket-registry shared workflows) Exit code: 0 if compliant, 1
- *   if any repo fails the baseline. The orchestrator (skill prompt) shapes the
- *   human-readable report and tells the user exactly which Settings → Actions
- *   toggles to flip.
+ *   if any repo fails the baseline. `--fleet` derives the repo list from the
+ *   single-source roster (cascading-fleet/lib/fleet-repos.json). A repo that
+ *   does not exist on GitHub is a distinct loud finding — the roster entry is
+ *   the defect — never folded into the admin-scope/org-policy fetch failure.
+ *   The orchestrator, skill prompt, shapes the human-readable report and tells
+ *   the user exactly which Settings → Actions toggles to flip.
  */
 
-import { rmSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
+import { safeDeleteSync } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 import { spawn } from '@socketsecurity/lib/process/spawn/child'
 
+import { isMainModule } from '../../../../scripts/fleet/_shared/is-main-module.mts'
+
+// The canonical allowlist is DATA shared with the
+// gha-allowlist-matches-template-uses fleet check — it lives in its own
+// module so consumers can import the list without the runner's gh seams.
+import { CANONICAL_PATTERNS } from './canonical-patterns.mts'
+import type { ConformResult, RepoFinding } from './run-report.mts'
+import { runAudit, runConform } from './run-report.mts'
+
 const logger = getDefaultLogger()
 
-// Canonical fleet allowlist. Every entry here is referenced by at least
-// one shared workflow under socket-registry/.github/workflows/ or by a
-// fleet repo's own workflows. Removing one breaks every consumer that
-// pins through those shared workflows. Add a new entry only when a new
-// shared workflow references it, and cascade to every consumer org.
-//
-// Third-party patterns (dtolnay/, hendrikmuhs/, HaaLeo/,
-// pnpm/action-setup, softprops/, Swatinem/) were removed in favor of
-// hand-rolled composites under SocketDev/socket-registry/.github/actions/.
-// Anything new third-party should be ported to a composite there rather
-// than added to this list.
-//
-// Sorted alphabetically.
-const CANONICAL_PATTERNS: readonly string[] = [
-  'actions/cache/restore@*',
-  'actions/cache/save@*',
-  'actions/cache@*',
-  'actions/checkout@*',
-  'actions/deploy-pages@*',
-  'actions/download-artifact@*',
-  'actions/github-script@*',
-  'actions/setup-go@*',
-  'actions/setup-node@*',
-  'actions/setup-python@*',
-  'actions/upload-artifact@*',
-  'actions/upload-pages-artifact@*',
-  'depot/build-push-action@*',
-  'depot/setup-action@*',
-  'github/codeql-action/upload-sarif@*',
-  'github/gh-aw-actions/*',
-]
+// The single-source fleet roster, shipped next to this skill by the cascade.
+// `--fleet` derives the audit's <owner>/<repo> list from it so no prose list
+// can drift — a hand-maintained slug list is how a typo once dropped a repo
+// from the fleet pass for a week.
+const FLEET_ROSTER_URL = new URL(
+  '../cascading-fleet/lib/fleet-repos.json',
+  import.meta.url,
+)
 
-export async function auditOne(repo: string): Promise<RepoFinding> {
+// The gh CLI seam, injectable so tests can drive the 404-vs-scope branches
+// without spawning gh.
+export type GhFn = (args: readonly string[]) => Promise<string>
+
+// Loud not-found finding, What/Where/Saw/Fix shaped. A nonexistent repo means
+// the ROSTER ENTRY is wrong — reporting it as a permissions hiccup reads as
+// benign, and the fleet pass then skips the real repo while looking conformed.
+export function repoNotFoundDetail(repo: string): string {
+  return (
+    `Repo not found on GitHub — the roster entry is wrong, not the repo's ` +
+    `settings. Where: whatever named ${repo} — fleet-repos.json via ` +
+    `--fleet, the SKILL.md invocation, or the caller's args. Saw: gh api ` +
+    `repos/${repo} failed and the repo itself is unreadable; wanted: an ` +
+    `existing repo. Fix: correct the roster entry — a skipped repo reads ` +
+    `as conformed.`
+  )
+}
+
+/**
+ * True when `gh api repos/<owner>/<repo>` resolves — the repo exists and the
+ * token can at least read its metadata. Used to split "the roster names a
+ * repo that doesn't exist" from "the repo exists but its Actions settings
+ * aren't readable".
+ */
+export async function repoExists(
+  repo: string,
+  ghFn: GhFn = gh,
+): Promise<boolean> {
+  try {
+    await ghFn(['api', `repos/${repo}`])
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function auditOne(
+  repo: string,
+  ghFn: GhFn = gh,
+): Promise<RepoFinding> {
   const details: string[] = []
   let perms: PermissionsResponse
   try {
-    perms = await fetchPermissions(repo)
+    perms = await fetchPermissions(repo, ghFn)
   } catch (e) {
-    // 404 here usually means the API isn't exposing per-repo settings
-    // for this repo — either the token lacks admin scope, or the org
-    // policy is the source of truth and the repo has no per-repo
-    // override. Surface as a fetch failure, not a baseline failure.
+    // A nonexistent repo — a roster typo — fails this fetch exactly like a
+    // scope problem does. Probe the repo itself so the finding names the
+    // real defect instead of shrugging it off as a permissions issue.
+    if (!(await repoExists(repo, ghFn))) {
+      return { repo, ok: false, details: [repoNotFoundDetail(repo)] }
+    }
+    // The repo exists, so the failure is access-shaped: the token lacks
+    // admin scope, or org policy is the source of truth and the repo has
+    // no per-repo override. Surface as a fetch failure, not a baseline
+    // failure.
     return {
       repo,
       ok: false,
       details: [
         `Could not read Actions permissions (admin scope needed, or org ` +
-          `policy supersedes per-repo settings): ${
-            e instanceof Error ? e.message : String(e)
-          }`,
+          `policy supersedes per-repo settings): ${errorMessage(e)}`,
       ],
     }
   }
@@ -117,13 +152,9 @@ export async function auditOne(repo: string): Promise<RepoFinding> {
 
   let selected: SelectedActionsResponse
   try {
-    selected = await fetchSelectedActions(repo)
+    selected = await fetchSelectedActions(repo, ghFn)
   } catch (e) {
-    details.push(
-      `Could not read selected-actions list: ${
-        e instanceof Error ? e.message : String(e)
-      }`,
-    )
+    details.push(`Could not read selected-actions list: ${errorMessage(e)}`)
     return { repo, ok: false, details }
   }
 
@@ -200,18 +231,31 @@ export async function auditOne(repo: string): Promise<RepoFinding> {
  * (`enabled=false`): org policy governs there and a per-repo PUT would silently
  * create an override.
  */
-export async function conformOne(repo: string): Promise<ConformResult> {
+export async function conformOne(
+  repo: string,
+  ghFn: GhFn = gh,
+  ghInputFn: typeof ghInput = ghInput,
+): Promise<ConformResult> {
   let perms: PermissionsResponse
   try {
-    perms = await fetchPermissions(repo)
+    perms = await fetchPermissions(repo, ghFn)
   } catch (e) {
+    // Same split as auditOne: a roster typo must not read as a scope
+    // problem — the conform pass would skip the real repo while its
+    // summary looks like an environment hiccup.
+    if (!(await repoExists(repo, ghFn))) {
+      return {
+        repo,
+        changed: false,
+        added: [],
+        error: repoNotFoundDetail(repo),
+      }
+    }
     return {
       repo,
       changed: false,
       added: [],
-      error: `could not read permissions (admin scope needed): ${
-        e instanceof Error ? e.message : String(e)
-      }`,
+      error: `could not read permissions (admin scope needed): ${errorMessage(e)}`,
     }
   }
   if (!perms.enabled) {
@@ -230,7 +274,7 @@ export async function conformOne(repo: string): Promise<ConformResult> {
   // PUT requires BOTH `enabled` (bool, -F) and `allowed_actions` (-f) — a
   // partial body is rejected `Invalid request`.
   if (perms.allowed_actions !== 'selected') {
-    await gh([
+    await ghFn([
       'api',
       '--method',
       'PUT',
@@ -244,7 +288,7 @@ export async function conformOne(repo: string): Promise<ConformResult> {
 
   let current: SelectedActionsResponse
   try {
-    current = await fetchSelectedActions(repo)
+    current = await fetchSelectedActions(repo, ghFn)
   } catch {
     current = {
       github_owned_allowed: false,
@@ -271,7 +315,7 @@ export async function conformOne(repo: string): Promise<ConformResult> {
     return { repo, changed: false, added: [] }
   }
 
-  const merged = [...union].sort()
+  const merged = [...union].toSorted()
   const body = JSON.stringify({
     github_owned_allowed: false,
     verified_allowed: false,
@@ -279,7 +323,7 @@ export async function conformOne(repo: string): Promise<ConformResult> {
   })
   // PUT the full selected-actions object via a temp-file body (--input
   // <file>) so the array + booleans go as proper JSON, not -f string fields.
-  await ghInput(
+  await ghInputFn(
     [
       'api',
       '--method',
@@ -295,19 +339,59 @@ export async function conformOne(repo: string): Promise<ConformResult> {
 
 export async function fetchPermissions(
   repo: string,
+  ghFn: GhFn = gh,
 ): Promise<PermissionsResponse> {
-  const raw = await gh(['api', `repos/${repo}/actions/permissions`])
+  const raw = await ghFn(['api', `repos/${repo}/actions/permissions`])
   return JSON.parse(raw) as PermissionsResponse
 }
 
 export async function fetchSelectedActions(
   repo: string,
+  ghFn: GhFn = gh,
 ): Promise<SelectedActionsResponse> {
-  const raw = await gh([
+  const raw = await ghFn([
     'api',
     `repos/${repo}/actions/permissions/selected-actions`,
   ])
   return JSON.parse(raw) as SelectedActionsResponse
+}
+
+/**
+ * Derive the fleet's `<owner>/<name>` slugs from the roster JSON. Pure core of
+ * `--fleet`, exported for tests; `owner` defaults to SocketDev exactly like the
+ * cascade's owner map. Throws when the roster carries no usable entries —
+ * fail closed, an empty fleet pass must never read as a conformed fleet.
+ */
+export function fleetSlugsFromRoster(raw: string, source: string): string[] {
+  const parsed = JSON.parse(raw) as {
+    repos?:
+      | Array<{ name?: string | undefined; owner?: string | undefined }>
+      | undefined
+  }
+  const entries = parsed.repos ?? []
+  const slugs: string[] = []
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const entry = entries[i]!
+    if (typeof entry.name === 'string' && entry.name.length > 0) {
+      slugs.push(`${entry.owner ?? 'SocketDev'}/${entry.name}`)
+    }
+  }
+  if (slugs.length === 0) {
+    throw new Error(
+      `Fleet roster has no usable entries. Where: ${source}. Saw: no ` +
+        `repos[].name values; wanted: the fleet membership list. Fix: ` +
+        `restore the roster — it is the single source of fleet membership.`,
+    )
+  }
+  return slugs
+}
+
+// Read the on-disk roster that cascades alongside this skill.
+export function loadFleetSlugs(): string[] {
+  return fleetSlugsFromRoster(
+    readFileSync(FLEET_ROSTER_URL, 'utf8'),
+    fileURLToPath(FLEET_ROSTER_URL),
+  )
 }
 
 interface PermissionsResponse {
@@ -320,23 +404,6 @@ interface SelectedActionsResponse {
   github_owned_allowed: boolean
   verified_allowed: boolean
   patterns_allowed: string[]
-}
-
-interface RepoFinding {
-  repo: string
-  ok: boolean
-  // Each detail line is one fixable item. Empty when ok=true.
-  details: string[]
-}
-
-interface ConformResult {
-  repo: string
-  // True when a PUT was issued (drift existed and was corrected).
-  changed: boolean
-  // Canonical patterns added by the conform (subset of CANONICAL_PATTERNS).
-  added: string[]
-  // Set when conform couldn't run (no admin scope / org-governed repo).
-  error?: string | undefined
 }
 
 export async function gh(args: readonly string[]): Promise<string> {
@@ -371,7 +438,7 @@ export async function ghInput(
     })
     return String(r.stdout ?? '').trim()
   } finally {
-    rmSync(file, { force: true })
+    safeDeleteSync(file)
   }
 }
 
@@ -379,20 +446,24 @@ export function parseArgs(argv: readonly string[]): {
   repos: string[]
   json: boolean
   conform: boolean
+  fleet: boolean
 } {
   const repos: string[] = []
   let json = false
   let conform = false
+  let fleet = false
   for (let i = 0, { length } = argv; i < length; i += 1) {
     const a = argv[i]!
     if (a === '--json') {
       json = true
     } else if (a === '--conform' || a === '--fix') {
       conform = true
+    } else if (a === '--fleet') {
+      fleet = true
     } else if (a === '--help' || a === '-h') {
       logger.info(
         // oxlint-disable-next-line socket/no-logger-newline-literal -- CLI help text is intentionally a single multi-line block; splitting would garble the columnar formatting users expect.
-        `Usage: node run.mts [--json] [--conform] <owner/repo>...
+        `Usage: node run.mts [--json] [--conform] [--fleet] [<owner/repo>...]
 
 Checks GH Actions permissions + allowlist against the fleet baseline.
 Default is read-only (audit); exits non-zero if any repo fails a check.
@@ -402,11 +473,15 @@ Default is read-only (audit); exits non-zero if any repo fails a check.
              verified_allowed=false, and the UNION of the repo's current
              patterns + the canonical set (extras preserved, never pruned;
              only missing canonical patterns are added). Needs admin scope.
+  --fleet    derive the repo list from the single-source roster
+             (cascading-fleet/lib/fleet-repos.json) instead of a
+             hand-maintained slug list. Combines with explicit args.
   --json     machine-readable findings.
 
 Examples:
   node run.mts SocketDev/socket-btm SocketDev/socket-cli
-  node run.mts --conform SocketDev/socket-btm
+  node run.mts --fleet
+  node run.mts --conform --fleet
   node run.mts --json SocketDev/socket-btm | jq`,
       )
       process.exit(0)
@@ -416,95 +491,28 @@ Examples:
       repos.push(a)
     }
   }
-  if (repos.length === 0) {
-    throw new Error('At least one <owner/repo> argument is required.')
-  }
-  return { repos, json, conform }
-}
-
-async function runConform(
-  repos: readonly string[],
-  json: boolean,
-): Promise<void> {
-  const results: ConformResult[] = []
-  for (let i = 0, { length } = repos; i < length; i += 1) {
-    // eslint-disable-next-line no-await-in-loop -- serial GH API writes
-    results.push(await conformOne(repos[i]!))
-  }
-  if (json) {
-    logger.info(JSON.stringify(results, null, 2))
-  } else {
-    for (let i = 0, { length } = results; i < length; i += 1) {
-      const r = results[i]!
-      if (r.error) {
-        logger.warn(`✗ ${r.repo}: ${r.error}`)
-      } else if (r.changed) {
-        logger.info(
-          `✦ ${r.repo}: conformed${
-            r.added.length ? ` (+${r.added.join(', +')})` : ''
-          }`,
-        )
-      } else {
-        logger.info(`✓ ${r.repo}: already conformant`)
-      }
-    }
-    const errors = results.filter(r => r.error).length
-    const changed = results.filter(r => r.changed).length
-    logger.info('')
-    logger.info(
-      `Conformed: ${changed}  Already-ok: ${
-        results.length - changed - errors
-      }  Errored: ${errors}`,
+  if (repos.length === 0 && !fleet) {
+    throw new Error(
+      'At least one <owner/repo> argument is required — or pass --fleet ' +
+        'to derive the list from fleet-repos.json.',
     )
   }
-  // A conform run fails only on a repo it COULDN'T conform (no scope / org-
-  // governed) — a successful write is success, not a failure.
-  process.exitCode = results.some(r => r.error) ? 1 : 0
-}
-
-async function runAudit(
-  repos: readonly string[],
-  json: boolean,
-): Promise<void> {
-  const findings: RepoFinding[] = []
-  for (let i = 0, { length } = repos; i < length; i += 1) {
-    // eslint-disable-next-line no-await-in-loop -- serial GH API calls
-    findings.push(await auditOne(repos[i]!))
-  }
-  if (json) {
-    logger.info(JSON.stringify(findings, null, 2))
-  } else {
-    let okCount = 0
-    let failCount = 0
-    for (let i = 0, { length } = findings; i < length; i += 1) {
-      const f = findings[i]!
-      if (f.ok) {
-        okCount += 1
-        logger.info(`✓ ${f.repo}`)
-      } else {
-        failCount += 1
-        logger.warn(`✗ ${f.repo}`)
-        for (let j = 0, { length: jl } = f.details; j < jl; j += 1) {
-          logger.warn(`    ${f.details[j]}`)
-        }
-      }
-    }
-    logger.info('')
-    logger.info(`OK: ${okCount}  Failed: ${failCount}`)
-  }
-  process.exitCode = findings.some(f => !f.ok) ? 1 : 0
+  return { repos, json, conform, fleet }
 }
 
 async function main(): Promise<void> {
-  const { repos, json, conform } = parseArgs(process.argv.slice(2))
+  const { repos, json, conform, fleet } = parseArgs(process.argv.slice(2))
+  const targets = fleet ? [...new Set([...loadFleetSlugs(), ...repos])] : repos
   if (conform) {
-    await runConform(repos, json)
+    await runConform(targets, { json })
   } else {
-    await runAudit(repos, json)
+    await runAudit(targets, { json })
   }
 }
 
-main().catch(e => {
-  logger.error(e instanceof Error ? e.message : String(e))
-  process.exit(1)
-})
+if (isMainModule(import.meta.url)) {
+  main().catch(e => {
+    logger.error(errorMessage(e))
+    process.exit(1)
+  })
+}

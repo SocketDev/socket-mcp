@@ -18,23 +18,27 @@
 // nags during real work. Reminder, not a hard block — but it sets exit 2 so the
 // agent sees it and either drops the model/effort or types a bypass.
 //
-// Bypass: "Allow model bypass" (keep the premium model) or "Allow effort
-// bypass" (keep high effort) in a recent user turn, or
+// Bypass: "Allow model bypass", keep the premium model, or "Allow effort
+// bypass", keep high effort, in a recent user turn, or skip the whole check
+// on a subagent turn — a subagent can't change its own model/effort, can't
+// delegate further, and can't type a bypass, so firing here would only trap
+// it.
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import process from 'node:process'
 
-import { withBashGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent, readLines } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
+import {
+  bypassPhrasePresent,
+  mostRecentAssistantIsSidechain,
+  readLines,
+} from '../_shared/transcript.mts'
 
 const MODEL_BYPASS = ['Allow model bypass', 'Allow model-spend bypass'] as const
 const EFFORT_BYPASS = ['Allow effort bypass'] as const
 
 // Effort levels that count as "premium" — the tiers worth conserving on
 // mechanical work. low/medium are already cheap, so they never trigger.
-const PREMIUM_EFFORT = new Set(['high', 'xhigh', 'max'])
+const PREMIUM_EFFORT = new Set(['high', 'max', 'xhigh'])
 
 // A model id is "premium" when it's an Opus OR a Fable/Mythos (the apex tier,
 // ~2× the cost of Opus). Sonnet/Haiku are the cheap/fast tier the guard nudges
@@ -42,8 +46,8 @@ const PREMIUM_EFFORT = new Set(['high', 'xhigh', 'max'])
 // `claude-opus-4-8[1m]`, `fable`, `claude-fable-5`, `claude-mythos-5`).
 function isPremiumModel(model: string): boolean {
   return (
-    /\b(?:opus|fable|mythos)\b/i.test(model) ||
-    /claude-(?:opus|fable|mythos)/i.test(model)
+    /\b(?:fable|mythos|opus)\b/i.test(model) ||
+    /claude-(?:fable|mythos|opus)/i.test(model)
   )
 }
 
@@ -54,8 +58,8 @@ const MECHANICAL_RE = [
   // Wheelhouse cascade sync + its commit.
   /\bpnpm\s+run\s+sync\b/,
   /chore\(wheelhouse\):\s*cascade\b/,
-  // Mass autofix / format sweeps (the whole-tree variants, not a single file).
-  /\b(?:pnpm\s+(?:run|exec)\s+)?(?:oxlint|eslint)\b[^\n]*--fix\b[^\n]*(?:\s\.|--all)\b/,
+  // Mass autofix / format sweeps, the whole-tree variants, not a single file.
+  /\b(?:pnpm\s+(?:exec|run)\s+)?(?:eslint|oxlint)\b[^\n]*--fix\b[^\n]*(?:--all|\s\.)\b/,
   /\b(?:pnpm\s+run\s+)?fix\b\s+--all\b/,
   /\boxfmt\b[^\n]*--write\b[^\n]*\s\.(?:\s|$)/,
 ] as const
@@ -75,7 +79,10 @@ function readCurrentModel(transcriptPath: string | undefined): string {
       continue
     }
     try {
-      const evt = JSON.parse(line) as { model?: unknown; type?: unknown }
+      const evt = JSON.parse(line) as {
+        model?: unknown | undefined
+        type?: unknown | undefined
+      }
       if (typeof evt.model === 'string' && evt.model) {
         return evt.model
       }
@@ -86,9 +93,17 @@ function readCurrentModel(transcriptPath: string | undefined): string {
   return ''
 }
 
-await withBashGuard((command, payload) => {
+export const check = bashGuard((command, payload) => {
   if (!isMechanical(command)) {
-    return
+    return undefined
+  }
+
+  // A subagent can't act on this nudge: it can't change its own model/effort
+  // (the parent sets those at spawn time — see ai-spawns-have-paired-effort),
+  // can't delegate (no Agent tool), and can't type a human-only bypass. Firing
+  // here only traps it. The nudge belongs at spawn time, so skip subagent turns.
+  if (mostRecentAssistantIsSidechain(payload.transcript_path)) {
+    return undefined
   }
 
   const effort = String(process.env['CLAUDE_EFFORT'] ?? '').toLowerCase()
@@ -99,15 +114,20 @@ await withBashGuard((command, payload) => {
 
   // Each dimension is independently bypassable, so only flag the dimensions
   // that are both premium AND not bypassed for this turn.
+  // Low-risk cost nudge, token spend only, nothing security — `bypass` optional.
   const flagModel =
     modelIsPremium &&
-    !bypassPhrasePresent(payload.transcript_path, MODEL_BYPASS)
+    !bypassPhrasePresent(payload.transcript_path, MODEL_BYPASS, undefined, {
+      optionalSuffix: true,
+    })
   const flagEffort =
     effortIsPremium &&
-    !bypassPhrasePresent(payload.transcript_path, EFFORT_BYPASS)
+    !bypassPhrasePresent(payload.transcript_path, EFFORT_BYPASS, undefined, {
+      optionalSuffix: true,
+    })
 
   if (!flagModel && !flagEffort) {
-    return
+    return undefined
   }
 
   const lines = [
@@ -133,7 +153,30 @@ await withBashGuard((command, payload) => {
     '  Reserve premium model + high effort for design, hard debugging,',
     '  security review.',
     '',
+    '  Cheapest path — DELEGATE the mechanical step to a cheaper tier instead',
+    '  of downgrading your whole session: spawn a subagent at a low tier to run',
+    "  it (the Agent tool with model: 'haiku', or `spawnAiAgent` from",
+    '  @socketsecurity/lib with a low AI_PROFILE). The subagent runs the command',
+    '  cheap + returns; your premium session keeps its context for the real work.',
+    '',
+    '  Report-back contract: a foreground Agent call returns the child’s final',
+    '  text as YOUR tool result; a background delegate re-invokes you when it',
+    '  completes. A delegate can NEVER SendMessage you (you are not addressable',
+    '  to it) — do not instruct it to, and never end your turn waiting on a',
+    '  delegate’s message.',
+    '',
   )
-  logger.error(lines.join('\n') + '\n')
-  process.exitCode = 2
+  return block(lines.join('\n') + '\n')
 })
+
+export const hook = defineHook({
+  bypass: ['model', 'model-spend', 'effort'],
+  bypassMode: 'manual',
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

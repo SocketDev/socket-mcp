@@ -17,12 +17,12 @@
 // some builders.
 export const STAGE_SEGMENTS = new Set([
   'Compressed',
+  'downloaded',
   'Final',
   'Optimized',
   'Release',
   'Stripped',
   'Synced',
-  'downloaded',
   'wasm',
 ])
 
@@ -37,7 +37,7 @@ export const BUILD_ROOT_SEGMENTS = new Set(['build', 'out'])
 // finding (`build/<mode>/<arch>/out/<stage>` is the canonical shape).
 export const MODE_SEGMENTS = new Set(['dev', 'prod', 'shared'])
 
-// Sibling fleet packages (Rule B). Union of all packages across the
+// Sibling fleet packages, Rule B. Union of all packages across the
 // Socket fleet — the gate is byte-identical via sync-scaffolding, so
 // listing every fleet package keeps Rule B firing in any repo. When a
 // new package joins the workspace, add it here and propagate via
@@ -46,6 +46,7 @@ export const MODE_SEGMENTS = new Set(['dev', 'prod', 'shared'])
 export const KNOWN_SIBLING_PACKAGES = new Set([
   'acorn',
   'bin-infra',
+  'bin-stub-builder',
   'binflate',
   'binject',
   'binpress',
@@ -66,7 +67,6 @@ export const KNOWN_SIBLING_PACKAGES = new Set([
   'package-builder',
   'react',
   'renderer',
-  'stubs-builder',
   'ultraviolet',
   'ultraviolet-builder',
   'yoga',

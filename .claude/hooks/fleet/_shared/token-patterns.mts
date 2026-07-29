@@ -1,4 +1,4 @@
-/**
+/*
  * @file Shared catalog of secret-bearing env-var key names. Used by every hook
  *   that scans for accidentally-checked-in or accidentally-printed
  *   credentials:
@@ -167,7 +167,7 @@ export const ALL_TOKEN_KEY_PATTERNS: readonly RegExp[] = [
  *
  * The shape: `<PREFIX>_<SECRET-NOUN>_<KEY|TOKEN|SECRET>` — at least one
  * underscore-separated qualifier word in front of the suffix to avoid matching
- * bare `KEY=`/`TOKEN=` keys (which are usually loop indices, not secrets).
+ * bare `KEY=`/`TOKEN=` keys, which are usually loop indices, not secrets.
  */
 export const GENERIC_TOKEN_SUFFIX_RE =
   /^[A-Z_]*(?:ACCESS|API|AUTH|BOT|CLIENT|PRIVATE|SECRET|SESSION|WEBHOOK)_(?:KEY|SECRET|TOKEN)$/
@@ -279,7 +279,7 @@ export const SECRET_VALUE_PATTERNS: readonly SecretValuePattern[] = [
     label: 'JWT',
   },
   {
-    re: /-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----/,
+    re: /-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----/,
     label: 'private key (PEM block)',
   },
 ]

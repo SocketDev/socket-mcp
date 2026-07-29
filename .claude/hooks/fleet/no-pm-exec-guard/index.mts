@@ -5,7 +5,7 @@
 //
 //   1. `pnpm exec` / `npm exec` / `yarn exec` — run an already-installed
 //      `node_modules/.bin` binary but wrap it in the package manager's startup +
-//      (in this fleet) the Socket Firewall interception layer on every call —
+//      in this fleet, the Socket Firewall interception layer on every call —
 //      pure overhead. `bare node_modules/.bin/tsgo` ran in 422ms vs the
 //      multi-second `pnpm exec tsgo` wrapper (2026-06-03 slowdown investigation).
 //      Fix: run the bin directly (`node_modules/.bin/<tool>`) or `pnpm run <x>`.
@@ -24,36 +24,26 @@
 //
 // Exit codes: 0 — pass; 2 — block. Fails open on any throw.
 
-import process from 'node:process'
-
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withBashGuard } from '../_shared/payload.mts'
 import { findInvocation } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow pm-exec bypass'
-
-// (binary, label) pairs whose `exec` subcommand is banned (overhead/wrapper).
+// binary, label, pairs whose `exec` subcommand is banned (overhead/wrapper).
 const PM_EXEC: ReadonlyArray<readonly [string, string]> = [
   ['pnpm', 'pnpm exec'],
   ['npm', 'npm exec'],
   ['yarn', 'yarn exec'],
 ]
 
-// (binary, subcommand, label) for the fetch+execute forms — `pnpm dlx` /
+// binary, subcommand, label, for the fetch+execute forms — `pnpm dlx` /
 // `yarn dlx` carry a `dlx` subcommand; `npx` / `pnx` are bare binaries (no
 // subcommand). All fetch unpinned code and are banned at run time.
-const FETCH_EXEC: ReadonlyArray<
-  readonly [string, string | undefined, string]
-> = [
-  ['pnpm', 'dlx', 'pnpm dlx'],
-  ['yarn', 'dlx', 'yarn dlx'],
-  ['npx', undefined, 'npx'],
-  ['pnx', undefined, 'pnx'],
-]
+const FETCH_EXEC: ReadonlyArray<readonly [string, string | undefined, string]> =
+  [
+    ['pnpm', 'dlx', 'pnpm dlx'],
+    ['yarn', 'dlx', 'yarn dlx'],
+    ['npx', undefined, 'npx'],
+    ['pnx', undefined, 'pnx'],
+  ]
 
 export function bannedPmExec(command: string): string | undefined {
   for (let i = 0, { length } = PM_EXEC; i < length; i += 1) {
@@ -76,18 +66,15 @@ export function bannedFetchExec(command: string): string | undefined {
   return undefined
 }
 
-void (async () => {
-  await withBashGuard((command, payload) => {
+export const check = bashGuard(
+  command => {
     const execLabel = bannedPmExec(command)
     const fetchLabel = bannedFetchExec(command)
     if (!execLabel && !fetchLabel) {
-      return
-    }
-    if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-      return
+      return undefined
     }
     if (fetchLabel) {
-      logger.error(
+      return block(
         [
           `[no-pm-exec-guard] Blocked: \`${fetchLabel}\`.`,
           '',
@@ -97,27 +84,32 @@ void (async () => {
           '  Add the dep and run it installed, or use pipx / node_modules/.bin:',
           `    pnpm add -D <pkg> && node_modules/.bin/<tool>   not  ${fetchLabel} <pkg>`,
           '',
-          `  Bypass: type \`${BYPASS_PHRASE}\` if this is genuinely intended.`,
-          '',
-        ].join('\n'),
-      )
-    } else {
-      logger.error(
-        [
-          `[no-pm-exec-guard] Blocked: \`${execLabel}\`.`,
-          '',
-          `  \`${execLabel} <tool>\` wraps the installed bin in package-manager +`,
-          '  Socket Firewall startup overhead on every call.',
-          '',
-          '  Run the bin directly, or via a script:',
-          `    node_modules/.bin/<tool>      not  ${execLabel} <tool>`,
-          '    pnpm run <script>',
-          '',
-          `  Bypass: type \`${BYPASS_PHRASE}\` if this is genuinely intended.`,
-          '',
         ].join('\n'),
       )
     }
-    process.exitCode = 2
-  }, { fleetOnly: true })
-})()
+    return block(
+      [
+        `[no-pm-exec-guard] Blocked: \`${execLabel}\`.`,
+        '',
+        `  \`${execLabel} <tool>\` wraps the installed bin in package-manager +`,
+        '  Socket Firewall startup overhead on every call.',
+        '',
+        '  Run the bin directly, or via a script:',
+        `    node_modules/.bin/<tool>      not  ${execLabel} <tool>`,
+        '    pnpm run <script>',
+        '',
+      ].join('\n'),
+    )
+  },
+  { fleetOnly: true },
+)
+
+export const hook = defineHook({
+  bypass: ['pm-exec'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

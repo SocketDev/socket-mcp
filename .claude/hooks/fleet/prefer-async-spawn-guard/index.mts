@@ -5,7 +5,7 @@
 // (or bare `child_process`). The fleet routes every subprocess through
 // `@socketsecurity/lib-stable/process/spawn/child`:
 //
-//   - async `spawn` over `spawnSync` (sync freezes the runner),
+//   - async `spawn` over `spawnSync`, sync freezes the runner,
 //   - a typed `SpawnError` + `isSpawnError` guard,
 //   - an array-of-args contract that avoids `execSync`'s shell-injection
 //     surface.
@@ -16,22 +16,20 @@
 // incident: a script imported `{ spawnSync } from 'node:child_process'`,
 // which the lint rule would only have caught at commit).
 //
-// Exit code 2 makes Claude Code refuse the tool call.
-//
-// Reads a Claude Code PreToolUse JSON payload from stdin:
+// Reads a Claude Code PreToolUse JSON payload:
 //   { "tool_name": "Edit"|"Write",
 //     "tool_input": { "file_path": "...", "content"|"new_string": "..." } }
 //
-// Fails open on malformed payloads (exit 0 + stderr log).
+// Fails open on malformed payloads.
 //
-// Bypass (per call): user types `Allow async-spawn bypass`.
-
-import process from 'node:process'
+// Bypass, per call: user types `Allow async-spawn bypass`.
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { withEditGuard } from '../_shared/payload.mts'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import { isRepoTestHome } from '../_shared/repo-test-home.mts'
 
 const logger = getDefaultLogger()
 
@@ -46,7 +44,7 @@ const BYPASS_PHRASE = 'Allow async-spawn bypass'
 // or re-export), and `require('node:child_process')`. Quote style and the
 // `node:` prefix both tolerated. Matched per-line.
 const CHILD_PROCESS_IMPORT_RE =
-  /\b(?:import|export)\b[^\n]*\bfrom\s*['"](?:node:)?child_process['"]/
+  /\b(?:export|import)\b[^\n]*\bfrom\s*['"](?:node:)?child_process['"]/
 const CHILD_PROCESS_REQUIRE_RE =
   /\brequire\s*\(\s*['"](?:node:)?child_process['"]\s*\)/
 
@@ -58,30 +56,41 @@ const CHILD_PROCESS_REQUIRE_RE =
  * the pre-pnpm bootstrap `.mjs` provisioners under `scripts/fleet/setup/`.
  * Those install pnpm itself on a bare machine BEFORE node_modules exists, so
  * `@socketsecurity/lib`'s async `spawn` wrapper isn't on disk to import — the
- * sync builtin is the only option (same constraint as the markdownlint shim);
+ * sync builtin is the only option, same constraint as the markdownlint shim;
  * each carries an `oxlint-disable socket/prefer-async-spawn` documenting it.
  */
 export function isExemptPath(filePath: string): boolean {
+  const normalizedFilePath = normalizePath(filePath)
   return (
-    filePath.includes('/_internal/') ||
-    filePath.includes('/dist/') ||
-    filePath.includes('/build/') ||
-    filePath.includes('/node_modules/') ||
-    filePath.includes('/.claude/hooks/fleet/prefer-async-spawn-guard/') ||
-    // The two spawn rules live at .config/oxlint-plugin/fleet/<id>/ (index.mts +
+    normalizedFilePath.includes('/_internal/') ||
+    normalizedFilePath.includes('/dist/') ||
+    normalizedFilePath.includes('/build/') ||
+    normalizedFilePath.includes('/node_modules/') ||
+    normalizedFilePath.includes(
+      '/.claude/hooks/fleet/prefer-async-spawn-guard/',
+    ) ||
+    // The two spawn rules live at .config/fleet/oxlint-plugin/fleet/<id>/ (index.mts +
     // test/), embedding the banned execSync/spawnSync shape as rule data; the
     // per-rule dir prefix exempts both files at once.
-    filePath.includes('/.config/oxlint-plugin/fleet/prefer-async-spawn/') ||
-    filePath.includes(
-      '/.config/oxlint-plugin/fleet/prefer-spawn-over-execsync/',
+    normalizedFilePath.includes(
+      '/.config/fleet/oxlint-plugin/fleet/prefer-async-spawn/',
     ) ||
-    filePath.includes(
+    normalizedFilePath.includes(
+      '/.config/fleet/oxlint-plugin/fleet/prefer-spawn-over-execsync/',
+    ) ||
+    normalizedFilePath.includes(
       '/.config/fleet/markdownlint-rules/_shared/wheelhouse-self-skip.',
     ) ||
     // Pre-pnpm bootstrap .mjs provisioners (scripts/fleet/setup/{lib/,*}.mjs):
     // run before node_modules exists, so the lib spawn wrapper isn't importable
     // yet. Scoped to `.mjs` so the dir's `.mts` steps stay guarded.
-    (filePath.includes('/scripts/fleet/setup/') && filePath.endsWith('.mjs'))
+    (normalizedFilePath.includes('/scripts/fleet/setup/') &&
+      normalizedFilePath.endsWith('.mjs')) ||
+    // The dep-0 bootstrap (bootstrap/fleet.mjs, bootstrap/prepare.mts) is the
+    // fetcher that runs before any dependency exists — same constraint as the
+    // setup provisioners above, so the sync builtin is its only spawn option.
+    /(?:^|\/)bootstrap\//.test(normalizedFilePath) ||
+    isRepoTestHome(filePath)
   )
 }
 
@@ -100,50 +109,67 @@ export function findChildProcessImports(text: string): Finding[] {
   return findings
 }
 
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// content extraction (new_string / content), and fail-open on any throw.
-//
-// Gate the top-level invocation on argv[1] so unit tests can import the
-// exported detectors without the harness blocking on stdin.
-if (process.argv[1]?.endsWith('index.mts')) {
-  await withEditGuard((filePath, content, payload) => {
+export const check = editGuard(
+  (filePath, content, payload) => {
     if (isExemptPath(filePath)) {
-      return
+      return undefined
     }
     // Only police JS/TS source.
     if (!/\.(?:c|m)?[jt]sx?$/.test(filePath)) {
-      return
+      return undefined
     }
 
     const text = content ?? ''
     if (!text) {
-      return
+      return undefined
     }
 
     const findings = findChildProcessImports(text)
     if (findings.length === 0) {
-      return
+      return undefined
     }
 
-    if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
+    // Low-risk convention guard, oxlint rules backstop it — `bypass` optional.
+    if (
+      bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE, undefined, {
+        optionalSuffix: true,
+      })
+    ) {
       logger.error(
-        `prefer-async-spawn-guard: ${findings.length} child_process import(s) — bypassed via "${BYPASS_PHRASE}"\n`,
+        `prefer-async-spawn-guard: ${findings.length} child_process import(s) — bypassed via "${BYPASS_PHRASE}"`,
       )
-      return
+      logger.error('')
+      return undefined
     }
 
     const lines = findings
       .map(f => `  ${filePath}:${f.line}  ${f.text}`)
       .join('\n')
-    logger.error(
+    return block(
       `prefer-async-spawn-guard: refusing to import from 'node:child_process'.\n` +
         `\n${lines}\n\n` +
         `Use the fleet wrapper instead:\n` +
         `  import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'\n` +
         `Prefer async \`spawn\`; reach for \`spawnSync\` only when sync semantics\n` +
-        `are genuinely required (still from the lib, not the builtin).\n` +
+        `are genuinely required (still from the lib, not the builtin). This holds\n` +
+        `for the LIB spawnSync too — async where the caller can await (subprocess-\n` +
+        `heavy pnpm/npm/git-network calls especially; sync for CLI bootstrap / hot\n` +
+        `loops only, code-style.md). windows-portability flags pnpm-family spawns\n` +
+        `missing \`shell: WIN32\`.\n` +
         `Bypass: type "${BYPASS_PHRASE}".\n`,
     )
-    process.exitCode = 2
-  }, { fleetOnly: true })
-}
+  },
+  { fleetOnly: true },
+)
+
+export const hook = defineHook({
+  bypass: ['async-spawn'],
+  bypassMode: 'manual',
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

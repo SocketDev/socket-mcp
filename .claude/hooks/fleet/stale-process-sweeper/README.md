@@ -66,10 +66,10 @@ PPID 1 or dead parent — so a live sibling session is never touched):
   legitimate work.
 - The Claude Code process itself or its parent terminal.
 - **Session-critical daemons** (`isSessionCriticalDaemon`) — the
-  token-minifier proxy that backs `ANTHROPIC_BASE_URL` runs detached
+  headroom proxy that backs `ANTHROPIC_BASE_URL` runs detached
   (PPID 1) on purpose; it is never swept, even under `--all`, because
   killing it would break the live session running the sweep.
-- AI-agent processes with a **live** parent (a real running session) —
+- AI-agent processes with a **live** parent, a real running session —
   even under `--all`, only orphaned agents are reaped.
 - Anything outside the pattern list. The sweeper is conservative —
   if a stuck process isn't pattern-matched, it survives.

@@ -8,10 +8,10 @@
 // Why:
 //
 //   `src/http-request/node.ts`   — Node.js implementation (uses node:https)
-//   `src/http-request/browser.ts` — Browser implementation (uses fetch)
+//   `src/http-request/browser.ts` — Browser implementation, uses fetch
 //
 //   Importing either one directly hard-codes the platform and bypasses the
-//   package.json `"browser"` condition that bundlers (rolldown, vite, webpack)
+//   package.json `"browser"` condition that bundlers, rolldown, vite, webpack
 //   use to swap implementations at build time.  A server-side module importing
 //   `/node` is technically OK, but it creates an asymmetry with browser builds
 //   and hides the platform choice from tooling.
@@ -27,21 +27,13 @@
 // Mirrors the commit-time `socket/no-platform-specific-import` oxlint
 // rule.  Catching it at edit time avoids lint failures at commit.
 //
-// Exit 2 = refuse the tool call.  Exit 0 = allow (fails open on errors).
+// Exit 2 = refuse the tool call.  Exit 0 = allow, fails open on errors.
 //
 // Bypass: user types `Allow platform-http-import bypass` in a recent turn,
 // OR add `// no-platform-http-import: <reason>` on the preceding line.
 
-import process from 'node:process'
-
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow platform-http-import bypass'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 
 // Modules that have platform-specific node/browser entry points.
 const PLATFORM_MODULES = ['http-request', 'logger'].join('|')
@@ -57,8 +49,8 @@ const INLINE_BYPASS_RE = /\/\/\s*no-platform-http-import\s*:/
 const EXEMPT_MODULE_DIRS = ['http-request', 'logger']
 
 export function isExemptPath(filePath: string): boolean {
-  const norm = filePath.replace(/\\/g, '/')
-  // Files inside the platform-split module dirs are exempt (they form the implementation).
+  const norm = normalizePath(filePath)
+  // Files inside the platform-split module dirs are exempt, they form the implementation.
   return EXEMPT_MODULE_DIRS.some(m => norm.includes(`/${m}/`))
 }
 
@@ -87,56 +79,54 @@ export function findViolations(
   return results
 }
 
-async function main(): Promise<void> {
-  await withEditGuard((filePath, content, payload) => {
-    const transcriptPath = payload.transcript_path
-    if (!content) {
-      return
-    }
-    if (isExemptPath(filePath)) {
-      return
-    }
+export const check = editGuard((filePath, content) => {
+  if (!content) {
+    return undefined
+  }
+  if (isExemptPath(filePath)) {
+    return undefined
+  }
 
-    const violations = findViolations(content, filePath)
-    if (violations.length === 0) {
-      return
-    }
+  const violations = findViolations(content, filePath)
+  if (violations.length === 0) {
+    return undefined
+  }
 
-    if (bypassPhrasePresent(transcriptPath, BYPASS_PHRASE)) {
-      return
-    }
-
-    const lines: string[] = []
-    lines.push(
-      '[no-platform-import-guard] Blocked: platform-specific http-request import.',
-    )
-    lines.push('')
-    lines.push(
-      '  The fleet routes HTTP through the platform-agnostic entry point.',
-    )
-    lines.push(
-      '  Importing /node or /browser directly bypasses the bundler\'s "browser"',
-    )
-    lines.push('  condition and hard-codes the platform.')
-    lines.push('')
-    for (const v of violations) {
-      lines.push(`  Line ${v.line}: ${v.match}`)
-    }
-    lines.push('')
-    lines.push('  Fix: import from the directory (no suffix):')
-    lines.push("    import { httpJson } from '../http-request'")
-    lines.push('')
-    lines.push(
-      '  If this file genuinely runs on one platform only, add before the import:',
-    )
-    lines.push('    // no-platform-http-import: <reason>')
-    lines.push('')
-    lines.push(`  Or type "${BYPASS_PHRASE}" to bypass for this edit.`)
-    process.stderr.write(lines.join('\n') + '\n')
-    process.exit(2)
-  })
-}
-
-main().catch(err => {
-  logger.error('no-platform-import-guard: unexpected error', err)
+  const lines: string[] = []
+  lines.push(
+    '[no-platform-import-guard] Blocked: platform-specific http-request import.',
+  )
+  lines.push('')
+  lines.push(
+    '  The fleet routes HTTP through the platform-agnostic entry point.',
+  )
+  lines.push(
+    '  Importing /node or /browser directly bypasses the bundler\'s "browser"',
+  )
+  lines.push('  condition and hard-codes the platform.')
+  lines.push('')
+  for (const v of violations) {
+    lines.push(`  Line ${v.line}: ${v.match}`)
+  }
+  lines.push('')
+  lines.push('  Fix: import from the directory (no suffix):')
+  lines.push("    import { httpJson } from '../http-request'")
+  lines.push('')
+  lines.push(
+    '  If this file genuinely runs on one platform only, add before the import:',
+  )
+  lines.push('    // no-platform-http-import: <reason>')
+  return block(lines.join('\n'))
 })
+
+export const hook = defineHook({
+  bypass: ['platform-http-import'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

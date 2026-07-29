@@ -11,7 +11,7 @@
 // suite instead of the one file. In a fleet repo the full suite can be minutes
 // (and in a few repos sweeps .claude/hooks tests and hangs). The intent is
 // always "run this one file" — the `--` silently defeats it. Drop the `--`:
-//   pnpm test test/foo.test.mts        (pnpm forwards positionals fine)
+//   pnpm test test/foo.test.mts, pnpm forwards positionals fine
 //   node_modules/.bin/vitest run test/foo.test.mts
 //
 // Detection is AST-based (the fleet shell parser via parseCommands), not regex,
@@ -24,28 +24,26 @@
 //
 // Fails open on parse / payload errors.
 
-import process from 'node:process'
-
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import { parseCommands } from '../_shared/shell-command.mts'
 
-const BYPASS_PHRASE = 'Allow vitest-double-dash bypass' as const
-
-interface Payload {
-  tool_name?: unknown | undefined
-  tool_input?: { command?: unknown | undefined } | undefined
-  transcript_path?: unknown | undefined
-}
+// Pre-flight triggers: the dispatcher skips importing this guard unless the
+// raw payload contains one of these substrings. Every blocking path requires
+// BOTH a `--` token AND a matched binary — either `vitest`
+// (`vitest`/`node_modules/.bin/vitest`) or a `pnpm`/`npm`/`yarn` `test` script
+// runner — so a command naming none of these binaries can never block. (`npm`
+// is also a substring of `pnpm`; both are listed for clarity.)
+export const triggers: readonly string[] = ['npm', 'pnpm', 'vitest', 'yarn']
 
 // A vitest binary path (bare `vitest` or `node_modules/.bin/vitest`).
 function isVitestBinary(binary: string): boolean {
   return binary === 'vitest' || /(?:^|\/)vitest$/.test(binary)
 }
 
-// A pnpm/npm/yarn invocation of the `test` script (which wraps vitest):
+// A pnpm/npm/yarn invocation of the `test` script, which wraps vitest:
 //   pnpm test … | pnpm run test … | npm test … | yarn test …
 function isTestScriptRunner(binary: string, args: readonly string[]): boolean {
-  if (binary !== 'pnpm' && binary !== 'npm' && binary !== 'yarn') {
+  if (binary !== 'npm' && binary !== 'pnpm' && binary !== 'yarn') {
     return false
   }
   const positionals = args.filter(a => !a.startsWith('-'))
@@ -78,7 +76,9 @@ export function vitestDoubleDash(command: string): string | undefined {
   try {
     commands = parseCommands(command)
   } catch {
+    /* c8 ignore start - parseCommands has its own try/catch and never throws; this is a defensive fallback */
     return undefined
+    /* c8 ignore stop */
   }
   for (let i = 0, { length } = commands; i < length; i += 1) {
     const { binary, args } = commands[i]!
@@ -92,42 +92,17 @@ export function vitestDoubleDash(command: string): string | undefined {
   return undefined
 }
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: Payload
-  try {
-    payload = JSON.parse(raw) as Payload
-  } catch {
-    process.exit(0)
-  }
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
-  }
-  const command =
-    typeof payload.tool_input?.command === 'string'
-      ? payload.tool_input.command
-      : ''
+export const check = bashGuard(command => {
   if (!command.trim()) {
-    process.exit(0)
+    return undefined
   }
 
   const offender = vitestDoubleDash(command)
   if (!offender) {
-    process.exit(0)
+    return undefined
   }
 
-  const transcriptPath =
-    typeof payload.transcript_path === 'string'
-      ? payload.transcript_path
-      : undefined
-  if (
-    transcriptPath &&
-    bypassPhrasePresent(transcriptPath, [BYPASS_PHRASE], 3)
-  ) {
-    process.exit(0)
-  }
-
-  process.stderr.write(
+  return block(
     [
       '[no-vitest-double-dash-guard] Blocked: `--` before a vitest test path.',
       '',
@@ -139,21 +114,17 @@ async function main(): Promise<void> {
       '  Drop the `--` — the positional path is forwarded fine without it:',
       '    pnpm test test/foo.test.mts',
       '    node_modules/.bin/vitest run test/foo.test.mts',
-      '',
-      `  Bypass: type "${BYPASS_PHRASE}" to allow this invocation.`,
-    ].join('\n') + '\n',
+    ].join('\n'),
   )
-  process.exit(2)
-}
+})
 
-if (process.argv[1]?.endsWith('index.mts')) {
-  // Async IIFE: await inside the function (no top-level await — CJS bundle
-  // target), promise still awaited. Fails open on any throw.
-  void (async () => {
-    try {
-      await main()
-    } catch {
-      process.exit(0)
-    }
-  })()
-}
+export const hook = defineHook({
+  bypass: ['vitest-double-dash'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

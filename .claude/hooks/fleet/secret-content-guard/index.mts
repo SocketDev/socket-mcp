@@ -7,7 +7,7 @@
 // `.git-hooks/_shared/helpers.mts` (scanAwsKeys / scanGitHubTokens /
 // scanPrivateKeys / scanSocketApiKeys) and the BASH-TIME `token-guard`: a
 // secret written into a file was previously caught only at commit, so it sat
-// in the working tree (and got read back, echoed, cached) until then. All
+// in the working tree, and got read back, echoed, cached, until then. All
 // three gates read the SAME `_shared/token-patterns.mts` SECRET_VALUE_PATTERNS
 // catalog, so a new vendor shape is added once (code is law, DRY).
 //
@@ -19,30 +19,18 @@
 //
 // Exit codes: 0 — pass; 2 — block. Fails open on any throw.
 
-import process from 'node:process'
-
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withEditGuard } from '../_shared/payload.mts'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 import { scanSecretValues } from '../_shared/token-patterns.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow secret-content bypass'
-
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, content, _payload) => {
   if (content === undefined) {
-    return
+    return undefined
   }
   const hit = scanSecretValues(content)
   if (!hit) {
-    return
+    return undefined
   }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return
-  }
-  logger.error(
+  return block(
     [
       `[secret-content-guard] Blocked: ${hit.label} in content written to ${filePath}.`,
       '',
@@ -53,11 +41,16 @@ await withEditGuard((filePath, content, payload) => {
       '  Fix: remove the secret. Tokens live in env vars (CI) or the OS',
       '  keychain (dev) — never hardcoded. For a doc example, use a redacted',
       '  placeholder.',
-      '',
-      `  Bypass (rare — e.g. this guard's own test fixtures): type`,
-      `  \`${BYPASS_PHRASE}\` verbatim.`,
-      '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['secret-content'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

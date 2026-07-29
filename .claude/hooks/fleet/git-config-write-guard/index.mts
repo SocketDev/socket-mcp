@@ -25,37 +25,36 @@
 //        identity exists to fall back to. A placeholder author email can't
 //        be verified against the signing key on GitHub, so `required_signa-
 //        tures` rejects the push, and the bad value was planted outside the
-//        tool channel (an agent-CI container entrypoint), so the PreToolUse
+//        tool channel, an agent-CI container entrypoint, so the PreToolUse
 //        write-block never saw it. Unsetting the local override lets the
 //        signed global identity win. With NO global identity to fall back
-//        to, it is reported (not unset) so the repo is not stranded with no
+//        to, it is reported, not unset, so the repo is not stranded with no
 //        author.
 //
 // Bypass: `Allow git-config-write bypass` (single-use, for genuine
 // operator scenarios — initial signing setup on a fresh checkout, etc.).
 //
-// Exit codes:
-//   0 — pass / SessionStart / fail-open.
-//   2 — block (PreToolUse).
+// Verdict: the PreToolUse path returns `block(message)` (runner exits 2) on a
+// banned write, else `undefined` (allow). The SessionStart path is a
+// side-effect (auto-fix + stdout report) that returns `undefined`.
 //
 // Full rationale + key table: docs/agents.md/fleet/git-config-write-guard.md
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { FLEET_REPO_NAMES } from '../_shared/fleet-repos.mts'
+import { block, defineHook, runHook } from '../_shared/guard.mts'
+import type { GuardCheck, GuardResult } from '../_shared/guard.mts'
 import {
-  PLACEHOLDER_EMAIL_PATTERNS,
   hasGlobalIdentity,
+  PLACEHOLDER_EMAIL_PATTERNS,
 } from '../_shared/git-identity.mts'
-import { withBashGuard, type ToolCallPayload } from '../_shared/payload.mts'
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
+import type { ToolCallPayload } from '../_shared/payload.mts'
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
 const BYPASS_PHRASE = 'Allow git-config-write bypass'
 
@@ -114,7 +113,7 @@ export function findBannedBashWrites(command: string): BannedHit[] {
     }
     const args = m[1]!
     // Skip if --global / --system / --worktree / --file is present.
-    if (/(?:^|\s)--(?:global|system|worktree|file)(?:\s|=|$)/.test(args)) {
+    if (/(?:^|\s)--(?:file|global|system|worktree)(?:\s|=|$)/.test(args)) {
       continue
     }
     // --local is explicit-default; still banned. Strip it so the key
@@ -153,7 +152,7 @@ export function findBannedBashWrites(command: string): BannedHit[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Scan a `.git/config` file body (the new content the user is about to write)
+ * Scan a `.git/config` file body, the new content the user is about to write
  * for banned key assignments. Parses the INI-shape: `[section]` then `key =
  * value` lines. Returns one Hit per banned key found.
  */
@@ -167,6 +166,8 @@ export function findBannedConfigWrites(content: string): BannedHit[] {
     if (line === '' || line.startsWith('#') || line.startsWith(';')) {
       continue
     }
+    // Match a git config section header: `[core]` or `[branch "main"]`. Captures
+    // the section name; the optional subsection (`"…"`) is consumed but not captured.
     const sectionMatch = /^\[([\w.-]+)(?:\s+"[^"]*")?\]$/.exec(line)
     if (sectionMatch) {
       currentSection = sectionMatch[1]!.toLowerCase()
@@ -175,6 +176,8 @@ export function findBannedConfigWrites(content: string): BannedHit[] {
     if (!currentSection) {
       continue
     }
+    // Match a `key = value` assignment line. Captures the key (alphanumeric,
+    // dots, hyphens) and the rest of the line as the value, may be empty.
     const kvMatch = /^([\w.-]+)\s*=\s*(.*)$/.exec(line)
     if (!kvMatch) {
       continue
@@ -210,11 +213,11 @@ export function isLocalGitConfigPath(filePath: string): boolean {
 // PreToolUse: shared block-message emitter
 // ---------------------------------------------------------------------------
 
-function emitBlock(
+function buildBlockMessage(
   source: 'bash' | 'edit',
   hits: readonly BannedHit[],
-  filePath?: string,
-): void {
+  filePath?: string | undefined,
+): string {
   const lines: string[] = []
   lines.push(
     '[git-config-write-guard] Blocked: write to banned local git config key.',
@@ -242,8 +245,7 @@ function emitBlock(
   lines.push('')
   lines.push(`  Bypass: type "${BYPASS_PHRASE}" in your next message.`)
   lines.push('  Full spec: docs/agents.md/fleet/git-config-write-guard.md')
-  logger.error(lines.join('\n') + '\n')
-  process.exitCode = 2
+  return lines.join('\n') + '\n'
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +263,7 @@ const PLACEHOLDER_IDENTITY_ISSUE =
 
 // The placeholder-email patterns + isPlaceholderEmail live in
 // `_shared/git-identity.mts` (one source, shared with
-// git-identity-drift-reminder). TEST_EMAIL_PATTERNS aliases them so the scan
+// git-identity-drift-nudge). TEST_EMAIL_PATTERNS aliases them so the scan
 // below reads unchanged.
 const TEST_EMAIL_PATTERNS: readonly RegExp[] = PLACEHOLDER_EMAIL_PATTERNS
 
@@ -273,6 +275,9 @@ export function readConfigEmail(raw: string): string | undefined {
   if (!userBlock) {
     return undefined
   }
+  // Match `email = <value>` at the start of a line within the [user] block.
+  // The leading `(?:^|\n)` anchors to line boundaries without consuming the newline
+  // on a multiline string; captures the value after the `=`.
   const m = /(?:^|\n)\s*email\s*=\s*(.+)/i.exec(userBlock[1]!)
   return m ? m[1]!.trim() : undefined
 }
@@ -285,7 +290,7 @@ interface CorruptionFinding {
 
 /**
  * Scan one repo's `.git/config` for known corruption shapes. Returns the issues
- * found (empty array means clean).
+ * found, empty array means clean.
  */
 export function scanRepoConfig(configPath: string): readonly string[] {
   if (!existsSync(configPath)) {
@@ -328,7 +333,7 @@ export function scanRepoConfig(configPath: string): readonly string[] {
 
 /**
  * Probe every fleet repo under `~/projects/` for corruption. Returns the
- * findings list (empty when all clean).
+ * findings list, empty when all clean.
  */
 export function scanFleetRepos(
   projectsDir: string,
@@ -368,7 +373,7 @@ export function scanFleetRepos(
 
 /**
  * Revert `core.bare = true` in a fleet repo's local config by unsetting the key
- * (default is non-bare). Operates on the config FILE directly (`-f`), not
+ * default is non-bare. Operates on the config FILE directly (`-f`), not
  * `--local`: with core.bare=true the checkout reads as bare, so `git config
  * --local` is refused ("must be run in a work tree"). Returns true if it acted.
  * core.bare=true on a non-bare checkout is never intentional, so — unlike the
@@ -387,10 +392,10 @@ export function restoreBareToFalse(configPath: string): boolean {
  * Unset a placeholder local `user.email` / `user.name` in a fleet repo's config
  * FILE so the signed global identity takes over. Operates on the file directly
  * (`-f`) to match restoreBareToFalse and to work even from an odd cwd. Only the
- * caller decides WHEN to invoke this (placeholder detected AND a global identity
- * exists); this just performs the unset. Returns true if it removed at least one
- * key. A missing key is a no-op (git exits non-zero for --unset of an absent
- * key, which we treat as "nothing to do" for that key).
+ * caller decides WHEN to invoke this (placeholder detected AND a global
+ * identity exists); this just performs the unset. Returns true if it removed at
+ * least one key. A missing key is a no-op (git exits non-zero for --unset of an
+ * absent key, which we treat as "nothing to do" for that key).
  */
 export function restorePlaceholderIdentity(configPath: string): boolean {
   let acted = false
@@ -415,7 +420,7 @@ function emitSessionStartReport(findings: readonly CorruptionFinding[]): void {
   )
   lines.push('')
   // A placeholder identity is auto-unset ONLY when a global identity exists
-  // to fall back to. Probe once (it's the same global config for every repo).
+  // to fall back to. Probe once, it's the same global config for every repo.
   const globalIdentityExists = hasGlobalIdentity()
   for (let i = 0, { length } = findings; i < length; i += 1) {
     const f = findings[i]!
@@ -426,16 +431,19 @@ function emitSessionStartReport(findings: readonly CorruptionFinding[]): void {
     // Auto-unset a placeholder local identity when a global one underneath
     // can take over. Without a global fallback we leave it (reported) so the
     // repo isn't stranded with no author.
+    /* c8 ignore start - globalIdentityExists false branch requires no global git config on the machine */
     const restoredIdentity =
       f.issues.includes(PLACEHOLDER_IDENTITY_ISSUE) &&
       globalIdentityExists &&
       restorePlaceholderIdentity(f.configPath)
+    /* c8 ignore stop */
     for (let j = 0, jl = f.issues.length; j < jl; j += 1) {
       const issue = f.issues[j]!
       let suffix = ''
       if (issue === BARE_ISSUE && restoredBare) {
         suffix = ' — AUTO-RESTORED to non-bare'
       } else if (issue === PLACEHOLDER_IDENTITY_ISSUE) {
+        /* c8 ignore next - restoredIdentity false arm requires no global git config on the machine */
         suffix = restoredIdentity
           ? ' — AUTO-UNSET (signed global identity now wins)'
           : ' — no global identity to fall back to; unset manually'
@@ -458,94 +466,89 @@ function emitSessionStartReport(findings: readonly CorruptionFinding[]): void {
 // PreToolUse entry point — shared by Bash + Edit/Write
 // ---------------------------------------------------------------------------
 
-function checkPreToolUse(payload: ToolCallPayload): void {
+function checkPreToolUse(payload: ToolCallPayload): GuardResult {
   const toolName = payload.tool_name
   const input = payload.tool_input
   if (!input || typeof input !== 'object') {
-    return
+    return undefined
   }
   if (toolName === 'Bash') {
-    const command = (input as { command?: unknown }).command
+    const command = (input as { command?: unknown | undefined }).command
     if (typeof command !== 'string') {
-      return
+      return undefined
     }
     const hits = findBannedBashWrites(command)
     if (hits.length === 0) {
-      return
+      return undefined
     }
     if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-      return
+      return undefined
     }
-    emitBlock('bash', hits)
-    return
+    return block(buildBlockMessage('bash', hits))
   }
-  if (toolName === 'Edit' || toolName === 'Write' || toolName === 'MultiEdit') {
-    const filePath = (input as { file_path?: unknown }).file_path
+  if (toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'Write') {
+    const filePath = (input as { file_path?: unknown | undefined }).file_path
     if (typeof filePath !== 'string' || !isLocalGitConfigPath(filePath)) {
-      return
+      return undefined
     }
     let content: string | undefined
     if (toolName === 'Write') {
-      const c = (input as { content?: unknown }).content
+      const c = (input as { content?: unknown | undefined }).content
       if (typeof c === 'string') {
         content = c
       }
     } else {
       // Edit / MultiEdit — pass new_string through findBannedConfigWrites
       // even though it's a fragment. The INI parser tolerates partial input.
-      const newString = (input as { new_string?: unknown }).new_string
+      const newString = (input as { new_string?: unknown | undefined })
+        .new_string
       if (typeof newString === 'string') {
         content = newString
       }
     }
     if (!content) {
-      return
+      return undefined
     }
     const hits = findBannedConfigWrites(content)
     if (hits.length === 0) {
-      return
+      return undefined
     }
     if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-      return
+      return undefined
     }
-    emitBlock('edit', hits, filePath)
+    return block(buildBlockMessage('edit', hits, filePath))
   }
+  return undefined
 }
 
 // ---------------------------------------------------------------------------
-// CLI entry point — dispatches on stdin payload shape (PreToolUse vs
-// SessionStart). Fails open on any throw.
+// Entry point — dispatches on the payload shape (SessionStart vs PreToolUse).
+// SessionStart is a side-effect (auto-fix + stdout report) that returns no
+// verdict; PreToolUse returns a block verdict or undefined.
 // ---------------------------------------------------------------------------
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: unknown
-  try {
-    payload = JSON.parse(raw)
-  } catch {
-    return
-  }
-  if (!payload || typeof payload !== 'object') {
-    return
-  }
-  const hookEventName = (payload as { hook_event_name?: unknown })
+export const check: GuardCheck = payload => {
+  const hookEventName = (payload as { hook_event_name?: unknown | undefined })
     .hook_event_name
-  // SessionStart mode — probe fleet repos for corruption.
+  // SessionStart mode — probe fleet repos for corruption (side-effect only;
+  // auto-fixes + writes the report to stdout, never blocks).
   if (hookEventName === 'SessionStart') {
     const projectsDir = path.join(process.env['HOME'] ?? '', 'projects')
     const findings = scanFleetRepos(projectsDir)
     emitSessionStartReport(findings)
-    return
+    return undefined
   }
   // PreToolUse mode — check the proposed tool call.
-  checkPreToolUse(payload as ToolCallPayload)
+  return checkPreToolUse(payload)
 }
 
-if (process.argv[1]?.endsWith('index.mts')) {
-  main().catch(() => {
-    // Fail open per the fleet's hook contract.
-    process.exitCode = 0
-  })
-}
+export const hook = defineHook({
+  bypass: ['git-config-write'],
+  bypassMode: 'manual',
+  check,
+  event: 'SessionStart',
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)
 
 export { BANNED_LOCAL_KEYS, BYPASS_PHRASE }

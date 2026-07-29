@@ -6,7 +6,7 @@
 // manager, a 2FA code, or anything else on the user's display, and write it to
 // a file the agent then reads. Fleet tooling never needs to screenshot the
 // user's screen; the visual-verify flow renders a known page/extension to PNG
-// via the rendering-chromium-to-png skill (headless Chromium), it does NOT
+// via the rendering-chromium-to-png skill, headless Chromium, it does NOT
 // capture the live desktop. Any screen-capture invocation is therefore a
 // mistake or a poisoning fingerprint.
 //
@@ -24,17 +24,28 @@
 // Exit codes: 0 — pass; 2 — block. Fails open on a malformed payload
 // (exit 0 + stderr log), the fleet's hook contract.
 
-import process from 'node:process'
-
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withBashGuard } from '../_shared/payload.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import { findInvocation } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow screenshot bypass'
+// Pre-flight triggers — the dispatcher imports + runs this guard only when the
+// raw payload contains at least one of these substrings. The guard blocks ONLY
+// when `screenshotBinaryIn` matches a SCREENSHOT_BINARIES entry, and that match
+// requires the binary name to appear verbatim in the command (findInvocation's
+// own substring gate). So the binary-name set IS the complete, safe trigger set:
+// no blocking command can omit all of them. Keep in lock-step with
+// SCREENSHOT_BINARIES below (case-sensitive — SnippingTool.exe ⊄ snippingtool).
+export const triggers: readonly string[] = [
+  'SnippingTool.exe',
+  'flameshot',
+  'gnome-screenshot',
+  'grim',
+  'import',
+  'maim',
+  'screencapture',
+  'scrot',
+  'snippingtool',
+  'spectacle',
+]
 
 // Screen-capture binaries, by platform.
 const SCREENSHOT_BINARIES: ReadonlyArray<{
@@ -64,18 +75,12 @@ export function screenshotBinaryIn(command: string): string | undefined {
   return undefined
 }
 
-function checkCommand(command: string, payload: { transcript_path?: string | undefined }): void {
+export const check = bashGuard(command => {
   const binary = screenshotBinaryIn(command)
   if (!binary) {
-    return
+    return undefined
   }
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return
-  }
-  logger.error(
+  return block(
     [
       '[no-screenshot-guard] Blocked: screen capture',
       '',
@@ -85,19 +90,16 @@ function checkCommand(command: string, payload: { transcript_path?: string | und
       '  manager, a 2FA code, another app) and write it to a file — an',
       '  exfiltration surface. Fleet tooling renders known pages to PNG via',
       '  the rendering-chromium-to-png skill; it never captures the desktop.',
-      '',
-      `  If the user explicitly asked for a screenshot, type the phrase in a`,
-      `  new message: ${BYPASS_PHRASE}`,
     ].join('\n'),
   )
-  process.exitCode = 2
-}
+})
 
-if (process.argv[1]?.endsWith('index.mts')) {
-  // Async IIFE: await inside the function (no top-level await — CJS bundle
-  // target), promise still awaited. withBashGuard drains stdin, gates on the
-  // Bash tool, narrows the command, and fails open on any throw.
-  void (async () => {
-    await withBashGuard(checkCommand)
-  })()
-}
+export const hook = defineHook({
+  bypass: ['screenshot'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

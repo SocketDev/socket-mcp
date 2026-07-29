@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Reconcile + push `pnpm-lock.yaml` across the fleet after a cascade wave
  *   that landed catalog / dependency changes but committed WITHOUT the lockfile
  *   (the cascade excludes a stale lockfile when its `pnpm install` can't
  *   reconcile — e.g. a wrong-pnpm-on-PATH subprocess). Per fleet repo:
  *
- *   1. Worktree off `origin/<base>` (which has the cascade commit).
+ *   1. Worktree off `origin/<base>`, which has the cascade commit.
  *   2. `pnpm install` to regenerate the lockfile against the new catalog.
  *   3. If the lockfile changed: commit `chore(wheelhouse): reconcile
  *      pnpm-lock.yaml after cascade` (FLEET_SYNC sentinel) + push direct.
@@ -32,8 +32,9 @@ const ARGV = process.argv.slice(2)
 const SKIP_REPOS = new Set<string>()
 for (let i = 0, { length } = ARGV; i < length; i += 1) {
   if (ARGV[i] === '--skip' && ARGV[i + 1]) {
-    for (const r of ARGV[i + 1]!.split(',')) {
-      const name = r.trim()
+    const skipArgs = ARGV[i + 1]!.split(',')
+    for (let j = 0, { length: skipLength } = skipArgs; j < skipLength; j += 1) {
+      const name = skipArgs[j]!.trim()
       if (name) {
         SKIP_REPOS.add(name)
       }
@@ -63,19 +64,20 @@ type RunResult = { status: number; stdout: string; stderr: string }
 function run(
   cmd: string,
   args: string[],
-  opts: {
+  config: {
     cwd: string
     env?: NodeJS.ProcessEnv | undefined
     timeoutMs?: number | undefined
   },
 ): RunResult {
+  const cfg = { __proto__: null, ...config } as typeof config
   const r = spawnSync(cmd, args, {
-    cwd: opts.cwd,
-    env: opts.env ?? process.env,
+    cwd: cfg.cwd,
+    env: cfg.env ?? process.env,
     encoding: 'utf8',
-    // A wedged install (Socket Firewall proxy contention on a large repo) would
+    // A wedged install, Socket Firewall proxy contention on a large repo, would
     // otherwise hang the reconcile for hours; cap it. SIGTERM on timeout.
-    timeout: opts.timeoutMs,
+    timeout: cfg.timeoutMs,
   })
   return {
     status: r.status ?? 1,
@@ -115,7 +117,9 @@ function sweepStaleReconcileWorktrees(src: string, repo: string): void {
     return
   }
   const prefix = `reconcile-${repo}-`
-  for (const line of list.stdout.split('\n')) {
+  const lines = list.stdout.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
     if (!line.startsWith('worktree ')) {
       continue
     }
@@ -172,7 +176,8 @@ function resolveBase(src: string): string {
 const RESULTS: string[] = []
 const fleetReposRaw = readFileSync(FLEET_REPOS_FILE, 'utf8').split('\n')
 
-for (const rawLine of fleetReposRaw) {
+for (let i = 0, { length } = fleetReposRaw; i < length; i += 1) {
+  const rawLine = fleetReposRaw[i]!
   const repo = rawLine.trim()
   if (!repo || repo.startsWith('#')) {
     continue
@@ -203,7 +208,7 @@ for (const rawLine of fleetReposRaw) {
 
   // Lockfile-only first: this resolves the lockfile WITHOUT the fetch/link
   // phase, so it's near-instant and never touches the Socket Firewall proxy
-  // (the phase that wedges on a large repo). If it reports the lockfile is
+  // the phase that wedges on a large repo. If it reports the lockfile is
   // already current, the full install is unnecessary — most repos after a
   // cascade are exactly this case. 2-minute cap as a backstop.
   const probe = run('pnpm', ['install', '--lockfile-only'], {
@@ -213,13 +218,13 @@ for (const rawLine of fleetReposRaw) {
   const lockChanged = git(wt, ['status', '--porcelain', '--', 'pnpm-lock.yaml'])
   if (probe.status === 0 && lockChanged.stdout.trim() === '') {
     // Lockfile already current — nothing to reconcile. Don't run the full
-    // (proxy-bound, wedge-prone) install at all.
+    // proxy-bound, wedge-prone, install at all.
     RESULTS.push(`${repo}|noop:lockfile-current`)
     gitSilent(src, ['worktree', 'remove', '--force', wt])
     continue
   }
 
-  // Lockfile drifted (or the probe couldn't decide) — do the full install to
+  // Lockfile drifted, or the probe couldn't decide — do the full install to
   // materialize it, but cap it so a proxy wedge can't hang the reconcile.
   const install = run(
     'pnpm',
@@ -233,7 +238,7 @@ for (const rawLine of fleetReposRaw) {
     RESULTS.push(`${repo}|fail:install`)
     // Surface the real failure — an error message is UI; `fail:install` alone
     // forces the reader to reproduce the install by hand. Print the tail of
-    // stderr (then stdout) so the cause (a missing export, a version-check
+    // stderr, then stdout, so the cause (a missing export, a version-check
     // abort, a build-script crash, or a timeout) is visible in the RESULTS run.
     const detail = (install.stderr.trim() || install.stdout.trim()).slice(-1500)
     if (detail) {

@@ -1,10 +1,12 @@
 ---
 name: setup-repo
-description: Full repo onboarding wizard. Orchestrates all setup concerns for a new engineer or a fresh clone — API token, OS keychain, shell rc bridge, native messaging host, security tools, and repo-specific initialization. Invoke with /setup-repo.
+description: Run the full repo onboarding wizard for tokens, keychain, shell bridge, tools, hooks, and initialization.
 user-invocable: true
 allowed-tools: Read, Bash, Edit, Write
 model: claude-sonnet-4-6
 context: fork
+metadata:
+  internal: true
 ---
 
 # setup-repo
@@ -24,8 +26,6 @@ Master onboarding wizard. Runs each setup phase in order, skips phases already c
 | ---------------------------------------------------------- | ---------------------------------------------- |
 | `node scripts/fleet/setup/token.mts`                       | API token → OS keychain + shell rc bridge      |
 | `node scripts/fleet/setup/claude-config.mts`               | Harden `~/.claude.json` (`copyOnSelect: false`) |
-| `node scripts/fleet/setup/native-host.mts`                 | Chrome native messaging host manifest          |
-| `node scripts/fleet/setup/trusted-publisher-extension.mts` | Build + load-unpacked + verify host connection |
 | `node scripts/fleet/install-sfw.mts`                       | Socket Firewall shims                          |
 | `/setup-security-tools` (agentshield, zizmor)              | Security scanners — installed by the SessionStart hook, not standalone scripts |
 
@@ -138,6 +138,7 @@ pnpm run check --all    # verify the repo is green
 ```
 
 If `pnpm run check` fails, surface the failures and stop — the repo needs fixing before it's usable.
+
 
 ---
 

@@ -2,7 +2,7 @@
 // Claude Code PreToolUse hook — overeager-staging-guard.
 //
 // Catches the failure mode where an agent's `git commit` sweeps in
-// files it didn't author — usually another Claude session's work
+// files it didn't author — usually another agent session's work
 // that was already staged when this session opened the repo. Two
 // enforcement layers:
 //
@@ -13,7 +13,7 @@
 //      next commit. Per CLAUDE.md: "surgical `git add <specific-file>`.
 //      Never `-A` / `.`."
 //
-//   2. BLOCK a bare `git commit` (no pathspec) when the index holds files
+//   2. BLOCK a bare `git commit`, no pathspec, when the index holds files
 //      the agent has NOT touched this session (via Edit / Write / `git add
 //      <path>` / `git rm <path>`). A bare commit commits the ENTIRE index,
 //      so a parallel session's staged work rides in under your authorship.
@@ -42,44 +42,61 @@
 //     "tool_input": { "command": "..." },
 //     "transcript_path": "/.../session.jsonl" }
 
-import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+
+import { isGitCommit } from '../_shared/commit-command.mts'
+import { isSquashOptIn } from '../_shared/fleet-roster.mts'
 import { readSessionTouchedPaths } from '../_shared/foreign-paths.mts'
+import { extractGitCwd } from '../_shared/git-cwd.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
+import type { ToolCallPayload } from '../_shared/payload.mts'
 import {
   commandsFor,
   detectBroadGitAdd,
-  findInvocation,
+  isFleetSyncCommand,
 } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
+import { spawnTimeoutMs } from '../_shared/spawn-timeout.mts'
+import { squashSentinelAllows } from '../_shared/squash-sentinel.mts'
+import { operatorBypassPresent } from '../_shared/transcript.mts'
 
-interface ToolInput {
-  readonly tool_name?: string | undefined
-  readonly tool_input?: { readonly command?: unknown | undefined } | undefined
-  readonly transcript_path?: string | undefined
-}
+// Pre-flight trigger for the dispatcher: every block path runs through a
+// `git`-binary detector (`detectBroadGitAdd` → `commandsFor(_, 'git')`, and
+// `isGitCommit` → the shared `_shared/commit-command.mts` segment parse),
+// each of which short-circuits unless the raw command contains the substring
+// `git`. So a command with no `git` can never block — skip importing this
+// guard for it.
+export const triggers: readonly string[] = ['git']
 
 const BYPASS_PHRASES = ['Allow add-all bypass'] as const
 // Separate phrase for the index-sweep block: it's a different decision from the
 // `git add -A` block, so it gets its own bypass.
 const COMMIT_SWEEP_BYPASS = ['Allow index-sweep bypass'] as const
 
-export function getRepoDir(): string {
-  return process.env['CLAUDE_PROJECT_DIR'] || process.cwd()
+export function getRepoDir(command: string, cwd?: string | undefined): string {
+  // The repo the `git` command actually runs in — `git -C <dir>`, a leading
+  // `cd <dir>`, else the command's own cwd. NOT CLAUDE_PROJECT_DIR: that's the
+  // session's project, the wheelhouse, so reading its index from a sibling
+  // repo's commit cross-repo-false-blocked on the wheelhouse's staged files.
+  // Scoped to the commit invocation — a -C inside a $(…) substitution
+  // (e.g. a rev-parse composing the message) must not point the index
+  // probe at a different repo.
+  return extractGitCwd(command, { cwd, subcommand: ['add', 'commit'] })
 }
 
-export function isGitCommit(command: string): boolean {
-  return findInvocation(command, { binary: 'git', subcommand: 'commit' })
-}
+export { isGitCommit }
 
 // True when a `git commit` carries an explicit pathspec — the parallel-safe
 // form, because `git commit <paths>` / `-o`/`--only <paths>` commits ONLY those
 // paths regardless of what else is in the index. Detect: any positional arg
-// after `commit` (a path), or `-o`/`--only`, or a `--` separator. Flags that
-// take a value (`-m msg`, `-F file`, `--author=…`, etc.) must not be mistaken
-// for a pathspec, so positionals are only counted after a `--`, or via the
-// explicit `-o`/`--only` flag (the unambiguous signals).
+// after `commit`, a path, or `-o`/`--only`, or a `--` separator, or a
+// `--pathspec-from-file=<file>` (pathspec-limits exactly like `-- <paths>`,
+// just sourced from a file). Flags that take a value (`-m msg`, `-F file`,
+// `--author=…`, etc.) must not be mistaken for a pathspec, so positionals are
+// only counted after a `--`, or via the explicit flags (the unambiguous
+// signals).
 export function commitHasPathspec(command: string): boolean {
   for (const c of commandsFor(command, 'git')) {
     const { args } = c
@@ -91,17 +108,55 @@ export function commitHasPathspec(command: string): boolean {
     if (rest.includes('--')) {
       return true
     }
-    if (rest.some(a => a === '-o' || a === '--only')) {
+    if (rest.some(a => a === '--only' || a === '-o')) {
+      return true
+    }
+    if (
+      rest.some(
+        a =>
+          a === '--pathspec-from-file' || a.startsWith('--pathspec-from-file='),
+      )
+    ) {
       return true
     }
   }
   return false
 }
 
+// True when the repo has a merge / cherry-pick / revert in progress. In those
+// states git REJECTS partial commits ("fatal: cannot do a partial commit
+// during a merge"), so the whole-index commit is the ONLY legal form and the
+// sweep block must let it through. The marker refs are resolved via
+// `rev-parse --git-path` so linked worktrees (whose `.git` is a file pointing
+// at a per-worktree gitdir) resolve correctly.
+export function isMidMergeCommit(repoDir: string): boolean {
+  const r = spawnSync(
+    'git',
+    [
+      'rev-parse',
+      '--git-path',
+      'MERGE_HEAD',
+      '--git-path',
+      'CHERRY_PICK_HEAD',
+      '--git-path',
+      'REVERT_HEAD',
+    ],
+    { cwd: repoDir, timeout: spawnTimeoutMs(5000) },
+  )
+  if (r.status !== 0) {
+    return false
+  }
+  return String(r.stdout)
+    .split('\n')
+    .map((s: string) => s.trim())
+    .filter(Boolean)
+    .some(p => existsSync(path.isAbsolute(p) ? p : path.join(repoDir, p)))
+}
+
 export function listStagedFiles(repoDir: string): string[] {
   const r = spawnSync('git', ['diff', '--cached', '--name-only'], {
     cwd: repoDir,
-    timeout: 5_000,
+    timeout: spawnTimeoutMs(5000),
   })
   if (r.status !== 0) {
     return []
@@ -112,26 +167,50 @@ export function listStagedFiles(repoDir: string): string[] {
     .filter(Boolean)
 }
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: ToolInput
-  try {
-    payload = JSON.parse(raw) as ToolInput
-  } catch {
-    process.exit(0)
+/**
+ * New-side paths of STAGED RENAMES (index status `R`). A staged rename is a
+ * deliberate `git mv` in THIS checkout — a parallel agent's loose edit never
+ * shows up pre-staged as a rename in our index (same reasoning as
+ * foreign-paths' listForeignDirtyPaths R-skip). The active-edits ledger only
+ * records Edit/Write tool paths, so a rename sweep's 40+ `git mv` targets all
+ * read as unfamiliar without this exemption.
+ */
+export function listStagedRenamedPaths(repoDir: string): Set<string> {
+  const r = spawnSync(
+    'git',
+    ['diff', '--cached', '--name-status', '-M', '--diff-filter=R'],
+    { cwd: repoDir, timeout: spawnTimeoutMs(5000) },
+  )
+  const renamed = new Set<string>()
+  if (r.status !== 0) {
+    return renamed
   }
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
+  const lines = String(r.stdout).split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
+    // `R<score>\t<old>\t<new>` — both sides are session-deliberate.
+    const parts = line.split('\t')
+    if (parts.length === 3 && parts[0]!.startsWith('R')) {
+      renamed.add(parts[1]!.trim())
+      renamed.add(parts[2]!.trim())
+    }
   }
-  const command = (
-    payload.tool_input as { command?: unknown | undefined } | undefined
-  )?.command
-  if (typeof command !== 'string' || !command.trim()) {
-    process.exit(0)
-  }
+  return renamed
+}
 
-  const repoDir = getRepoDir()
+export function checkCommand(command: string, payload: ToolCallPayload) {
+  const repoDir = getRepoDir(command, payload.cwd)
   const transcriptPath = payload.transcript_path
+
+  // Squash-history relaxation. A repo opted into `squash-history` flattens its
+  // default branch to one commit before every push, so commit order and
+  // granularity carry no meaning — a broad `git add -A` or a bare `git commit`
+  // that sweeps the index is exactly the "merge merge merge, squash before push"
+  // flow, not a hazard. Every op this guard blocks is non-destructive (staging /
+  // committing, never losing work), so relaxing the whole guard here is safe.
+  if (isSquashOptIn(repoDir)) {
+    return undefined
+  }
 
   // ── Layer 1: block `git add -A` / `.` / `-u` ─────────────────────
   const broad = detectBroadGitAdd(command)
@@ -140,16 +219,16 @@ async function main(): Promise<void> {
     // worktree they just created off origin/main — no parallel-session
     // hazard because the worktree is empty otherwise. Same opt-in
     // sentinel the no-revert-guard recognizes (`FLEET_SYNC=1` prefix).
-    if (/(?:^|\s)FLEET_SYNC\s*=\s*1\b/.test(command)) {
-      process.exit(0)
+    if (isFleetSyncCommand(command)) {
+      return undefined
     }
     if (
       transcriptPath &&
-      bypassPhrasePresent(transcriptPath, BYPASS_PHRASES, 3)
+      operatorBypassPresent(transcriptPath, BYPASS_PHRASES, 3)
     ) {
-      process.exit(0)
+      return undefined
     }
-    process.stderr.write(
+    return block(
       [
         `[overeager-staging-guard] Blocked: ${broad}`,
         '',
@@ -162,15 +241,14 @@ async function main(): Promise<void> {
         '',
         '  Bypass (only if you genuinely need a sweep):',
         '    user types "Allow add-all bypass" in chat, then retry.',
-      ].join('\n') + '\n',
+      ].join('\n'),
     )
-    process.exit(2)
   }
 
   // ── Layer 2: BLOCK a plain `git commit` that would sweep the whole index
   //    when it holds files this session didn't touch ────────────────────────
   //
-  // Parallel-session-cautious by default: a bare `git commit` (no pathspec)
+  // Parallel-session-cautious by default: a bare `git commit`, no pathspec
   // commits the ENTIRE index, so another agent's staged work rides in under
   // your authorship. The safe form is `git commit -o <your-files>` (or
   // `-- <paths>`), which commits ONLY the named paths regardless of the index.
@@ -181,37 +259,52 @@ async function main(): Promise<void> {
     // a fresh worktree off origin/main). The `FLEET_SYNC=1` sentinel — which
     // no-revert-guard already recognizes for cascade `--no-verify` commits —
     // opts out of the sweep block too.
-    if (/(?:^|\s)FLEET_SYNC\s*=\s*1\b/.test(command)) {
-      process.exit(0)
+    if (isFleetSyncCommand(command)) {
+      return undefined
+    }
+    // The squashing-history collapse commit stages the whole tree on purpose;
+    // the hardened SQUASH_HISTORY=1 sentinel authorizes it, no phrase needed.
+    if (squashSentinelAllows(command)) {
+      return undefined
     }
     // Pathspec-bearing commit is the safe form — never blocked.
     if (commitHasPathspec(command)) {
-      process.exit(0)
+      return undefined
+    }
+    // A merge / cherry-pick / revert commit MUST take the whole index — git
+    // rejects the partial form outright, so blocking here would strand every
+    // legitimate merge resolution behind a bypass phrase.
+    if (isMidMergeCommit(repoDir)) {
+      return undefined
     }
     const staged = listStagedFiles(repoDir)
     if (staged.length === 0) {
-      process.exit(0)
+      return undefined
     }
     const touched = readSessionTouchedPaths(transcriptPath)
+    const renamed = listStagedRenamedPaths(repoDir)
     const unfamiliar: string[] = []
     for (let i = 0, { length } = staged; i < length; i += 1) {
       const f = staged[i]!
+      if (renamed.has(f)) {
+        continue
+      }
       const abs = path.resolve(repoDir, f)
       if (!touched.has(abs)) {
         unfamiliar.push(f)
       }
     }
     if (unfamiliar.length === 0) {
-      process.exit(0)
+      return undefined
     }
     if (
       transcriptPath &&
-      bypassPhrasePresent(transcriptPath, COMMIT_SWEEP_BYPASS, 3)
+      operatorBypassPresent(transcriptPath, COMMIT_SWEEP_BYPASS, 3)
     ) {
-      process.exit(0)
+      return undefined
     }
     const touchedStaged = staged.filter(f => !unfamiliar.includes(f))
-    process.stderr.write(
+    return block(
       [
         '[overeager-staging-guard] Blocked: bare `git commit` would sweep in files this session did not touch:',
         '',
@@ -220,7 +313,7 @@ async function main(): Promise<void> {
           ? [`    ... and ${unfamiliar.length - 20} more`]
           : []),
         '',
-        '  Likely a parallel Claude session staged these — a bare commit',
+        '  Likely a parallel agent session staged these — a bare commit',
         '  would include them under your authorship.',
         '',
         '  Fix: commit ONLY your files by pathspec (ignores the rest of',
@@ -231,17 +324,22 @@ async function main(): Promise<void> {
         '',
         '  Bypass (only if you genuinely mean to commit the whole index):',
         '    user types "Allow index-sweep bypass" in chat, then retry.',
-      ].join('\n') + '\n',
+      ].join('\n'),
     )
-    process.exit(2)
   }
 
-  process.exit(0)
+  return undefined
 }
 
-main().catch(e => {
-  process.stderr.write(
-    `[overeager-staging-guard] hook bug — fail-open. ${e instanceof Error ? e.message : String(e)}\n`,
-  )
-  process.exit(0)
+export const check = bashGuard(checkCommand)
+
+export const hook = defineHook({
+  bypass: ['add-all', 'index-sweep'],
+  bypassMode: 'manual',
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
 })
+void runHook(hook, import.meta.url)

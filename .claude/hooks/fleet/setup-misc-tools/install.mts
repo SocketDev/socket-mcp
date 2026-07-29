@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file Install-only entry point for one-off tools: cdxgen (SBOM), synp
- *   (lockfile interop), and janus. Slim leaf of the `setup-security-tools`
+ *   lockfile interop, and janus. Slim leaf of the `setup-security-tools`
  *   umbrella. Run via: node .claude/hooks/fleet/setup-misc-tools/install.mts
  *   For the full setup (firewall + scanners + socket-basics + misc), use `node
  *   .claude/hooks/fleet/setup-security-tools/install.mts`.
@@ -9,6 +9,7 @@
 
 import process from 'node:process'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((e: unknown) => {
-  const msg = e instanceof Error ? e.message : String(e)
+  const msg = errorMessage(e)
   logger.error(`setup-misc-tools install: ${msg}`)
   process.exitCode = 1
 })

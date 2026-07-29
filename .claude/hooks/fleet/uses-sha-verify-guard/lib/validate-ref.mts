@@ -4,7 +4,8 @@
 // helper consolidates them so a future tweak (e.g. allow shortened
 // SHAs behind a flag) only touches one site.
 
-import { verifyCommitSha, type Cache } from './cache.mts'
+import { verifyCommitSha } from './cache.mts'
+import type { Cache } from './cache.mts'
 
 export interface RefShapeOk {
   ok: true
@@ -21,7 +22,7 @@ export type RefValidation = RefShapeOk | RefShapeBad
 
 // Stage 1: shape — must be exactly 40 hex chars. Returns a
 // categorical problem for partial-hex (truncated SHA) vs anything else
-// (version tag, branch name).
+// version tag, branch name.
 export function validateRefShape(ref: string): RefValidation {
   if (/^[0-9a-f]{40}$/i.test(ref)) {
     return { ok: true }

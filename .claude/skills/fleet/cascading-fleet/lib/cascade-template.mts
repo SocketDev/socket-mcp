@@ -30,6 +30,11 @@ import process from 'node:process'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
+import {
+  formatPrecascadeGateFailure,
+  runPrecascadeGate,
+} from './precascade-gate.mts'
+
 const logger = getDefaultLogger()
 
 const LOG_PATH_PREFIX = '/tmp/cascade-'
@@ -51,7 +56,9 @@ const DRY_RUN = ARGV.includes('--dry-run')
 const SKIP_REPOS = new Set<string>()
 for (let i = 0, { length } = ARGV; i < length; i += 1) {
   if (ARGV[i] === '--skip' && ARGV[i + 1]) {
-    for (const r of ARGV[i + 1]!.split(',')) {
+    const rs = ARGV[i + 1]!.split(',')
+    for (let j = 0, { length: jlen } = rs; j < jlen; j += 1) {
+      const r = rs[j]!
       const name = r.trim()
       if (name) {
         SKIP_REPOS.add(name)
@@ -66,7 +73,50 @@ if (!TEMPLATE_SHA) {
 
 const SCRIPT_DIR = import.meta.dirname
 const FLEET_REPOS_FILE = path.join(SCRIPT_DIR, 'fleet-repos.txt')
+// The structured roster carries each member's GitHub owner. The .txt is bare
+// names; owner, for a cross-org member like decmpfs, lives in the .json sibling.
+const FLEET_REPOS_JSON = path.join(SCRIPT_DIR, 'fleet-repos.json')
 const PROJECTS = process.env['PROJECTS'] || path.join(os.homedir(), 'projects')
+
+// The canonical roster view this driver needs: every member NAME (the
+// membership gate below) plus the bare-name → GitHub-owner map (default
+// 'SocketDev'). Only the gh-PR fallback needs the owner — the worktree
+// fetch/push use the local clone's own `origin`, already per-repo correct.
+// Absent .json / entry / owner field ⇒ 'SocketDev' (backward-compatible:
+// existing entries carry no `owner`).
+interface RosterView {
+  readonly names: ReadonlySet<string>
+  readonly owners: ReadonlyMap<string, string>
+}
+function loadRoster(): RosterView {
+  const names = new Set<string>()
+  const owners = new Map<string, string>()
+  try {
+    const parsed = JSON.parse(readFileSync(FLEET_REPOS_JSON, 'utf8')) as {
+      repos?:
+        | Array<{ name?: string | undefined; owner?: string | undefined }>
+        | undefined
+    }
+    for (const entry of parsed.repos ?? []) {
+      if (typeof entry.name !== 'string') {
+        continue
+      }
+      names.add(entry.name)
+      if (typeof entry.owner === 'string') {
+        owners.set(entry.name, entry.owner)
+      }
+    }
+  } catch {
+    // No / invalid .json — every repo defaults to SocketDev via ownerOf, and
+    // the membership gate below refuses the wave, no roster, no writes.
+  }
+  return { names, owners }
+}
+const ROSTER = loadRoster()
+const OWNER_MAP = ROSTER.owners
+function ownerOf(repo: string): string {
+  return OWNER_MAP.get(repo) ?? 'SocketDev'
+}
 // socket-lint: allow cross-repo
 const WH_SCRIPT = path.join(
   PROJECTS,
@@ -147,7 +197,7 @@ function preflightOrAbort(): void {
     )
     process.exit(2)
   }
-  // (2) No other cascade in flight (concurrent waves wedge on the sfw proxy).
+  // (2) No other cascade in flight, concurrent waves wedge on the sfw proxy.
   const ps = spawnSync('pgrep', ['-f', 'cascade-template\\.mts'], {
     encoding: 'utf8',
   })
@@ -164,6 +214,17 @@ function preflightOrAbort(): void {
         '  Socket Firewall proxy and wedge. Wait for it to finish.',
       ].join('\n'),
     )
+    process.exit(2)
+  }
+  // (3) The wheelhouse's own `check --all` must be green. The wheelhouse gates
+  // ARE the fleet gates, so a red one here goes red in every member this wave
+  // pushes to. Runs last of the three — it costs minutes, and the two cheap
+  // refusals above should short-circuit first. Every red check refuses: the
+  // gate ships no committed waiver list, and a one-run exemption is the
+  // `knownRed` argument passed here at the call site.
+  const gate = runPrecascadeGate(WH_DIR)
+  if (!gate.ok) {
+    logger.error(formatPrecascadeGateFailure(gate, WH_DIR))
     process.exit(2)
   }
 }
@@ -212,13 +273,11 @@ type RunResult = {
 function run(
   cmd: string,
   args: string[],
-  opts: { cwd: string; env?: NodeJS.ProcessEnv | undefined } = {
-    cwd: process.cwd(),
-  },
+  config: { cwd: string; env?: NodeJS.ProcessEnv | undefined },
 ): RunResult {
   const r = spawnSync(cmd, args, {
-    cwd: opts.cwd,
-    env: opts.env ?? process.env,
+    cwd: config.cwd,
+    env: config.env ?? process.env,
     encoding: 'utf8',
   })
   return {
@@ -230,7 +289,9 @@ function run(
 
 function logTail(out: string, n: number): void {
   const lines = out.split('\n').filter(Boolean)
-  for (const line of lines.slice(-n)) {
+  const lineList = lines.slice(-n)
+  for (let i = 0, { length } = lineList; i < length; i += 1) {
+    const line = lineList[i]!
     log(line)
   }
 }
@@ -267,7 +328,27 @@ function resolveBase(src: string): string {
 
 const fleetReposRaw = readFileSync(FLEET_REPOS_FILE, 'utf8').split('\n')
 
-for (const rawLine of fleetReposRaw) {
+// Roster gate: the .txt is the worktree-cascade WAVE subset, never an
+// independent roster — every name must exist in the canonical
+// fleet-repos.json, or the wave refuses before touching any repo. A name
+// only in the .txt is exactly the drift the single-source rule forbids;
+// fleet tooling must confirm roster membership before writing into a repo.
+{
+  const unknown = fleetReposRaw
+    .map(line => line.trim())
+    .filter(name => name && !name.startsWith('#') && !ROSTER.names.has(name))
+  if (unknown.length > 0) {
+    logger.error(
+      `cascade-template: ${unknown.join(', ')} in fleet-repos.txt but not in ` +
+        `the canonical roster fleet-repos.json — fix the roster first; the ` +
+        `wave refuses to write into a non-member.`,
+    )
+    process.exit(2)
+  }
+}
+
+for (let i = 0, { length } = fleetReposRaw; i < length; i += 1) {
+  const rawLine = fleetReposRaw[i]!
   const repo = rawLine.trim()
   if (!repo || repo.startsWith('#')) {
     continue
@@ -427,7 +508,7 @@ for (const rawLine of fleetReposRaw) {
           'pr',
           'create',
           '--repo',
-          `SocketDev/${repo}`,
+          `${ownerOf(repo)}/${repo}`,
           '--base',
           base,
           '--head',

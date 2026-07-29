@@ -10,7 +10,7 @@
 //
 //   1. SFW shim integrity. Walks `~/.socket/_wheelhouse/shims/*` and reports
 //      shims whose dlx-cached binary target no longer exists on disk.
-//      Cache eviction (manifest rebuild, manual cleanup) leaves
+//      Cache eviction, manifest rebuild, manual cleanup, leaves
 //      shims pointing at vanished hashes — every `pnpm` / `npm` /
 //      etc. call then fails with "No such file or directory" until
 //      the shims are rewritten.
@@ -38,11 +38,20 @@
 // not block the conversation on its own bugs.
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import { existsSync, promises as fs } from 'node:fs'
+import { existsSync, promises as fs, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
 import { getSocketAppDir } from '@socketsecurity/lib-stable/paths/socket'
+
+import {
+  CORE_SHIM_COMMANDS,
+  findBrokenShimTargets,
+  getShimsDir,
+  missingCoreShims,
+} from './lib/shims.mts'
+import { defineHook, notify, runHook } from '../_shared/guard.mts'
+import { resolveProjectDir } from '../_shared/project-dir.mts'
 
 interface Finding {
   readonly kind:
@@ -81,7 +90,7 @@ export function checkEdition(): Finding[] {
   }
   let content = ''
   try {
-    content = require('node:fs').readFileSync(shimPath, 'utf8') as string
+    content = readFileSync(shimPath, 'utf8')
   } catch {
     return []
   }
@@ -89,17 +98,16 @@ export function checkEdition(): Finding[] {
   const isEnt = content.includes('sfw-enterprise')
   // Setup tooling detects whether a token is present in the raw env; the
   // keychain-fallback getter would defeat that "is it wired up yet?" check.
+  // Only the canonical SOCKET_API_TOKEN counts — legacy aliases
+  // (SOCKET_API_KEY et al.) are retired per socket-api-token-env.
   // socket-api-token-getter: allow direct-env
-  const apiKeyInEnv = !!process.env['SOCKET_API_KEY']
-  // socket-api-token-getter: allow direct-env
-  const apiTokenInEnv = !!process.env['SOCKET_API_TOKEN']
-  const tokenPresent = apiKeyInEnv || apiTokenInEnv
+  const tokenPresent = !!process.env['SOCKET_API_TOKEN']
   if (isFree && tokenPresent) {
     return [
       {
         kind: 'edition-mismatch',
         message:
-          'SOCKET_API_KEY is set but the SFW shim is the free build. ' +
+          'SOCKET_API_TOKEN is set but the SFW shim is the free build. ' +
           'Run `node .claude/hooks/fleet/setup-security-tools/install.mts` to ' +
           'switch to sfw-enterprise (org-aware malware scanning + private ' +
           'package data).',
@@ -115,7 +123,7 @@ export function checkEdition(): Finding[] {
 }
 
 export async function checkShims(): Promise<Finding[]> {
-  const shimsDir = path.join(getSocketAppDir('wheelhouse'), 'shims')
+  const shimsDir = getShimsDir()
   if (!existsSync(shimsDir)) {
     return []
   }
@@ -135,11 +143,12 @@ export async function checkShims(): Promise<Finding[]> {
     } catch {
       continue
     }
-    const m = content.match(/"([^"]*\/_dlx\/[^"]+\/sfw-(?:enterprise|free))"/)
-    if (!m) {
+    // Only bash shim files carry exec targets; binaries/symlinks in the same
+    // bin dir, flat racked-tool handles, have no quoted paths and skip clean.
+    if (!content.startsWith('#!')) {
       continue
     }
-    if (!existsSync(m[1]!)) {
+    if (findBrokenShimTargets(content).length > 0) {
       broken.push(name)
     }
   }
@@ -150,13 +159,14 @@ export async function checkShims(): Promise<Finding[]> {
     {
       kind: 'broken-shim',
       message:
-        `SFW shim${broken.length === 1 ? '' : 's'} point to a missing dlx ` +
-        `target: ${broken.join(', ')}. The dlx cache evicted the binary ` +
-        `(manifest rebuild, manual delete, or cache rotation). Every ` +
-        `command through ${broken.length === 1 ? 'that shim' : 'those shims'} ` +
+        `SFW shim${broken.length === 1 ? '' : 's'} point to a missing ` +
+        `target: ${broken.join(', ')}. The wrapped binary moved or was ` +
+        `evicted (rack rotation, dlx cleanup, version-manager upgrade). ` +
+        `Every command through ${broken.length === 1 ? 'that shim' : 'those shims'} ` +
         `currently fails with "No such file or directory." Run ` +
-        `\`node .claude/hooks/fleet/setup-security-tools/install.mts\` to ` +
-        `re-download SFW and rewrite the shims.`,
+        `\`node scripts/fleet/setup/tools.mjs\` (or the interactive ` +
+        `\`node .claude/hooks/fleet/setup-security-tools/install.mts\`) to ` +
+        `rewrite the shims.`,
     },
   ]
 }
@@ -235,7 +245,7 @@ export async function checkToken401(
  * + the regenerate script are both present. This handles the common failure
  * shape where shims got renamed/moved (`shims.broken-backup/`) and the operator
  * forgot to re-run the regenerator. Returns a single 'auto-repaired' finding on
- * success (so the user sees one tidy notice instead of nothing) — or nothing if
+ * success, so the user sees one tidy notice instead of nothing — or nothing if
  * the repair conditions weren't met / the script failed.
  */
 export function repairShims(home: string): Finding[] {
@@ -245,35 +255,39 @@ export function repairShims(home: string): Finding[] {
   // ignored in favor of the lib-stable resolution.
   void home
   const sfwDir = getSocketAppDir('wheelhouse')
-  const shimsDir = path.join(sfwDir, 'shims')
+  const shimsDir = getShimsDir()
   const sfwBin = path.join(sfwDir, 'bin', 'sfw')
-  const regen = path.join(sfwDir, 'regenerate-shims.sh')
+  // The fleet shim generator is the repo's dep-0 bootstrap (cascaded into
+  // every member), not a per-machine bash script — regeneration IS that
+  // script (code-first: one generator owns the shims).
+  const generator = path.join(
+    resolveProjectDir(),
+    'scripts',
+    'fleet',
+    'setup',
+    'tools.mjs',
+  )
 
-  // Both the binary and the regen script must exist. If either is
+  // Both the sfw binary and the generator must exist. If either is
   // missing the repair can't run; the diagnostic path will surface
   // the install command instead.
-  if (!existsSync(sfwBin) || !existsSync(regen)) {
+  if (!existsSync(sfwBin) || !existsSync(generator)) {
     return []
   }
 
-  // Repair triggers when shims/ is missing OR empty. A populated
-  // shims/ dir is handled by checkShims() (which reports broken
-  // individual shims).
-  let isEmpty = true
-  if (existsSync(shimsDir)) {
-    try {
-      const entries = require('node:fs').readdirSync(shimsDir) as string[]
-      isEmpty = entries.length === 0
-    } catch {
-      // Unreadable dir — treat as broken; let regen recreate it.
-      isEmpty = true
-    }
-  }
-  if (!isEmpty) {
+  // Repair triggers when the shim dir is missing OR every core shim is
+  // absent (the "shims were wiped / never generated" shape). A partially
+  // populated dir is handled by checkShims() per-shim broken reporting —
+  // the bin dir also holds flat racked-tool handles, so plain emptiness is
+  // not a usable signal.
+  const wiped =
+    !existsSync(shimsDir) ||
+    missingCoreShims(shimsDir).length >= CORE_SHIM_COMMANDS.length
+  if (!wiped) {
     return []
   }
 
-  const r = spawnSync('bash', [regen], {})
+  const r = spawnSync('node', [generator], {})
   if (r.status !== 0) {
     // Failed — fall through to checkShims() which will report the
     // missing/broken state and the install command. Don't double-
@@ -285,71 +299,51 @@ export function repairShims(home: string): Finding[] {
     {
       kind: 'auto-repaired',
       message:
-        'SFW shims were missing/empty — auto-repaired via ' +
-        `${regen}. ${String(r.stdout).trim().split('\n').pop() ?? ''}`.trim(),
+        'SFW shims were missing/wiped — auto-repaired via ' +
+        /* c8 ignore start - split always yields ≥1 element so pop() never returns undefined */
+        `${generator}. ${String(r.stdout).trim().split('\n').pop() ?? ''}`.trim(),
+      /* c8 ignore stop */
     },
   ]
 }
 
-async function main(): Promise<void> {
-  // Read the Stop payload from stdin. We use `transcript_path` to
-  // scan the most recent assistant turn for the 401 error signature.
-  // Drain even if we can't parse so the pipe doesn't buffer-stall.
-  let payloadRaw = ''
-  await new Promise<void>(resolve => {
-    process.stdin.on('data', d => {
-      payloadRaw += d.toString('utf8')
-    })
-    process.stdin.on('end', () => resolve())
-    process.stdin.on('error', () => resolve())
-    // Short timeout so we don't hang on stdin that never closes.
-    setTimeout(() => resolve(), 200)
-  })
-  let transcriptPath: string | undefined
-  if (payloadRaw) {
-    try {
-      const payload = JSON.parse(payloadRaw) as {
-        transcript_path?: string | undefined
-      }
-      if (typeof payload.transcript_path === 'string') {
-        transcriptPath = payload.transcript_path
-      }
-    } catch {
-      // Malformed payload — skip the 401 scan but still run the
-      // shim/edition checks.
+export const hook = defineHook({
+  /* c8 ignore start - check() runs real machine-state probes (shim dir, keychain,
+     transcript scan); covered by integration tests that spawn a subprocess */
+  check: async payload => {
+    const findings: Finding[] = []
+
+    // Auto-repair pass first. If shims/ is empty AND we have the binary
+    // + regen script, rebuild silently — this covers the common "moved
+    // to .broken-backup/" failure shape. After repair, checkShims()
+    // sees a populated shims/ dir and stays quiet, so the operator
+    // gets one notice line instead of a wall of diagnostics.
+    const home = process.env['HOME']
+    if (home) {
+      findings.push(...repairShims(home))
     }
-  }
 
-  const findings: Finding[] = []
+    findings.push(...(await checkShims()))
+    findings.push(...checkEdition())
+    // The Stop payload carries transcript_path; scan the most recent
+    // assistant turn for the 401 error signature when present.
+    const transcriptPath = payload.transcript_path
+    if (transcriptPath) {
+      findings.push(...(await checkToken401(transcriptPath)))
+    }
 
-  // Auto-repair pass first. If shims/ is empty AND we have the binary
-  // + regen script, rebuild silently — this covers the common "moved
-  // to .broken-backup/" failure shape. After repair, checkShims()
-  // sees a populated shims/ dir and stays quiet, so the operator
-  // gets one notice line instead of a wall of diagnostics.
-  const home = process.env['HOME']
-  if (home) {
-    findings.push(...repairShims(home))
-  }
-
-  findings.push(...(await checkShims()))
-  findings.push(...checkEdition())
-  if (transcriptPath) {
-    findings.push(...(await checkToken401(transcriptPath)))
-  }
-
-  if (findings.length === 0) {
-    return
-  }
-  process.stderr.write('[setup-security-tools] Health check:\n')
-  for (let i = 0, { length } = findings; i < length; i += 1) {
-    const f = findings[i]!
-    process.stderr.write(`  • ${f.message}\n`)
-  }
-}
-
-main().catch(e => {
-  process.stderr.write(
-    `[setup-security-tools] health-check error (allowing): ${e}\n`,
-  )
+    if (findings.length === 0) {
+      return undefined
+    }
+    const lines = ['[setup-security-tools] Health check:']
+    for (let i = 0, { length } = findings; i < length; i += 1) {
+      lines.push(`  • ${findings[i]!.message}`)
+    }
+    return notify(lines.join('\n'))
+  },
+  /* c8 ignore stop */
+  event: 'Stop',
+  type: 'nudge',
 })
+
+void runHook(hook, import.meta.url)

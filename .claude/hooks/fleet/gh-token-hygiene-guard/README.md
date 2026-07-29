@@ -16,7 +16,7 @@ used the token against the GitHub API within 74 seconds of install).
    `gh auth login` / `gh auth refresh` and blocks every non-auth `gh`
    command after 8 hours. Self-recovery: `gh auth refresh -h
 github.com` is always allowed (re-stamps the file). This cap lives
-   in THIS hook, not `auth-rotation-reminder` (which handles non-gh
+   in THIS hook, not `auth-rotation-nudge` (which handles non-gh
    CLIs like npm / pnpm / gcloud / docker / vault).
 3. **`workflow` scope is on-demand, single-use, physical-presence-gated.**
    Recommended default scopes: `read:org, repo` (the hook does not
@@ -77,8 +77,9 @@ Two files under `~/.claude/`:
 - **Known gaps** (documented in
   [`docs/agents.md/fleet/security-stack.md`](../../../docs/agents.md/fleet/security-stack.md)):
   the transcript JSONL the bypass-phrase check reads is
-  unauthenticated (needs harness HMAC), and `containsGhInvocation` is
-  regex-based, not AST-based (shell-variable / eval evasion possible).
+  unauthenticated (needs harness HMAC), and the AST parser behind
+  `containsGhInvocation` cannot resolve a `$VAR`-sourced binary or an
+  `eval` body (shell-variable / eval evasion possible).
 
 ## Escape hatches
 

@@ -5,17 +5,17 @@
 // a fleet hook's index.mts. Hooks are guardrails for AI-generated code; a
 // per-hook `SOCKET_*_DISABLED` env var lets a session silently neuter a hook,
 // which defeats the point. The ONLY sanctioned way to skip a hook is the
-// `Allow <X> bypass` phrase (user-typed, transcript-scoped, auditable).
+// `Allow <X> bypass` phrase, user-typed, transcript-scoped, auditable.
 //
 // Banned shapes (recognized at edit time in a `.claude/hooks/**/index.mts`):
 //   disabledEnvVar: 'SOCKET_FOO_DISABLED'        (runStopReminder config field)
-//   process.env['SOCKET_FOO_DISABLED']           (direct read)
-//   process.env.SOCKET_FOO_DISABLED              (direct read, dot form)
-//   isHookDisabled('foo')                         (any disable-by-env helper)
+//   process.env['SOCKET_FOO_DISABLED'], direct read
+//   process.env.SOCKET_FOO_DISABLED, direct read, dot form
+//   isHookDisabled('foo')                         any disable-by-env helper
 //
-// Allowed (passes through):
+// Allowed, passes through:
 //   - the SOCKET_PRE_{COMMIT,PUSH}_ALLOW_UNSIGNED escape used by the signing
-//     setup (a documented break-glass, not a hook kill switch), and the
+//     setup, a documented break-glass, not a hook kill switch, and the
 //     wheelhouse-cascade FLEET_SYNC marker — neither matches the *_DISABLED
 //     shape.
 //   - non-hook files (only `.claude/hooks/**/index.mts` is policed).
@@ -24,16 +24,9 @@
 //
 // Exit codes: 0 — pass; 2 — block. Fails open on malformed payloads.
 
-import process from 'node:process'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow env-kill-switch bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 
 interface Finding {
   readonly line: number
@@ -66,47 +59,53 @@ export function findKillSwitches(text: string): Finding[] {
 }
 
 export function isHookIndexPath(filePath: string): boolean {
+  const normalizedFilePath = normalizePath(filePath)
   return (
-    /\/\.claude\/hooks\/(?:fleet|repo)\/[^/]+\/index\.mts$/.test(filePath) &&
-    !filePath.includes('/node_modules/')
+    /\/\.claude\/hooks\/(?:fleet|repo)\/[^/]+\/index\.mts$/.test(
+      normalizedFilePath,
+    ) && !normalizedFilePath.includes('/node_modules/')
   )
 }
 
 export function isOwnTestPath(filePath: string): boolean {
-  return filePath.includes('/.claude/hooks/fleet/no-env-kill-switch-guard/')
+  return normalizePath(filePath).includes(
+    '/.claude/hooks/fleet/no-env-kill-switch-guard/',
+  )
 }
 
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, content) => {
   if (!isHookIndexPath(filePath) || isOwnTestPath(filePath)) {
-    return
+    return undefined
   }
   const text = content ?? ''
   if (!text) {
-    return
+    return undefined
   }
   const findings = findKillSwitches(text)
   if (findings.length === 0) {
-    return
-  }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    logger.error(
-      `no-env-kill-switch-guard: ${findings.length} env kill switch(es) — bypassed via "${BYPASS_PHRASE}"\n`,
-    )
-    return
+    return undefined
   }
   const detail = findings
     .map(f => `  ${filePath}:${f.line}\n    ${f.text}`)
     .join('\n')
-  logger.error(
+  return block(
     `no-env-kill-switch-guard: refusing to add an env-var kill switch to a hook.\n` +
       `\n` +
       `${detail}\n` +
       `\n` +
       `Hooks carry no env kill switch — the only sanctioned disable is the\n` +
       `\`Allow <X> bypass\` phrase (user-typed, transcript-scoped, auditable).\n` +
-      `Remove the disabledEnvVar / SOCKET_*_DISABLED check.\n` +
-      `\n` +
-      `Bypass: type "${BYPASS_PHRASE}" in a recent message.\n`,
+      `Remove the disabledEnvVar / SOCKET_*_DISABLED check.\n`,
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['env-kill-switch'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

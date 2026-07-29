@@ -6,7 +6,7 @@
 // under `.claude/hooks/*/` or `.claude/skills/*/`. Past incident: a
 // cascading agent used `git add -f` to commit `.claude/hooks/check-new-
 // deps/node_modules/` into 6 fleet repos. Removing it required force-
-// push (which is itself a hazard) or filter-branch/filter-repo.
+// push, which is itself a hazard, or filter-branch/filter-repo.
 //
 // The `-f` (force) flag exists for the rare case where a gitignored
 // file legitimately needs to be staged. It should never be used for
@@ -15,7 +15,7 @@
 //
 // Detection: parse the Bash command, look for `git add -f` (or
 // `--force`), then check every path argument. If any path contains
-// `node_modules/` (anywhere in the path) OR points at a
+// `node_modules/`, anywhere in the path, OR points at a
 // `package-lock.json` under `.claude/hooks/<name>/` /
 // `.claude/skills/<name>/`, block.
 //
@@ -23,24 +23,25 @@
 // user turn. Use sparingly — legitimate force-stages of node_modules
 // are vanishingly rare.
 
-import process from 'node:process'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
-
-interface ToolInput {
-  readonly tool_name?: string | undefined
-  readonly tool_input?: { readonly command?: string | undefined } | undefined
-  readonly transcript_path?: string | undefined
-}
-
-const BYPASS_PHRASE = 'Allow node-modules-staging bypass'
+// Dispatcher pre-flight: a block requires a forbidden PATH arg, and every
+// forbidden path (per `isForbiddenPath`) contains one of these substrings —
+// a `node_modules` segment, or a hook/skill `package-lock.json` /
+// `pnpm-lock.yaml`. A command lacking all three can never block, so the
+// dispatcher skips importing this guard for it.
+export const triggers: readonly string[] = [
+  'node_modules',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+]
 
 // Tokenize the command on whitespace; split on `&&`/`||`/`;`/`|` so we
 // don't merge chained commands. The git invocation may be wrapped by
 // env-var assignments (`FOO=bar git add ...`).
 export function findGitAddForceInvocations(command: string): string[][] {
   const out: string[][] = []
-  const segments = command.split(/(?:&&|\|\||;|\n)/)
+  const segments = command.split(/(?:&&|;|\n|\|\|)/)
   for (let i = 0, { length } = segments; i < length; i += 1) {
     const segment = segments[i]!
     const tokens = segment.trim().split(/\s+/)
@@ -92,57 +93,27 @@ export function isForbiddenPath(arg: string): boolean {
   return false
 }
 
-async function main(): Promise<void> {
-  let raw: string
-  try {
-    raw = await readStdin()
-  } catch {
-    process.exit(0)
-  }
-  if (!raw) {
-    process.exit(0)
-  }
-  let payload: ToolInput
-  try {
-    payload = JSON.parse(raw) as ToolInput
-  } catch {
-    process.exit(0)
-  }
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
-  }
-  const command = payload.tool_input?.command ?? ''
-  if (!command) {
-    process.exit(0)
-  }
-
+export const check = bashGuard(command => {
   const forced = findGitAddForceInvocations(command)
   if (forced.length === 0) {
-    process.exit(0)
+    return undefined
   }
 
   const blockedArgs: string[] = []
   for (let i = 0, { length } = forced; i < length; i += 1) {
     const restArgs = forced[i]!
-    for (let i = 0, { length } = restArgs; i < length; i += 1) {
-      const arg = restArgs[i]!
+    for (let j = 0, { length: len } = restArgs; j < len; j += 1) {
+      const arg = restArgs[j]!
       if (isForbiddenPath(arg)) {
         blockedArgs.push(arg)
       }
     }
   }
   if (blockedArgs.length === 0) {
-    process.exit(0)
+    return undefined
   }
 
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    process.exit(0)
-  }
-
-  process.stderr.write(
+  return block(
     [
       '[node-modules-staging-guard] Blocked: `git add -f` of node_modules / hook lockfile',
       '',
@@ -157,15 +128,17 @@ async function main(): Promise<void> {
       '  INTENTIONALLY. Each consumer runs its own `pnpm install` against',
       '  the package.json that did land in the commit.',
       '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
-  process.exit(2)
-}
-
-main().catch(e => {
-  process.stderr.write(
-    `[node-modules-staging-guard] hook error (allowing): ${(e as Error).message}\n`,
-  )
 })
+
+export const hook = defineHook({
+  bypass: ['node-modules-staging'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

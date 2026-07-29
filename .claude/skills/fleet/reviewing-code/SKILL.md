@@ -1,10 +1,12 @@
 ---
 name: reviewing-code
-description: Reviews the current branch against a base ref using multiple AI backends. Runs a Workflow that streams the diff through discovery, discovery-secondary, remediation, and adversarial-verify stages, routing each stage to the available agents (codex, claude, opencode, kimi, …) and gracefully skipping any backend that isn't installed. Writes a markdown findings report under docs/. Use when preparing or updating a PR, before merging a feature branch, or when wanting an independent second opinion from a different agent.
+description: Review the current branch against a base with multiple AI backends and produce verified findings.
 user-invocable: true
 allowed-tools: Workflow, Read, Grep, Glob, Bash(node:*), Bash(git:*), Bash(command -v:*)
 model: claude-opus-4-8
 context: fork
+metadata:
+  internal: true
 ---
 
 # reviewing-code
@@ -46,7 +48,7 @@ When the same review finding has fired in two consecutive runs (or across two re
 
 ## Usage
 
-Invoke the skill; it authors the `Workflow` inline. The following knobs are passed as `args` (the Workflow reads them when building scope + routing):
+Invoke the skill; it authors the `Workflow` inline. The following knobs are passed as `args` — the Workflow reads them when building scope + routing:
 
 | Arg                          | Effect                                                                            |
 | ---------------------------- | --------------------------------------------------------------------------------- |
@@ -61,7 +63,7 @@ Invoke the skill; it authors the `Workflow` inline. The following knobs are pass
 
 | Var               | Default       | Effect                                         |
 | ----------------- | ------------- | ---------------------------------------------- |
-| `CODEX_MODEL`     | `gpt-5.4`     | Codex model when codex is the active backend   |
+| `CODEX_MODEL`     | `gpt-5.5`     | Codex model when codex is the active backend   |
 | `CODEX_REASONING` | `xhigh`       | Codex reasoning effort                         |
 | `CLAUDE_MODEL`    | `opus`        | Claude model when claude is the active backend |
 | `KIMI_MODEL`      | `kimi-latest` | Kimi model when kimi is the active backend     |
@@ -94,9 +96,9 @@ Run the four passes as a **`Workflow`** (not ad-hoc `Task` spawns). The four pas
 Author the script inline (don't pre-Write it). Shape:
 
 1. **Resolve scope first (plain code, no agents).** Compute base ref + merge base + commit list + diff stat via `Bash(git:*)`. Detect which agent CLIs are on PATH via `Bash(command -v:*)`. Build a `pass → backend` map from the fallback order in [`_shared/multi-agent-backends.md`](../_shared/multi-agent-backends.md); `log()` any pass whose preferred backend is absent and which fallback (or skip) it took.
-2. **`phase('Discovery')` — the find stages, streamed.** Model the review dimensions (the diffed files, or the configured `--only` subset) as a `pipeline(dimensions, discover, discoverSecondary)` so each dimension flows find → secondary-find without a barrier between dimensions. Each stage is an `agent()` whose `agentType` is the routed backend (codex / claude / opencode / kimi), `isolation` is read-only, and whose prompt is the pass prompt scoped to the base-ref diff. Every finder returns a `FINDINGS_SCHEMA` (`{ pass, findings: [{ file, line, severity: critical|high|medium|low, claim, affectedCode, why, impact }] }`). discovery-secondary merges only NEW findings (drop duplicates by `file:line:claim`).
+2. **`phase('Discovery')` — the find stages, streamed.** Model the review dimensions — the diffed files, or the configured `--only` subset — as a `pipeline(dimensions, discover, discoverSecondary)` so each dimension flows find → secondary-find without a barrier between dimensions. Each stage is an `agent()` whose `agentType` is the routed backend (codex / claude / opencode / kimi), `isolation` is read-only, and whose prompt is the pass prompt scoped to the base-ref diff. Every finder returns a `FINDINGS_SCHEMA` (`{ pass, findings: [{ file, line, severity: critical|high|medium|low, claim, affectedCode, why, impact }] }`). discovery-secondary merges only NEW findings (drop duplicates by `file:line:claim`).
 3. **`phase('Remediation')` — dependent stage.** For each finding, one `agent()` (the remediation backend) adds `{ suggestedFix, suggestedRegressionTests }` to the finding. This depends on the full discovery set, so it runs after the discovery pipeline drains.
-4. **`phase('Verify')` — adversarial pass.** Per High/Critical finding, spawn a skeptic `agent()` (the verify backend, default `claude`) that tries to REFUTE the finding against the actual diff, returning a `VERDICT_SCHEMA` (`{ isReal, verdict: confirmed|likely|false-positive, why }`). Drop findings the skeptic refutes before they land in the report; mark survivors `CONFIRMED`. Skip this phase when `--skip-verify` is set and `log()` that the report is unverified.
+4. **`phase('Verify')` — adversarial pass.** Per High/Critical finding, spawn a skeptic `agent()` — the verify backend, default `claude` — that tries to REFUTE the finding against the actual diff, returning a `VERDICT_SCHEMA` (`{ isReal, verdict: confirmed|likely|false-positive, why }`). Drop findings the skeptic refutes before they land in the report; mark survivors `CONFIRMED`. Skip this phase when `--skip-verify` is set and `log()` that the report is unverified.
 5. **`phase('Variant')` — for every `CONFIRMED` High/Critical finding**, one `agent()` searching the repo for the same shape per [`_shared/variant-analysis.md`](../_shared/variant-analysis.md); merge variants in. Omit the section entirely when none are found.
 6. **Synthesize** — a final `agent()` takes the verified+variant JSON and writes the markdown report in the structure under [Output](#output) (overwrite on discovery, append the `## <Backend> Verification` section from the verify verdicts).
 

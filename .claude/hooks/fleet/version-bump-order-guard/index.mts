@@ -23,81 +23,43 @@
 //
 // It ALSO runs the fast half of the pre-release gate at tag time — the
 // two checks cheap enough for a synchronous hook: `pnpm run lint --all`
-// (the same lint CI's Check job runs) and `pnpm audit` (open security
+// the same lint CI's Check job runs, and `pnpm audit` (open security
 // advisories). A tag whose tree fails either would publish a release CI
 // rejects, or one carrying a known-vulnerable dependency. The slow half
 // of the gate — `pnpm run check --all` typecheck, unit tests, coverage —
 // stays in CI; this hook front-runs the two that catch the common
-// release-day breakage (accumulated lint debt, an unpinned advisory).
+// release-day breakage, accumulated lint debt, an unpinned advisory.
 //
-// Bypass: "Allow version-bump-order bypass" in a recent user turn, or
-// skipped with SOCKET_VERSION_BUMP_SKIP_GATE=1 when the bump ordering is
-// fine but the gate is being run out-of-band.
+// Skipped with SOCKET_VERSION_BUMP_SKIP_GATE=1 when the bump ordering is fine
+// but the gate is being run out-of-band.
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { which } from '@socketsecurity/lib-stable/bin/which'
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
+import {
+  spawn,
+  spawnSync,
+} from '@socketsecurity/lib-stable/process/spawn/child'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-import { withBashGuard } from '../_shared/payload.mts'
-import { commandsFor } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import { actedOnPath, isFleetTarget } from '../_shared/fleet-context.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
+import { resolveRepoRoot } from '../_shared/repo-root.mts'
+import {
+  BUMP_SUBJECT_RE,
+  bumpCommitMessage,
+  committedBumpBasenames,
+  isVersionTagCommand,
+  missingBumpFiles,
+} from './bump-commit-parsing.mts'
 
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASES = [
-  'Allow version-bump-order bypass',
-  'Allow version bump order bypass',
-  'Allow versionbumporder bypass',
-] as const
-
-// `git tag <name>` (also `git tag -a`, `git tag -s`, etc.) creating a
-// version tag (`vX.Y.Z`). Parser-based: a real `git` command with a
-// `tag` arg and a version-shaped arg — so a quoted "git tag v1.2.3" in
-// a message or a sibling command's string isn't a false trigger.
-const VERSION_ARG_RE = /^v\d+\.\d+\.\d+$/
-function isVersionTagCommand(command: string): boolean {
-  return commandsFor(command, 'git').some(
-    c => c.args.includes('tag') && c.args.some(a => VERSION_ARG_RE.test(a)),
-  )
-}
-
-// Subject patterns that count as a "bump commit". Matches Keep-a-
-// Changelog style and Conventional Commits style.
-const BUMP_SUBJECT_RE =
-  /^(?:chore(?:\([\w-]+\))?:\s+(?:bump version to|release)\s+v?\d+\.\d+\.\d+|chore(?:\([\w-]+\))?:\s+v?\d+\.\d+\.\d+\s+release)/i
-
-// `git commit … -m "chore: bump version to X.Y.Z"` — the bump commit itself.
-// Parser-based: a real `git commit` whose `-m`/`--message` value matches the
-// bump-subject shape. The gate runs HERE too, not only at tag time, because the
-// bump commit is the point a still-broken tree (accumulated lint debt) silently
-// lands — by tag time it's already committed (and maybe pushed). A quoted
-// "git commit" inside another command's string isn't a real invocation, so it
-// won't trigger.
-function bumpCommitMessage(command: string): string | undefined {
-  for (const c of commandsFor(command, 'git')) {
-    if (!c.args.includes('commit')) {
-      continue
-    }
-    for (let i = 0, { length } = c.args; i < length; i += 1) {
-      const arg = c.args[i]!
-      // `-m <msg>` / `--message <msg>` (next arg) or `-m=<msg>` / `--message=<msg>`.
-      let msg: string | undefined
-      if ((arg === '-m' || arg === '--message') && i + 1 < length) {
-        msg = c.args[i + 1]
-      } else if (arg.startsWith('-m=')) {
-        msg = arg.slice(3)
-      } else if (arg.startsWith('--message=')) {
-        msg = arg.slice('--message='.length)
-      }
-      if (msg && BUMP_SUBJECT_RE.test(msg.trim())) {
-        return msg.trim()
-      }
-    }
-  }
-  return undefined
-}
+// This file lives at <repo-root>/.claude/hooks/fleet/version-bump-order-guard/index.mts —
+// anchor on that fixed layout instead of process.cwd(), which is unstable
+// depending on where the hook runner invokes from.
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const DEFAULT_REPO_ROOT = path.join(HERE, '..', '..', '..', '..')
 
 // Whether the repo at `cwd` declares a `lint` script. The gate only runs
 // where there's something to gate — a repo with no `lint` script (or no
@@ -110,7 +72,7 @@ function hasLintScript(cwd: string): boolean {
       return false
     }
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-      scripts?: Record<string, string>
+      scripts?: Record<string, string> | undefined
     }
     return typeof pkg.scripts?.['lint'] === 'string'
   } catch {
@@ -118,13 +80,9 @@ function hasLintScript(cwd: string): boolean {
   }
 }
 
-// Run the fast pre-release gate (lint --all + pnpm audit). Returns a list
-// of human-readable failures; an empty list means the gate passed. Fails
-// open on a non-spawnable tool — the gate enforces what it can confirm,
-// never invents a failure.
 // Newest mtime (ms) under a dir tree, or 0 when absent/empty. Skips
 // node_modules + dotdirs so a stray install timestamp can't mask staleness.
-function newestMtime(dir: string): number {
+export function newestMtime(dir: string): number {
   let newest = 0
   let entries: string[]
   try {
@@ -156,95 +114,184 @@ function newestMtime(dir: string): number {
 // A bump commit must sit on a tree whose coverage was MEASURED after the last
 // source change — proof `pnpm run cover` ran on the current code, not a stale
 // run from before the final edits. Returns a failure string when the repo opts
-// into coverage (a `src/` tree exists) but coverage/coverage-summary.json is
-// missing or older than the newest src file. Fail-open (no failure) when there
-// is no `src/` (nothing to measure) so non-source repos aren't blocked.
+// into coverage (a `src/` tree exists) but the coverage summary is missing or
+// older than the newest src file. Fail-open, no failure, when there is no `src/`
+// nothing to measure, so non-source repos aren't blocked.
 function coverageFreshnessFailure(cwd: string): string | undefined {
-  const srcDir = path.join(cwd, 'src')
+  // Hooks run against the TARGET repo, not this repo's root, so the lookup
+  // starts at the payload cwd — resolved to that repo's git toplevel, since a
+  // session standing in a subdirectory would otherwise see neither `src/` nor
+  // the summary and wave a stale-coverage bump through (see
+  // _shared/repo-root.mts).
+  const repoRoot = resolveRepoRoot(cwd)
+  const srcDir = path.join(repoRoot, 'src')
   if (!existsSync(srcDir)) {
     return undefined
   }
-  const summary = path.join(cwd, 'coverage', 'coverage-summary.json')
+  // The coverage runner writes the merged summary under the fleet coverage
+  // cache (node_modules/.cache/fleet/coverage/coverage-summary.json).
+  const summary = path.join(
+    repoRoot,
+    'node_modules',
+    '.cache',
+    'fleet',
+    'coverage',
+    'coverage-summary.json',
+  )
   if (!existsSync(summary)) {
     return (
-      'no coverage/coverage-summary.json — run `pnpm run cover` on the ' +
-      'current tree before the bump (the json-summary reporter emits it).'
+      // oxlint-disable-next-line socket/prefer-node-modules-dot-cache -- socket-lint FP: the string already targets node_modules/.cache/ — it's a human-facing message, and the rule's string matcher can't see the node_modules/ prefix on the same path.
+      'no node_modules/.cache/fleet/coverage/coverage-summary.json — run ' +
+      '`pnpm run cover` on the current tree before the bump (the json-summary ' +
+      'reporter emits it).'
     )
   }
   let summaryMtime = 0
+  /* c8 ignore start - statSync throws only in a filesystem race between existsSync and statSync */
   try {
     summaryMtime = statSync(summary).mtimeMs
   } catch {
     return undefined
   }
+  /* c8 ignore stop */
   if (newestMtime(srcDir) > summaryMtime) {
     return (
-      'coverage/coverage-summary.json is older than the latest src/ change — ' +
-      're-run `pnpm run cover` so coverage reflects the code being released.'
+      'node_modules/.cache/fleet/coverage/coverage-summary.json is older than ' +
+      'the latest src/ change — re-run `pnpm run cover` so coverage reflects ' +
+      'the code being released.'
     )
   }
   return undefined
 }
 
-function runPreReleaseGate(opts: { cwd?: string }): string[] {
+// One gate command through the fleet-preferred ASYNC lib spawn. The lib
+// rejects on non-zero exit, so exit semantics come back through catch —
+// mapped to a plain code (-1 = spawn-level failure).
+async function runGateCommand(
+  args: string[],
+  config: { cwd?: string | undefined },
+): Promise<number> {
+  const cfg = { __proto__: null, ...config } as typeof config
+  try {
+    // Windows shell-shim: pnpm is pnpm.cmd there; the lib resolves .cmd
+    // safely under shell (array args stay literal — no injection). Unshelled,
+    // the spawn errors and the gate silently vanished on every windows run
+    // (the GATE tests' 0-instead-of-2).
+    await spawn('pnpm', args, { cwd: cfg.cwd, shell: WIN32 })
+    return 0
+  } catch (e) {
+    const err = e as { code?: number | string | undefined }
+    return typeof err.code === 'number' ? err.code : -1
+  }
+}
+
+// Run the fast pre-release gate (lint --all + pnpm audit). Returns a list
+// of human-readable failures; an empty list means the gate passed. Fails
+// open on a non-spawnable tool — the gate enforces what it can confirm,
+// never invents a failure.
+async function runPreReleaseGate(config: {
+  cwd?: string | undefined
+}): Promise<string[]> {
+  const cfg = { __proto__: null, ...config } as typeof config
   const failures: string[] = []
-  const gateCwd = opts.cwd ?? process.cwd()
+  /* c8 ignore next - cfg.cwd is always provided by the hook payload; the DEFAULT_REPO_ROOT fallback is untestable without chdir */
+  const gateCwd = cfg.cwd ?? DEFAULT_REPO_ROOT
   const coverageFailure = coverageFreshnessFailure(gateCwd)
   if (coverageFailure) {
     failures.push(coverageFailure)
   }
-  const spawnOpts = { ...opts, stdio: 'pipe' as const }
-  // `pnpm run lint --all` — the exact command CI's Check job runs. A
-  // non-zero exit means accumulated lint debt that CI will reject.
-  const lint = spawnSync('pnpm', ['run', 'lint', '--all'], spawnOpts)
-  if (lint.error) {
-    // pnpm not spawnable — can't confirm, fail open.
+  // "pnpm not spawnable → fail open" is decided DETERMINISTICALLY up front: a
+  // PATH resolution via the lib's async which. Exit-code archaeology after
+  // the fact is platform-fuzzy — under the windows shell shim, cmd launches
+  // via ComSpec even with an empty PATH, and command-not-found surfaces as an
+  // exit code (9009/127) that varies by shell; the belt below keeps those,
+  // but the which-probe is the portable contract.
+  if (!(await which('pnpm'))) {
     return failures
   }
-  if (lint.status !== 0) {
+  // `pnpm run lint --all` — the exact command CI's Check job runs. A
+  // non-zero exit means accumulated lint debt that CI will reject.
+  const lintCode = await runGateCommand(['run', 'lint', '--all'], {
+    cwd: gateCwd,
+  })
+  if (lintCode === -1 || lintCode === 9009 || lintCode === 127) {
+    return failures
+  }
+  if (lintCode !== 0) {
     failures.push('`pnpm run lint --all` failed — fix lint before tagging.')
   }
   // `pnpm audit` — open security advisories. Only meaningful against a
   // resolved lockfile; without `pnpm-lock.yaml` it has nothing to audit
-  // and its exit code is noise, so skip it there (fail open).
-  const cwd = opts.cwd ?? process.cwd()
-  if (existsSync(path.join(cwd, 'pnpm-lock.yaml'))) {
-    const audit = spawnSync('pnpm', ['audit'], spawnOpts)
-    if (!audit.error && audit.status !== 0) {
+  // and its exit code is noise, so skip it there, fail open.
+  if (existsSync(path.join(gateCwd, 'pnpm-lock.yaml'))) {
+    const auditCode = await runGateCommand(['audit'], { cwd: gateCwd })
+    /* c8 ignore start - requires real vulnerable dependencies; not reproducible in a unit test */
+    if (auditCode > 0 && auditCode !== 9009 && auditCode !== 127) {
       failures.push(
         '`pnpm audit` found advisories — pin safe versions in ' +
           'pnpm-workspace.yaml overrides (past soak) before tagging.',
       )
     }
+    /* c8 ignore stop */
   }
   return failures
 }
 
-// withBashGuard handles the stdin drain, tool_name gate, command narrow,
-// and fail-open on any throw.
-await withBashGuard((command, payload) => {
+export const check = bashGuard(async (command, payload) => {
   const bumpMsg = bumpCommitMessage(command)
   const isTag = isVersionTagCommand(command)
   if (!bumpMsg && !isTag) {
-    return
-  }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)) {
-    return
+    return undefined
   }
 
-  const opts = payload.cwd ? { cwd: payload.cwd } : {}
+  // The directory the command ACTS on, honoring a `cd <repo> && git …` — a
+  // wheelhouse-rooted session bumping a sibling repo must be gated against
+  // THAT repo's tree/HEAD, not the session cwd's.
+  const effectiveCwd = actedOnPath(payload)
+  const opts = { cwd: effectiveCwd }
+
+  // The prep-wave gate (lint --all / audit / coverage freshness) encodes the
+  // FLEET release convention; a non-fleet repo keeps only the generic ordering
+  // invariants, bump files bundled, tag sits on a bump commit.
+  const fleetTarget = isFleetTarget(payload)
+
+  // Bump-commit bundling: the bump commit must carry BOTH package.json and
+  // CHANGELOG.md. Splitting them ships a release whose CHANGELOG lags the
+  // version, or a version with no public note. Runs for every bump commit,
+  // independent of the lint gate below.
+  if (bumpMsg) {
+    const missing = missingBumpFiles(
+      committedBumpBasenames(command, effectiveCwd),
+    )
+    if (missing.length) {
+      const lines = [
+        '[version-bump-order-guard] Bump commit must stage package.json AND CHANGELOG.md.',
+        '',
+        `  Bump commit : ${bumpMsg}`,
+        `  Missing     : ${missing.join(', ')}`,
+        '',
+        '  The version delta and its public CHANGELOG note land in ONE commit.',
+        '  Stage both, then commit (named paths keep a parallel session out):',
+        '',
+        '    git commit -o package.json CHANGELOG.md -m "chore: bump version to X.Y.Z"',
+        '',
+      ]
+      return block(lines.join('\n') + '\n')
+    }
+  }
 
   // Pre-bump-COMMIT gate: the bump commit is where a still-broken tree
-  // (accumulated lint debt) silently lands — front-run the same fast gate the
+  // accumulated lint debt, silently lands — front-run the same fast gate the
   // tag step runs, so the bump can't be committed onto a tree CI will reject.
   // (Past incident: a `chore: bump version` committed atop 100+ lint errors
   // sailed in, then failed CI on push.)
   if (
     bumpMsg &&
+    fleetTarget &&
     !process.env['SOCKET_VERSION_BUMP_SKIP_GATE'] &&
-    hasLintScript(opts.cwd ?? process.cwd())
+    hasLintScript(effectiveCwd)
   ) {
-    const gateFailures = runPreReleaseGate(opts)
+    const gateFailures = await runPreReleaseGate(opts)
     if (gateFailures.length) {
       const lines = [
         '[version-bump-order-guard] Pre-bump gate failed — refusing the bump commit.',
@@ -264,27 +311,26 @@ await withBashGuard((command, payload) => {
         '  Then commit `chore: bump version to X.Y.Z`.',
         '',
         '  Bypass the gate only: SOCKET_VERSION_BUMP_SKIP_GATE=1',
-        '  Bypass the whole guard: "Allow version-bump-order bypass".',
         '',
       ]
-      logger.error(lines.join('\n') + '\n')
-      process.exitCode = 2
+      return block(lines.join('\n') + '\n')
     }
-    // A bump commit isn't a tag — once gated (pass or block), we're done.
-    return
+    // A bump commit isn't a tag — once gated, pass or block, we're done.
+    return undefined
   }
   if (!isTag) {
-    return
+    return undefined
   }
 
   // Fast pre-release gate: a tag whose tree fails lint or carries an open
   // advisory would publish a broken / vulnerable release. Run it before
   // the ordering check so a clean-ordering-but-dirty-tree tag still blocks.
   if (
+    fleetTarget &&
     !process.env['SOCKET_VERSION_BUMP_SKIP_GATE'] &&
-    hasLintScript(opts.cwd ?? process.cwd())
+    hasLintScript(effectiveCwd)
   ) {
-    const gateFailures = runPreReleaseGate(opts)
+    const gateFailures = await runPreReleaseGate(opts)
     if (gateFailures.length) {
       const gateLines = [
         '[version-bump-order-guard] Pre-release gate failed for tag.',
@@ -299,24 +345,34 @@ await withBashGuard((command, payload) => {
         '    pnpm run check --all   # typecheck + unit tests + coverage',
         '',
         '  Bypass the gate only: SOCKET_VERSION_BUMP_SKIP_GATE=1',
-        '  Bypass the whole guard: "Allow version-bump-order bypass".',
         '',
       ]
-      logger.error(gateLines.join('\n') + '\n')
-      process.exitCode = 2
-      return
+      return block(gateLines.join('\n') + '\n')
     }
   }
 
   // Read the most-recent commit subject from HEAD.
   const subjectResult = spawnSync('git', ['log', '-1', '--pretty=%s'], opts)
   if (subjectResult.status !== 0) {
-    // Not a git repo or git unavailable — fail open.
-    return
+    // Not a git repo or git unavailable — fail open. Under SOCKET_DEBUG, say
+    // so with the inputs: a windows CI run allowed a tag the fixture proved
+    // should block, with zero output — a mangled acted-on path failing this
+    // spawn is the prime suspect, and only the inputs can confirm it.
+    if (process.env['SOCKET_DEBUG']) {
+      process.stderr.write(
+        `[version-bump-order-guard] fail-open: subject read failed (status ${subjectResult.status}, cwd ${effectiveCwd}, stderr ${String(subjectResult.stderr ?? '').trim()})\n`,
+      )
+    }
+    return undefined
   }
   const headSubject = String(subjectResult.stdout).trim()
   if (BUMP_SUBJECT_RE.test(headSubject)) {
-    return
+    if (process.env['SOCKET_DEBUG']) {
+      process.stderr.write(
+        `[version-bump-order-guard] allow: HEAD subject is a bump (${headSubject}, cwd ${effectiveCwd})\n`,
+      )
+    }
+    return undefined
   }
 
   // Look up whether CHANGELOG.md was touched in HEAD.
@@ -326,6 +382,7 @@ await withBashGuard((command, payload) => {
     ['show', '--name-only', '--pretty=', 'HEAD'],
     opts,
   )
+  /* c8 ignore next - git show fails after git log succeeds only in a filesystem race or corrupted repo; not reproducible in a unit test */
   if (filesResult.status === 0) {
     changelogTouched = /\bCHANGELOG\.md\b/i.test(String(filesResult.stdout))
   }
@@ -353,9 +410,16 @@ await withBashGuard((command, payload) => {
     '  Then update CHANGELOG.md and commit `chore: bump version to X.Y.Z`',
     '  carrying package.json + CHANGELOG.md. Then tag.',
     '',
-    '  Bypass: type "Allow version-bump-order bypass" in a recent message.',
-    '',
   ]
-  logger.error(lines.join('\n') + '\n')
-  process.exitCode = 2
+  return block(lines.join('\n') + '\n')
 })
+
+export const hook = defineHook({
+  bypass: ['version-bump-order'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

@@ -1,10 +1,12 @@
 ---
 name: rendering-chromium-to-png
-description: Render a web page, local HTML file, or a real unpacked Chrome MV3 extension popup to a PNG so you can SEE it — then Read the image to put the actual rendered pixels in context. Catches layout / color / empty-state / render-throw bugs that code-reading misses (a view can look correct in source and render broken). Use before redesigning UI, when "verify rendered output before commit" applies, or to inspect an extension popup with its real chrome.* powers. Page mode renders any url/file; extension mode loads an unpacked MV3 extension (background SW + content scripts + popup) and screenshots a page inside it.
+description: Render pages or extension popups to PNG and inspect pixels to catch real UI regressions.
 user-invocable: true
 allowed-tools: Read, Bash(node:*), Bash(pnpm exec playwright:*), Bash(ls:*)
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # rendering-chromium-to-png
@@ -16,6 +18,11 @@ throw that aborts the render partway). This skill gives you eyes: render to a PN
 "verify rendered output before commit" rule.
 
 ## Page mode — render any URL or local file
+
+For a locally served app, run its existing development command through the package.json script
+that launches it through `portless`, then pass the generated HTTPS `.localhost` URL to this
+script. Do not invent a fixed port or a second server command. Use `file:` only for a genuinely
+static page.
 
 ```sh
 node .claude/skills/fleet/rendering-chromium-to-png/screenshot.mts <url|file> \
@@ -47,7 +54,7 @@ extension popup as it actually renders in-browser, not a static file:// approxim
 ## Caveats (state these honestly in your summary)
 
 - **Static snapshot, not interactive.** You can't hover/click/scroll in one shot. For a
-  state behind a click, drive it (a small playwright script that clicks then screenshots) or
+  state behind a click, drive it — a small playwright script that clicks then screenshots — or
   capture different states by timing the `--wait`. Each state = its own screenshot.
 - **Mock vs live data.** If the page needs a backend that isn't running, you're seeing
   empty/placeholder states — say so. (A built-in `?preview` mock, if the app has one, is
@@ -55,9 +62,9 @@ extension popup as it actually renders in-browser, not a static file:// approxim
 - **MV3 service workers suspend** after ~30s idle and restart on demand — long-lived
   `evaluate()` may throw "Service worker restarted"; keep interactions short.
 - **No browser available** (headless CI without chromium): say so explicitly rather than
-  claiming you verified — run `pnpm exec playwright install chromium` first.
+  claiming you verified — run `node_modules/.bin/playwright install chromium` first.
 
 ## Browser dependency
 
 `playwright-core` (fleet catalog devDep) drives a headless Chromium. If the binary is
-missing the script says so — install it with `pnpm exec playwright install chromium`.
+missing the script says so — install it with `node_modules/.bin/playwright install chromium`.

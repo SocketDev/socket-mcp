@@ -9,8 +9,8 @@
 // so they never get pruned.
 //
 // This script reads the HOST repo's export map, then for each subpath grep the
-// rest of the lib (internal use) and every sibling fleet repo under $PROJECTS
-// (external use). It classifies each subpath and emits a ranked report. It is
+// rest of the lib, internal use, and every sibling fleet repo under $PROJECTS
+// external use. It classifies each subpath and emits a ranked report. It is
 // REPO-GENERIC: it reads the host's own `package.json#name` + export map, so
 // the same code audits any lib-shaped fleet repo, not just socket-lib.
 //
@@ -36,8 +36,8 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { isSpawnError } from '@socketsecurity/lib-stable/process/spawn/errors'
 import { naturalCompare } from '@socketsecurity/lib-stable/sorts/natural'
@@ -84,13 +84,13 @@ export type AuditResult = {
   readonly findings: readonly SubpathFinding[]
 }
 
-export type CliOptions = {
+export type CliConfig = {
   readonly emit: 'json' | 'report'
   readonly repo: string | undefined
   readonly projects: string
 }
 
-export function parseArgs(argv: readonly string[]): CliOptions {
+export function parseArgs(argv: readonly string[]): CliConfig {
   let emit: 'json' | 'report' = 'report'
   let repo: string | undefined
   const projects = PROJECTS
@@ -124,14 +124,16 @@ export function enumerateSubpaths(
   exportsMap: Record<string, unknown>,
 ): Array<{ subpath: string; sourceFile: string | undefined }> {
   const out: Array<{ subpath: string; sourceFile: string | undefined }> = []
-  for (const key of Object.keys(exportsMap)) {
+  const keys = Object.keys(exportsMap)
+  for (let i = 0, { length } = keys; i < length; i += 1) {
+    const key = keys[i]!
     if (!key.startsWith('./') || key === './package.json') {
       continue
     }
     const value = exportsMap[key]
     let sourceFile: string | undefined
     if (value && typeof value === 'object' && 'source' in value) {
-      const src = (value as { source?: unknown }).source
+      const src = (value as { source?: unknown | undefined }).source
       if (typeof src === 'string') {
         sourceFile = src
       }
@@ -144,7 +146,7 @@ export function enumerateSubpaths(
 }
 
 // Count references to a source file from elsewhere in the same repo's `src/`.
-// We grep for the file's import stem (its path minus extension) so both
+// We grep for the file's import stem, its path minus extension, so both
 // `./discover` and `../ai/discover.mts` style relative imports are caught. The
 // source file itself and its co-located test are excluded from the count.
 export async function countInternalRefs(
@@ -157,7 +159,7 @@ export async function countInternalRefs(
   // `./src/ai/discover.mts` -> stem `discover`. Matching the basename stem is
   // intentionally loose; a positive count means "referenced somewhere", which
   // is all the classification needs. False positives keep an export, which is
-  // the safe direction (never auto-deletes).
+  // the safe direction, never auto-deletes.
   const base = path.basename(sourceFile).replace(/\.[cm]?[jt]s$/u, '')
   if (!base) {
     return 0
@@ -181,7 +183,9 @@ export async function countInternalRefs(
   )
   // --count-matches prints `file:count` per file; sum them.
   let total = 0
-  for (const line of result.split('\n')) {
+  const lines = result.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
     const colon = line.lastIndexOf(':')
     if (colon === -1) {
       continue
@@ -206,7 +210,7 @@ export function consumerImportsSubpath(
 }
 
 // Harvest every `<prefix>/<subpath>` a consumer repo imports, normalized to the
-// bare subpath. One rg pass per repo (not per subpath) — the whole reason the
+// bare subpath. One rg pass per repo, not per subpath — the whole reason the
 // scan is fast. Returns the set of subpaths this repo consumes.
 export async function harvestConsumerImports(
   consumerDir: string,
@@ -217,21 +221,29 @@ export async function harvestConsumerImports(
   const escapedPrefixes = importPrefixes.map(escapeForRg).join('|')
   const pattern = `(${escapedPrefixes})/[A-Za-z0-9._/-]+`
   const rgArgs = ['--only-matching', '--no-filename', '--no-line-number']
-  for (const dir of CONSUMER_IGNORE_DIRS) {
+  for (let i = 0, { length } = CONSUMER_IGNORE_DIRS; i < length; i += 1) {
+    const dir = CONSUMER_IGNORE_DIRS[i]!
     rgArgs.push('--glob', `!**/${dir}/**`)
   }
-  for (const glob of CONSUMER_GLOBS) {
+  for (let i = 0, { length } = CONSUMER_GLOBS; i < length; i += 1) {
+    const glob = CONSUMER_GLOBS[i]!
     rgArgs.push('--glob', glob)
   }
   rgArgs.push(pattern, consumerDir)
   const out = await runRg(rgArgs, consumerDir)
-  for (const raw of out.split('\n')) {
-    const match = raw.trim()
+  const outLines = out.split('\n')
+  for (let i = 0, { length } = outLines; i < length; i += 1) {
+    const match = outLines[i]!.trim()
     if (!match) {
       continue
     }
     // Strip the prefix, leaving the bare subpath.
-    for (const prefix of importPrefixes) {
+    for (
+      let j = 0, { length: prefixLength } = importPrefixes;
+      j < prefixLength;
+      j += 1
+    ) {
+      const prefix = importPrefixes[j]!
       if (match.startsWith(prefix + '/')) {
         consumed.add(match.slice(prefix.length + 1))
         break
@@ -244,7 +256,7 @@ export async function harvestConsumerImports(
 export function classify(
   internalRefs: number,
   consumers: readonly string[],
-  anyUnscanned: boolean,
+  { anyUnscanned }: { anyUnscanned: boolean },
 ): SurfaceClass {
   if (consumers.length >= 2) {
     return 'consumed'
@@ -262,17 +274,18 @@ export function classify(
   return 'dead'
 }
 
-export async function audit(options: CliOptions): Promise<AuditResult> {
-  const hostDir = resolveHostDir(options)
+export async function audit(config: CliConfig): Promise<AuditResult> {
+  const cfg = { __proto__: null, ...config } as typeof config
+  const hostDir = resolveHostDir(config)
   const pkgPath = path.join(hostDir, 'package.json')
   if (!existsSync(pkgPath)) {
     throw new Error(
-      `no package.json at ${pkgPath}. Run audit-api-surface from a repo root, or pass --repo <name> for a checkout under ${options.projects}.`,
+      `no package.json at ${pkgPath}. Run audit-api-surface from a repo root, or pass --repo <name> for a checkout under ${cfg.projects}.`,
     )
   }
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-    name?: string
-    exports?: Record<string, unknown>
+    name?: string | undefined
+    exports?: Record<string, unknown> | undefined
   }
   const hostPackage = pkg.name ?? path.basename(hostDir)
   const exportsMap = pkg.exports ?? {}
@@ -290,7 +303,7 @@ export async function audit(options: CliOptions): Promise<AuditResult> {
     if (repoName === hostRepoName) {
       continue
     }
-    const consumerDir = path.join(options.projects, repoName)
+    const consumerDir = path.join(cfg.projects, repoName)
     if (!existsSync(consumerDir)) {
       unscannedConsumers.push(repoName)
       continue
@@ -311,10 +324,12 @@ export async function audit(options: CliOptions): Promise<AuditResult> {
   const findings: SubpathFinding[] = []
   for (const { sourceFile, subpath } of subpaths) {
     const consumerSet = consumerMap.get(subpath)
-    const consumers = consumerSet ? [...consumerSet].sort(naturalCompare) : []
+    const consumers = consumerSet
+      ? [...consumerSet].toSorted(naturalCompare)
+      : []
     const internalRefs = await countInternalRefs(hostDir, sourceFile)
     findings.push({
-      classification: classify(internalRefs, consumers, anyUnscanned),
+      classification: classify(internalRefs, consumers, { anyUnscanned }),
       consumers,
       internalRefs,
       sourceFile,
@@ -327,15 +342,16 @@ export async function audit(options: CliOptions): Promise<AuditResult> {
     hostPackage,
     hostRepo: hostRepoName,
     importPrefixes,
-    scannedConsumers: scannedConsumers.sort(naturalCompare),
+    scannedConsumers: scannedConsumers.toSorted(naturalCompare),
     totalSubpaths: subpaths.length,
-    unscannedConsumers: unscannedConsumers.sort(naturalCompare),
+    unscannedConsumers: unscannedConsumers.toSorted(naturalCompare),
   }
 }
 
-export function resolveHostDir(options: CliOptions): string {
-  if (options.repo) {
-    return path.join(options.projects, options.repo)
+export function resolveHostDir(config: CliConfig): string {
+  const cfg = { __proto__: null, ...config } as typeof config
+  if (cfg.repo) {
+    return path.join(cfg.projects, cfg.repo)
   }
   return process.cwd()
 }
@@ -389,12 +405,14 @@ export function renderReport(result: AuditResult): string {
       'exactly one external consumer — candidate to inline there',
     unverifiable: 'no consumer found, but some repo was unscanned',
   }
-  for (const cls of order) {
+  for (let i = 0, { length } = order; i < length; i += 1) {
+    const cls = order[i]!
     const count = byClass.get(cls)?.length ?? 0
     lines.push(`| \`${cls}\` | ${count} | ${meaning[cls]} |`)
   }
   lines.push('')
-  for (const cls of order) {
+  for (let i = 0, { length } = order; i < length; i += 1) {
+    const cls = order[i]!
     const list = byClass.get(cls)
     if (!list || !list.length) {
       continue
@@ -438,11 +456,11 @@ async function runRg(args: readonly string[], cwd: string): Promise<string> {
     if (isSpawnError(e)) {
       // Exit code 1 == no matches. Anything else (2 = real error) we surface
       // as empty too, but log it so a broken pattern isn't silent.
-      const code = (e as { code?: unknown }).code
+      const code = (e as { code?: unknown | undefined }).code
       if (code !== 1) {
         logger.warn(`rg exited ${String(code)} in ${cwd}`)
       }
-      return String((e as { stdout?: unknown }).stdout ?? '')
+      return String((e as { stdout?: unknown | undefined }).stdout ?? '')
     }
     throw e
   }
@@ -472,6 +490,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e: unknown) => {
-  logger.error(e instanceof Error ? e.message : String(e))
+  logger.error(errorMessage(e))
   process.exitCode = 1
 })

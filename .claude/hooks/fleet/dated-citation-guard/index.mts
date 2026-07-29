@@ -30,20 +30,12 @@
 //   2 — a dated citation was added to a rule-prose surface (blocked).
 //   0 — otherwise, or on any error (fail-open).
 
-import process from 'node:process'
-
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 import {
   findDatedCitations,
   isRuleProseSurface,
 } from '../_shared/dated-citation.mts'
-import {
-  readFilePath,
-  readPayload,
-  readWriteContent,
-} from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const BYPASS_PHRASE = 'Allow dated-citation bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 
 // File-path fragments (normalized to `/`) that define or quote the pattern, so
 // the guard doesn't fire on its own machinery.
@@ -57,7 +49,7 @@ export function isSelfExempt(filePath: string | undefined): boolean {
   if (!filePath) {
     return true
   }
-  const normalized = filePath.replace(/\\/g, '/')
+  const normalized = normalizePath(filePath)
   for (let i = 0, { length } = SELF_EXEMPT_FRAGMENTS; i < length; i += 1) {
     if (normalized.includes(SELF_EXEMPT_FRAGMENTS[i]!)) {
       return true
@@ -66,38 +58,18 @@ export function isSelfExempt(filePath: string | undefined): boolean {
   return false
 }
 
-async function main(): Promise<void> {
-  let payload
-  try {
-    payload = await readPayload()
-  } catch {
-    return
+export const check = editGuard((filePath, content, payload) => {
+  if (isSelfExempt(filePath) || !isRuleProseSurface(normalizePath(filePath))) {
+    return undefined
   }
-  if (!payload) {
-    return
-  }
-  const tool = payload.tool_name
-  if (tool !== 'Edit' && tool !== 'Write' && tool !== 'MultiEdit') {
-    return
-  }
-  const filePath = readFilePath(payload)
-  if (
-    isSelfExempt(filePath) ||
-    !isRuleProseSurface((filePath ?? '').replace(/\\/g, '/'))
-  ) {
-    return
-  }
-  const content = readWriteContent(payload)
   if (!content) {
-    return
+    return undefined
   }
   const hits = findDatedCitations(content)
   if (!hits.length) {
-    return
+    return undefined
   }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return
-  }
+  void payload
   const lines = [
     `[dated-citation-guard] Blocked: dated-incident citation(s) in rule prose — ${filePath}:`,
     '',
@@ -107,22 +79,25 @@ async function main(): Promise<void> {
     lines.push(`  • ${hit.label}: ${hit.text}`)
   }
   lines.push('')
-  lines.push('  CLAUDE.md "Compound lessons into rules": cite the motivating case')
+  lines.push(
+    '  CLAUDE.md "Compound lessons into rules": cite the motivating case',
+  )
   lines.push('  GENERICALLY, as a timeless example — not a dated log. Drop the')
   lines.push('  date / version delta / percentage / SHA; keep the shape of the')
   lines.push('  problem the rule prevents. Example:')
   lines.push('    ✗ "**Why:** <date> pnpm <x> vs <y> broke the cascade"')
   lines.push('    ✓ "**Why:** a stale pnpm on PATH fails the version check and')
   lines.push('       aborts the cascade install"')
-  lines.push('')
-  lines.push(`  Bypass: type "${BYPASS_PHRASE}" in a recent message.`)
-  lines.push('')
-  process.stderr.write(lines.join('\n') + '\n')
-  process.exitCode = 2
-}
+  return block(lines.join('\n'))
+})
 
-// Guard the entrypoint so a test importing the helpers doesn't trigger main()'s
-// stdin drain (which never sees an `end` event under the test runner).
-if (process.argv[1]?.endsWith('index.mts')) {
-  await main()
-}
+export const hook = defineHook({
+  bypass: ['dated-citation'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

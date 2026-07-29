@@ -37,13 +37,13 @@ Document skips inline in whatever output the skill produces (`> Skipped pass: <r
 
 ## Env-var conventions
 
-| Var               | Default       | Purpose                                          |
-| ----------------- | ------------- | ------------------------------------------------ |
-| `CLAUDE_EFFORT`   | `high`        | Claude reasoning effort (claude `--effort`)      |
-| `CLAUDE_MODEL`    | `opus`        | Claude model when claude is the active backend   |
-| `CODEX_MODEL`     | `gpt-5.5`     | Codex model when codex is the active backend     |
-| `CODEX_REASONING` | `xhigh`       | Codex reasoning effort                           |
-| `KIMI_MODEL`      | `kimi-latest` | Kimi model when kimi is the active backend       |
+| Var               | Default           | Purpose                                                              |
+| ----------------- | ----------------- | -------------------------------------------------------------------- |
+| `CLAUDE_EFFORT`   | `high`            | Claude reasoning effort (claude `--effort`)                          |
+| `CLAUDE_MODEL`    | `opus`            | Claude model when claude is the active backend                       |
+| `CODEX_MODEL`     | `gpt-5.5`         | Codex model when codex is the active backend                         |
+| `CODEX_REASONING` | `xhigh`           | Codex reasoning effort                                               |
+| `KIMI_MODEL`      | `kimi-latest`     | Kimi model when kimi is the active backend                           |
 | `OPENCODE_MODEL`  | (opencode config) | `provider/model` slug opencode routes to (Fireworks / Synthetic / …) |
 
 Pair model with effort, never just model: a cheap model left on the session's default effort still burns reasoning tokens, and a premium model on `low` underthinks. Both codex (`CODEX_REASONING`) and claude (`CLAUDE_EFFORT`) carry an effort knob — set both axes when a backend supports it. Kimi has no effort flag, so it inherits its CLI default.
@@ -54,13 +54,13 @@ Don't invent per-skill env var names — reuse these. Skills that need a non-def
 
 Reasoning effort is NOT one flat vocabulary across backends — only map an effort onto a backend that actually accepts that level, or you'll pass an invalid value. The lib's `spawnAiAgent` translates the shared `AiEffort` (`@socketsecurity/lib/ai/types`) per-agent; this table is the source of truth for what each accepts.
 
-| Backend  | Effort flag                        | Accepted levels                       | `max` handling          |
-| -------- | ---------------------------------- | ------------------------------------- | ----------------------- |
-| claude   | `--effort <level>`                 | low / medium / high / xhigh / max     | passes through          |
-| codex    | `-c model_reasoning_effort=<level>`| minimal / low / medium / high / xhigh | clamped to `xhigh`      |
-| gemini   | (none)                             | —                                     | ignored                 |
-| kimi     | (none)                             | —                                     | ignored                 |
-| opencode | (none — provider-internal)         | —                                     | ignored                 |
+| Backend  | Effort flag                         | Accepted levels                       | `max` handling     |
+| -------- | ----------------------------------- | ------------------------------------- | ------------------ |
+| claude   | `--effort <level>`                  | low / medium / high / xhigh / max     | passes through     |
+| codex    | `-c model_reasoning_effort=<level>` | minimal / low / medium / high / xhigh | clamped to `xhigh` |
+| gemini   | (none)                              | —                                     | ignored            |
+| kimi     | (none)                              | —                                     | ignored            |
+| opencode | (none — provider-internal)          | —                                     | ignored            |
 
 `AiEffort` = `low | medium | high | xhigh | max`. `minimal` is codex-only and outside `AiEffort`; `max` is claude-only, so `buildArgs` clamps it to codex's `xhigh` ceiling. A backend with no effort flag silently ignores the value — never gate behavior on a backend honoring effort it doesn't support. When you hand-roll a backend runner (not via `spawnAiAgent`), pick the effort default from this table's vocab for that backend, not a flat constant.
 
@@ -71,18 +71,28 @@ Fireworks (`api.fireworks.ai/inference/v1`) and Synthetic (`api.synthetic.new/op
 1. **Through `opencode`** (the hybrid backend). Set `OPENCODE_MODEL` to a `provider/model` slug and the opencode runner passes `--model <slug>`. opencode owns the provider auth + base-URL config; the slug just picks the model. This is the path that matches the local OpenCode setup.
 2. **Directly from Node** via `@socketsecurity/lib/ai/spawn`'s HTTP backends (`fireworks` / `synthetic`) — for scripts/hooks that call a model programmatically without an interactive CLI. Same OpenAI-compatible wire format; the lib owns the base URL + `Authorization` header (token from env, never inline) + the `reasoning_effort` field.
 
-**Provider/model slug catalog** (the shapes opencode + the lib accept):
+**Provider/model slug catalog** — the shapes opencode + the lib accept:
 
-| Provider     | Slug shape                                              | Notable models                                  |
-| ------------ | ------------------------------------------------------- | ----------------------------------------------- |
-| anthropic    | `anthropic/<model>`                                     | `claude-opus-4-8`, `claude-haiku-4-5`           |
-| fireworks-ai | `fireworks-ai/accounts/fireworks/models/<id>`           | `glm-5p1` (Opus/Sonnet stand-in), `deepseek-v3p2` |
-| synthetic    | `synthetic/hf:<org>/<model>`                            | `hf:moonshotai/Kimi-K2.5` (text/vision/UI), `hf:zai-org/GLM-5.1` |
-| moonshotai   | `moonshotai/<model>` (or the `kimi` direct CLI)         | `Kimi-K2.5`, `Kimi-K2-Thinking`                 |
+| Provider     | Slug shape                                      | Notable models                                                                            |
+| ------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| anthropic    | `anthropic/<model>`                             | `claude-opus-4-8`, `claude-haiku-4-5`                                                     |
+| fireworks-ai | `fireworks-ai/accounts/fireworks/models/<id>`   | `glm-5p2` (quality leader), `kimi-k2p7-code` (code specialist), `deepseek-v4-pro`         |
+| synthetic    | `synthetic/hf:<org>/<model>`                    | `hf:moonshotai/Kimi-K2.7-Code`, `hf:zai-org/GLM-5.2`, `hf:Qwen/Qwen3-Coder-480B-A35B-Instruct` |
+| moonshotai   | `moonshotai/<model>` (or the `kimi` direct CLI) | `Kimi-K2.6`, `Kimi-K2-Thinking`                                                           |
 
-Model choice by job (the local convention): GLM-5.1 is a fast Opus/Sonnet stand-in for plan execution; Kimi K2.5 fits text/vision, UI work, and lower-complexity tasks; reserve Anthropic for planning + deep reasoning. Reasoning effort on the HTTP providers is per-model (the OpenAI `reasoning_effort` field where the model supports it) — only set it for a model that accepts it.
+Model choice by job (research-backed, as of 2026-06):
+
+- **Quality code + reasoning fall-over → `glm-5p2`** (GLM-5.2, Fireworks). The strongest open-weight on the one shared independent benchmark — Artificial Analysis Intelligence Index 51 vs Kimi-K2.7's 42 — and ahead on published SWE-bench Pro / Terminal-Bench. This is the default stand-in when Anthropic is unavailable for plan execution or quality code.
+- **Cost-sensitive / long-autonomous code → `kimi-k2p7-code`** (Kimi-K2.7-Code, Fireworks). A code SPECIALIST, not a generalist: ~$0.95/Mtok input + ~30% fewer reasoning tokens per accepted change, and the week-one edge on multi-hour autonomous bug-fix loops. Reach for it when cost or a long agent run dominates, not for general reasoning.
+- **Cheap bulk / mechanical → `deepseek-v4-flash` or `gpt-oss-20b`** (Fireworks). Classification, summarization, drafting — don't spend a flagship on grunt work (token-spend floor).
+- **Cross-provider backup (Fireworks itself down) → Synthetic**, flat-rate: `hf:moonshotai/Kimi-K2.7-Code` + `hf:zai-org/GLM-5.2`, or `hf:Qwen/Qwen3-Coder-480B-A35B-Instruct` for code.
+- **Reserve Anthropic for planning + deep reasoning.** The live roster is `opencode models` — it drifts; re-run it rather than trusting this list.
+
+Reasoning effort on the HTTP providers is per-model: the OpenAI `reasoning_effort` field where the model supports it — only set it for a model that accepts it.
 
 Tokens for these providers live in env / the keychain (`FIREWORKS_API_KEY`, `SYNTHETIC_API_KEY`), never inline — same token-hygiene rule as `SOCKET_API_KEY`.
+
+To see which fallback backends are authed + reachable on your machine — and get the exact `codex login` / `opencode auth login` fix for any that aren't — run `node scripts/fleet/ai-backends-status.mts`. It dogfoods `detectAvailableBackends` + reads each backend's auth home without triggering a keychain prompt; informational by default — these backends are dev-only — and `--require <codex|fireworks|synthetic|anthropic>` fails loud when a backend you depend on isn't ready.
 
 ## Giving the opencode backend read-access to another repo (references)
 
@@ -94,8 +104,8 @@ When a delegated `opencode` run needs to read a _sibling_ codebase — porting a
     // Local sibling directory (relative to opencode.json, absolute, or ~-relative).
     "lib": { "path": "../socket-lib" },
     // Git repo — `owner/repo` shorthand, a host/path ref, or a full Git URL; optional branch.
-    "effect": { "repository": "Effect-TS/effect-smol", "branch": "main" }
-  }
+    "effect": { "repository": "Effect-TS/effect-smol", "branch": "main" },
+  },
 }
 ```
 
@@ -108,7 +118,7 @@ Model attribution (above) is one axis; _where the model's shell runs_ is a separ
 - **`real`** — the lib `spawn`; touches the actual filesystem. The default for trusted, intentional work.
 - **`sandboxed`** — [`just-bash`](https://justbash.dev) (an in-process virtual-filesystem bash interpreter; zero model calls). For running model-generated or untrusted shell without touching the real FS — eval harnesses, agent self-test, analyzing a script before trusting it. Consumed via its `createBashTool({ files })` / Vercel-compatible `Sandbox.create()` surface.
 
-Pick the exec backend by _trust level_, not by model. `just-bash` is NOT a `lib/ai/backends` entry — it makes no model call and produces no attributed output, so it lives in the exec seam, never the model-CLI registry. (The `flue` agent framework, which is an _orchestrator_ peer to this whole delegate + opencode + `lib/ai/spawn` stack — not a backend — uses a sandbox in exactly this slot. We evaluated adopting it as our harness and **declined**: it is pre-1.0 (v0.10.x, breaking fast), its provider-routing layer is thinner than our `route`/`tier`/`backends`, and its added capabilities — durable execution, Cloudflare/container deploy — target hosted long-running agents, not the hook/CI/lint tooling we actually run. Re-evaluate only if we need durable hosted agents or it ships a stable 1.0 with routing at least as capable as ours.)
+Pick the exec backend by _trust level_, not by model. `just-bash` is NOT a `lib/ai/backends` entry — it makes no model call and produces no attributed output, so it lives in the exec seam, never the model-CLI registry. The `flue` agent framework, which is an _orchestrator_ peer to this whole delegate + opencode + `lib/ai/spawn` stack — not a backend — uses a sandbox in exactly this slot. We evaluated adopting it as our harness and **declined**: it is pre-1.0 (v0.10.x, breaking fast), its provider-routing layer is thinner than our `route`/`tier`/`backends`, and its added capabilities — durable execution, Cloudflare/container deploy — target hosted long-running agents, not the hook/CI/lint tooling we actually run. Re-evaluate only if we need durable hosted agents or it ships a stable 1.0 with routing at least as capable as ours.
 
 ## Canonical implementation
 
@@ -120,8 +130,20 @@ CI carries the **Claude key only** (`ANTHROPIC_API_KEY` as a GitHub secret); `co
 
 Provider tokens resolve through **`resolveProviderCredential`** (`@socketsecurity/lib/ai/credentials`): explicit → env var → keychain. In CI pass `allowEnvOnly: true` so a missing token returns `undefined` immediately instead of blocking on a keychain prompt that can't be answered headlessly; the GitHub-secret env var (`ANTHROPIC_API_KEY`) is read by the same call. Fireworks / Synthetic / Codex stay dev-only by design — their tokens are not added to CI, so an HTTP-provider call in CI fails closed with the "set the env var" error rather than silently reaching a paid endpoint.
 
+## Keyless local tier (locai)
+
+A fourth tier sits below all keyed backends: the **`locai` CLI** from `SocketDev/odai`, which runs single-shot tasks against on-device models — Gemini Nano through headless Chrome, a loopback `llama-server`, Apple FoundationModels, or a deterministic simulator — with **no API key at all**. The fleet wrapper is `scripts/fleet/_shared/locai.mts`; its contract is the CLI's exit codes: `0` = JSON result on stdout, `69` = no backend available = **clean skip, never a failure**. Everything routed through this seam is fail-open by construction.
+
+Scope is deliberately narrow, per the locai bench evidence:
+
+- **Admitted: summary-class single-shot tasks only** — `summarize`, `commit-msg`, `triage`; the scenario family small local models pass reliably. The wired consumer is the land-work commit-body summarizer, which falls back to locai when no `claude` CLI resolves.
+- **Per-repo opt-in, never a fleet-wide flip**: `ai.localAssist: true` in `.config/repo/socket-wheelhouse.json`. Default off everywhere.
+- **NOT admitted**: the `ai-lint-fix` code-repair leg — bench-gated until a real `llama-server` + 7B-coder engine run clears the admission bar — and the gh-aw **engine replacement** for agentic workflows. The gh-aw plumbing for a keyless engine shim is confirmed to exist — `engine.env` `ANTHROPIC_BASE_URL` routes through the firewall config — but no current keyless local model can carry a multi-turn 60+-tool agent job, so that leg is unbuilt on purpose. CI agent workflows still require `ANTHROPIC_API_KEY`.
+
+The `locai` binary is not yet published to npm: dev machines link it from a `odai` clone or set `LOCAI_BIN`. `pnpm run` → `node scripts/fleet/ai-backends-status.mts` reports the tier's readiness; `locai backends` prints per-backend detail.
+
 ## When NOT to use
 
-- Skills that only need _one_ agent (the current Claude session driving the user). No detection needed; just do the work.
+- Skills that only need _one_ agent — the current Claude session driving the user. No detection needed; just do the work.
 - Skills that need a specific model unconditionally (e.g. a benchmark that compares two models — those use direct API calls, not the CLI registry).
 - Per-repo fix scripts that rely on a single tool (`pnpm`, `git`, `cargo`). Tooling, not agents.

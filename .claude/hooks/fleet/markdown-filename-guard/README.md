@@ -9,6 +9,7 @@ PreToolUse Edit/Write hook that blocks markdown files with non-canonical filenam
 | `README.md`, `LICENSE`                                                                                                                                                                                                                     | anywhere                                                  | Special-cased by GitHub.                                      |
 | `AUTHORS.md`, `CHANGELOG.md`, `CITATION.md`, `CLAUDE.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `CONTRIBUTORS.md`, `COPYING`, `CREDITS.md`, `GOVERNANCE.md`, `MAINTAINERS.md`, `NOTICE.md`, `SECURITY.md`, `SUPPORT.md`, `TRADEMARK.md` | repo root, `docs/` (top level), or `.claude/` (top level) | The SCREAMING_CASE allowlist. GitHub renders these specially. |
 | `lowercase-with-hyphens.md`                                                                                                                                                                                                                | inside `docs/` or `.claude/` (any depth)                  | All other docs.                                               |
+| `SKILL.md`                                                                                                                                                                                                                                 | skill roots: a directory under a `skills/` segment        | The Anthropic Agent Skills manifest — spec-dictated name.     |
 
 Blocked:
 
@@ -16,12 +17,13 @@ Blocked:
 - `.MD` extension — use `.md`.
 - `camelCase.md` / `snake_case.md` / `Spaces In Filename.md` — convert to lowercase-with-hyphens.
 - Lowercase-hyphenated docs at repo root — move to `docs/` or `.claude/`.
+- `SKILL.md` outside a skill root — the name is spec-reserved; move it to `<skills-dir>/<skill-name>/SKILL.md`.
 
 ## Why
 
 SCREAMING_CASE doc filenames optimize for "noticeable in a repo root" but read as shouty + opaque inside body text and TOC links. Lowercase-with-hyphens reads naturally and matches the rest of the fleet's slug-style identifiers (URLs, CSS classes, CLI flags, package names). The narrow SCREAMING_CASE allowlist is the set GitHub renders specially — adding more dilutes the signal.
 
-The fleet's `scripts/validate/markdown-filenames.mts` does the same check at commit time (per repo, not template-canonical); this hook catches it earlier, at edit time, so the model gets immediate feedback when it picks a wrong name.
+The fleet's `scripts/fleet/check/markdown-filenames-are-canonical.mts` does the same check at commit time; this hook catches it earlier, at edit time, so the model gets immediate feedback when it picks a wrong name.
 
 ## Companion files
 
@@ -36,4 +38,4 @@ If GitHub adds a new specially-rendered file (e.g. `FUNDING.md`), update `ALLOWE
 
 ## Failing open
 
-The hook fails open on its own bugs (exit 0 + stderr log) so a bad deploy can't brick the session. The `scripts/validate/markdown-filenames.mts` gate at commit time is the second line of defense.
+The hook fails open on its own bugs (exit 0 + stderr log) so a bad deploy can't brick the session. The `scripts/fleet/check/markdown-filenames-are-canonical.mts` gate at commit time is the second line of defense.

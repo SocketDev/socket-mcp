@@ -1,19 +1,19 @@
-/**
+/*
  * @file Shared types for Claude Code PreToolUse hook payloads. Claude Code
  *   sends a JSON object on stdin to every PreToolUse hook: { "tool_name":
  *   "Edit" | "Write" | "Bash" | ..., "tool_input": {...} } The shape of
  *   `tool_input` varies by tool. The fleet's hooks need three subsets:
  *
- *   - Edit/Write hooks read `file_path` (always present) and either `content`
+ *   - Edit/Write hooks read `file_path`, always present, and either `content`
  *     (Write) or `new_string` (Edit).
- *   - Bash hooks read `command` (the shell line to run).
- *   - A few hooks (cross-repo-guard, no-fleet-fork-guard) read `file_path` to
+ *   - Bash hooks read `command`, the shell line to run.
+ *   - A few hooks, cross-repo-guard, no-fleet-fork-guard, read `file_path` to
  *     gate edits to specific paths. Each hook used to declare its own
  *     `tool_input` type inline — 7 distinct shapes existed across the fleet for
  *     the same data. This file centralizes them so:
  *
  *   1. Future hooks copy-paste the right type instead of inventing one.
- *   2. A schema change (new tool, new field) is a one-file edit.
+ *   2. A schema change, new tool, new field, is a one-file edit.
  *   3. The `unknown`-vs-`string` widening choice is consistent across hooks (we
  *      widen to `unknown` and narrow at use; that's the defensive shape for a
  *      payload we don't fully control). All fields are optional + `unknown`
@@ -27,6 +27,8 @@
  */
 
 import process from 'node:process'
+
+import { safeReadFileSync } from '@socketsecurity/lib-stable/fs/read-file'
 
 import { isFleetManagedDir, isFleetManagedPath } from './fleet-repo.mts'
 import { commandWorkingDir } from './shell-command.mts'
@@ -61,12 +63,18 @@ export interface ToolInput {
   readonly content?: unknown | undefined
   readonly new_string?: unknown | undefined
   readonly old_string?: unknown | undefined
+  // MultiEdit: an array of { old_string, new_string } edits applied in order.
+  readonly edits?: unknown | undefined
   // Bash
   readonly command?: unknown | undefined
   // Bash: true when the call requested `run_in_background`. Hooks that gate
   // backgrounding (a backgrounded git commit hides its bounded pre-commit's
   // completion) read it. Optional + unknown so a shape surprise can't crash.
   readonly run_in_background?: unknown | undefined
+  // Skill: the skill name a `Skill` tool call names (skill-usage-logger reads
+  // it to record which skill fired). Optional + unknown so a shape surprise
+  // can't crash the narrow.
+  readonly skill?: unknown | undefined
 }
 
 /**
@@ -109,6 +117,71 @@ export function readWriteContent(payload: ToolCallPayload): string | undefined {
 }
 
 /**
+ * Resolve the full text a file WILL have after the about-to-run edit, so a
+ * guard can scan the post-edit document — not just the `new_string` fragment.
+ *
+ * - Write → `content` verbatim.
+ * - Edit → the on-disk file with `old_string` replaced by `new_string` (first
+ *   occurrence, matching the Edit tool). `undefined` if the file is unreadable
+ *   or `old_string` isn't present, the edit wouldn't apply.
+ * - MultiEdit → the on-disk file with each `{ old_string, new_string }` folded in
+ *   order; `undefined` if any step's `old_string` is absent.
+ *
+ * `undefined` means "can't determine the post-edit text" → the caller fails
+ * open. Replaces the per-hook `currentText.replace(old, new)` idiom (which had
+ * drifted between `indexOf`+`slice` and `String.replace`, with differing
+ * miss-handling).
+ */
+export function resolveEditedText(
+  payload: ToolCallPayload,
+): string | undefined {
+  const input = payload?.tool_input
+  if (!input) {
+    return undefined
+  }
+  if (typeof input.content === 'string') {
+    return input.content
+  }
+  const filePath = readFilePath(payload)
+  if (!filePath) {
+    return undefined
+  }
+  const current = safeReadFileSync(filePath)
+  if (typeof current !== 'string') {
+    return undefined
+  }
+  const { edits } = input
+  if (Array.isArray(edits)) {
+    let text = current
+    for (let i = 0, { length } = edits; i < length; i += 1) {
+      const edit = edits[i]
+      if (!edit || typeof edit !== 'object') {
+        continue
+      }
+      const oldStr = (edit as { old_string?: unknown | undefined }).old_string
+      const newStr = (edit as { new_string?: unknown | undefined }).new_string
+      if (typeof oldStr !== 'string' || typeof newStr !== 'string') {
+        continue
+      }
+      if (!text.includes(oldStr)) {
+        return undefined
+      }
+      text = text.replace(oldStr, newStr)
+    }
+    return text
+  }
+  const oldStr = input.old_string
+  const newStr = input.new_string
+  if (typeof oldStr === 'string' && typeof newStr === 'string') {
+    if (!current.includes(oldStr)) {
+      return undefined
+    }
+    return current.replace(oldStr, newStr)
+  }
+  return undefined
+}
+
+/**
  * Read + parse the PreToolUse payload from stdin, failing open on any problem
  * (empty stdin, unreadable, malformed JSON) by returning undefined. The shared
  * preamble every guard repeats; the caller decides what "fail open" means
@@ -145,7 +218,9 @@ export async function withBashGuard(
   fn: (command: string, payload: ToolCallPayload) => void | Promise<void>,
   options?: { fleetOnly?: boolean | undefined } | undefined,
 ): Promise<void> {
-  const opts = { __proto__: null, ...options } as { fleetOnly?: boolean }
+  const opts = { __proto__: null, ...options } as {
+    fleetOnly?: boolean | undefined
+  }
   try {
     const payload = await readPayload()
     if (!payload || payload.tool_name !== 'Bash') {
@@ -165,8 +240,11 @@ export async function withBashGuard(
     }
     await fn(command, payload)
   } catch {
-    // Fail open: a guard error must not block the user's command.
-    process.exitCode = 0
+    // Fail open — but never UN-block: in a shared dispatcher process a prior
+    // guard may have set exitCode 2; a later guard's fail-open must not clear it.
+    if (process.exitCode !== 2) {
+      process.exitCode = 0
+    }
   }
 }
 
@@ -186,11 +264,13 @@ export async function withEditGuard(
   ) => void | Promise<void>,
   options?: { fleetOnly?: boolean | undefined } | undefined,
 ): Promise<void> {
-  const opts = { __proto__: null, ...options } as { fleetOnly?: boolean }
+  const opts = { __proto__: null, ...options } as {
+    fleetOnly?: boolean | undefined
+  }
   try {
     const payload = await readPayload()
     const tool = payload?.tool_name
-    if (tool !== 'Edit' && tool !== 'Write' && tool !== 'MultiEdit') {
+    if (tool !== 'Edit' && tool !== 'MultiEdit' && tool !== 'Write') {
       return
     }
     const filePath = readFilePath(payload!)
@@ -207,7 +287,10 @@ export async function withEditGuard(
     }
     await fn(filePath, readWriteContent(payload!), payload!)
   } catch {
-    // Fail open: a guard error must not block the user's edit.
-    process.exitCode = 0
+    // Fail open — but never UN-block: in a shared dispatcher process a prior
+    // guard may have set exitCode 2; a later guard's fail-open must not clear it.
+    if (process.exitCode !== 2) {
+      process.exitCode = 0
+    }
   }
 }

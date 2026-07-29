@@ -35,17 +35,13 @@
 //
 // Fails open on malformed payloads (exit 0 + stderr log).
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { withBashGuard, type ToolCallPayload } from '../_shared/payload.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
+import type { ToolCallPayload } from '../_shared/payload.mts'
 import { commandsFor } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
+import { resolveProjectDir } from '../_shared/project-dir.mts'
 
 interface Hit {
   readonly label: string
@@ -53,7 +49,11 @@ interface Hit {
   readonly snippet: string
 }
 
-const BYPASS_PHRASE = 'Allow scan-label-in-commit bypass'
+// Pre-flight trigger: the dispatcher imports this guard only when the raw
+// command contains one of these substrings. The only block path requires a
+// parsed `git` segment whose args include the verbatim `commit` token, so a
+// command without the substring `commit` can never reach a block verdict.
+export const triggers: readonly string[] = ['commit']
 
 // Match standalone scan-report-internal IDs: B/M/H/L (Blocker /
 // Medium / High / Low) followed by 1–4 digits. The lookbehind /
@@ -73,7 +73,7 @@ export function stripFencedCode(body: string): string {
 
 /**
  * Find scan-label matches in a commit message body. Returns one hit per unique
- * (line, label) pair so the error message can name them all.
+ * line, label, pair so the error message can name them all.
  */
 export function findScanLabels(body: string): Hit[] {
   const stripped = stripFencedCode(body)
@@ -173,20 +173,15 @@ export function extractCommitMessage(
   return undefined
 }
 
-// The block logic. Exits 2 when a scan label is found without a bypass
-// phrase; returns (→ exit 0) otherwise.
-function checkCommand(command: string, payload: ToolCallPayload): void {
-  const cwd = payload.cwd ?? process.cwd()
+export const check = bashGuard((command, payload: ToolCallPayload) => {
+  const cwd = resolveProjectDir(payload.cwd)
   const body = extractCommitMessage(command, cwd)
   if (!body) {
-    return
+    return undefined
   }
   const hits = findScanLabels(body)
   if (hits.length === 0) {
-    return
-  }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return
+    return undefined
   }
   const lines: string[] = []
   lines.push(
@@ -212,21 +207,18 @@ function checkCommand(command: string, payload: ToolCallPayload): void {
   lines.push(
     '    ✓ fix(http-request/download): settle on fileStream finish, not res end',
   )
-  lines.push('')
-  lines.push('  Bypass (e.g. citing a real advisory ID that happens to match):')
-  lines.push(`    Type "${BYPASS_PHRASE}" in your next message.`)
-  logger.error(lines.join('\n') + '\n')
-  process.exitCode = 2
-}
+  return block(lines.join('\n') + '\n')
+})
 
-export { checkCommand }
-
-// CLI entrypoint — only fires when this file is the main module. Tests
-// import `findScanLabels` / `extractCommitMessage` directly without
-// triggering withBashGuard (which would drain stdin and never see an
-// `end` event in the test env, hanging the process).
-if (process.argv[1]?.endsWith('index.mts')) {
-  // withBashGuard handles the stdin drain, tool_name gate, command
-  // narrow, and fail-open on any throw.
-  await withBashGuard(checkCommand)
-}
+export const hook = defineHook({
+  bypass: ['scan-label-in-commit'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  scope: 'convention',
+  type: 'guard',
+})
+/* c8 ignore next - standalone entrypoint only, not reachable in-process tests */
+void runHook(hook, import.meta.url)

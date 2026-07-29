@@ -1,10 +1,12 @@
 ---
 name: tidying-worktrees
-description: Sweeps every fleet repo and removes spent git worktrees — clean trees whose branch is fully merged into the remote base, or gone from the remote with nothing unpushed. Conservative and no-prompt: a dirty worktree, or one carrying unpushed commits, is always kept (it may be a parallel session's live work). Use for periodic low-friction care of the fleet's worktree clutter, or before a cascade wave to clear interrupted-wave leftovers. Defaults to dry-run; pass --fix to act.
+description: Sweep spent clean worktrees whose branches merged or disappeared, while preserving dirty or unpushed work.
 user-invocable: true
 allowed-tools: Bash(node:*), Bash(git worktree:*), Bash(git branch:*), Bash(git fetch:*), Bash(pnpm i:*), Read
 model: claude-haiku-4-5
 context: fork
+metadata:
+  internal: true
 ---
 
 # tidying-worktrees
@@ -63,7 +65,7 @@ A non-primary worktree is removed ONLY when its tree is **clean** AND it has
 1. its branch is **fully merged** into `origin/<base>` (every commit is already
    an ancestor — spent), OR
 2. its branch is **gone from the remote** AND the worktree is **not ahead** of
-   the base (a never-shared local branch with no unpushed commits).
+   the base — a never-shared local branch with no unpushed commits.
 
 Everything else is **kept**:
 
@@ -80,7 +82,7 @@ Everything else is **kept**:
   clean-tree check, so it clears the submodule guard without discarding work.
 - **Relink after removal.** A `git worktree remove` can dangle the primary
   checkout's `node_modules` symlinks. After a `--fix` that removed anything, run
-  `pnpm i` in each affected repo's primary checkout (the engine names them).
+  `pnpm i` in each affected repo's primary checkout — the engine names them.
 - **Default branch fallback.** Base resolves via
   `git symbolic-ref refs/remotes/origin/HEAD` → `main` → `master`. Never
   hard-coded.

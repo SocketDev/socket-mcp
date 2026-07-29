@@ -18,30 +18,25 @@
 //
 // The fix the message gives:
 //   - run a script:   node path/to/script.mts
-//   - hook tests:      node --test test/*.test.mts   (from the hook dir)
+//   - hook tests:      node --test test/*.test.mts, from the hook dir
 //   - src/repo tests:  node_modules/.bin/vitest run path/to/foo.test.mts
 //
 // Detection (AST-parsed via the shared shell-command helper, not a raw
 // regex): the command runs the `tsx`/`ts-node` binary, OR a `node`
 // invocation carries a `tsx`/`ts-node` loader flag.
 //
-// Bypass: `Allow tsx bypass` typed verbatim in a recent user turn.
-//
 // Fails open on parse / payload errors (exit 0) — a guard bug must not
 // wedge every Bash call.
 
-import process from 'node:process'
-
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import { commandsFor } from '../_shared/shell-command.mts'
 
-const BYPASS_PHRASE = 'Allow tsx bypass' as const
-
-interface Payload {
-  tool_name?: unknown | undefined
-  tool_input?: { command?: unknown | undefined } | undefined
-  transcript_path?: unknown | undefined
-}
+// Pre-flight triggers: the dispatcher skips importing this guard unless
+// the raw payload contains one of these substrings. Every blocking path
+// requires the literal binary name (`tsx`/`ts-node` as the command) OR a
+// loader value naming one (`--import tsx`, `--require ts-node/register`),
+// so a command with neither substring can never block — safe to skip.
+export const triggers: readonly string[] = ['tsx', 'ts-node']
 
 // The verboten TS-execution binaries.
 const TS_RUNNERS = ['tsx', 'ts-node'] as const
@@ -59,7 +54,7 @@ const NODE_LOADER_FLAGS = [
 export interface TsxDetection {
   readonly detected: boolean
   // 'runner' — `tsx`/`ts-node` invoked directly.
-  // 'loader' — `node --import tsx` (or sibling loader flag).
+  // 'loader' — `node --import tsx`, or sibling loader flag.
   readonly kind: 'loader' | 'runner'
   // The offending tool name (tsx / ts-node) for the message.
   readonly tool: string
@@ -104,7 +99,7 @@ export function detectTsx(command: string): TsxDetection {
         }
         continue
       }
-      // Separated form: `--import tsx` (value is the next token).
+      // Separated form: `--import tsx`, value is the next token.
       if ((NODE_LOADER_FLAGS as readonly string[]).includes(arg)) {
         const next = args[i + 1]
         const tool = next ? valueNamesTsRunner(next) : undefined
@@ -134,56 +129,29 @@ export function formatBlock(d: TsxDetection): string {
       '  For tests:',
       '    • hook tests (.claude/hooks/**/test/): node --test test/*.test.mts',
       '    • src/repo tests:  node_modules/.bin/vitest run path/to/foo.test.mts',
-      '',
-      `  Bypass: type "${BYPASS_PHRASE}" to allow it for this invocation.`,
     ].join('\n') + '\n'
   )
 }
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: Payload
-  try {
-    payload = JSON.parse(raw) as Payload
-  } catch {
-    process.exit(0)
-  }
-
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
-  }
-
-  const command =
-    typeof payload.tool_input?.command === 'string'
-      ? payload.tool_input.command
-      : ''
+export const check = bashGuard(command => {
   if (!command.trim()) {
-    process.exit(0)
+    return undefined
   }
-
   const detection = detectTsx(command)
   if (!detection.detected) {
-    process.exit(0)
+    return undefined
   }
+  return block(formatBlock(detection))
+})
 
-  const transcriptPath =
-    typeof payload.transcript_path === 'string'
-      ? payload.transcript_path
-      : undefined
-  if (
-    transcriptPath &&
-    bypassPhrasePresent(transcriptPath, [BYPASS_PHRASE], 3)
-  ) {
-    process.exit(0)
-  }
-
-  process.stderr.write(formatBlock(detection))
-  process.exit(2)
-}
-
-// Entrypoint-guarded: run main() only when invoked directly, NOT when the test
-// imports this module for its pure helpers (else main() blocks on stdin at
-// import and the test file never terminates).
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  void main()
-}
+export const hook = defineHook({
+  bypass: ['tsx'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  scope: 'convention',
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

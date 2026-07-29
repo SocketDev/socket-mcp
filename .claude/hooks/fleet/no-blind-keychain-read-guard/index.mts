@@ -41,21 +41,13 @@
 // Use when you genuinely need to verify a keychain entry exists
 // (e.g. operator-invoked diagnostics).
 //
-// Exit codes:
-//   0 — pass.
-//   2 — block.
-//
-// Fails open on malformed payloads (exit 0 + stderr log) — the fleet's
-// hook contract.
+// Verdict, uniform guard contract: `check` returns `block(message)` to block
+// (the runner prints the message + sets exitCode 2) or `undefined` to allow.
+// `runGuard` fails open on malformed payloads — the fleet's hook contract.
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import process from 'node:process'
-
-import { withBashGuard, type ToolCallPayload } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
+import { block, defineHook, runHook } from '../_shared/guard.mts'
+import { readCommand } from '../_shared/payload.mts'
+import type { ToolCallPayload } from '../_shared/payload.mts'
 
 interface Hit {
   readonly tool: string
@@ -63,7 +55,22 @@ interface Hit {
   readonly snippet: string
 }
 
-const BYPASS_PHRASE = 'Allow blind-keychain-read bypass'
+// Pre-flight triggers — the dispatcher imports + runs this guard only
+// when the raw command contains at least one of these substrings. Each
+// is the literal anchor a `READ_PATTERNS` entry requires, so no command
+// can match a pattern without containing one of them: `find-*-password`
+// (macOS `security`), `secret-tool` (Linux), `Get-StoredCredential` and
+// `ConvertFrom-SecureString`, Windows readback pipe, `keyring` (Python
+// CLI). Writes/deletes share these substrings too, so the guard still
+// runs for them and correctly returns no hit.
+export const triggers: readonly string[] = [
+  'ConvertFrom-SecureString',
+  'Get-StoredCredential',
+  'find-generic-password',
+  'find-internet-password',
+  'keyring',
+  'secret-tool',
+]
 
 // Token-bearing read patterns. Each entry: the literal verb that
 // surfaces a UI prompt + a label for the error message. Writes /
@@ -81,7 +88,7 @@ const READ_PATTERNS: ReadonlyArray<{
     platform: 'macos',
   },
   // Linux — `secret-tool`. `lookup` returns the password; `search`
-  // lists matches (also surfaces the libsecret prompt).
+  // lists matches, also surfaces the libsecret prompt.
   {
     re: /\bsecret-tool\s+(?:lookup|search)\b/,
     tool: 'secret-tool lookup/search',
@@ -97,7 +104,7 @@ const READ_PATTERNS: ReadonlyArray<{
   },
   // PowerShell `Get-Credential -Credential` piped to
   // `ConvertFrom-SecureString -AsPlainText` is the readback shape.
-  // The bare `Get-Credential` (no pipe) is a fresh-prompt-the-user
+  // The bare `Get-Credential`, no pipe, is a fresh-prompt-the-user
   // flow and not the issue here — match only the readback pipe.
   {
     re: /\bGet-Credential\b[^|]*\|\s*ConvertFrom-SecureString\b/,
@@ -139,15 +146,25 @@ export function findKeychainReads(command: string): Hit[] {
   return hits
 }
 
-// The block logic. Exits 2 when a keychain read is found without a
-// bypass phrase; returns (→ exit 0) otherwise.
-function checkCommand(command: string, payload: ToolCallPayload): void {
+/**
+ * Pure detection. Returns the exact block message when the payload is a Bash
+ * call whose command reads the keychain; `undefined` otherwise (non-Bash tool,
+ * absent command, or no keychain read). The internal `typeof === 'string'`
+ * narrow in `readCommand` keeps the `unknown` payload fields safe.
+ */
+export function keychainReadMessage(
+  payload: ToolCallPayload,
+): string | undefined {
+  if (payload?.tool_name !== 'Bash') {
+    return undefined
+  }
+  const command = readCommand(payload)
+  if (!command) {
+    return undefined
+  }
   const hits = findKeychainReads(command)
   if (hits.length === 0) {
-    return
-  }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return
+    return undefined
   }
   const lines: string[] = []
   lines.push(
@@ -180,22 +197,25 @@ function checkCommand(command: string, payload: ToolCallPayload): void {
   lines.push('  Writes / deletes (security add-generic-password / secret-tool')
   lines.push('  store / New-StoredCredential / etc.) are allowed — they only')
   lines.push('  happen during operator-driven setup / rotation.')
-  lines.push('')
-  lines.push('  Bypass (e.g. operator-invoked diagnostics that need a fresh')
-  lines.push('  keychain read):')
-  lines.push(`    Type "${BYPASS_PHRASE}" in your next message.`)
-  logger.error(lines.join('\n') + '\n')
-  process.exitCode = 2
+  return lines.join('\n') + '\n'
 }
 
-export { checkCommand }
-
-// CLI entrypoint — only fires when this file is the main module.
-// During tests the importer pulls `findKeychainReads` without triggering
-// withBashGuard (which would drain stdin and never see an `end` event in
-// the test env, hanging the process).
-if (process.argv[1]?.endsWith('index.mts')) {
-  // withBashGuard handles the stdin drain, tool_name gate, command
-  // narrow, and fail-open on any throw.
-  await withBashGuard(checkCommand)
+// The block logic. Blocks when a keychain read is found; allows (returns
+// undefined) otherwise.
+export const check = (payload: ToolCallPayload) => {
+  const message = keychainReadMessage(payload)
+  if (!message) {
+    return undefined
+  }
+  return block(message)
 }
+
+export const hook = defineHook({
+  bypass: ['blind-keychain-read'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

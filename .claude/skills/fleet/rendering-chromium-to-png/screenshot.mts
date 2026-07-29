@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-/**
- * @file Render a page (or a real Chrome extension popup) to a PNG so an agent
+/*
+ * @file Render a page, or a real Chrome extension popup, to a PNG so an agent
  *   can SEE it — open the PNG with the Read tool and the rendered pixels go
  *   into context, catching layout / color / empty-state / render-throw bugs
  *   that code-reading misses. Pairs with the fleet "verify rendered output
@@ -16,16 +16,16 @@
  *
  *   2. Extension mode — load an unpacked MV3 extension with its REAL chrome.*
  *      powers (background service worker + content scripts + popup), then
- *      screenshot a page inside it (the popup by default):
+ *      screenshot a page inside it, the popup by default:
  *        node scripts/fleet/screenshot.mts --extension <unpacked-dir> [--page popup.html]
  *          [--out p.png] [--width 580] [--wait 2500] [--theme dark|light]
  *      Uses `channel: 'chromium'` — the documented way to run extensions in
  *      headless Chromium (plain headless silently ignores --load-extension).
  *
  *   Browser: playwright-core's bundled Chromium (a wheelhouse devDep). If the
- *   browser binary is missing, run `pnpm exec playwright install chromium`.
+ *   browser binary is missing, run `node_modules/.bin/playwright install chromium`.
  *
- *   Exit codes: 0 — PNG written (path printed); 1 — render / launch failed.
+ *   Exit codes: 0 — PNG written, path printed; 1 — render / launch failed.
  */
 
 import { mkdtempSync } from 'node:fs'
@@ -34,7 +34,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 
@@ -45,7 +45,8 @@ const logger = getDefaultLogger()
 // Normalize a target into a navigable URL: pass http(s)/chrome-extension
 // through; treat anything else as a local path → file:// URL.
 export function toUrl(target: string): string {
-  if (/^(?:https?|file|chrome-extension):/.test(target)) {
+  // Matches http://, https://, file://, or chrome-extension:// URL schemes.
+  if (/^(?:chrome-extension|file|https?):/.test(target)) {
     return target
   }
   return `file://${path.resolve(target)}`
@@ -120,7 +121,10 @@ async function main(): Promise<void> {
   const target = positionals[0]
   if (!target) {
     logger.error(
-      'Usage: screenshot.mts <url|file> [--out p.png] [--width 580] [--theme dark|light] [--wait ms] [--full]\n   or: screenshot.mts --extension <unpacked-dir> [--page popup.html] [...]',
+      'Usage: screenshot.mts <url|file> [--out p.png] [--width 580] [--theme dark|light] [--wait ms] [--full]',
+    )
+    logger.error(
+      'or: screenshot.mts --extension <unpacked-dir> [--page popup.html] [...]',
     )
     process.exitCode = 1
     return

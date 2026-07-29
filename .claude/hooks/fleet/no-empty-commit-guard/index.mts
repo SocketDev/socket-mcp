@@ -9,7 +9,7 @@
 //      against a ref whose patch is empty relative to HEAD.
 //
 // Why blocking, not reminder: empty commits pollute `git log`, break
-// CHANGELOG generators (which expect each commit to carry a diff),
+// CHANGELOG generators, which expect each commit to carry a diff,
 // and hide intent ("did the author mean to anchor a tag? amend a
 // previous commit? something else?"). The canonical way to anchor
 // a release tag forward is `git tag -f vX.Y.Z` against the actual
@@ -30,20 +30,16 @@
 //   0  — allow.
 //   2  — block. Stderr carries the operator-facing message.
 //
+// squash-history repos, roster opt-in, are EXEMPT — no bypass needed: every
+// commit collapses into the lone `chore: initial commit`, so an empty commit is
+// absorbed by the next squash and never reaches the log/CHANGELOG this protects.
+//
 // Fails open on any internal error (exit 0 + stderr log) so the
 // hook never wedges the operator's flow.
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import process from 'node:process'
-
-import { withBashGuard } from '../_shared/payload.mts'
-import { commandsFor } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow empty-commit bypass'
+import { isSquashOptIn } from '../_shared/fleet-roster.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
+import { commandsFor, commandWorkingDir } from '../_shared/shell-command.mts'
 
 /**
  * Detect `git commit --allow-empty` (and `--allow-empty-message`, which is the
@@ -74,24 +70,25 @@ export function isCherryPickAllowEmpty(command: string): boolean {
   )
 }
 
-// withBashGuard handles the stdin drain, tool_name gate, command narrow,
-// and fail-open on any throw.
-await withBashGuard((command, payload) => {
+export const check = bashGuard(command => {
   const allowEmptyCommit = isAllowEmptyCommit(command)
   const allowEmptyCherryPick = isCherryPickAllowEmpty(command)
   if (!allowEmptyCommit && !allowEmptyCherryPick) {
-    return
+    return undefined
   }
 
-  // Operator bypass — `Allow empty-commit bypass` in a recent turn.
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return
+  // squash-history repos, roster opt-in, collapse ALL commits into the one
+  // canonical `chore: initial commit` — an empty commit is absorbed on the next
+  // squash, so it never reaches the `git log` / CHANGELOG the ban protects. No
+  // bypass needed there; the rationale simply doesn't apply.
+  if (isSquashOptIn(commandWorkingDir(command))) {
+    return undefined
   }
 
   const flag = allowEmptyCommit
     ? '--allow-empty (or --allow-empty-message)'
     : '--allow-empty / --keep-redundant-commits'
-  logger.error(
+  return block(
     [
       `[no-empty-commit-guard] Blocked: git ${allowEmptyCommit ? 'commit' : 'cherry-pick'} ${flag}`,
       '',
@@ -101,11 +98,18 @@ await withBashGuard((command, payload) => {
       '  If you are anchoring a release tag forward, use:',
       '    git tag -f vX.Y.Z <real-content-commit>',
       '    git push origin --force-with-lease vX.Y.Z',
-      '',
-      '  If you genuinely need to record a no-content waypoint, type',
-      `  "${BYPASS_PHRASE}" in chat, then retry.`,
-      '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['empty-commit'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

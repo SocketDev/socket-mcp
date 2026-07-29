@@ -25,7 +25,7 @@
 //
 // Bypass:
 //   - `Allow mass-delete bypass` in a recent user turn — for a genuine large
-//     removal (dropping a vendored tree, deleting a retired package).
+//     removal, dropping a vendored tree, deleting a retired package.
 //   - `FLEET_SYNC=1` prefix — cascade commits legitimately replace whole
 //     fleet dirs and are trusted.
 //
@@ -35,18 +35,24 @@
 //     "transcript_path": "/.../session.jsonl" }
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import process from 'node:process'
 
-import { findInvocation } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
-
-interface ToolPayload {
-  readonly tool_name?: string | undefined
-  readonly tool_input?: { readonly command?: unknown | undefined } | undefined
-  readonly transcript_path?: string | undefined
-}
+import { isGitCommit } from '../_shared/commit-command.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
+import { isFleetSyncCommand } from '../_shared/shell-command.mts'
+import { spawnTimeoutMs } from '../_shared/spawn-timeout.mts'
+import { squashSentinelAllows } from '../_shared/squash-sentinel.mts'
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import { resolveProjectDir } from '../_shared/project-dir.mts'
 
 const BYPASS_PHRASES = ['Allow mass-delete bypass'] as const
+
+// Pre-flight triggers: the dispatcher skips importing this guard unless the raw
+// payload contains one of these substrings. The guard can only ever block when
+// `isGitCommit(command)` is true, and that detection (the shared
+// `_shared/commit-command.mts` segment parse) requires `commit` as the
+// subcommand verb of a real `git` segment. So `commit` is a necessary
+// substring of every blocking command — safe to gate on.
+export const triggers: readonly string[] = ['commit']
 
 // A commit deleting at least this many files is catastrophic regardless of
 // repo size — catches a wipe in a large repo where the ratio alone wouldn't
@@ -57,12 +63,10 @@ const DELETE_FLOOR = 50
 const DELETE_RATIO = 0.75
 
 export function getRepoDir(): string {
-  return process.env['CLAUDE_PROJECT_DIR'] || process.cwd()
+  return resolveProjectDir()
 }
 
-export function isGitCommit(command: string): boolean {
-  return findInvocation(command, { binary: 'git', subcommand: 'commit' })
-}
+export { isGitCommit }
 
 /**
  * Count files staged for DELETION in the index (vs HEAD).
@@ -71,7 +75,7 @@ export function countStagedDeletions(repoDir: string): number {
   const r = spawnSync(
     'git',
     ['diff', '--cached', '--diff-filter=D', '--name-only'],
-    { cwd: repoDir, timeout: 5_000 },
+    { cwd: repoDir, timeout: spawnTimeoutMs(5000) },
   )
   if (r.status !== 0) {
     return 0
@@ -83,10 +87,13 @@ export function countStagedDeletions(repoDir: string): number {
 }
 
 /**
- * Count files tracked in HEAD's tree (the denominator for the ratio test).
+ * Count files tracked in HEAD's tree, the denominator for the ratio test.
  */
 export function countTrackedFiles(repoDir: string): number {
-  const r = spawnSync('git', ['ls-files'], { cwd: repoDir, timeout: 5_000 })
+  const r = spawnSync('git', ['ls-files'], {
+    cwd: repoDir,
+    timeout: spawnTimeoutMs(5000),
+  })
   if (r.status !== 0) {
     return 0
   }
@@ -116,42 +123,31 @@ export function catastrophicReason(
   return undefined
 }
 
-async function main(): Promise<void> {
-  const raw = await readStdin()
-  let payload: ToolPayload
-  try {
-    payload = JSON.parse(raw) as ToolPayload
-  } catch {
-    process.exit(0)
-  }
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
-  }
-  const command = (
-    payload.tool_input as { command?: unknown | undefined } | undefined
-  )?.command
-  if (typeof command !== 'string' || !command.trim()) {
-    process.exit(0)
-  }
+export const check = bashGuard((command, payload) => {
   if (!isGitCommit(command)) {
-    process.exit(0)
+    return undefined
   }
   // Cascade commits legitimately replace whole fleet directories; the
   // FLEET_SYNC sentinel marks a trusted cascade run (same opt-in the
   // no-revert / overeager-staging guards honor).
-  if (/(?:^|\s)FLEET_SYNC\s*=\s*1\b/.test(command)) {
-    process.exit(0)
+  if (isFleetSyncCommand(command)) {
+    return undefined
+  }
+  // The squashing-history collapse commit deletes files removed since the root
+  // commit; the hardened SQUASH_HISTORY=1 sentinel authorizes it, no phrase.
+  if (squashSentinelAllows(command)) {
+    return undefined
   }
 
   const repoDir = getRepoDir()
   const deletions = countStagedDeletions(repoDir)
   if (deletions === 0) {
-    process.exit(0)
+    return undefined
   }
   const tracked = countTrackedFiles(repoDir)
   const reason = catastrophicReason(deletions, tracked)
   if (!reason) {
-    process.exit(0)
+    return undefined
   }
 
   const transcriptPath = payload.transcript_path
@@ -159,10 +155,10 @@ async function main(): Promise<void> {
     transcriptPath &&
     bypassPhrasePresent(transcriptPath, BYPASS_PHRASES, 3)
   ) {
-    process.exit(0)
+    return undefined
   }
 
-  process.stderr.write(
+  return block(
     [
       `[mass-delete-guard] Blocked: this commit would wipe most of the repo.`,
       '',
@@ -182,18 +178,17 @@ async function main(): Promise<void> {
       '',
       '  Genuinely removing a large tree (vendored dir, retired package)?',
       '  Type "Allow mass-delete bypass" in chat, then retry.',
-    ].join('\n') + '\n',
+    ].join('\n'),
   )
-  process.exit(2)
-}
+})
 
-// Entrypoint-guarded: run main() only when invoked directly, NOT when the test
-// imports this module for its pure helpers (else main() blocks on stdin at
-// import and the test file never terminates).
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((e: unknown) => {
-    // Fail open: a guard bug must never wedge commits.
-    process.stderr.write(`[mass-delete-guard] non-fatal: ${String(e)}\n`)
-    process.exit(0)
-  })
-}
+export const hook = defineHook({
+  bypass: ['mass-delete'],
+  bypassMode: 'manual',
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  triggers,
+  type: 'guard',
+})
+void runHook(hook, import.meta.url)

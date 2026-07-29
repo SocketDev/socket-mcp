@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Install-only entry point for commit-signing setup. Detects which
  *   signing method is locally available (SSH keys via 1Password / agent /
  *   ~/.ssh, GPG via gpg-agent, plain GPG key), and walks the user through `git
@@ -10,13 +10,13 @@
  *   mechanical. Usage: node .claude/hooks/fleet/setup-signing/install.mts node
  *   .claude/hooks/fleet/setup-signing/install.mts --check # report only node
  *   .claude/hooks/fleet/setup-signing/install.mts --force # overwrite existing
- *   config Auto-detection order (first hit wins):
+ *   config Auto-detection order, first hit wins:
  *
  *   1. 1Password SSH agent (SOCK at ~/Library/Group Containers/.../agent.sock). If
  *      present + has keys, recommend SSH signing routed through 1Password.
  *      Pros: keys never touch disk; biometric unlock on use.
  *   2. ssh-agent or running gpg-agent with loaded keys. SSH preferred over GPG
- *      when both exist (simpler keyring, no expiry headaches).
+ *      when both exist, simpler keyring, no expiry headaches.
  *   3. ~/.ssh/id_ed25519.pub (or id_rsa.pub) on disk. Recommend SSH signing using
  *      that key.
  *   4. `gpg --list-secret-keys` produces output. Recommend GPG signing with the
@@ -33,6 +33,8 @@ import process from 'node:process'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+
+import { spawnTimeoutMs } from '../_shared/spawn-timeout.mts'
 
 const logger = getDefaultLogger()
 
@@ -82,7 +84,7 @@ interface DetectedSigner {
 function detect1PasswordSshAgent(): DetectedSigner | undefined {
   // macOS: ~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock
   // Linux: ~/.1password/agent.sock
-  // Windows: \\\\.\\pipe\\openssh-ssh-agent (different mechanism, skip detection)
+  // Windows: \\\\.\\pipe\\openssh-ssh-agent, different mechanism, skip detection
   let sock: string | undefined
   if (os.platform() === 'darwin') {
     sock = path.join(
@@ -100,7 +102,7 @@ function detect1PasswordSshAgent(): DetectedSigner | undefined {
     stdio: 'pipe',
     stdioString: true,
     env: { ...process.env, SSH_AUTH_SOCK: sock },
-    timeout: 5_000,
+    timeout: spawnTimeoutMs(5000),
   })
   if (r.status !== 0) {
     return undefined
@@ -148,7 +150,7 @@ function detectGpgKey(): DetectedSigner | undefined {
     {
       stdio: 'pipe',
       stdioString: true,
-      timeout: 5_000,
+      timeout: spawnTimeoutMs(5000),
     },
   )
   if (r.status !== 0) {
@@ -157,7 +159,8 @@ function detectGpgKey(): DetectedSigner | undefined {
   // Parse `--with-colons` machine output. Lines starting with "sec:" are
   // secret keys; field 5 is the keygrip / long ID.
   const lines = String(r.stdout ?? '').split('\n')
-  for (const line of lines) {
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
     if (line.startsWith('sec:')) {
       const fields = line.split(':')
       const keyId = fields[4]

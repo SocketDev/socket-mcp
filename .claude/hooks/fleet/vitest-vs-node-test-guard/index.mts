@@ -18,25 +18,19 @@
 //   - Matches the target file path against each glob via a minimatch-style
 //     comparison. If a match is found, block.
 //
-// Bypass: `Allow node-test-in-vitest-include bypass` typed verbatim in a
-// recent user turn. Or add the file path to vitest's `exclude` glob in
-// `vitest.config.*` (the long-term fix).
+// Or add the file path to vitest's `exclude` glob in `vitest.config.*` (the
+// long-term fix).
 //
 // Fails open on parse / config-not-found errors — under-blocking is better
 // than blocking on infrastructure problems.
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow node-test-in-vitest-include bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { resolveEditedText } from '../_shared/payload.mts'
+import { isRepoTestHome } from '../_shared/repo-test-home.mts'
 
 // Standard fleet vitest config locations, checked in order. `.mts` is the
 // fleet's default extension, so every `.config/`-rooted location lists it
@@ -51,9 +45,10 @@ const VITEST_CONFIG_CANDIDATES = [
   'vitest.config.mjs',
   'vitest.config.ts',
   'vitest.config.js',
-  'template/.config/vitest.config.mts',
-  'template/.config/vitest.config.mjs',
-  'template/vitest.config.mts',
+  'template/base/.config/repo/vitest.config.mts',
+  'template/base/.config/vitest.config.mts',
+  'template/base/.config/vitest.config.mjs',
+  'template/base/vitest.config.mts',
 ]
 
 // Extract `include: [...]` string-literal entries from a vitest config.
@@ -62,11 +57,11 @@ const VITEST_CONFIG_CANDIDATES = [
 // body. If the config uses dynamic globs (variable references, spreads,
 // or function calls), we return undefined and fail open.
 export function extractIncludeGlobs(configText: string): string[] | undefined {
-  const m = /include\s*:\s*\[([^\]]*)\]/.exec(configText)
+  const m = /include\s*:\s*\[(?<body>[^\]]*)\]/.exec(configText)
   if (!m) {
     return undefined
   }
-  const body = m[1]!
+  const body = m.groups!['body']!
   // Bail if the body has anything that isn't a string literal, comma, or
   // whitespace.
   if (/[^\s,'"`\w./*[\]{}-]/.test(body)) {
@@ -74,10 +69,10 @@ export function extractIncludeGlobs(configText: string): string[] | undefined {
     // Allow comma + whitespace + glob chars; bail on anything else.
   }
   const globs: string[] = []
-  const stringRe = /(['"`])((?:\\.|(?!\1).)*?)\1/g
+  const stringRe = /(?<q>['"`])(?<glob>(?:(?!\k<q>).|\\.)*?)\k<q>/g
   let strM: RegExpExecArray | null
   while ((strM = stringRe.exec(body)) !== null) {
-    globs.push(strM[2]!)
+    globs.push(strM.groups!['glob']!)
   }
   if (globs.length === 0) {
     return undefined
@@ -86,9 +81,15 @@ export function extractIncludeGlobs(configText: string): string[] | undefined {
 }
 
 export function fileImportsNodeTest(text: string): boolean {
-  // Detect `import test from 'node:test'`, `import { test } from 'node:test'`,
-  // or `from "node:test"`. Conservative; ignores `from 'node:test/...'`.
-  return /from\s+['"`]node:test['"`]/.test(text)
+  // Detect a real `from 'node:test'` import, default, named, or double-quoted;
+  // ignores `from 'node:test/...'`. Comments are stripped first so an
+  // illustrative import inside a `//` or `/* */` comment — a config documenting
+  // node:test exclusion, or this guard's own JSDoc — is never mistaken for a
+  // real import. URL `//` (preceded by `:`) is preserved.
+  const code = text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|\s)\/\/[^\n]*/g, '$1')
+  return /from\s+['"`]node:test['"`]/.test(code)
 }
 
 export function findVitestConfig(startDir: string): string | undefined {
@@ -160,60 +161,62 @@ export function relPathFromRepoRoot(
   filePath: string,
   configPath: string,
 ): string {
-  // configPath is `<repo>/.config/vitest.config.mts` or
-  // `<repo>/vitest.config.mts` etc. — strip the trailing config dir to get
-  // the repo root.
-  let repoRoot = path.dirname(configPath)
-  if (repoRoot.endsWith('/.config') || repoRoot.endsWith('/template/.config')) {
-    repoRoot = path.dirname(repoRoot)
-  }
-  if (repoRoot.endsWith('/template')) {
-    repoRoot = path.dirname(repoRoot)
-  }
-  return path.relative(repoRoot, filePath).split(path.sep).join('/')
-}
-
-// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
-// content extraction (new_string / content), and fail-open on any throw.
-await withEditGuard((filePath, content, payload) => {
-  if (!/\.(cjs|cts|js|mjs|mts|ts)$/.test(filePath)) {
-    return
-  }
-
-  // Determine the after-content.
-  let afterText = ''
-  if (payload.tool_name === 'Write') {
-    afterText = content ?? ''
-  } else {
-    // For Edit: the new_string is enough to check the import shape; if it
-    // doesn't reference node:test in the diff, also check the current file
-    // (in case the import was already there and the edit only touches body).
-    afterText = content ?? ''
-    if (!fileImportsNodeTest(afterText) && existsSync(filePath)) {
-      try {
-        afterText = readFileSync(filePath, 'utf8')
-      } catch {
-        return
-      }
+  // configPath is `<repo>/vitest.config.mts`, `<repo>/.config/vitest.config.mts`,
+  // `<repo>/.config/repo/vitest.config.mts`, or the wheelhouse
+  // `<repo>/template/base/.config/[repo/]vitest.config.mts` mirror. Strip the
+  // matching trailing container directory back to the repo root. Try the known
+  // wrapper suffixes longest-first so a repo whose own root dir happens to be
+  // named `repo`/`template` isn't mis-stripped (only the full known chain
+  // matches).
+  const normalizedFilePath = normalizePath(filePath)
+  const normalizedConfigPath = normalizePath(configPath)
+  let repoRoot = path.posix.dirname(normalizedConfigPath)
+  const WRAPPER_SUFFIXES = [
+    '/template/base/.config/repo',
+    '/template/base/.config',
+    '/template/base',
+    '/.config/repo',
+    '/.config',
+  ]
+  for (let i = 0, { length } = WRAPPER_SUFFIXES; i < length; i += 1) {
+    const suffix = WRAPPER_SUFFIXES[i]!
+    if (repoRoot.endsWith(suffix)) {
+      repoRoot = repoRoot.slice(0, -suffix.length)
+      break
     }
   }
-  if (!fileImportsNodeTest(afterText)) {
-    return
+  return path.posix.relative(repoRoot, normalizedFilePath)
+}
+
+export const check = editGuard((filePath, content, payload) => {
+  void content
+  if (!/\.(cjs|cts|js|mjs|mts|ts)$/.test(filePath)) {
+    return undefined
+  }
+  if (isRepoTestHome(filePath)) {
+    return undefined
+  }
+
+  // Scan the full post-edit document (not just the new_string diff) so an edit
+  // to the body of a file that already imports node:test is still caught.
+  const afterText = resolveEditedText(payload)
+  if (afterText === undefined || !fileImportsNodeTest(afterText)) {
+    return undefined
   }
 
   const configPath = findVitestConfig(payload.cwd ?? path.dirname(filePath))
   if (!configPath) {
-    return
+    return undefined
   }
   let configText: string
   try {
     configText = readFileSync(configPath, 'utf8')
   } catch {
-    return
+    return undefined
   }
   const globs = extractIncludeGlobs(configText)
   if (!globs || globs.length === 0) {
-    return
+    return undefined
   }
 
   const relPath = relPathFromRepoRoot(filePath, configPath)
@@ -230,17 +233,10 @@ await withEditGuard((filePath, content, payload) => {
     }
   }
   if (matched.length === 0) {
-    return
+    return undefined
   }
 
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return
-  }
-
-  logger.error(
+  return block(
     [
       '[vitest-vs-node-test-guard] Blocked: node:test file under vitest include',
       '',
@@ -258,10 +254,18 @@ await withEditGuard((filePath, content, payload) => {
       '      `exclude` array in the vitest config, OR',
       "    - Convert the file to vitest's API (replace `node:test` imports",
       '      with `vitest` describe/it/test).',
-      '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['node-test-in-vitest-include'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

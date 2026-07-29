@@ -1,10 +1,12 @@
 ---
 name: scanning-quality
-description: Scans the codebase for bugs, logic errors, cache races, workflow problems, insecure defaults, security regressions in the diff, and variant analysis on prior findings. Runs a Workflow that fans out one finder per scan type in parallel, runs variant-analysis as a dependent stage, adversarially verifies High/Critical findings, deduplicates, and produces an A-F prioritized report. Use when preparing a release, investigating quality issues, running pre-merge checks, or whenever a recent diff touches security-sensitive code.
+description: Scan for bugs, races, workflow flaws, insecure defaults, and regressions; verify and rank findings.
 user-invocable: true
 allowed-tools: Workflow, Task, Read, Grep, Glob, Write, AskUserQuestion, Bash(pnpm run check:*), Bash(pnpm run test:*), Bash(pnpm test:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(rg:*), Bash(grep:*), Bash(find:*), Bash(ls:*)
 model: claude-opus-4-8
 context: fork
+metadata:
+  internal: true
 ---
 
 # scanning-quality
@@ -80,7 +82,7 @@ Find junk files (interactive mode confirms each batch via `AskUserQuestion`; non
 node scripts/fleet/check/paths-are-canonical.mts
 ```
 
-Report errors as Critical findings. Warnings are Low findings. (The fleet's structural validator is `paths-are-canonical.mts`, the path-hygiene gate. If a repo has a richer structural validator under a different name, run that instead. Every fleet repo ships `paths-are-canonical.mts`.)
+Report errors as Critical findings. Warnings are Low findings. The fleet's structural validator is `paths-are-canonical.mts`, the path-hygiene gate. If a repo has a richer structural validator under a different name, run that instead. Every fleet repo ships `paths-are-canonical.mts`.
 
 ### Phase 6: Determine Scan Scope
 
@@ -97,8 +99,8 @@ Author the script inline (don't pre-Write it). Shape:
 1. **`phase('Scan')` — parallel independent finders.** One `agent()` per enabled scan type whose prompt is the scan's `reference.md` section (legacy 1–8) or `scans/<type>.md` (modular). Each uses `agentType: 'Explore'` (read-only sweep), a `FINDINGS_SCHEMA` (`{ scanType, findings: [{ file, line, issue, severity: critical|high|medium|low, pattern, trigger, fix, impact }] }`), and runs under `parallel(...)` — `variant-analysis` is NOT in this batch (it depends on the others).
 2. **Barrier → dedup.** Collect all finder results, `.filter(Boolean)`, flatten findings, then `dedupeFindings(...)` from `scripts/fleet/scanning-quality/lib/findings.mts` (dedup by `file:line:issue` with a normalized issue key — genuinely needs all findings at once, so the barrier is justified). The dedupe key, the refute threshold, and the grade rubric all live in that one tested module.
 3. **`phase('Variant')` — dependent stage.** For each High/Critical deduped finding, one `agent()` (the `scans/variant-analysis.md` prompt) searching the repo for the same shape; fold new variants in with `mergeVariants(base, variants)` (dedups across the combined set).
-4. **`phase('Verify')` — adversarial pass** (thorough/release runs only): per High/Critical finding, spawn a skeptic that tries to REFUTE it (`{ isReal, why }` schema); `dropRefuted(findings, votesByIndex)` removes the ones a majority refuted (a tie keeps — the conservative direction). Skip for a quick scan — `log()` that it was skipped so the report doesn't read as fully verified.
-5. **Synthesize** — a final `agent()` takes the deduped+verified JSON and writes the A-F prioritized markdown report (sections by severity, file:line refs, fixes, coverage metrics). The narrative is the agent's; the grade itself is `gradeOf(findings)` from the lib (the same A-F rubric scanning-security uses), so the two scanners can't disagree on a count→letter.
+4. **`phase('Verify')` — adversarial pass** (thorough/release runs only): per High/Critical finding, spawn a skeptic that tries to REFUTE it (`{ isReal, why }` schema); `dropRefuted(findings, votesByIndex)` removes the ones a majority refuted — a tie keeps, the conservative direction. Skip for a quick scan — `log()` that it was skipped so the report doesn't read as fully verified. Skeptic prompts must demand INDEPENDENT re-derivation, not agreement: a vote whose `why` merely restates the finding's own reasoning counts as no evidence — the prompt requires the skeptic to (a) name the exact code path/input that makes the bug reachable, (b) for concurrency claims, walk the await boundaries explicitly (JS continuations between awaits are atomic — two synchronous statements after the same `await` can NEVER interleave with another caller), and (c) check whether the "bug" is documented intentional behavior before confirming. A run where skeptics refute ZERO findings is a credulity signal — the orchestrator must hand-verify the top findings itself before reporting — a real scan of this shape once confirmed 46/46 including two false positives.
+5. **Synthesize** — a final `agent()` takes the deduped+verified JSON and writes the A-F prioritized markdown report (sections by severity, file:line refs, fixes, coverage metrics). The narrative is the agent's; the grade itself is `gradeOf(findings)` from the lib — the same A-F rubric scanning-security uses — so the two scanners can't disagree on a count→letter.
 
 Return `{ report, findingCount, bySeverity }` from the script (`bySeverity` = `countBySeverity(findings)` from the lib). Each finder's `FINDINGS_SCHEMA` replaces the old free-text "File / Issue / Severity / Pattern / Trigger / Fix / Impact" shape — same fields, now validated.
 
@@ -115,8 +117,15 @@ Report final metrics: dependency updates, structural validation results, cleanup
 
 ## Commit cadence
 
-This skill is read-only. It scans and reports, it doesn't fix. Cadence rules apply to _handing the report off_, not to fixes:
+This is a mixed-mode skill: dependency refresh, optional cleanup, and report saving are
+explicit mutations; it never fixes product findings. Cadence rules apply to _handing the
+report off_, not to fixes:
 
 - **Save the report before acting on it.** If the user opts to save (`reports/scanning-quality-YYYY-MM-DD.md`), commit the report file in its own commit (`docs(reports): scanning-quality YYYY-MM-DD`). That snapshot is referenceable later when fixes land.
 - **Don't fix in-skill.** If findings need fixes, hand off to the appropriate skill (`/fleet:guarding-paths` for path drift, `refactor-cleaner` agent via `/fleet:looping-quality` for code-quality findings) and commit those fixes per that skill's own cadence rules. Don't bundle scan + fixes in one commit.
 - **One report per scan run.** Re-running the skill produces a new report; don't overwrite the previous one's git history. Commit each fresh report so the trend line is visible.
+
+## Handoffs
+
+Route general quality remediation to [looping-quality](../looping-quality/SKILL.md).
+Route verified security findings through [patching-findings](../patching-findings/SKILL.md).

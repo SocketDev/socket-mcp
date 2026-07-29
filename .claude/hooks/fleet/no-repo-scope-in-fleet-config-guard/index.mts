@@ -23,25 +23,23 @@
 // for the rare case a path genuinely applies fleet-wide but can't be `**/`
 // anchored.
 //
-// Fails open on any parse/payload error (a guard bug must not block work).
+// Fails open on any parse/payload error, a guard bug must not block work.
 
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { safeReadFileSync } from '@socketsecurity/lib-stable/fs/read-file'
 
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow repo-scope-in-fleet bypass'
+import { resolveEditedText } from '../_shared/payload.mts'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 
 // Fleet config basenames whose `overrides[].files` / `ignorePatterns` globs
 // must be universal. (oxfmtrc has no overrides today, but guard it too so a
 // future repo-scope addition is caught.)
-const GUARDED_BASENAMES = new Set(['oxlintrc.json', 'oxlintrc.dogfood.json', 'oxfmtrc.json'])
+const GUARDED_BASENAMES = new Set([
+  'oxfmtrc.json',
+  'oxlintrc.dogfood.json',
+  'oxlintrc.json',
+])
 
 // A glob is universal when it applies in every member regardless of repo
 // layout: `**/`-anchored, a bare extension pattern (`*.ts`), or a managed
@@ -56,7 +54,7 @@ export function isUniversalGlob(glob: string): boolean {
 }
 
 // Collect every path-glob from a parsed oxlint/oxfmt config's override + ignore
-// surfaces. Tolerant of missing keys / shapes (returns what it finds).
+// surfaces. Tolerant of missing keys / shapes, returns what it finds.
 export function collectConfigGlobs(parsed: unknown): string[] {
   const out: string[] = []
   if (!parsed || typeof parsed !== 'object') {
@@ -100,14 +98,6 @@ export function repoSpecificGlobs(jsonText: string): string[] {
   return collectConfigGlobs(parsed).filter(g => !isUniversalGlob(g))
 }
 
-function readFileSafe(p: string): string {
-  try {
-    return readFileSync(p, 'utf8')
-  } catch {
-    return ''
-  }
-}
-
 // True when the path is a guarded fleet config (under template/.config/fleet/
 // or a live .config/fleet/, basename in the guarded set).
 export function isGuardedFleetConfig(filePath: string): boolean {
@@ -118,51 +108,43 @@ export function isGuardedFleetConfig(filePath: string): boolean {
   return GUARDED_BASENAMES.has(path.basename(filePath))
 }
 
-await withEditGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, content, payload) => {
+  void content
   if (!isGuardedFleetConfig(filePath)) {
-    return
+    return undefined
   }
-  // Reconstruct the post-edit text: Write replaces wholesale; Edit applies
-  // new_string over old_string in the current file.
-  let afterText: string
-  if (payload.tool_name === 'Write') {
-    afterText = content ?? ''
-  } else {
-    const oldStr = (payload.tool_input?.old_string as string | undefined) ?? ''
-    const newStr = content ?? ''
-    if (!oldStr) {
-      return
-    }
-    const currentText = readFileSafe(filePath)
-    if (!currentText.includes(oldStr)) {
-      return
-    }
-    afterText = currentText.replace(oldStr, newStr)
+  const afterText = resolveEditedText(payload)
+  if (afterText === undefined) {
+    return undefined
   }
 
-  // Only flag globs the edit INTRODUCES (present in after, absent before) so a
+  // Only flag globs the edit INTRODUCES, present in after, absent before, so a
   // pre-existing entry doesn't block an unrelated edit.
-  const before = new Set(repoSpecificGlobs(readFileSafe(filePath)))
+  const before = new Set(repoSpecificGlobs(safeReadFileSync(filePath) ?? ''))
   const introduced = repoSpecificGlobs(afterText).filter(g => !before.has(g))
   if (!introduced.length) {
-    return
-  }
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return
+    return undefined
   }
 
-  logger.error(
+  return block(
     `[no-repo-scope-in-fleet-config-guard] repo-specific path-scope in a fleet config:\n` +
       `  File: ${filePath}\n` +
       `  Repo-specific glob(s): ${introduced.join(', ')}\n` +
       `  Fleet configs apply to EVERY member, so a path-glob must be universal\n` +
       `  (start with \`**/\`, or be a bare extension like \`*.ts\`). A glob naming one\n` +
       `  repo's tree (e.g. \`packages/npm/**\`) makes that repo's exception fleet-wide.\n` +
-      `  Fix: put the override in THAT repo's own \`.config/repo/\` overlay instead.\n` +
-      `  Bypass: type "${BYPASS_PHRASE}" if the path genuinely applies fleet-wide.`,
+      `  Fix: put the override in THAT repo's own \`.config/repo/\` overlay instead.`,
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  bypass: ['repo-scope-in-fleet'],
+  bypassOptional: true,
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

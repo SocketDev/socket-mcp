@@ -14,7 +14,7 @@
 // and `$(…)` substitution and false-positives on a literal in a grep
 // arg; the parser handles all of it.
 //
-// This guard detects a CODE pattern (a regex literal in source text),
+// This guard detects a CODE pattern, a regex literal in source text,
 // not a shell command — so it is itself allowed to use regex.
 //
 // Scope: only files under `.claude/hooks/`. Application code elsewhere
@@ -25,16 +25,8 @@
 //
 // Exit codes: 0 pass, 2 block. Fails open on malformed payloads.
 
-import process from 'node:process'
-
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import { withEditGuard } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const logger = getDefaultLogger()
-
-const BYPASS_PHRASE = 'Allow command-regex bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 // Shell binaries whose appearance inside a regex literal signals
 // command-structure matching. Kept to the high-signal ones the fleet's
@@ -67,7 +59,7 @@ interface Finding {
 // adjacent to a whitespace/boundary metachar.
 const REGEX_LITERAL = /\/((?:\\.|[^/\n\\])+)\/[dgimsuvy]*/g
 
-// Within a regex body, a shell binary token followed (allowing flags) by
+// Within a regex body, a shell binary token followed, allowing flags, by
 // a whitespace/boundary metachar — `\bgit\b`, `git\s+`, `gh\s+pr`,
 // `pnpm +run`, etc. The binary is captured for the diagnostic.
 function commandShapeBinary(regexBody: string): string | undefined {
@@ -95,9 +87,17 @@ export function findCommandRegexes(text: string): Finding[] {
   const lines = text.split('\n')
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!
+    // A `//` line-comment marker's own slashes are not a regex delimiter.
+    // Without this, a comment that opens with `//` and later contains one
+    // more `/` (a path, a URL, a `$(git rev-parse origin/<branch>)` example)
+    // reads as a matched `/…/` pair spanning the marker to that later
+    // slash, and the prose in between can spuriously contain a shell binary
+    // bounded by spaces — a false command-regex finding on plain prose.
+    const trimmed = line.trimStart()
+    const scanLine = trimmed.startsWith('//') ? trimmed.slice(2) : line
     REGEX_LITERAL.lastIndex = 0
     let m: RegExpExecArray | null
-    while ((m = REGEX_LITERAL.exec(line)) !== null) {
+    while ((m = REGEX_LITERAL.exec(scanLine)) !== null) {
       const body = m[1]!
       const binary = commandShapeBinary(body)
       if (binary !== undefined) {
@@ -110,56 +110,54 @@ export function findCommandRegexes(text: string): Finding[] {
 
 export function isHookFile(filePath: string): boolean {
   return (
-    filePath.includes('/.claude/hooks/') &&
-    !filePath.includes('/node_modules/') &&
+    normalizePath(filePath).includes('/.claude/hooks/') &&
+    !normalizePath(filePath).includes('/node_modules/') &&
     // This guard's own source + tests discuss the banned shape.
-    !filePath.includes('/no-hook-cmd-regex-guard/') &&
+    !normalizePath(filePath).includes('/no-hook-cmd-regex-guard/') &&
     /\.(?:c|m)?ts$/.test(filePath)
   )
 }
 
-if (process.argv[1]?.endsWith('index.mts')) {
-  await withEditGuard((filePath, content, payload) => {
-    if (!isHookFile(filePath)) {
-      return
-    }
-    const text = content ?? ''
-    if (!text) {
-      return
-    }
-    const findings = findCommandRegexes(text)
-    if (findings.length === 0) {
-      return
-    }
-    if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-      logger.error(
-        `no-hook-cmd-regex-guard: ${findings.length} command-shaped regex(es) — bypassed via "${BYPASS_PHRASE}"\n`,
-      )
-      return
-    }
-    const lines = findings
-      .map(
-        f =>
-          `  ${filePath}:${f.line}  (matches \`${f.binary}\`)\n    ${f.text}`,
-      )
-      .join('\n')
-    logger.error(
-      `no-hook-cmd-regex-guard: refusing to introduce a regex that parses a shell command.\n` +
-        `\n` +
-        `${lines}\n` +
-        `\n` +
-        `Use the AST parser instead of regex (CLAUDE.md "prefer AST-based parsing"):\n` +
-        `  import { commandsFor, parseCommands, findInvocation } from '../_shared/shell-command.mts'\n` +
-        `\n` +
-        `  // instead of:  /\\bgit\\s+push\\b/.test(command)\n` +
-        `  commandsFor(command, 'git').some(c => c.args.includes('push'))\n` +
-        `\n` +
-        `The parser sees through && / | / ; chains, quoting, and $(…) and\n` +
-        `won't false-positive on a literal "git push" inside a grep arg.\n` +
-        `\n` +
-        `Bypass (e.g. the regex matches tool stdout, not a command line):\n` +
-        `  type "${BYPASS_PHRASE}" in a recent message.\n`,
+export const check = editGuard((filePath, content, _payload) => {
+  if (!isHookFile(filePath)) {
+    return undefined
+  }
+  const text = content ?? ''
+  if (!text) {
+    return undefined
+  }
+  const findings = findCommandRegexes(text)
+  if (findings.length === 0) {
+    return undefined
+  }
+  const lines = findings
+    .map(
+      f => `  ${filePath}:${f.line}  (matches \`${f.binary}\`)\n    ${f.text}`,
     )
-    process.exitCode = 2
-  })
-}
+    .join('\n')
+  return block(
+    `no-hook-cmd-regex-guard: refusing to introduce a regex that parses a shell command.\n` +
+      `\n` +
+      `${lines}\n` +
+      `\n` +
+      `Use the AST parser instead of regex (CLAUDE.md "prefer AST-based parsing"):\n` +
+      `  import { commandsFor, parseCommands, findInvocation } from '../_shared/shell-command.mts'\n` +
+      `\n` +
+      `  // instead of:  /\\bgit\\s+push\\b/.test(command)\n` +
+      `  commandsFor(command, 'git').some(c => c.args.includes('push'))\n` +
+      `\n` +
+      `The parser sees through && / | / ; chains, quoting, and $(…) and\n` +
+      `won't false-positive on a literal "git push" inside a grep arg.\n`,
+  )
+})
+
+export const hook = defineHook({
+  bypass: ['command-regex'],
+  check,
+  event: 'PreToolUse',
+  matcher: ['Edit', 'Write', 'MultiEdit'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

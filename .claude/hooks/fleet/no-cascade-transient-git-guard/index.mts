@@ -10,20 +10,20 @@
 // Why this exists: 2026-06-02 a fleet cascade's manual commit loop ran
 // `git commit -m "chore(wheelhouse): cascade template@<sha>"` across
 // every fleet repo. socket-lib was mid-`git cherry-pick` on a detached
-// HEAD (another session's work); the loop ignored that and committed the
+// HEAD, another session's work; the loop ignored that and committed the
 // cascade onto the detached HEAD, breaking the cherry-pick sequencer.
 // sync-scaffolding's own auto-commit already skips this state — but a
 // hand-typed loop bypassed that check. This hook enforces it at the Bash
-// layer so NO commit path (script, loop, or manual) can land a cascade on
+// layer so NO commit path, script, loop, or manual, can land a cascade on
 // a transient ref.
 //
 // Skipped silently:
 //   - tool_name !== 'Bash'.
 //   - Command isn't a cascade-prefixed `git commit`.
-//   - Target repo is on a normal branch tip (the common case).
+//   - Target repo is on a normal branch tip, the common case.
 //
 // No bypass: there is never a legitimate reason to land a cascade commit
-// on a transient ref. Finish (or abort) the in-progress operation first.
+// on a transient ref. Finish, or abort, the in-progress operation first.
 //
 // Exit codes:
 //   0  — allow.
@@ -31,16 +31,10 @@
 //
 // Fails open on any internal error (exit 0 + stderr log).
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-
-import process from 'node:process'
-
 import { extractGitCwd } from '../_shared/git-cwd.mts'
 import { isInTransientGitState } from '../_shared/git-state.mts'
-import { withBashGuard } from '../_shared/payload.mts'
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import { commandsFor } from '../_shared/shell-command.mts'
-
-const logger = getDefaultLogger()
 
 const CASCADE_PREFIX = 'chore(wheelhouse): cascade template@'
 
@@ -55,7 +49,7 @@ export function commitMessage(command: string): string | undefined {
     }
     for (let i = 0, { length } = c.args; i < length; i += 1) {
       const a = c.args[i]
-      if ((a === '-m' || a === '--message') && c.args[i + 1] !== undefined) {
+      if ((a === '--message' || a === '-m') && c.args[i + 1] !== undefined) {
         return c.args[i + 1]
       }
       if (a?.startsWith('--message=')) {
@@ -66,16 +60,19 @@ export function commitMessage(command: string): string | undefined {
   return undefined
 }
 
-await withBashGuard((command, _payload) => {
+export const check = bashGuard(command => {
   const message = commitMessage(command)
   if (message === undefined || !message.startsWith(CASCADE_PREFIX)) {
-    return
+    return undefined
   }
-  const repoDir = extractGitCwd(command)
+  // Scope the cwd lookup to the `git commit` invocation itself — a `-C` on
+  // an unrelated invocation (e.g. a `rev-parse` inside a `$(…)` substitution)
+  // must not redirect the transient-state probe to a different repo.
+  const repoDir = extractGitCwd(command, { subcommand: 'commit' })
   if (!isInTransientGitState(repoDir)) {
-    return
+    return undefined
   }
-  logger.error(
+  return block(
     [
       '[no-cascade-transient-git-guard] Blocked: cascade commit on a transient git ref.',
       '',
@@ -92,5 +89,13 @@ await withBashGuard((command, _payload) => {
       '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)

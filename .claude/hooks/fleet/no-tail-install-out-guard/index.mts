@@ -29,28 +29,16 @@
 //     ... }
 //
 // Exit codes:
-//   0 — pass (not Bash, or the command shape isn't the bad one).
+//   0 — pass, not Bash, or the command shape isn't the bad one.
 //   2 — block (install/check command piped to tail/head).
 //
 // Fails open on malformed payloads (exit 0 + stderr log).
 
-import process from 'node:process'
+import { parseShell } from '@socketsecurity/lib-stable/shell/parse'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
-// oxlint-disable-next-line no-explicit-any -- shell-quote ships no types; runtime contract is stable.
-import { parse as shellQuoteParse } from 'shell-quote'
+import type { ParseEntry } from '@socketsecurity/lib-stable/shell/parse'
 
-import { withBashGuard } from '../_shared/payload.mts'
-
-const logger = getDefaultLogger()
-
-type ParseEntry = string | { op: string } | { comment: string }
-
-const parse = shellQuoteParse as unknown as (cmd: string) => ParseEntry[]
-
-function isOp(e: ParseEntry): e is { op: string } {
-  return typeof e === 'object' && 'op' in e
-}
+import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 
 // Verbs whose output we never want truncated. `i` and `install` are the
 // classic case; `run check`/`run fix`/`run update`/`run test`/`run cover`/
@@ -58,120 +46,35 @@ function isOp(e: ParseEntry): e is { op: string } {
 // same SFW shim. `exec` is included because `pnpm exec vitest ...` and
 // similar route through the same wrapper.
 const PNPM_VERBS_FIRST = new Set([
+  'add',
+  'exec',
   'i',
   'install',
-  'add',
-  'update',
   'up',
-  'exec',
+  'update',
 ])
 const PNPM_RUN_SCRIPTS = new Set([
-  'check',
-  'fix',
-  'update',
-  'install',
-  'test',
-  'cover',
   'build',
+  'check',
+  'cover',
+  'fix',
+  'install',
   'release',
+  'test',
+  'update',
 ])
-
-// Walk shell-quote tokens to find a pipe `|` whose LEFT side is an
-// install-shaped command and whose RIGHT side starts with `tail` or
-// `head`. Pipes are the only operator that matters — `&&`, `||`, `;`,
-// `&` separate independent commands, so `pnpm i && echo done | tail -5`
-// is NOT the bad pattern (the tail consumes `echo`, not `pnpm`).
-function findOffendingPipe(command: string):
-  | {
-      install: string
-      truncator: string
-    }
-  | undefined {
-  let entries: ParseEntry[]
-  try {
-    entries = parse(command)
-  } catch {
-    return undefined
-  }
-
-  // Collect command segments split by COMMAND_SEPARATORS, also tracking
-  // which separator op preceded each segment (or 'start'). The relevant
-  // shape is segment[i] (pnpm i ...) followed by op '|' followed by
-  // segment[i+1] (tail ... / head ...).
-  const segments: Array<{ tokens: string[]; precededBy: string }> = []
-  let cur: string[] = []
-  let lastOp = 'start'
-
-  const flush = (op: string) => {
-    segments.push({ tokens: cur, precededBy: lastOp })
-    cur = []
-    lastOp = op
-  }
-
-  for (const e of entries) {
-    if (typeof e === 'object' && 'comment' in e) {
-      continue
-    }
-    if (isOp(e)) {
-      if (
-        e.op === '|' ||
-        e.op === '||' ||
-        e.op === '&&' ||
-        e.op === ';' ||
-        e.op === '&' ||
-        e.op === '\n'
-      ) {
-        flush(e.op)
-        continue
-      }
-      // Redirect ops (`>`, `>>`, `<`, `2>&1` shows up as `>` + `&1`).
-      // Keep collecting; they don't separate commands.
-      continue
-    }
-    if (e === '') {
-      // `$VAR` placeholder. Push a sentinel so the segment isn't lost
-      // (the binary may still be `pnpm` later in the tokens).
-      cur.push('')
-      continue
-    }
-    cur.push(e)
-  }
-  // Final segment.
-  segments.push({ tokens: cur, precededBy: lastOp })
-
-  // Now scan: a segment whose `precededBy === '|'` AND whose first
-  // token is `tail` / `head` is the truncator. Its predecessor (the
-  // segment immediately before, regardless of separator) must be an
-  // install-shaped command for this to fire.
-  for (let i = 1; i < segments.length; i += 1) {
-    const here = segments[i]!
-    if (here.precededBy !== '|') {
-      continue
-    }
-    const firstTok = here.tokens.find(t => t !== '')
-    if (firstTok !== 'tail' && firstTok !== 'head') {
-      continue
-    }
-    const prev = segments[i - 1]!
-    const installShape = describeInstallShape(prev.tokens)
-    if (installShape) {
-      return { install: installShape, truncator: firstTok }
-    }
-  }
-  return undefined
-}
 
 // Return a human-readable label for an install-shaped command, or
 // undefined when the tokens are something else (`git log`, `ls`, etc.).
 // Skips leading `NAME=value` assignment tokens so `CI=true pnpm i`
 // still matches.
-function describeInstallShape(tokens: string[]): string | undefined {
+export function describeInstallShape(tokens: string[]): string | undefined {
   let i = 0
   while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]!)) {
     i += 1
   }
   const bin = tokens[i]
-  if (bin !== 'pnpm' && bin !== 'npm' && bin !== 'yarn') {
+  if (bin !== 'npm' && bin !== 'pnpm' && bin !== 'yarn') {
     return undefined
   }
   // Find first non-flag token after the binary.
@@ -201,14 +104,110 @@ function describeInstallShape(tokens: string[]): string | undefined {
   return undefined
 }
 
-// withBashGuard handles the stdin drain, tool_name gate, command narrow,
-// and fail-open on any throw.
-await withBashGuard(command => {
+// Walk shell-quote tokens to find a pipe `|` whose LEFT side is an
+// install-shaped command and whose RIGHT side starts with `tail` or
+// `head`. Pipes are the only operator that matters — `&&`, `||`, `;`,
+// `&` separate independent commands, so `pnpm i && echo done | tail -5`
+// is NOT the bad pattern (the tail consumes `echo`, not `pnpm`).
+export function findOffendingPipe(command: string):
+  | {
+      install: string
+      truncator: string
+    }
+  | undefined {
+  let entries: ParseEntry[]
+  try {
+    entries = parseShell(command)
+  } catch {
+    /* c8 ignore start - shell-quote does not throw on string inputs; bashGuard guarantees a string */
+    return undefined
+    /* c8 ignore stop */
+  }
+
+  // Collect command segments split by COMMAND_SEPARATORS, also tracking
+  // which separator op preceded each segment (or 'start'). The relevant
+  // shape is segment[i] (pnpm i ...) followed by op '|' followed by
+  // segment[i+1] (tail ... / head ...).
+  const segments: Array<{ tokens: string[]; precededBy: string }> = []
+  let cur: string[] = []
+  let lastOp = 'start'
+
+  const flush = (op: string) => {
+    segments.push({ tokens: cur, precededBy: lastOp })
+    cur = []
+    lastOp = op
+  }
+
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const e = entries[i]!
+    if (typeof e === 'object' && 'comment' in e) {
+      continue
+    }
+    if (isOp(e)) {
+      if (
+        e.op === '\n' ||
+        e.op === ';' ||
+        e.op === '&' ||
+        e.op === '&&' ||
+        e.op === '|' ||
+        e.op === '||'
+      ) {
+        flush(e.op)
+        continue
+      }
+      // Redirect ops (`>`, `>>`, `<`, `2>&1` shows up as `>` + `&1`).
+      // Keep collecting; they don't separate commands.
+      continue
+    }
+    if (typeof e !== 'string') {
+      // Glob tokens are structural metadata, not command arguments.
+      continue
+    }
+    if (e === '') {
+      // `$VAR` placeholder. Push a sentinel so the segment isn't lost
+      // (the binary may still be `pnpm` later in the tokens).
+      cur.push('')
+      continue
+    }
+    cur.push(e)
+  }
+  // Final segment.
+  segments.push({ tokens: cur, precededBy: lastOp })
+
+  // Now scan: a segment whose `precededBy === '|'` AND whose first
+  // token is `tail` / `head` is the truncator. Its predecessor (the
+  // segment immediately before, regardless of separator) must be an
+  // install-shaped command for this to fire.
+  for (let i = 1; i < segments.length; i += 1) {
+    const here = segments[i]!
+    if (here.precededBy !== '|') {
+      continue
+    }
+    const firstTok = here.tokens.find(t => t !== '')
+    if (firstTok !== 'head' && firstTok !== 'tail') {
+      continue
+    }
+    const prev = segments[i - 1]!
+    const installShape = describeInstallShape(prev.tokens)
+    if (installShape) {
+      return { install: installShape, truncator: firstTok }
+    }
+  }
+  return undefined
+}
+
+export function isOp(e: ParseEntry): e is { op: string } {
+  return typeof e === 'object' && 'op' in e
+}
+
+// bashGuard handles the tool_name gate, command narrow, and fail-open on any
+// throw.
+export const check = bashGuard(command => {
   const hit = findOffendingPipe(command)
   if (!hit) {
-    return
+    return undefined
   }
-  logger.error(
+  return block(
     [
       '[no-tail-install-out-guard] Blocked: install/check output piped to ' +
         `\`${hit.truncator}\`.`,
@@ -230,5 +229,14 @@ await withBashGuard(command => {
       '',
     ].join('\n'),
   )
-  process.exitCode = 2
 })
+
+export const hook = defineHook({
+  check,
+  event: 'PreToolUse',
+  matcher: ['Bash'],
+  scope: 'convention',
+  type: 'guard',
+})
+
+void runHook(hook, import.meta.url)
