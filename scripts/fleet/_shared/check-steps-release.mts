@@ -281,6 +281,20 @@ export function buildReleaseAndDocsSteps(): CheckStep[] {
       'scripts/fleet/check/published-versions-have-releases.mts',
       '--quiet',
     ]),
+    // Every RECENTLY published version has some release tag — `v<version>` or
+    // the bare-semver escape hatch — resolving to the commit npm's SLSA
+    // provenance says produced the artifact. A `v*` tag is immutable under
+    // fleet-tag-protection, so a broken release is corrected by pushing a BARE
+    // tag; the attestation, not the tag name, decides which one is
+    // authoritative, and a pair is a legitimate state (flagged only when
+    // NEITHER matches). Catches the provenance orphan — socket-lib 6.5.0
+    // attested e66bd62b while v6.5.0 sat on the bump commit. Registry reads →
+    // release tier; unreadable sources report NOT VERIFIED rather than passing.
+    // See docs/agents.md/fleet/release-tag-escape-hatch.md.
+    releaseStep([
+      'scripts/fleet/check/release-tags-match-provenance.mts',
+      '--quiet',
+    ]),
     // A multi-crate cargo workspace keeps every publishable crate BARE — a
     // `-prerelease` breaks inter-crate `^X.Y.Z` resolution. The hint is OPTIONAL
     // for a single crate (the release bumps from the published version by

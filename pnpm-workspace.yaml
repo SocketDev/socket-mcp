@@ -22,10 +22,10 @@ catalog:
   '@redwoodjs/agent-ci': 0.17.1
   '@shadscan/cli': 0.2.0
   '@sinclair/typebox': 0.34.52
-  '@socketregistry/packageurl-js': 1.4.8
+  '@socketregistry/packageurl-js': 1.5.0
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.8
-  '@socketsecurity/lib': 6.5.0
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.5.0
+  '@socketsecurity/lib': 6.5.1
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.5.1
   '@socketsecurity/registry': 2.0.5
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.5
   '@socketsecurity/sdk': 4.1.2
@@ -51,7 +51,7 @@ catalog:
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'neosanitize': 0.3.0
-  'nock': 14.0.16
+  'nock': 15.0.0
   'npm-run-all2': 9.0.2
   'oxfmt': 0.60.0
   'oxlint': 1.75.0
@@ -167,8 +167,6 @@ minimumReleaseAgeExclude:
   # taze 19.16.0 — the dep updater itself; forced ahead of the soak by owner
   # directive so the regenerated single-registry patch (patchedDependencies)
   # tracks the current release. Exact-pinned so a future version re-soaks.
-  # published: 2026-07-22 | removable: 2026-07-29
-  - 'taze@19.16.0'
   # obug + verkit — new dev-only transitives of taze 19.16.0 (same owner
   # directive); exact-pinned so future versions re-soak.
   # published: 2026-07-23 | removable: 2026-07-30
