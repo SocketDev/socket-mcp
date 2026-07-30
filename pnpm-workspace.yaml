@@ -51,7 +51,7 @@ catalog:
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'neosanitize': 0.3.0
-  'nock': 15.0.0
+  'nock': 14.0.16
   'npm-run-all2': 9.0.2
   'oxfmt': 0.60.0
   'oxlint': 1.75.0
