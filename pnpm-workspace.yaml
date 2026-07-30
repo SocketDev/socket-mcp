@@ -167,8 +167,6 @@ minimumReleaseAgeExclude:
   # taze 19.16.0 — the dep updater itself; forced ahead of the soak by owner
   # directive so the regenerated single-registry patch (patchedDependencies)
   # tracks the current release. Exact-pinned so a future version re-soaks.
-  # published: 2026-07-22 | removable: 2026-07-29
-  - 'taze@19.16.0'
   # obug + verkit — new dev-only transitives of taze 19.16.0 (same owner
   # directive); exact-pinned so future versions re-soak.
   # published: 2026-07-23 | removable: 2026-07-30
