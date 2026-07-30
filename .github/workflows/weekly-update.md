@@ -446,11 +446,22 @@ guess ships the wrong change.
    pnpm test
    ```
 
-3. **If tests pass:** open a pull request via the `create_pull_request` safe
+3. Constrain the branch to the PR surface — one out-of-surface path makes the
+   `create_pull_request` safe output refuse the WHOLE patch:
+
+   ```bash
+   node scripts/fleet/weekly-update.mts --shed-out-of-surface
+   ```
+
+   It reverts every change outside this workflow's `allowed-files` globs into
+   a shed commit and prints the shed list. Do not re-apply a shed change.
+
+4. **If tests pass:** open a pull request via the `create_pull_request` safe
    output, titled per the cadence above. Body: a short intro naming the skill that
    ran, then a `<details><summary>View commit history</summary>` block with the
-   commit list.
+   commit list — and, when step 3 shed anything, a `### Shed (needs its own PR)`
+   section listing the shed paths verbatim.
 
-4. **If tests fail:** do NOT open a PR. Call the `dispatch_get_green` tool with
+5. **If tests fail:** do NOT open a PR. Call the `dispatch_get_green` tool with
    the branch and the last 100 lines of the failing build and test logs, so the
    stronger model attempts the fix in the dispatched `get-green` workflow.

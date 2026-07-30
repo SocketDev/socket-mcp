@@ -44,6 +44,46 @@ message polish are throwaway: they exist only until the next squash.
   is the EXPECTED state, reconciled forward by the force-push, never a reset of
   local to origin.
 
+## The server-side force-push block, and its temporary exemption
+
+Clearing the local guards leaves a second wall. Every fleet repo carries a
+repo-level ruleset named `fleet-main-protection`, created and converged by
+`scripts/fleet/check/main-branch-rules-are-enforced.mts`: `deletion` +
+`non_fast_forward` on `~DEFAULT_BRANCH`, with **zero bypass actors**. GitHub
+therefore rejects a force-push to the default branch even after
+`no-force-push-guard` has stood aside. A squash-history flatten, a lease-force
+reconcile, and an amend-and-push all hit it.
+
+The exemption is a temporary self-grant, and it runs through a script:
+
+```bash
+# Who can force-push this repo right now? (read-only, the default)
+node scripts/fleet/grant-main-bypass.mts <repo>
+
+# Exempt yourself, push, then hand the exemption back.
+node scripts/fleet/grant-main-bypass.mts <repo> --grant --yes
+node scripts/fleet/grant-main-bypass.mts <repo> --revoke
+```
+
+- **Never hand-run `gh api` against the ruleset.** A hand-written full body
+  silently rewrites whatever it omits — that is how a PUT meant to add one
+  bypass actor drops `non_fast_forward` for everyone. The script reads the
+  ruleset, replaces only `bypass_actors`, writes it back, then re-reads and
+  fails loud if any rule type disappeared.
+- **The grant is self-expiring, by construction.** The canonical ruleset body
+  (`rulesetPayload()`) has no `bypass_actors` field at all, so the next
+  `main-branch-rules-are-enforced --fix` wipes every grant. GitHub also logs a
+  `Bypassed rule violations` entry on each use. Nothing here is durable, and
+  the script prints both facts on every grant.
+- **It is reflexive only.** There is no `--user` flag: the actor is always the
+  authenticated `gh` account, so the tool can exempt the person running it and
+  nobody else. `--grant` additionally requires `--yes`.
+- **It never creates the ruleset.** An absent `fleet-main-protection` is a hard
+  stop pointing at `main-branch-rules-are-enforced --fix`; one script owns that
+  ruleset's shape, and a second definition would drift from it.
+- **Revoke when done.** Waiting for the next `--fix` run works, but leaves a
+  live force-push exemption sitting on the repo until then.
+
 ## Strip attribution with the script, never a rebase dance
 
 When the pre-push gate reports "AI attribution found in commit messages", the
