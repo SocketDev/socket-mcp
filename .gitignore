@@ -19,7 +19,7 @@ coverage
 *.js
 !*.config.js
 
-# <fleet-canonical>
+# <fleet>
 # Managed by socket-wheelhouse. Don't edit locally — edit upstream
 # in scripts/sync-scaffolding/checks/gitignore-fleet-block.mts and
 # re-cascade via `pnpm run sync`. Project-specific ignores stay
@@ -145,7 +145,7 @@ node_modules/
 npm-debug.log
 pnpm-debug.log
 *.tgz
-# </fleet-canonical>
+# </fleet>
 
 # ─── vitiate coverage-guided fuzz lane (`pnpm run test:fuzz`) caches ───
 # `.swc/` is the SWC instrument plugin's WASM cache; `.vitiate/` holds the
