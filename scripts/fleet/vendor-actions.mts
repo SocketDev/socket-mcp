@@ -48,11 +48,20 @@ const logger = getDefaultLogger()
 // The `<owner>/<repo>` actions the fleet `uses:` across its workflows (kept
 // sorted). Add a slug here to vendor a directly-consumed action; ported
 // upstreams come from the port map and never need a second entry.
+//
+// 🚨 This list must stay COMPLETE. Anything the fleet `uses:` that is missing
+// here falls outside the vendored union, and `pruneOrphanUpstreams` reads that
+// as a retired action and DELETES its pin. `actions/setup-go` was exactly that
+// case — consumed by template/presets/.github/workflows/go-publish.yml and
+// pinned in .gitmodules, but absent here until the prune surfaced it. When
+// adding a `uses:` to a workflow, add its slug here too; the allowlist in
+// auditing-gha/canonical-patterns.mts is the cross-check for what is consumed.
 const USES_ACTIONS: readonly string[] = [
   'actions/cache',
   'actions/checkout',
   'actions/download-artifact',
   'actions/github-script',
+  'actions/setup-go',
   'actions/setup-node',
   'actions/upload-artifact',
 ]
@@ -62,6 +71,15 @@ const USES_ACTIONS: readonly string[] = [
 export const VENDORED_ACTIONS: readonly string[] = [
   ...new Set([...USES_ACTIONS, ...portedUpstreams()]),
 ].toSorted()
+
+// `upstream/*` submodule names this script does NOT own, and must never prune.
+// Everything else under `upstream/` is an action pin it generates, so anything
+// outside the vendored union is a retired action whose block should go.
+// Empty today: every block in the fleet's `.gitmodules` is an action pin. The
+// anticipated first entries are the copyleft tests-only slices from
+// `_shared/copyleft-upstreams.mts`, which a different provisioning path writes
+// and whose slugs will never appear in the union.
+export const UNMANAGED_UPSTREAMS: readonly string[] = []
 
 const GITMODULES = path.join(REPO_ROOT, '.gitmodules')
 
@@ -254,6 +272,67 @@ export function upsertAll(
 }
 
 /**
+ * Drop the `upstream/*` blocks whose action left the vendored union — a
+ * composite that stopped declaring a port, or an action the last workflow
+ * stopped using. Without this the retired pin lingers and reds
+ * `upstream-submodules-are-release-tagged` against a reference nothing wants.
+ *
+ * `keepSlugs` is the WANTED universe (`VENDORED_ACTIONS`), never the resolved
+ * pins: an action whose latest release has not soaked yet resolves to no pin,
+ * and pruning on that would delete a live reference mid-soak.
+ *
+ * Blocks named in `UNMANAGED_UPSTREAMS`, and every block outside `upstream/`,
+ * are left alone. Returns the new text plus the names dropped so the caller
+ * reports them rather than deleting silently. Pure.
+ */
+export function pruneOrphanUpstreams(
+  gitmodules: string,
+  keepSlugs: readonly string[],
+): { pruned: string[]; text: string } {
+  const keep = new Set(keepSlugs.map(slug => upstreamSubmoduleName(slug)))
+  const pruned: string[] = []
+  const lines = gitmodules.split('\n')
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = /^\[submodule "(upstream\/[^"]+)"\]$/.exec(lines[i]!.trim())
+    if (!match) {
+      continue
+    }
+    const name = match[1]!
+    if (keep.has(name) || UNMANAGED_UPSTREAMS.includes(name)) {
+      continue
+    }
+    // Same range walk as upsertAll: back over the `# <name>-<tag>` header
+    // comment, forward to the next comment/submodule, minus trailing blanks.
+    let start = i
+    if (start > 0 && lines[start - 1]!.startsWith('#')) {
+      start -= 1
+    }
+    let end = lines.length
+    for (let j = i + 1, { length } = lines; j < length; j += 1) {
+      const line = lines[j]!
+      if (line.startsWith('[submodule ') || line.startsWith('#')) {
+        end = j
+        break
+      }
+    }
+    while (end > i + 1 && lines[end - 1]!.trim() === '') {
+      end -= 1
+    }
+    lines.splice(start, end - start)
+    pruned.push(name)
+    // The splice pulled later lines back over the cursor; re-scan from here.
+    i = start - 1
+  }
+  return {
+    pruned,
+    text: `${lines
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\n+$/, '')}\n`,
+  }
+}
+
+/**
  * Run `gen/gitmodules-hash.mts --write` to (re)stamp the content-hash comments
  * after refs change. Throws on failure, fail loud.
  */
@@ -336,10 +415,15 @@ export function runWrite(): number {
     pins.push(pin)
     logger.log(`  ${pin.slug} → ${pin.tag} (${pin.sha.slice(0, 9)})`)
   }
-  writeThroughMirrorLock(GITMODULES, upsertAll(gitmodules, pins))
+  const { pruned, text } = pruneOrphanUpstreams(gitmodules, VENDORED_ACTIONS)
+  for (let i = 0, { length } = pruned; i < length; i += 1) {
+    logger.log(`  ${pruned[i]!} → pruned, no longer vendored`)
+  }
+  writeThroughMirrorLock(GITMODULES, upsertAll(text, pins))
   stampHashes()
   logger.success(
-    `[vendor-actions] vendored ${pins.length} action(s); hashes stamped.`,
+    `[vendor-actions] vendored ${pins.length} action(s)` +
+      `${pruned.length ? `, pruned ${pruned.length}` : ''}; hashes stamped.`,
   )
   return 0
 }

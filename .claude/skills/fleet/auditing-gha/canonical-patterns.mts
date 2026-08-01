@@ -59,8 +59,6 @@ export const CANONICAL_PATTERNS: readonly string[] = [
 // check fails a declaration that goes stale — a pattern listed here that the
 // template tree now references, or one that is no longer canonical.
 export const EXTERNALLY_CONSUMED_PATTERNS: Readonly<Record<string, string>> = {
-  'actions/cache@*':
-    'SocketDev/ultrathink .github/workflows/build-ts.yml, plus its sibling build workflows and SocketDev/envrypt .github/workflows/rust-fuzz.yml',
   'actions/deploy-pages@*': 'SocketDev/meander .github/workflows/pages.yml',
   'actions/upload-pages-artifact@*':
     'SocketDev/meander .github/workflows/pages.yml',

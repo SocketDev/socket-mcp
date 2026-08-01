@@ -232,11 +232,20 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/fleet/setup-and-install
+      # Fleet composites, not the third-party actions they replace: this file
+      # cascades to EVERY member, so a raw `uses:` here would force
+      # dtolnay/rust-toolchain and Swatinem/rust-cache onto every repo's
+      # Actions allowlist — and a strict-allowlist repo plan-fails with 0 jobs
+      # when one is missing, even though this job only runs for napi members.
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@4fd1da8b0805d2d2e936788875a7d65dbd677dc2 # stable (2026-07-24)
+        uses: ./.github/actions/fleet/setup-rust-toolchain
         with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2 (2026-07-24)
+          channel: stable
+      - name: Rust cache
+        uses: ./.github/actions/fleet/setup-rust-cache
+        with:
+          prefix-key: napi-${{ matrix.target }}
+          workspaces: .
       - name: Prefer rustup cargo over the sfw shim
         shell: bash
         # The SFW proxy MITMs crates.io, and on Windows schannel rejects its

@@ -83,6 +83,30 @@ export const COMPOSITE_ACTION_PORTS: Readonly<
   'setup-git-signing': [
     { portedAt: 'v7.0.0', upstream: 'crazy-max/ghaction-import-gpg' },
   ],
+  // Socket-original cache wrapper over `uses: actions/cache`: cargo registry +
+  // git index + each workspace's target dir, keyed on prefix + OS + rustc
+  // version + Cargo.lock hashes.
+  //
+  // It covers the same ground as Swatinem/rust-cache and is deliberately NOT
+  // declared a port of it. That upstream is LGPL-3.0, so it sits in
+  // COPYLEFT_UPSTREAMS as run-and-observe-only; declaring the port here would
+  // provision an `upstream/Swatinem-rust-cache` reference block whose whole
+  // purpose is reading the implementation, which is the derivation the
+  // copyleft boundary exists to prevent. Evolve this composite against
+  // `actions/cache` and its own behavior, never against that source.
+  'setup-rust-cache': [],
+  // Socket-original wrapper over the rustup CLI: channel / profile / targets /
+  // components, with a rustup-init fetch for images that lack it. The thing it
+  // wraps is rustup itself, a first-party Rust tool with its own documented
+  // surface, so there is no third-party implementation behind it to port.
+  //
+  // It spares consumers from allowlisting dtolnay/rust-toolchain, which is NOT
+  // declared here as a port: that repo has cut exactly one tag, `v1`, and
+  // moves it — the tag's release is dated 2022 while it currently resolves to
+  // a 2025 commit. A moving alias cannot be lock-stepped, since the pin would
+  // drift while `portedAt` sat still, which is the exact failure the tripwire
+  // exists to catch.
+  'setup-rust-toolchain': [],
 }
 
 // Split an `<owner>/<repo>` slug; undefined when the shape is wrong. Pure.

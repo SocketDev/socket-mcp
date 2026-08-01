@@ -177,6 +177,35 @@ message reports the original tip, recovery ref, old and new commit counts, and
 the push mode computed from ancestry: a normal push when `origin/<default>` is
 an ancestor of the new tip, otherwise a separately authorized lease force-push.
 
+## Subagents: a worktree is not durable storage
+
+`tidying-worktrees` and `managing-worktrees` prune worktrees automatically —
+`git worktree prune` plus a `--force` removal of anything the removability
+predicate calls spent — and a squash-opt-in repo force-pushes its default
+branch on a cadence. A subagent that treats its worktree as the durable copy
+of its own work, or a commit SHA as a stable handle, loses both without
+warning.
+
+- **Land to your own branch continuously.** Never let work live only in the
+  worktree. Commit and push (or land to local main) as you go — a worktree
+  that gets swept mid-task takes any unlanded commit with it.
+- **Identify your work by subject, not SHA.** A squash or a lease-force
+  reconcile mints new commit objects for the same tree; the SHA you saw
+  earlier will not resolve. Match on the commit subject / your own diff
+  instead of pinning to a specific hash.
+- **A live rewrite in progress is a pause signal.** If a squash or history
+  rewrite is running, or `main`'s history changes under you mid-task, stop
+  mutating git state, report what you saw, and wait — don't try to reconcile
+  a moving target yourself.
+- **Never reset or rewind local main to origin.** Origin moving ahead by a
+  squash/rewrite is not newer truth; reconcile forward (see "Local main is
+  canonical" above), the same rule as every other actor.
+
+A hook that watched for an in-progress rewrite (a lockfile, a running
+`squashing-history` process, a `SQUASH_HISTORY` env sentinel) and warned a
+subagent before it mutated git state would catch this earlier than a lost-work
+postmortem; nothing currently does.
+
 ## Incident this codifies
 
 socket-mcp, 2026-07-10: a morning sweep consolidation force-pushed rewritten
