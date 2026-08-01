@@ -3,12 +3,14 @@
 # after registry HEAD moved the path — three copies of one concern, drifting.
 # One home now, so a rustup change lands everywhere at once.
 #
-# Socket-original. What this wraps is the rustup CLI, so rustup's own book at
-# https://rust-lang.github.io/rustup/ is the reference to evolve it against —
-# there is no upstream/ reference block for it. The third-party action it
-# spares consumers from allowlisting, dtolnay/rust-toolchain, is deliberately
-# not pinned as a port: it has cut one tag ever, `v1`, and moves it, so there
-# is no immutable release to lock-step against.
+# Refresh against the action this replaces, dtolnay/rust-toolchain, by reading
+# its upstream/ submodule rather than re-deriving the behaviour from memory.
+# That upstream is MIT, so reading it is fine, and rustup's own book at
+# https://rust-lang.github.io/rustup/ documents the CLI underneath.
+#
+# It is pinned to a timestamped master SHA rather than a tag: the repo has cut
+# one tag ever, `v1`, and moves it, so pinning that tag by hash would record a
+# commit the tag stops reaching. See the port map for the review anchor.
 
 name: 'Setup Rust Toolchain'
 description: |
