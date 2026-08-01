@@ -8,8 +8,6 @@
 
 A Model Context Protocol (MCP) server for Socket integration — lets AI assistants query dependency vulnerability scores and security metadata.
 
-## Why this repo exists
-
 Socket MCP exposes Socket.dev's package-scoring API through the Model Context Protocol, so any MCP-aware AI assistant (Claude, VS Code Copilot, Cursor, Windsurf) can score a package, audit a `package.json`, or flag risky dependencies as part of a conversation. It ships as both a hosted public server (`https://mcp.socket.dev/`, no setup) and a self-hostable npm package, so you can choose between zero-friction and full data isolation.
 
 ## ✨ Features
