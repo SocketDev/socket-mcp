@@ -303,7 +303,6 @@
     "</fleet>",
     "#fleet-canonical-end",
     "<repo>",
-    "**/my-repo-local-thing/**",
     "</repo>"
   ]
 }
