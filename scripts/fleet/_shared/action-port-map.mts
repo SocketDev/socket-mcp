@@ -18,10 +18,20 @@
 export interface CompositePort {
   // The ported upstream as `<owner>/<repo>`, e.g. `softprops/action-gh-release`.
   upstream: string
-  // The upstream release tag the composite's port was last reviewed against.
-  // Must equal the `.gitmodules` reference pin's tag — a vendor bump without a
-  // re-port review reds `action-ports-are-lock-stepped`.
+  // The upstream release tag the composite's port was last reviewed against,
+  // or the BRANCH name when the upstream publishes no usable release tag.
+  // Must equal the `.gitmodules` reference pin's `branch` — a vendor bump
+  // without a re-port review reds `action-ports-are-lock-stepped`.
   portedAt: string
+  // For a no-release-tag upstream ONLY: the exact branch commit the port was
+  // reviewed against. This is the lock-step anchor in place of a tag, and it
+  // is a STRONGER one — a tag names a moving-target-by-convention, a SHA names
+  // the precise tree that was read. Must equal the block's `ref`.
+  portedSha?: string | undefined
+  // For a no-release-tag upstream ONLY: the date `portedSha` was taken,
+  // `YYYY-MM-DD`. A branch pin has no version to read staleness from, so the
+  // timestamp is the only signal that a port is drifting behind its upstream.
+  portedOn?: string | undefined
 }
 
 // One key per `.github/actions/fleet/*` composite — template/base plus the
@@ -95,18 +105,25 @@ export const COMPOSITE_ACTION_PORTS: Readonly<
   // copyleft boundary exists to prevent. Evolve this composite against
   // `actions/cache` and its own behavior, never against that source.
   'setup-rust-cache': [],
-  // Socket-original wrapper over the rustup CLI: channel / profile / targets /
-  // components, with a rustup-init fetch for images that lack it. The thing it
-  // wraps is rustup itself, a first-party Rust tool with its own documented
-  // surface, so there is no third-party implementation behind it to port.
+  // Port of the rustup surface: channel / profile / targets / components, with
+  // a rustup-init fetch for images that lack it.
   //
-  // It spares consumers from allowlisting dtolnay/rust-toolchain, which is NOT
-  // declared here as a port: that repo has cut exactly one tag, `v1`, and
-  // moves it — the tag's release is dated 2022 while it currently resolves to
-  // a 2025 commit. A moving alias cannot be lock-stepped, since the pin would
-  // drift while `portedAt` sat still, which is the exact failure the tripwire
-  // exists to catch.
-  'setup-rust-toolchain': [],
+  // Pinned to a timestamped master SHA, not a tag: dtolnay/rust-toolchain has
+  // cut exactly one tag, `v1`, and MOVES it — that tag's release is dated 2022
+  // while it resolves to a 2025 commit. Pinning the moving tag by its current
+  // hash is worse than useless, because once the tag moves the recorded hash
+  // is a commit the tag no longer reaches. Note: zizmor audits for exactly
+  // that shape and calls it an impostor commit. The branch SHA below is a
+  // real, reachable commit and names the exact tree the port was reviewed
+  // against.
+  'setup-rust-toolchain': [
+    {
+      portedAt: 'master',
+      portedOn: '2026-07-16',
+      portedSha: '2c7215f132e9ebf062739d9130488b56d53c060c',
+      upstream: 'dtolnay/rust-toolchain',
+    },
+  ],
 }
 
 // Split an `<owner>/<repo>` slug; undefined when the shape is wrong. Pure.

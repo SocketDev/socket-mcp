@@ -86,14 +86,6 @@
       ]
     },
     {
-      "name": "socket-btm",
-      "description": "Build toolchain — produces signed prebuilt binaries for @socketaddon/* and @socketbin/*",
-      "optIns": [
-        "squash-history"
-      ],
-      "publishes": "custom"
-    },
-    {
       "name": "socket-cli",
       "description": "Command-line interface for socket.dev security analysis"
     },

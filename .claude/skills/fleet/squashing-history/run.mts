@@ -58,10 +58,15 @@ import { slugFromRemoteUrl } from '../../../hooks/fleet/_shared/fleet-repos.mts'
 import { resolveDefaultBranch } from '../_shared/scripts/git-default-branch.mts'
 import { header, run, timestamp } from '../_shared/scripts/run-helpers.mts'
 import { formatBackupBranch } from '../../../../scripts/fleet/lib/backup-branch.mts'
-import { checkNotShallowClone, checkSquashAllowed } from './run-guards.mts'
+import {
+  checkNotShallowClone,
+  checkSquashAllowed,
+  resolveFreezeBoundaryForRepo,
+} from './run-guards.mts'
 import {
   squashFeatureBranchMode,
   squashLocalCanonicalMode,
+  squashTailMode,
   squashWorktreeMode,
 } from './run-squash-modes.mts'
 
@@ -102,18 +107,24 @@ export async function backupBranchForCommit(
 /**
  * Accrue user-visible CHANGELOG entries into the `## [Unreleased]` section
  * before a squash collapses the commit history those entries derive from.
- * Derives the Conventional-Commit entries since the current root, merges them
- * into CHANGELOG.md at `cwd`, and commits that file on the checked-out branch
- * (--no-verify, unsigned — the commit is squashed away moments later so only
- * its TREE survives, re-signed by the mint/squash root). Returns the
- * post-accrual HEAD sha (the current HEAD when nothing was accrued). Fail-open:
- * any problem logs and returns the current HEAD, so a changelog hiccup never
- * blocks a squash. The caller must have `cwd` checked out on the branch being
- * squashed.
+ * Derives the Conventional-Commit entries since `since` (or, when omitted, the
+ * oldest root reachable from HEAD — the last full-root squash's root, or the
+ * true start), merges them into CHANGELOG.md at `cwd`, and commits that file
+ * on the checked-out branch (--no-verify, unsigned — the commit is squashed
+ * away moments later so only its TREE survives, re-signed by the mint/squash
+ * root). Returns the post-accrual HEAD sha (the current HEAD when nothing was
+ * accrued). Fail-open: any problem logs and returns the current HEAD, so a
+ * changelog hiccup never blocks a squash. The caller must have `cwd` checked
+ * out on the branch being squashed.
+ *
+ * `since` is the frozen release boundary in TAIL mode — accruing from the
+ * true root would re-derive entries for commits already released and already
+ * present in CHANGELOG.md under their own version heading, every cadence.
  */
 export async function accrueUnreleased(
   cwd: string,
   repoUrl: string | undefined,
+  since?: string | undefined,
 ): Promise<string> {
   const headSha = async (): Promise<string> =>
     (await run('git', ['rev-parse', 'HEAD'], cwd)).stdout.trim()
@@ -121,15 +132,19 @@ export async function accrueUnreleased(
     if (!existsSync(path.join(cwd, 'CHANGELOG.md'))) {
       return await headSha()
     }
-    // The oldest root reachable from HEAD — the last squash's root (or the true
-    // start). Commits after it are the window this squash would otherwise erase.
-    const roots = (
-      await run('git', ['rev-list', '--max-parents=0', 'HEAD'], cwd)
-    ).stdout
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-    const root = roots[roots.length - 1]
+    let root: string | undefined = since
+    if (root === undefined) {
+      // The oldest root reachable from HEAD — the last squash's root (or the
+      // true start). Commits after it are the window this squash would
+      // otherwise erase.
+      const roots = (
+        await run('git', ['rev-list', '--max-parents=0', 'HEAD'], cwd)
+      ).stdout
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+      root = roots[roots.length - 1]
+    }
     if (!root) {
       return await headSha()
     }
@@ -308,6 +323,48 @@ export async function squashSingleCommit(
 
   const newHead = (await run('git', ['rev-parse', 'HEAD'], worktree)).stdout
   return { __proto__: null, newHead } as SquashResult
+}
+
+/**
+ * Runtime (not test-only) proof that a tail squash left the frozen release
+ * boundary untouched: `boundary` must still resolve to ITSELF (a rewrite that
+ * somehow touched it would move the ref/sha it names) AND must still be an
+ * ancestor of the squashed tip. `squashSingleCommit`'s tree-identity gate only
+ * proves the TIP tree is unchanged; it says nothing about whether the
+ * boundary commit survived, so this is a second, independent check. A failure
+ * here is unrecoverable corruption of the one invariant this whole feature
+ * exists to hold — provenance/SHA-pin safety — so it HARD `process.exit(1)`s,
+ * matching the tree-identity gate's own severity.
+ */
+export async function assertBoundaryIntact(
+  worktree: string,
+  boundary: string,
+): Promise<void> {
+  const resolved = (
+    await run('git', ['rev-parse', boundary], worktree, { allowFailure: true })
+  ).stdout.trim()
+  if (resolved !== boundary) {
+    logger.error(
+      `error: frozen release boundary ${boundary} no longer resolves to ` +
+        `itself (got ${resolved || '(nothing)'}) — aborting. The squash must ` +
+        `never touch a published-release commit.`,
+    )
+    process.exit(1)
+  }
+  const isAncestor =
+    (
+      await run('git', ['merge-base', '--is-ancestor', boundary, 'HEAD'], worktree, {
+        allowFailure: true,
+      })
+    ).code === 0
+  if (!isAncestor) {
+    logger.error(
+      `error: frozen release boundary ${boundary} is no longer an ancestor ` +
+        `of the squashed tip — aborting. The squash must never orphan a ` +
+        `published-release commit.`,
+    )
+    process.exit(1)
+  }
 }
 
 /**
@@ -550,6 +607,37 @@ async function main(): Promise<number> {
     ).stdout.trim()
   } catch {}
   const localMode = localHead !== '' && localHead !== origHead
+  const tip = localMode ? localHead : origHead
+
+  // Freeze-boundary resolution — a published release no longer refuses the
+  // squash outright; it sets the boundary the squash collapses ABOVE. Runs
+  // against `tip` (the canonical branch commit about to be squashed, whether
+  // that's origin's tip or local's), never a stale HEAD.
+  const freeze = await resolveFreezeBoundaryForRepo({ src, tip })
+  if (freeze.refuseMessage !== undefined) {
+    logger.error(`error: ${freeze.refuseMessage}`)
+    return 2
+  }
+  if (freeze.boundary !== undefined) {
+    // Re-architects BOTH the local-canonical and origin-worktree dispatch: a
+    // repo with a frozen release NEVER reaches squashLocalCanonicalMode's
+    // mintSquashRoot (no-parent root mint) or squashWorktreeMode's full-root
+    // reset — both would rewrite the released commits below the boundary.
+    // squashTailMode's own worktree + `-p <boundary>` parent covers the
+    // "local ahead" case too (its `tip` param is local's sha here), so no
+    // separate local-canonical tail path is needed.
+    return await squashTailMode({
+      base,
+      boundary: freeze.boundary,
+      leaseAgainst: origHead,
+      remoteUrl,
+      repoName,
+      src,
+      tip,
+      worktree,
+    })
+  }
+
   if (localMode) {
     return await squashLocalCanonicalMode({
       base,

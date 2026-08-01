@@ -84,8 +84,12 @@ export const UNMANAGED_UPSTREAMS: readonly string[] = []
 const GITMODULES = path.join(REPO_ROOT, '.gitmodules')
 
 export interface ActionPin {
+  // The `# no-release-tag: <why>` reason, set only for a branch-pinned
+  // upstream. Absent means the pin is a real release tag.
+  noReleaseTag?: string | undefined
   slug: string
   sha: string
+  // The release tag, or the BRANCH name for a no-release-tag upstream.
   tag: string
 }
 
@@ -134,6 +138,41 @@ export function isSoaked(
   return published <= nowMs - soakDays * 24 * 60 * 60 * 1000
 }
 
+// Upstreams that publish no usable release tag, mapped to WHY. These are
+// pinned to a timestamped default-branch SHA instead, and the reason is
+// emitted as the block's `# no-release-tag:` annotation.
+export const NO_RELEASE_TAG_UPSTREAMS: Readonly<Record<string, string>> = {
+  'dtolnay/rust-toolchain':
+    'ships from branch refs; its one tag (v1) moves, so pinning it by hash would record a commit the tag stops reaching',
+}
+
+/**
+ * Pin a no-release-tag upstream to its default branch's current head.
+ *
+ * Only ever called when the block is ABSENT. A branch head moves, so
+ * re-resolving it on every run would advance the pin underneath the port and
+ * red the lock-step check continuously; an existing branch pin stands until a
+ * human re-reviews the port and bumps `portedSha`/`portedOn` with it — the
+ * same "current pin stands" rule the unsoaked-release path follows. Network
+ * via ghApi.
+ */
+export function resolveBranchPin(slug: string): ActionPin | undefined {
+  const branch = ghApi(`repos/${slug}`, '.default_branch')
+  if (!branch) {
+    return undefined
+  }
+  const sha = ghApi(`repos/${slug}/commits/${branch}`, '.sha')
+  if (!sha) {
+    return undefined
+  }
+  return {
+    noReleaseTag: NO_RELEASE_TAG_UPSTREAMS[slug],
+    slug,
+    sha,
+    tag: branch,
+  }
+}
+
 /**
  * The latest release tag for `<owner>/<repo>` — GitHub's own latest semantics,
  * newest stable release — and that tag's COMMIT sha (dereferencing an
@@ -169,6 +208,9 @@ export function blockFor(pin: ActionPin): string {
   const sub = upstreamSubmoduleName(pin.slug)
   const label = sub.slice('upstream/'.length)
   return [
+    // A branch pin declares WHY it has no tag; the release-tagged check reads
+    // this annotation as the escape from its tag rule.
+    ...(pin.noReleaseTag ? [`# no-release-tag: ${pin.noReleaseTag}`] : []),
     // The `# <owner>-<repo>-<version>` header gen/gitmodules-hash --write
     // attaches the sha256 to, gitmodules-comment-guard shape. Version tracks
     // the branch.
@@ -405,6 +447,25 @@ export function runWrite(): number {
   const pins: ActionPin[] = []
   for (let i = 0, { length } = VENDORED_ACTIONS; i < length; i += 1) {
     const slug = VENDORED_ACTIONS[i]!
+    if (slug in NO_RELEASE_TAG_UPSTREAMS) {
+      // No usable release tag, so the pin is a branch SHA. Take one only when
+      // the block is absent — a branch head moves, and re-resolving it here
+      // would advance the pin underneath the port on every run.
+      if (currentPin(gitmodules, slug)) {
+        logger.log(`  ${slug} → branch pin stands (no release tag)`)
+        continue
+      }
+      const branchPin = resolveBranchPin(slug)
+      if (!branchPin) {
+        logger.warn(`  ${slug}: could not resolve a default-branch head.`)
+        continue
+      }
+      pins.push(branchPin)
+      logger.log(
+        `  ${branchPin.slug} → ${branchPin.tag} @ ${branchPin.sha.slice(0, 9)} (no release tag)`,
+      )
+      continue
+    }
     const pin = resolveLatest(slug)
     if (!pin) {
       logger.warn(

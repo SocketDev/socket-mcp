@@ -4,40 +4,51 @@
  * Each guard returns `undefined` to let main() continue, or the process exit
  * code main() should return immediately.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
+import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 import {
   isOptedIn,
   loadRosterFromRepo,
-  publishProfile,
 } from '../../../hooks/fleet/_shared/fleet-roster.mts'
 import { run } from '../_shared/scripts/run-helpers.mts'
-import { publishedReleaseBlocksSquash } from '../../../../scripts/fleet/lib/squash-publish-guard.mts'
-import { fetchPublishedVersion } from '../../../../scripts/fleet/publish-infra/cargo/registry.mts'
-import { fetchLatestPublishedVersion } from '../../../../scripts/fleet/publish-infra/npm/registry.mts'
+import {
+  crateNamesFromCargoManifest,
+  npmPackageNameFromManifest,
+} from '../../../../scripts/fleet/_shared/member-release-probe.mts'
+import { resolveCrateReleaseSha } from '../../../../scripts/fleet/crate-release-sha.mts'
+import { fetchLatestGitHead } from '../../../../scripts/fleet/publish-infra/npm/registry.mts'
+import {
+  publishedReleaseBlocksSquash,
+  resolveFreezeBoundary,
+} from '../../../../scripts/fleet/lib/squash-publish-guard.mts'
+
+import type {
+  FreezeAncestryInfo,
+  FreezeAnchorCandidate,
+} from '../../../../scripts/fleet/lib/squash-publish-guard.mts'
 
 const logger = getDefaultLogger()
 
+// A workspace directory (`packages/*`, `crates/*`) contributes at most this
+// many manifests to the freeze-boundary probe. A registry-scale monorepo has
+// hundreds of directories; past the cap the probe stops widening rather than
+// issuing hundreds of registry reads for one squash run.
+const MAX_WORKSPACE_ENTRIES = 25
+
 /**
- * Code-is-law opt-in gate plus published-release safeguard, in one guard.
+ * Code-is-law opt-in gate. Squash is destructive history rewrite, so the
+ * ROSTER decides which repos it may touch — not a path arg a human, or a
+ * fuzzy name-match, points at. A non-fleet repo, no roster, or absent from
+ * it, is refused outright: this is the guard that stops a `cdxgen` from being
+ * squashed because it resembles `sdxgen`.
  *
- * Opt-in: squash is destructive history rewrite, so the ROSTER decides which
- * repos it may touch — not a path arg a human, or a fuzzy name-match, points
- * at. A non-fleet repo, no roster, or absent from it, is refused outright:
- * this is the guard that stops a `cdxgen` from being squashed because it
- * resembles `sdxgen`.
- *
- * Published-release safeguard: a full-root squash is safe for a repo whose
- * crates.io / npm names are still 0.0.0 placeholders, but it ERASES the
- * published-release history of a repo that has cut a REAL release. Detect a
- * real published version and REFUSE — a published repo keeps its history and
- * consolidates only the range since its last publish. Fail-OPEN: a registry
- * read error must NOT block a legit squash (the opt-in check above is the
- * primary control), so any lookup failure leaves `latest` undefined and the
- * squash proceeds.
+ * The published-release safeguard is a SEPARATE step
+ * (`resolveFreezeBoundaryForRepo`) — a real release no longer refuses the
+ * squash outright, it sets the freeze boundary the squash collapses ABOVE.
  */
 export async function checkSquashAllowed(config: {
   readonly fleetName: string
@@ -69,46 +80,194 @@ export async function checkSquashAllowed(config: {
     )
     return 2
   }
-
-  const publishes = publishProfile(roster, fleetName)
-  let latest: string | undefined
-  try {
-    if (publishes === 'cargo') {
-      // Crate names match repo names in the fleet.
-      latest = await fetchPublishedVersion(fleetName)
-    } else if (publishes === 'js' || publishes === 'npm') {
-      // An npm package name is frequently SCOPED (e.g. @socketsecurity/sdk) and
-      // differs from the repo/fleet name, so resolve it from the target's
-      // package.json; fall back to fleetName when it is absent / private /
-      // unparsable.
-      let pkgName = fleetName
-      const pkgPath = path.join(src, 'package.json')
-      if (existsSync(pkgPath)) {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-          name?: unknown | undefined
-          private?: unknown | undefined
-        }
-        if (typeof pkg.name === 'string' && pkg.name && pkg.private !== true) {
-          pkgName = pkg.name
-        }
-      }
-      latest = await fetchLatestPublishedVersion(pkgName)
-    }
-  } catch {}
-  const block = publishedReleaseBlocksSquash(publishes, latest)
-  if (block) {
-    logger.error(
-      `error: ${fleetName} has a published ${block.registry} release ` +
-        `(${block.version}) — refusing a full-root squash (it erases ` +
-        `published-release history). Fix: remove 'squash-history' from ` +
-        `"${fleetName}" in cascading-fleet/lib/fleet-repos.json (a published ` +
-        `repo keeps its history), then consolidate only the range since the ` +
-        `last publish: git reset --soft <publish-sha> (SHA is in the ` +
-        `published .crate's .cargo_vcs_info.json / the npm tarball's gitHead).`,
-    )
-    return 2
-  }
   return undefined
+}
+
+// Every manifest TEXT for one packaging surface, read from the LOCAL
+// checkout: the root manifest, then one workspace directory down
+// (`packages/*` for npm, `crates/*` for cargo) — the local mirror of
+// `member-release-probe.mts`'s remote (GH API) surface reader, since this
+// guard runs against a checkout on disk, not another repo over the network.
+function localManifestTexts(
+  src: string,
+  rootName: string,
+  workspaceDir: string,
+): string[] {
+  const texts: string[] = []
+  const rootPath = path.join(src, rootName)
+  if (existsSync(rootPath)) {
+    texts.push(readFileSync(rootPath, 'utf8'))
+  }
+  const dir = path.join(src, workspaceDir)
+  if (!existsSync(dir)) {
+    return texts
+  }
+  let entries: string[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name)
+  } catch {
+    entries = []
+  }
+  for (
+    let i = 0, { length } = entries;
+    i < length && i < MAX_WORKSPACE_ENTRIES;
+    i += 1
+  ) {
+    const manifestPath = path.join(dir, entries[i]!, rootName)
+    if (existsSync(manifestPath)) {
+      texts.push(readFileSync(manifestPath, 'utf8'))
+    }
+  }
+  return texts
+}
+
+// Every freeze-anchor candidate this checkout's manifests declare, plus
+// whether ANY of them is a REAL published release. One network read per
+// declared npm package / crate — fail-open per read: a lookup failure
+// contributes no candidate rather than blocking the resolution (matching the
+// registry-read fail-open contract every other squash-allowed check here
+// carries).
+async function collectFreezeAnchors(src: string): Promise<{
+  candidates: FreezeAnchorCandidate[]
+  published: boolean
+}> {
+  const candidates: FreezeAnchorCandidate[] = []
+  let published = false
+
+  const npmTexts = localManifestTexts(src, 'package.json', 'packages')
+  for (let i = 0, { length } = npmTexts; i < length; i += 1) {
+    const name = npmPackageNameFromManifest(npmTexts[i]!)
+    if (name === undefined) {
+      continue
+    }
+    let read: Awaited<ReturnType<typeof fetchLatestGitHead>>
+    try {
+      read = await fetchLatestGitHead(name)
+    } catch {
+      continue
+    }
+    if (!read.reachable || !read.version) {
+      continue
+    }
+    if (!publishedReleaseBlocksSquash('npm', read.version)) {
+      continue
+    }
+    published = true
+    candidates.push({
+      sha: read.sha,
+      source: `npm:${name}@${read.version}`,
+    })
+  }
+
+  const cargoTexts = localManifestTexts(src, 'Cargo.toml', 'crates')
+  for (let i = 0, { length } = cargoTexts; i < length; i += 1) {
+    const names = crateNamesFromCargoManifest(cargoTexts[i]!)
+    for (let j = 0, count = names.length; j < count; j += 1) {
+      let info: Awaited<ReturnType<typeof resolveCrateReleaseSha>>
+      try {
+        info = await resolveCrateReleaseSha(names[j]!)
+      } catch {
+        continue
+      }
+      if (!info || !publishedReleaseBlocksSquash('cargo', info.version)) {
+        continue
+      }
+      published = true
+      candidates.push({
+        sha: info.sha,
+        source: `crate:${names[j]!}@${info.version}`,
+      })
+    }
+  }
+
+  return { candidates, published }
+}
+
+/**
+ * Ancestry for a set of candidate SHAs against `tip` — the branch commit
+ * about to be squashed — via `git merge-base --is-ancestor` plus `git
+ * rev-list --count <sha>..<tip>` (only computed when the ancestor check
+ * holds; ranking a rejected candidate is pointless).
+ */
+async function computeHeadAncestry(
+  src: string,
+  tip: string,
+  shas: readonly string[],
+): Promise<Map<string, FreezeAncestryInfo>> {
+  const map = new Map<string, FreezeAncestryInfo>()
+  for (let i = 0, { length } = shas; i < length; i += 1) {
+    const sha = shas[i]!
+    if (map.has(sha)) {
+      continue
+    }
+    const isAncestor =
+      (
+        await run('git', ['merge-base', '--is-ancestor', sha, tip], src, {
+          allowFailure: true,
+        })
+      ).code === 0
+    let distance = Number.POSITIVE_INFINITY
+    if (isAncestor) {
+      distance = Number(
+        (await run('git', ['rev-list', '--count', `${sha}..${tip}`], src))
+          .stdout || '0',
+      )
+    }
+    map.set(sha, { distance, isAncestor })
+  }
+  return map
+}
+
+export interface FreezeBoundaryResolution {
+  /**
+   * The newest ancestor-verified published-release SHA to freeze at, or
+   * `undefined` when a full-root squash is safe (nothing published).
+   */
+  readonly boundary?: string | undefined
+  /**
+   * Set when the repo has a confirmed published release with no safe anchor
+   * to freeze at — the caller must refuse the squash (exit 2) rather than
+   * proceed with `boundary: undefined`, which would read as "safe to
+   * full-flatten".
+   */
+  readonly refuseMessage?: string | undefined
+}
+
+/**
+ * Resolve this checkout's squash-freeze boundary against `tip` (the branch
+ * commit about to be squashed): discover every npm package / crate this repo
+ * (root + one workspace level) declares, probe each on its registry for a
+ * REAL published release and that release's recorded source commit, verify
+ * ancestry, and hand the whole set to the pure `resolveFreezeBoundary`.
+ *
+ * `resolveFreezeBoundary`'s thrown "unresolvable anchor" case is caught here
+ * and turned into a `refuseMessage` — main() logs it and returns exit 2,
+ * never silently treating it as `boundary: undefined` (full-root safe).
+ */
+export async function resolveFreezeBoundaryForRepo(config: {
+  readonly src: string
+  readonly tip: string
+}): Promise<FreezeBoundaryResolution> {
+  const cfg = { __proto__: null, ...config } as { src: string; tip: string }
+  const { src, tip } = cfg
+
+  const { candidates, published } = await collectFreezeAnchors(src)
+  const shas = candidates
+    .map(c => c.sha)
+    .filter((sha): sha is string => sha !== undefined)
+  const headAncestry = await computeHeadAncestry(src, tip, shas)
+
+  try {
+    return {
+      boundary: resolveFreezeBoundary({ candidates, headAncestry, published }),
+    }
+  } catch (e) {
+    return {
+      refuseMessage: errorMessage(e),
+    }
+  }
 }
 
 /**

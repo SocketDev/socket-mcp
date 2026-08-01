@@ -91,7 +91,11 @@ import type { ToolCallPayload } from '../_shared/payload.mts'
 // load-bearing: gen/hook-dispatch.mts parses these tokens STATICALLY out of the
 // source, so a computed list would read as no triggers at all. A test asserts
 // every roster entry's repo name appears here.
-export const triggers: readonly string[] = ['trufflehog', 'upstream/']
+export const triggers: readonly string[] = [
+  'rust-cache',
+  'trufflehog',
+  'upstream/',
+]
 
 // git subcommands that stream a blob or a tree out of a repository.
 const GIT_READ_SUBCOMMANDS = new Set(['archive', 'cat-file', 'show'])

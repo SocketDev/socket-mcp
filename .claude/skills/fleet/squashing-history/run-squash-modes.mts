@@ -1,11 +1,15 @@
 /*
- * Squashing-history runner — the two top-level squash-mode implementations.
+ * Squashing-history runner — the top-level squash-mode implementations.
  *
  * `squashLocalCanonicalMode` collapses local main's own tree when local is
- * ahead of origin; `squashWorktreeMode` runs the standard worktree-based
- * squash (Phases 2-8 in run.mts's header table) when local and origin already
- * agree. Split out of run.mts to keep main()'s body to a thin dispatch —
- * resolve which mode applies, hand off, return the exit code.
+ * ahead of origin AND there is no published-release freeze boundary;
+ * `squashWorktreeMode` runs the standard worktree-based full-root squash
+ * (Phases 2-8 in run.mts's header table) when local and origin already agree
+ * and there is no boundary; `squashTailMode` runs whenever a boundary EXISTS
+ * (either dispatch shape — local-ahead or origin-agrees), collapsing only the
+ * unreleased tail above the frozen release. Split out of run.mts to keep
+ * main()'s body to a thin dispatch — resolve which mode applies, hand off,
+ * return the exit code.
  */
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
@@ -14,6 +18,7 @@ import { header, run } from '../_shared/scripts/run-helpers.mts'
 import { checkNotShallowClone } from './run-guards.mts'
 import {
   accrueUnreleased,
+  assertBoundaryIntact,
   backupBranchForCommit,
   classifySquashMode,
   mintSquashRoot,

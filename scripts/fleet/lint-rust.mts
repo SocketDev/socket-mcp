@@ -19,6 +19,7 @@
 // prefer-async-spawn: sync-required — sequential CLI gates, exit-code
 // aggregation.
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -62,6 +63,52 @@ export function buildCargoClippyArgs(
   ]
 }
 
+/**
+ * The channel pinned by the workspace's `rust-toolchain.toml`, or undefined
+ * when the file is absent or has no `channel`.
+ */
+export function readPinnedChannel(manifestDir: string): string | undefined {
+  const file = path.join(manifestDir, 'rust-toolchain.toml')
+  if (!existsSync(file)) {
+    return undefined
+  }
+  const match = /^\s*channel\s*=\s*["']([^"']+)["']/m.exec(
+    readFileSync(file, 'utf8'),
+  )
+  return match?.[1]
+}
+
+/**
+ * Spawn args that pin clippy to the toolchain the repo declares.
+ *
+ * A bare `cargo clippy` is NOT pinned. `cargo` resolves the `clippy`
+ * subcommand by searching PATH for `cargo-clippy`, so whichever one comes
+ * first wins — a Homebrew install shadows rustup's, and the pin is silently
+ * ignored. That produced a gate that passed locally on a stable clippy while
+ * CI failed on the pinned nightly's newer lints, TWICE in one session
+ * (`useless_borrows_in_formatting`, `question_mark`), because the local run
+ * was not linting with the compiler the repo declares.
+ *
+ * `rustup run <channel>` resolves cargo AND its cargo-clippy from that
+ * toolchain's own bin dir, so PATH order cannot decide which linter runs.
+ * Falls back to bare `cargo` when rustup or the pin is missing, and says so —
+ * an unpinned lint is a weaker gate and must never look like the pinned one.
+ */
+export function buildPinnedSpawn(
+  manifestDir: string,
+  cargoArgs: readonly string[],
+): { args: string[]; command: string; pinned: boolean } {
+  const channel = readPinnedChannel(manifestDir)
+  if (!channel) {
+    return { args: [...cargoArgs], command: 'cargo', pinned: false }
+  }
+  return {
+    args: ['run', channel, 'cargo', ...cargoArgs],
+    command: 'rustup',
+    pinned: true,
+  }
+}
+
 function main(): void {
   const repoRoot = REPO_ROOT
   const manifests = findWorkspaceManifests(repoRoot)
@@ -72,10 +119,17 @@ function main(): void {
   let failed = false
   for (let i = 0, { length } = manifests; i < length; i += 1) {
     const manifest = manifests[i]!
-    logger.info(
-      `lint-rust: cargo clippy --workspace (${path.relative(repoRoot, manifest)})`,
+    const manifestDir = path.dirname(manifest)
+    const spawnPlan = buildPinnedSpawn(
+      manifestDir,
+      buildCargoClippyArgs(manifest, { fix }),
     )
-    const result = spawnSync('cargo', buildCargoClippyArgs(manifest, { fix }), {
+    logger.info(
+      `lint-rust: cargo clippy --workspace (${path.relative(repoRoot, manifest)})${
+        spawnPlan.pinned ? '' : ' [UNPINNED — no rust-toolchain.toml channel]'
+      }`,
+    )
+    const result = spawnSync(spawnPlan.command, spawnPlan.args, {
       // Cargo/rustup discover rust-toolchain.toml and .cargo/config.toml from
       // cwd, not from --manifest-path. Run at the workspace so a nested pin or
       // target config is honored consistently.

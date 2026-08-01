@@ -72,8 +72,8 @@ export const PUBLISH_ENV_NAMES: readonly string[] = [
 /**
  * Pre-rename environment names that must not exist at all — each survived a
  * rename once as an unrestricted second door (`publish` on four members,
- * `release` on socket-btm), and a registry-side trusted-publisher config can
- * still reference them by name.
+ * `release` on a since-retired member), and a registry-side trusted-publisher
+ * config can still reference them by name.
  */
 export const LEGACY_ENV_NAMES: readonly string[] = ['publish', 'release']
 
