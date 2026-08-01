@@ -10,6 +10,13 @@ to a single `chore: initial commit` on a cadence — the squash preserves the
 **tree**, not the **log**. So on such a repo, individual commit granularity and
 message polish are throwaway: they exist only until the next squash.
 
+Once the member has cut a real published release, that "collapses to one
+commit" claim narrows: every commit through the newest published-release
+commit FREEZES (byte-identical forever — see
+[`squash-until-release`](squash-until-release.md)), and only the tail above it
+is still throwaway in the sense below. The opt-in stays; a released repo does
+not drop back to ordinary permanent-history rules.
+
 - **Don't over-invest in commit hygiene.** Skip the surgical one-commit-per-fix
   splitting, the carefully-worded Conventional-Commits bodies, and the
   logical-grouping agonizing. Land fast with a plain, reasonable message and
@@ -45,7 +52,10 @@ message polish are throwaway: they exist only until the next squash.
   skill or `SQUASH_HISTORY=1`), then `git push --force-with-lease`. Local main is
   canonical; origin carries the pre-squash history, and a diverged or orphan origin
   is the EXPECTED state, reconciled forward by the force-push, never a reset of
-  local to origin.
+  local to origin. A released member's tail squash is still a non-fast-forward
+  rewrite of the SAME shape — the force-push cost below is unchanged; freezing
+  the release commit changes WHAT gets rewritten, not whether a rewrite needs
+  the ruleset exemption dance.
 
 ## The server-side force-push block, and its temporary exemption
 

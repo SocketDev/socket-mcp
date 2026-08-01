@@ -41,7 +41,10 @@ import { isError } from '@socketsecurity/lib/errors/predicates'
 import { resolveDefaultBranch } from '../_shared/scripts/git-default-branch.mts'
 // Shared run/timestamp/header helpers — one owner, not a per-runner copy.
 import { header, run, timestamp } from '../_shared/scripts/run-helpers.mts'
-import { resolveFreezeBoundaryForRepo } from '../squashing-history/run-guards.mts'
+import {
+  checkNotShallowClone,
+  resolveFreezeBoundaryForRepo,
+} from '../squashing-history/run-guards.mts'
 // Shared squash engine — the reset/amend/count/integrity dance lives in
 // squashing-history; refreshing-history layers dep-refresh + sign on top.
 import {
@@ -80,6 +83,12 @@ async function main(): Promise<number> {
   const base = await resolveDefaultBranch({ cwd: src })
   header('default branch', base)
   await run('git', ['fetch', 'origin', base], src)
+
+  const shallowExit = await checkNotShallowClone({ base, src })
+  if (shallowExit !== undefined) {
+    return shallowExit
+  }
+
   const origHead = (await run('git', ['rev-parse', `origin/${base}`], src))
     .stdout
   const origCount = (
@@ -159,14 +168,18 @@ async function main(): Promise<number> {
     const result = await squashSingleCommit({
       amend: boundary === undefined,
       message:
-        boundary === undefined ? 'Initial commit' : 'chore: squash unreleased history',
+        boundary === undefined
+          ? 'Initial commit'
+          : 'chore: squash unreleased history',
       origHead,
       resetTo: boundary,
       sign: true,
       worktree,
     })
     newSha = result.newHead
-    logger.success(`squashed ${origCount} commits → 1 signed commit (${newSha})`)
+    logger.success(
+      `squashed ${origCount} commits → 1 signed commit (${newSha})`,
+    )
     logger.success(`integrity: post-squash tree == origin/${base} tree`)
     if (boundary !== undefined) {
       await assertBoundaryIntact(worktree, boundary)
@@ -225,11 +238,19 @@ async function main(): Promise<number> {
     await assertBoundaryIntact(worktree, boundary)
   }
 
-  // Force-push.
+  // Force-push. Leased against origHead — this runner now runs on RELEASED
+  // repos too (the freeze-boundary gate above), so a bare --force carries the
+  // same racing-push risk squashTailMode's lease already guards against.
   logger.info(`  force-pushing to ${base}...`)
   await run(
     'git',
-    ['push', '--force', '--no-verify', 'origin', `HEAD:${base}`],
+    [
+      'push',
+      '--no-verify',
+      `--force-with-lease=${base}:${origHead}`,
+      'origin',
+      `HEAD:${base}`,
+    ],
     worktree,
   )
   const newHead = (await run('git', ['rev-parse', 'HEAD'], worktree)).stdout

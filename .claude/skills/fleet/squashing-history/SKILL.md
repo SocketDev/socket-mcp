@@ -87,9 +87,10 @@ canonical in the fleet):
 | 7   | Cleanup         | Remove worktree + delete the temp branch.                                                         |
 | 8   | Report          | Print new SHA + backup ref name + recovery one-liner.                                             |
 
-**Tail mode** (a boundary is resolved) runs the same worktree/backup/integrity/lease-push shape, with
-two differences: the reset target is the frozen boundary, not the root (`resetTo: boundary, amend:
-false` — a FRESH commit, never rewriting the release commit), and a runtime `assertBoundaryIntact()`
+**Tail mode** runs whenever a boundary is resolved. It uses the same
+worktree/backup/integrity/lease-push shape, with two differences: the reset target is the frozen
+boundary rather than the root, so `resetTo: boundary, amend: false` writes a FRESH commit and never
+rewrites the release commit, and a runtime `assertBoundaryIntact()`
 check after the squash re-verifies the boundary still resolves to itself and is still an ancestor of
 the new tip before the push. `[Unreleased]` accrues only `boundary..tip`, never the whole root — the
 released commits below the boundary already carry their own version heading in CHANGELOG.md.

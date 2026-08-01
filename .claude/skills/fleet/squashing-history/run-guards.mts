@@ -20,8 +20,10 @@ import {
   npmPackageNameFromManifest,
 } from '../../../../scripts/fleet/_shared/member-release-probe.mts'
 import { resolveCrateReleaseSha } from '../../../../scripts/fleet/crate-release-sha.mts'
+import { fetchPublishedVersionChecked } from '../../../../scripts/fleet/publish-infra/cargo/registry.mts'
 import { fetchLatestGitHead } from '../../../../scripts/fleet/publish-infra/npm/registry.mts'
 import {
+  PLACEHOLDER_VERSION,
   publishedReleaseBlocksSquash,
   resolveFreezeBoundary,
 } from '../../../../scripts/fleet/lib/squash-publish-guard.mts'
@@ -124,16 +126,20 @@ function localManifestTexts(
 }
 
 // Every freeze-anchor candidate this checkout's manifests declare, plus
-// whether ANY of them is a REAL published release. One network read per
-// declared npm package / crate — fail-open per read: a lookup failure
-// contributes no candidate rather than blocking the resolution (matching the
-// registry-read fail-open contract every other squash-allowed check here
-// carries).
+// whether ANY of them is a REAL published release, plus every declared
+// package/crate whose registry READ itself failed (network/timeout — NOT the
+// registry answering "never published"). The distinction matters: a read
+// FAILURE must never look like "confirmed unpublished" to the caller —
+// `resolveFreezeBoundaryForRepo` uses `readFailures` (together with the
+// local, network-independent manifest floor) to refuse rather than silently
+// treat an unreadable registry as full-root-safe.
 async function collectFreezeAnchors(src: string): Promise<{
   candidates: FreezeAnchorCandidate[]
   published: boolean
+  readFailures: string[]
 }> {
   const candidates: FreezeAnchorCandidate[] = []
+  const readFailures: string[] = []
   let published = false
 
   const npmTexts = localManifestTexts(src, 'package.json', 'packages')
@@ -146,9 +152,15 @@ async function collectFreezeAnchors(src: string): Promise<{
     try {
       read = await fetchLatestGitHead(name)
     } catch {
+      readFailures.push(`npm:${name}`)
       continue
     }
-    if (!read.reachable || !read.version) {
+    if (!read.reachable) {
+      readFailures.push(`npm:${name}`)
+      continue
+    }
+    if (!read.version) {
+      // The registry answered: confirmed never published. Not a failure.
       continue
     }
     if (!publishedReleaseBlocksSquash('npm', read.version)) {
@@ -165,24 +177,76 @@ async function collectFreezeAnchors(src: string): Promise<{
   for (let i = 0, { length } = cargoTexts; i < length; i += 1) {
     const names = crateNamesFromCargoManifest(cargoTexts[i]!)
     for (let j = 0, count = names.length; j < count; j += 1) {
-      let info: Awaited<ReturnType<typeof resolveCrateReleaseSha>>
+      const crateName = names[j]!
+      // Reachability first (fetchPublishedVersionChecked distinguishes a
+      // network failure from crates.io answering "never published"), same
+      // shape as the npm branch above. resolveCrateReleaseSha alone cannot
+      // make that distinction — it returns undefined on EITHER a network
+      // failure or a genuinely unpublished crate.
+      let latestRead: Awaited<ReturnType<typeof fetchPublishedVersionChecked>>
       try {
-        info = await resolveCrateReleaseSha(names[j]!)
+        latestRead = await fetchPublishedVersionChecked(crateName)
       } catch {
+        readFailures.push(`crate:${crateName}`)
         continue
       }
-      if (!info || !publishedReleaseBlocksSquash('cargo', info.version)) {
+      if (!latestRead.reachable) {
+        readFailures.push(`crate:${crateName}`)
+        continue
+      }
+      if (!publishedReleaseBlocksSquash('cargo', latestRead.latest)) {
         continue
       }
       published = true
+      let info: Awaited<ReturnType<typeof resolveCrateReleaseSha>>
+      try {
+        info = await resolveCrateReleaseSha(crateName)
+      } catch {
+        info = undefined
+      }
       candidates.push({
-        sha: info.sha,
-        source: `crate:${names[j]!}@${info.version}`,
+        sha: info?.sha,
+        source: `crate:${crateName}@${latestRead.latest}`,
       })
     }
   }
 
-  return { candidates, published }
+  return { candidates, published, readFailures }
+}
+
+// The same network-independent floor the manual-flatten guard
+// (squash-freeze-boundary-guard's `repoHasLikelyFrozenZone`) uses: a root
+// manifest reporting a REAL (non-placeholder) version. Duplicated rather than
+// imported — that hook module runs itself as a Claude Code hook on import
+// (`runHook` at its own bottom), the same reason its PLACEHOLDER_VERSION
+// constant is inlined there rather than imported.
+function localManifestReportsRealVersion(src: string): boolean {
+  const pkgPath = path.join(src, 'package.json')
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+        version?: unknown | undefined
+      }
+      if (
+        typeof pkg.version === 'string' &&
+        pkg.version !== '' &&
+        pkg.version !== PLACEHOLDER_VERSION
+      ) {
+        return true
+      }
+    } catch {}
+  }
+  const cargoPath = path.join(src, 'Cargo.toml')
+  if (existsSync(cargoPath)) {
+    try {
+      const text = readFileSync(cargoPath, 'utf8')
+      const m = /^\s*version\s*=\s*"([^"]*)"/m.exec(text)
+      if (m?.[1] && m[1] !== PLACEHOLDER_VERSION) {
+        return true
+      }
+    } catch {}
+  }
+  return false
 }
 
 /**
@@ -245,6 +309,17 @@ export interface FreezeBoundaryResolution {
  * `resolveFreezeBoundary`'s thrown "unresolvable anchor" case is caught here
  * and turned into a `refuseMessage` — main() logs it and returns exit 2,
  * never silently treating it as `boundary: undefined` (full-root safe).
+ *
+ * A SECOND fail-loud case lives here, ahead of that pure function entirely: a
+ * registry read FAILURE (network/timeout, `reachable: false`) is not the same
+ * as the registry confirming "never published", but `resolveFreezeBoundary`
+ * has no way to tell them apart from `published: false` alone — both leave it
+ * with no candidates and it returns `boundary: undefined` (full-root safe).
+ * When every read failed for a repo whose LOCAL manifest reports a real
+ * (non-placeholder) version — the same network-independent floor the manual-
+ * flatten guard uses — treating that as full-root-safe would silently orphan
+ * a genuinely published release the instant the registry hiccups. Refuse
+ * instead of guessing.
  */
 export async function resolveFreezeBoundaryForRepo(config: {
   readonly src: string
@@ -253,16 +328,41 @@ export async function resolveFreezeBoundaryForRepo(config: {
   const cfg = { __proto__: null, ...config } as { src: string; tip: string }
   const { src, tip } = cfg
 
-  const { candidates, published } = await collectFreezeAnchors(src)
+  const { candidates, published, readFailures } =
+    await collectFreezeAnchors(src)
   const shas = candidates
     .map(c => c.sha)
     .filter((sha): sha is string => sha !== undefined)
   const headAncestry = await computeHeadAncestry(src, tip, shas)
 
   try {
-    return {
-      boundary: resolveFreezeBoundary({ candidates, headAncestry, published }),
+    const boundary = resolveFreezeBoundary({
+      candidates,
+      headAncestry,
+      published,
+    })
+    if (
+      boundary === undefined &&
+      readFailures.length > 0 &&
+      localManifestReportsRealVersion(src)
+    ) {
+      throw new Error(
+        "resolveFreezeBoundaryForRepo: this checkout's local manifest " +
+          'reports a REAL published version, but the registry read(s) ' +
+          'needed to resolve a freeze boundary FAILED rather than ' +
+          'confirming "never published".\n' +
+          `  Where: ${readFailures.join(', ')}.\n` +
+          '  Saw: a network/timeout failure on a package/crate registry ' +
+          'read, not a definitive "unpublished" answer.\n' +
+          '  Wanted: either a resolved-and-ancestor-verified freeze ' +
+          'boundary, or registry confirmation this repo has never ' +
+          'published (0.0.0).\n' +
+          '  Fix: retry once registry connectivity is restored — ' +
+          'refusing rather than silently full-flattening a possibly-' +
+          'released repo.',
+      )
     }
+    return { boundary }
   } catch (e) {
     return {
       refuseMessage: errorMessage(e),

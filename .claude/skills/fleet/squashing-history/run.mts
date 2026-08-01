@@ -353,9 +353,14 @@ export async function assertBoundaryIntact(
   }
   const isAncestor =
     (
-      await run('git', ['merge-base', '--is-ancestor', boundary, 'HEAD'], worktree, {
-        allowFailure: true,
-      })
+      await run(
+        'git',
+        ['merge-base', '--is-ancestor', boundary, 'HEAD'],
+        worktree,
+        {
+          allowFailure: true,
+        },
+      )
     ).code === 0
   if (!isAncestor) {
     logger.error(
@@ -456,6 +461,61 @@ export function classifySquashMode(
   return cfg.originIsAncestor ? 'local-canonical' : 'diverged'
 }
 
+/**
+ * Refuse (log + return 2) when local and origin have DIVERGED. Shared by
+ * every default-branch dispatch that can land on a two-way divergence:
+ * `squashLocalCanonicalMode`'s own full-root path, AND main()'s tail-mode
+ * dispatch when a freeze boundary is resolved. The boundary path never
+ * reaches `squashLocalCanonicalMode` (a repo with a frozen release routes
+ * straight to `squashTailMode`), so main() must run this check itself before
+ * that dispatch — `squashTailMode`'s `--force-with-lease` only guards against
+ * a RACING push, not against a lease that happens to match origin's current
+ * (diverged) tip while collapsing a local tail that never merged origin's
+ * unique commits.
+ *
+ * Returns `undefined` when it is safe to proceed (no local branch, local ==
+ * origin, or local ahead with origin as an ancestor).
+ */
+export async function refuseIfDiverged(config: {
+  readonly base: string
+  readonly localHead: string
+  readonly origHead: string
+  readonly src: string
+}): Promise<number | undefined> {
+  const cfg = { __proto__: null, ...config } as {
+    base: string
+    localHead: string
+    origHead: string
+    src: string
+  }
+  const { base, localHead, origHead, src } = cfg
+
+  const originIsAncestor =
+    (
+      await run(
+        'git',
+        ['merge-base', '--is-ancestor', origHead, localHead],
+        src,
+        {
+          allowFailure: true,
+        },
+      )
+    ).code === 0
+  if (
+    classifySquashMode({ localHead, origHead, originIsAncestor }) !== 'diverged'
+  ) {
+    return undefined
+  }
+  logger.error(
+    `error: origin/${base} (${origHead.slice(0, 8)}) has commits your ` +
+      `local ${base} lacks — local and origin have DIVERGED. Squashing ` +
+      `now would drop origin's commits. Fix: reconcile forward first — ` +
+      `git -C ${src} merge --no-edit origin/${base} (resolve any ` +
+      `conflicts), then re-run.`,
+  )
+  return 2
+}
+
 export interface RunArgs {
   /**
    * PR base for the feature-branch merge-base (default: resolved default
@@ -512,8 +572,35 @@ export function parseRunArgs(argv: readonly string[]): RunArgs {
   return { __proto__: null, base, branch, message, src } as RunArgs
 }
 
-async function main(): Promise<number> {
-  const args = parseRunArgs(process.argv.slice(2))
+export interface MainConfig {
+  /**
+   * Argv, defaulting to `process.argv.slice(2)`. Injectable so a test can
+   * call `main()` directly in-process instead of only via the CLI/subprocess.
+   */
+  readonly argv?: readonly string[] | undefined
+  /**
+   * Override for `resolveFreezeBoundaryForRepo` — the sole network-touching
+   * step in the dispatch path. A test injects a stub that returns a boundary
+   * derived from a real git fixture, with no network call and no need for a
+   * genuine registry-recognized release, so the divergence-refusal branch
+   * below can be exercised deterministically.
+   */
+  readonly resolveFreeze?: typeof resolveFreezeBoundaryForRepo | undefined
+  /**
+   * Sign the tail-mode collapse commit. Defaults to `squashTailMode`'s own
+   * default (`true`, fleet branch protection); tests pass `false` to run
+   * without a configured signing key, matching every other mode's test seam.
+   */
+  readonly sign?: boolean | undefined
+}
+
+export async function main(options: MainConfig = {}): Promise<number> {
+  const {
+    argv = process.argv.slice(2),
+    resolveFreeze = resolveFreezeBoundaryForRepo,
+    sign,
+  } = options
+  const args = parseRunArgs(argv)
   const { src } = args
   if (!src) {
     logger.error(
@@ -613,7 +700,7 @@ async function main(): Promise<number> {
   // squash outright; it sets the boundary the squash collapses ABOVE. Runs
   // against `tip` (the canonical branch commit about to be squashed, whether
   // that's origin's tip or local's), never a stale HEAD.
-  const freeze = await resolveFreezeBoundaryForRepo({ src, tip })
+  const freeze = await resolveFreeze({ src, tip })
   if (freeze.refuseMessage !== undefined) {
     logger.error(`error: ${freeze.refuseMessage}`)
     return 2
@@ -626,12 +713,29 @@ async function main(): Promise<number> {
     // squashTailMode's own worktree + `-p <boundary>` parent covers the
     // "local ahead" case too (its `tip` param is local's sha here), so no
     // separate local-canonical tail path is needed.
+    //
+    // squashLocalCanonicalMode's own divergence refusal is bypassed entirely
+    // by this dispatch — this is the ONLY place a local-ahead repo with a
+    // frozen release passes through, so the check must run HERE, not rely on
+    // a mode this dispatch never reaches.
+    if (localMode) {
+      const diverged = await refuseIfDiverged({
+        base,
+        localHead,
+        origHead,
+        src,
+      })
+      if (diverged !== undefined) {
+        return diverged
+      }
+    }
     return await squashTailMode({
       base,
       boundary: freeze.boundary,
       leaseAgainst: origHead,
       remoteUrl,
       repoName,
+      sign,
       src,
       tip,
       worktree,

@@ -64,18 +64,41 @@ export function buildCargoClippyArgs(
 }
 
 /**
- * The channel pinned by the workspace's `rust-toolchain.toml`, or undefined
- * when the file is absent or has no `channel`.
+ * The channel pinned for a workspace, or undefined when nothing pins it.
+ *
+ * Walks UP from the workspace to `stopDir` (the repo root), because that is
+ * exactly how cargo and rustup resolve `rust-toolchain.toml` — nearest wins,
+ * and a repo-root pin covers every workspace that does not ship its own. A
+ * lookup that only checked the workspace directory would report a repo whose
+ * root pin IS being honored as unpinned, which is a scarier message than the
+ * truth and would push someone to copy the pin file into every workspace.
  */
-export function readPinnedChannel(manifestDir: string): string | undefined {
-  const file = path.join(manifestDir, 'rust-toolchain.toml')
-  if (!existsSync(file)) {
-    return undefined
+export function readPinnedChannel(
+  manifestDir: string,
+  stopDir?: string | undefined,
+): string | undefined {
+  const root = path.resolve(stopDir ?? REPO_ROOT)
+  let dir = path.resolve(manifestDir)
+  // Bound the walk: stop after the repo root, and never loop at the fs root.
+  for (;;) {
+    const file = path.join(dir, 'rust-toolchain.toml')
+    if (existsSync(file)) {
+      const match = /^\s*channel\s*=\s*["']([^"']+)["']/m.exec(
+        readFileSync(file, 'utf8'),
+      )
+      if (match) {
+        return match[1]
+      }
+    }
+    if (dir === root) {
+      return undefined
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir) {
+      return undefined
+    }
+    dir = parent
   }
-  const match = /^\s*channel\s*=\s*["']([^"']+)["']/m.exec(
-    readFileSync(file, 'utf8'),
-  )
-  return match?.[1]
 }
 
 /**
@@ -97,8 +120,9 @@ export function readPinnedChannel(manifestDir: string): string | undefined {
 export function buildPinnedSpawn(
   manifestDir: string,
   cargoArgs: readonly string[],
+  stopDir?: string | undefined,
 ): { args: string[]; command: string; pinned: boolean } {
-  const channel = readPinnedChannel(manifestDir)
+  const channel = readPinnedChannel(manifestDir, stopDir)
   if (!channel) {
     return { args: [...cargoArgs], command: 'cargo', pinned: false }
   }

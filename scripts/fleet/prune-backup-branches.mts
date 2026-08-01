@@ -44,10 +44,12 @@ import {
 import { REPO_ROOT } from './paths.mts'
 import { runCapture } from './publish-infra/shared.mts'
 import { isMainModule } from './_shared/is-main-module.mts'
+import { runMain } from './_shared/run-main.mts'
 import { applyRetention, isBackupBranch } from './backup-branches/policy.mts'
 import type { BackupRef, RetentionVerdict } from './backup-branches/policy.mts'
 import {
   parseUniqueContentPaths,
+  precedesHistoryRoot,
   uniqueContentDiffArgs,
 } from './backup-branches/unique-content.mts'
 
@@ -65,12 +67,14 @@ export interface PruneOptions {
   readonly days?: number | undefined
   readonly dryRun?: boolean | undefined
   readonly local?: boolean | undefined
-  readonly nowMs: number
 }
 
 export interface VetoedRef {
   readonly name: string
   readonly onlyOnBackup: readonly string[]
+  // True when the ref is older than the default branch's root commit, so the
+  // diff cannot tell removed-on-purpose from lost. See precedesHistoryRoot.
+  readonly preRoot: boolean
 }
 
 export interface PruneOutcome {
@@ -191,17 +195,55 @@ export async function findUniqueContent(
   return parseUniqueContentPaths(diff.stdout)
 }
 
+/**
+ * Commit time of the default branch's ROOT commit, in epoch ms.
+ *
+ * `--max-parents=0` selects the parentless commit(s); a squash-history repo has
+ * exactly one and it is young. Returns 0 when the root cannot be read, which
+ * makes precedesHistoryRoot false for every ref — the report then falls back to
+ * the plain lost-work wording rather than silently claiming a squash.
+ */
+export async function resolveHistoryRootMs(
+  repoDir: string,
+  defaultBranch: string,
+): Promise<number> {
+  const root = await runCapture(
+    'git',
+    ['log', '--max-parents=0', '--format=%ct', `${REMOTE}/${defaultBranch}`],
+    repoDir,
+  )
+  if (root.code !== 0) {
+    return 0
+  }
+  const lines = root.stdout.trim().split('\n')
+  // Multiple roots (a grafted / unrelated-histories merge) — the OLDEST is the
+  // real boundary, since anything before it predates every line of history.
+  let oldest = 0
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const seconds = Number(lines[i]!.trim())
+    if (Number.isFinite(seconds) && seconds > 0) {
+      oldest = oldest === 0 ? seconds : Math.min(oldest, seconds)
+    }
+  }
+  return oldest * 1000
+}
+
+// `nowMs` is positional, not an option: the caller MUST supply the clock. It is
+// injected rather than read inside the policy so the retention rules stay
+// deterministic under test.
 export async function pruneRepo(
   repoDir: string,
-  config: PruneOptions,
+  nowMs: number,
+  options?: PruneOptions | undefined,
 ): Promise<PruneOutcome> {
-  const cfg = { __proto__: null, ...config } as PruneOptions
+  const opts = { __proto__: null, ...options } as PruneOptions
   const defaultBranch = await resolveDefaultBranch(repoDir)
-  const refs = await discoverBackupRefs(repoDir, { local: cfg.local })
+  const historyRootMs = await resolveHistoryRootMs(repoDir, defaultBranch)
+  const refs = await discoverBackupRefs(repoDir, { local: opts.local })
   const verdicts = applyRetention(refs, {
-    days: cfg.days,
-    keep: cfg.keep,
-    nowMs: cfg.nowMs,
+    days: opts.days,
+    keep: opts.keep,
+    nowMs,
   })
   const deleted: string[] = []
   const kept: RetentionVerdict[] = []
@@ -215,10 +257,14 @@ export async function pruneRepo(
     // oxlint-disable-next-line no-await-in-loop -- serial by design: each delete is a remote mutation whose failure must not strand the rest
     const onlyOnBackup = await findUniqueContent(repoDir, name, defaultBranch)
     if (onlyOnBackup.length > 0) {
-      vetoed.push({ name, onlyOnBackup })
+      vetoed.push({
+        name,
+        onlyOnBackup,
+        preRoot: precedesHistoryRoot(verdict.ref.committedAtMs, historyRootMs),
+      })
       continue
     }
-    if (cfg.dryRun === true) {
+    if (opts.dryRun === true) {
       deleted.push(name)
       continue
     }
@@ -261,8 +307,14 @@ export function reportOutcome(
   // which is a finding in its own right, not merely a ref that stayed.
   for (const veto of outcome.vetoed) {
     logger.warn(
-      `  HELD ${veto.name} — carries ${String(veto.onlyOnBackup.length)} ` +
-        `file(s) the default branch lacks; a rewrite may have lost work:`,
+      veto.preRoot
+        ? `  HELD ${veto.name} — predates the default branch's root commit, ` +
+            `so its ${String(veto.onlyOnBackup.length)} extra file(s) cannot ` +
+            `be told apart from ordinary removals the squash erased. Review ` +
+            `by hand before deleting:`
+        : `  HELD ${veto.name} — carries ` +
+            `${String(veto.onlyOnBackup.length)} file(s) the default branch ` +
+            `lacks; a rewrite may have lost work:`,
     )
     const shown = veto.onlyOnBackup.slice(0, MAX_VETO_PATHS_SHOWN)
     for (let i = 0, { length } = shown; i < length; i += 1) {
@@ -324,25 +376,31 @@ export async function main(): Promise<void> {
     dryRun,
     keep: values['keep'] === undefined ? undefined : Number(values['keep']),
     local: values['local'] === true,
-    // Injected rather than read inside the policy so the retention rules stay
-    // deterministic under test.
-    nowMs: Date.now(),
   }
+  // One clock for the whole sweep, so every repo is judged against the same
+  // instant no matter how long the loop runs.
+  const nowMs = Date.now()
   const repoFlag = values['repo']
   const targets =
     typeof repoFlag === 'string'
       ? [path.join(path.dirname(REPO_ROOT), repoFlag.split('/').pop() ?? '')]
       : resolveTargetDirs(REPO_ROOT, { all: values['all'] === true })
   let vetoTotal = 0
+  let preRootTotal = 0
   for (const dir of targets) {
     if (!existsSync(dir)) {
       continue
     }
     try {
       // oxlint-disable-next-line no-await-in-loop -- serial across repos: each prune mutates a remote and reports before the next starts
-      const outcome = await pruneRepo(dir, options)
+      const outcome = await pruneRepo(dir, nowMs, options)
       reportOutcome(outcome, { dryRun })
       vetoTotal += outcome.vetoed.length
+      for (let i = 0, { length } = outcome.vetoed; i < length; i += 1) {
+        if (outcome.vetoed[i]!.preRoot) {
+          preRootTotal += 1
+        }
+      }
     } catch (e) {
       logger.error(`${dir}: ${errorMessage(e)}`)
       process.exitCode = 1
@@ -351,14 +409,17 @@ export async function main(): Promise<void> {
   if (vetoTotal > 0) {
     logger.warn(
       `\n${String(vetoTotal)} backup branch(es) held back — each carries a ` +
-        `file its default branch lacks. Review before deleting by hand.`,
+        `file its default branch lacks. Review before deleting by hand.` +
+        (preRootTotal > 0
+          ? ` ${String(preRootTotal)} of them predate the current history ` +
+            `root, where that difference is expected rather than a finding.`
+          : ''),
     )
   }
 }
 
 if (isMainModule(import.meta.url)) {
-  // Async IIFE, not top-level await: the CJS bundle target cannot carry TLA.
-  void (async () => {
-    await main()
-  })()
+  // runMain, not a bare async IIFE: a rejection here would otherwise surface as
+  // a raw unhandled-rejection stack instead of a logged message + exit code.
+  runMain(main)
 }

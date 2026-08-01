@@ -37,6 +37,31 @@ export function hasUniqueContent(report: UniqueContentReport): boolean {
 }
 
 /**
+ * True when a ref is older than the default branch's ROOT commit — it predates
+ * the current history entirely.
+ *
+ * This is the squash-history case, and it changes what a veto MEANS. A repo
+ * carrying the `squash-history` opt-in periodically collapses its default
+ * branch to a fresh root, which erases every removal commit along with
+ * everything else. After that, "this file is on the backup and not on main"
+ * says nothing about whether the file was deliberately removed or accidentally
+ * lost — the evidence that would distinguish them is gone. A two-week-old
+ * backup will list a fortnight of ordinary architecture churn (a bundling
+ * migration, retired checks) as though every path were dropped work.
+ *
+ * The ref is still HELD either way; the gate stays fail-safe. What changes is
+ * the claim the report makes, because "a rewrite may have lost work" is a
+ * finding, and asserting it on every pre-root ref would train an operator to
+ * ignore the one time it is real.
+ */
+export function precedesHistoryRoot(
+  refCommittedAtMs: number,
+  historyRootMs: number,
+): boolean {
+  return refCommittedAtMs < historyRootMs
+}
+
+/**
  * The `git diff` argv that answers the question, given two committish refs.
  *
  * `--diff-filter=D` on `diff <backup> <default>` selects paths absent from the

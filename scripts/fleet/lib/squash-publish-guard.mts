@@ -126,10 +126,10 @@ export interface ResolveFreezeBoundaryConfig {
  *   multi-package/multi-crate repo can carry several; the newest across ALL of
  *   them is the boundary, matching the sibling release-probe's "stop at the
  *   first published artifact, but here every one counts" shape.
- * - `published: true` with NO verified candidate (every `sha` is `undefined`,
- *   or every resolved `sha` fails the ancestor check — an off-lineage tag/
- *   gitHead) — THROWS. A repo the registry confirms is published, with no
- *   safe boundary to freeze at, must refuse loudly rather than silently full-
+ * - `published: true` with NO verified candidate (every `sha` is `undefined`, or
+ *   every resolved `sha` fails the ancestor check — an off-lineage tag/
+ *   gitHead) — THROWS. A repo the registry confirms is published, with no safe
+ *   boundary to freeze at, must refuse loudly rather than silently full-
  *   flatten the released history it was meant to protect.
  */
 export function resolveFreezeBoundary(
@@ -140,6 +140,13 @@ export function resolveFreezeBoundary(
   if (!published) {
     return undefined
   }
+  // Ranks candidates by `distance` alone, which assumes a LINEAR history —
+  // the fleet's squash discipline keeps every default branch linear (no merge
+  // commits), so "smaller distance" and "newer" always agree. On a non-linear
+  // (merged) history, two parallel package anchors can sit at incomparable
+  // positions, and the smaller `rev-list --count` distance is not necessarily
+  // the more recent one — a repo that ever merges branches into its default
+  // branch would need a topological (not distance) comparison here.
   let newestSha: string | undefined
   let newestDistance = Number.POSITIVE_INFINITY
   for (let i = 0, { length } = candidates; i < length; i += 1) {

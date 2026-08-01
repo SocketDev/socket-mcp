@@ -22,6 +22,7 @@ import {
   backupBranchForCommit,
   classifySquashMode,
   mintSquashRoot,
+  refuseIfDiverged,
   squashSingleCommit,
 } from './run.mts'
 
@@ -52,33 +53,14 @@ export async function squashLocalCanonicalMode(config: {
   const { base, origHead, remoteUrl, repoName, src } = cfg
   let { localHead } = cfg
 
-  const originIsAncestor =
-    (
-      await run(
-        'git',
-        ['merge-base', '--is-ancestor', origHead, localHead],
-        src,
-        {
-          allowFailure: true,
-        },
-      )
-    ).code === 0
-  if (
-    classifySquashMode({ localHead, origHead, originIsAncestor }) === 'diverged'
-  ) {
-    // Diverged: origin holds commits the local branch lacks. Local is
-    // canonical, but a blind squash mints the root from the local tree and
-    // force-pushes — dropping origin's commits (they would survive only in a
-    // backup ref, never on the branch). Refuse loudly; the caller must
-    // reconcile FORWARD, fold origin's commits into local, then re-run.
-    logger.error(
-      `error: origin/${base} (${origHead.slice(0, 8)}) has commits your ` +
-        `local ${base} lacks — local and origin have DIVERGED. Squashing ` +
-        `now would drop origin's commits. Fix: reconcile forward first — ` +
-        `git -C ${src} merge --no-edit origin/${base} (resolve any ` +
-        `conflicts), then re-run.`,
-    )
-    return 2
+  // Diverged: origin holds commits the local branch lacks. Local is
+  // canonical, but a blind squash mints the root from the local tree and
+  // force-pushes — dropping origin's commits (they would survive only in a
+  // backup ref, never on the branch). Refuse loudly; the caller must
+  // reconcile FORWARD, fold origin's commits into local, then re-run.
+  const diverged = await refuseIfDiverged({ base, localHead, origHead, src })
+  if (diverged !== undefined) {
+    return diverged
   }
   const localCount = (await run('git', ['rev-list', '--count', localHead], src))
     .stdout
@@ -285,6 +267,12 @@ export async function squashTailMode(config: {
   readonly leaseAgainst: string
   readonly remoteUrl: string | undefined
   readonly repoName: string
+  /**
+   * Sign the collapsed commit and assert the signature verifies. Defaults to
+   * `true` (fleet branch protection mandates `required_signatures`); tests
+   * pass `false` to run without a configured signing key.
+   */
+  readonly sign?: boolean | undefined
   readonly src: string
   readonly tip: string
   readonly worktree: string
@@ -295,6 +283,7 @@ export async function squashTailMode(config: {
     leaseAgainst: string
     remoteUrl: string | undefined
     repoName: string
+    sign?: boolean | undefined
     src: string
     tip: string
     worktree: string
@@ -309,6 +298,7 @@ export async function squashTailMode(config: {
     tip,
     worktree,
   } = cfg
+  const sign = cfg.sign ?? true
   const squashBranch = 'chore/squash-tail'
 
   // No-op early return: count boundary..tip (like the feature-branch mode's
@@ -357,7 +347,7 @@ export async function squashTailMode(config: {
     message: 'chore: squash unreleased history',
     origHead: accruedTip,
     resetTo: boundary,
-    sign: true,
+    sign,
     worktree,
   })
   logger.success(
