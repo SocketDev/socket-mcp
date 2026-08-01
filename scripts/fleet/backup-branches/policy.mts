@@ -16,26 +16,14 @@
  *   so N alone would keep a wall of same-day nets."
  */
 
-// Backup refs the fleet creates, both shapes:
-//   - `backup-<YYYYMMDD>-<HHMMSS>` — a scripted pre-rewrite snapshot.
-//   - `backup/<slug>` — a hand-parked worktree tip.
-// Anchored so a branch merely CONTAINING the word (`feat/backup-restore`) is
-// never a candidate. Note: a miss here is safe because the branch is left
-// alone, while a false match would delete a real branch, so the patterns stay
-// narrow.
-export const BACKUP_REF_PATTERNS: readonly RegExp[] = [
-  /^backup-\d{8}-\d{6}$/,
-  /^backup\/[\w.-]+$/,
-]
-
-export function isBackupBranchName(name: string): boolean {
-  for (let i = 0, { length } = BACKUP_REF_PATTERNS; i < length; i += 1) {
-    if (BACKUP_REF_PATTERNS[i]!.test(name)) {
-      return true
-    }
-  }
-  return false
-}
+// What counts as a backup ref is NOT decided here. `lib/backup-branch.mts` is
+// the one owner of fleet recovery-ref naming — `normalize-backup-branches.mts`
+// renames against it and the release scan reads it to find parked work. A
+// second pattern list here would drift, and a scrubber that disagreed with the
+// normalizer about what a backup ref is would either skip refs forever or
+// delete a branch nobody called a backup. Re-exported so the prune script has
+// one import for the whole policy.
+export { isBackupBranch } from '../lib/backup-branch.mts'
 
 // Newest N backup refs always survive, per repo, regardless of age. The most
 // recent net is the one an operator is most likely to still want.

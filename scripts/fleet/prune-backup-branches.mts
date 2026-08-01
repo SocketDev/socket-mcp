@@ -44,10 +44,7 @@ import {
 import { REPO_ROOT } from './paths.mts'
 import { runCapture } from './publish-infra/shared.mts'
 import { isMainModule } from './_shared/is-main-module.mts'
-import {
-  applyRetention,
-  isBackupBranchName,
-} from './backup-branches/policy.mts'
+import { applyRetention, isBackupBranch } from './backup-branches/policy.mts'
 import type { BackupRef, RetentionVerdict } from './backup-branches/policy.mts'
 import {
   parseUniqueContentPaths,
@@ -164,7 +161,7 @@ export async function discoverBackupRefs(
     const name = refname
       .replace(`refs/remotes/${REMOTE}/`, '')
       .replace('refs/heads/', '')
-    if (!isBackupBranchName(name)) {
+    if (!isBackupBranch(name)) {
       continue
     }
     refs.push({ committedAtMs: Number(unix) * 1000, name })
