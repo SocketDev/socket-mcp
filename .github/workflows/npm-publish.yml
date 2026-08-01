@@ -135,26 +135,14 @@ jobs:
         with:
           client-id: ${{ vars.SOCKET_RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      # The promote PR that lands the bump on the default branch needs
-      # pull_requests:write, which the release App does not carry — the PR App
-      # does. Minted here, beside the release token and BEFORE the publish
-      # step, so a missing/ungranted PR App refuses while nothing is published:
-      # resolveReleaseEnv demands PR_APP_TOKEN at bump time, and the promote PR
-      # only runs after the irreversible registry write.
-      - name: Mint PR App token
-        if: ${{ inputs.backfill-version == '' && inputs.bump }}
-        id: pr-app
-        uses: ./.github/actions/fleet/github-pr-app-token
-        with:
-          client-id: ${{ vars.SOCKET_PR_CLIENT_ID }}
-          private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
       # --bump consumes the committed version hint (X.Y.Z-prerelease →
       # X.Y.Z), writes CHANGELOG, and commits via the release App (verified,
-      # signed) onto a throwaway npm-publish-v<version> branch — main is
-      # fast-forwarded to it only after the publish succeeds, and it is nuked on
-      # a rejected publish, so a failed stage never creeps the version. The
-      # version decision stays with the human: it is whatever the committed hint
-      # names.
+      # signed) onto a throwaway npm-publish-v<version> branch — main's ref is
+      # fast-forwarded to that exact commit only after the publish succeeds, and
+      # the branch is nuked on a rejected publish, so a failed stage never
+      # creeps the version. The bump NEVER goes through a pull request: the
+      # release App's contents:write lands it directly. The version decision
+      # stays with the human: it is whatever the committed hint names.
       # The bump runs EXACTLY ONCE across the pipeline + workflow chain: the
       # publish pipeline dispatches with bump=false because its own bump stage
       # already landed the bump commit — the CI re-bump once re-derived the
@@ -168,7 +156,6 @@ jobs:
           BACKFILL_VERSION: ${{ inputs.backfill-version }}
           CHECKOUT_REF: ${{ inputs.checkout-ref }}
           DIST_TAG: ${{ inputs.dist-tag }}
-          PR_APP_TOKEN: ${{ steps.pr-app.outputs.token }}
           RELEASE_AS: ${{ inputs.release-as }}
           RELEASE_APP_TOKEN: ${{ steps.release-app.outputs.token }}
         # CHECKOUT_REF forwards on its own so a checkout-ref dispatch WITHOUT
