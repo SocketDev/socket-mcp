@@ -70,7 +70,6 @@
     "lockstep:emit-mirror-globs": "node scripts/fleet/lockstep-emit-mirror-globs.mts",
     "ci:local": "node scripts/fleet/agent-ci-skip-locks.mts run --all --quiet --pause-on-failure --github-token",
     "weekly-update": "node scripts/fleet/weekly-update.mts",
-    "weekly-update:ci": "node scripts/fleet/weekly-update-workflow.mts run",
     "doctor:auth": "node scripts/fleet/check/setup-is-prompt-less.mts",
     "sync-oxlint-rules": "node scripts/fleet/sync-oxlint-rules.mts",
     "sync-package-manager-pins": "node scripts/fleet/sync-package-manager-pins.mts",
