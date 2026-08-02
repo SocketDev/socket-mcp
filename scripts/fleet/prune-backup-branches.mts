@@ -398,8 +398,7 @@ export function resolveTargetDirs(
 }
 
 export async function main(): Promise<void> {
-  const { positionals, values } = parseArgs({
-    allowPositionals: true,
+  const { values } = parseArgs({
     options: {
       all: { type: 'boolean' },
       days: { type: 'string' },
@@ -411,24 +410,6 @@ export async function main(): Promise<void> {
     },
     strict: true,
   })
-  // A stray positional means the flags did NOT land where the caller thinks.
-  // `pnpm run prune-backups -- --all --dry-run` forwards the `--` itself, and
-  // Node's parseArgs treats everything after it as positionals — so `--dry-run`
-  // silently evaporates and what the operator believed was a preview is a LIVE
-  // run against every repo. Refuse instead of guessing; this deletes remote
-  // refs, so a misread argv must never fail open.
-  if (positionals.length > 0) {
-    logger.error(
-      `unexpected argument(s): ${positionals.join(' ')}\n` +
-        `  Where: the prune-backups argv.\n` +
-        `  Saw:   flags after a bare \`--\`, which parseArgs treats as ` +
-        `positionals, so they were NOT applied.\n` +
-        `  Fix:   drop the \`--\` — run ` +
-        `\`node scripts/fleet/prune-backup-branches.mts --all --dry-run\`.`,
-    )
-    process.exitCode = 1
-    return
-  }
   const dryRun = values['dry-run'] === true
   const options: PruneOptions = {
     allowPreRoot: values['allow-pre-root'] === true,
