@@ -151,7 +151,6 @@ minimumReleaseAgeExclude:
   - 'socket'
   - '@sdxgen/*'
   - 'sdxgen'
-  - 'stuie'
   # MCP TypeScript SDK v2 — first-party modelcontextprotocol release shipping
   # the 2026-07-28 stateless spec this server implements; adopted day-one so
   # socket-mcp tracks the protocol (user-approved bypass, 2026-07-28). The soak
