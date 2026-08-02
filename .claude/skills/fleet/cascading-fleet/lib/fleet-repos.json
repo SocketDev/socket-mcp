@@ -11,6 +11,12 @@
       "publishes": "js"
     },
     {
+      "name": "code-sign",
+      "description": "Cross-platform code signing — Mach-O, ELF, and PE; Rust reference with a C++ port",
+      "optIns": ["squash-history"],
+      "publishes": "cargo"
+    },
+    {
       "name": "decmpfs",
       "owner": "SocketDev",
       "description": "Transparent-compression (decmpfs) reader/writer for macOS — Rust crate",
@@ -19,40 +25,30 @@
     {
       "name": "depsight",
       "description": "Scans a machine for open-source dependencies and surfaces Socket threat intelligence — CLI/TUI plus a macOS menu bar app",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "binary"
     },
     {
       "name": "envrypt",
       "description": "Encrypted .env library for Rust — ECIES + locked v1/v2, keychain-first",
-      "optIns": [
-        "squash-history"
-      ]
+      "optIns": ["squash-history"]
     },
     {
       "name": "facts",
       "description": "Socket facts generation — build-tool emitters and the .socket.facts.json contract",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "js"
     },
     {
       "name": "meander",
       "description": "Walkthrough generator — annotated code walkthroughs with comments, hosted on Val Town",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "js"
     },
     {
       "name": "node-smol",
       "description": "Customized Node.js distribution with Socket native integrations",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "binary"
     },
     {
@@ -63,27 +59,19 @@
     {
       "name": "sauce",
       "description": "Shared Claude Code skills + agent content for the fleet",
-      "optIns": [
-        "freeform-readme",
-        "squash-history",
-        "thin"
-      ],
+      "optIns": ["freeform-readme", "squash-history", "thin"],
       "publishes": "none"
     },
     {
       "name": "scan-patterns",
       "description": "Canonical detector pattern tables for Socket's baseline security scanners.",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "js"
     },
     {
       "name": "sdxgen",
       "description": "CycloneDX and SPDX manifest generator (Socket dx gen)",
-      "optIns": [
-        "squash-history"
-      ]
+      "optIns": ["squash-history"]
     },
     {
       "name": "socket-cli",
@@ -117,47 +105,35 @@
     {
       "name": "socket-vscode",
       "description": "VS Code extension for socket.dev",
-      "optIns": [
-        "freeform-readme"
-      ],
+      "optIns": ["freeform-readme"],
       "publishes": "custom"
     },
     {
       "name": "socket-webext",
       "description": "Browser extension for socket.dev",
-      "optIns": [
-        "freeform-readme"
-      ],
+      "optIns": ["freeform-readme"],
       "publishes": "custom"
     },
     {
       "name": "socket-wheelhouse",
       "description": "Internal scaffolding template for socket-* repos",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "none"
     },
     {
       "name": "sockeye",
       "description": "Touch-gated local secret bridge for developer tools and automation",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "publishes": "binary"
     },
     {
       "name": "stuie",
       "description": "Terminal UI library: OpenTUI + yoga-layout + React",
-      "optIns": [
-        "squash-history"
-      ]
+      "optIns": ["squash-history"]
     },
     {
       "name": "ultrathink",
-      "optIns": [
-        "squash-history"
-      ],
+      "optIns": ["squash-history"],
       "description": "Multi-language acorn JavaScript parser: Rust (reference), Go, C++, TypeScript"
     }
   ]

@@ -15,6 +15,7 @@ import {
   loadRosterFromRepo,
 } from '../../../hooks/fleet/_shared/fleet-roster.mts'
 import { run } from '../_shared/scripts/run-helpers.mts'
+import { gitPorcelain } from '../../../../scripts/fleet/_shared/git-porcelain.mts'
 import {
   crateNamesFromCargoManifest,
   npmPackageNameFromManifest,
@@ -397,4 +398,82 @@ export async function checkNotShallowClone(config: {
     return 2
   }
   return undefined
+}
+
+// Dirty paths listed verbatim in the refusal before it truncates. Long enough
+// to identify the work, short enough that the fix stays on screen.
+const MAX_LISTED_DIRTY = 10
+
+/**
+ * Refuse to squash over an uncommitted working tree.
+ *
+ * Every squash mode collapses COMMITTED history — the root is minted from the
+ * branch tip (`mintSquashRoot`) or a worktree checked out at it, so anything
+ * living only in the working tree is excluded from the collapse and left
+ * stranded on top of rewritten history, where the flow's own recovery advice
+ * (`git reset --hard <newHead>`) destroys it. That is strictly worse than the
+ * stale-tree clobber `stale-tree-clobber-guard` catches at commit time: this
+ * one loses work rather than reverting it.
+ *
+ * The remedy is the fleet's standing doctrine, not a new rule invented here —
+ * `docs/agents.md/fleet/parallel-claude-sessions.md` ("Land the dirty files
+ * BEFORE squashing", restated in `stale-tree-clobber-guard`'s header): commit
+ * first, then squash, never the reverse. So the message teaches landing
+ * forward, never stash / branch / wait.
+ *
+ * IGNORED files are exempt BY CONSTRUCTION, not by a special case: this reads
+ * `git status --porcelain` WITHOUT `--ignored`, so a dirty `dist/` or
+ * `node_modules/` is invisible here. Untracked-but-NOT-ignored files DO block
+ * — an uncommitted new source file is exactly the work a collapse strands.
+ */
+export function checkTreeIsClean(config: {
+  readonly src: string
+}): number | undefined {
+  const cfg = { __proto__: null, ...config } as { src: string }
+  const { src } = cfg
+
+  // untrackedAll: list `src/new-thing.mts`, not a collapsed `?? src/` — the
+  // remedy below is a pathspec commit, so the operator needs the file paths.
+  const status = gitPorcelain(src, { untrackedAll: true })
+  if (!status.ok) {
+    logger.error(
+      `error: could not read the working-tree status of ${src} — refusing ` +
+        `to squash. Saw a failing \`git status --porcelain\`; wanted a ` +
+        `readable tree state. Fix: resolve the git error above, then re-run.`,
+    )
+    return 2
+  }
+  const { entries } = status
+  if (entries.length === 0) {
+    return undefined
+  }
+
+  const listed = entries
+    .slice(0, MAX_LISTED_DIRTY)
+    .map(e => `    ${e.status} ${e.path}`)
+    .join('\n')
+  const more =
+    entries.length > MAX_LISTED_DIRTY
+      ? `\n    ... and ${entries.length - MAX_LISTED_DIRTY} more`
+      : ''
+  logger.error(
+    `error: ${src} has an UNCOMMITTED working tree — refusing to squash.\n` +
+      `${listed}${more}\n\n` +
+      `  A squash collapses COMMITTED history, so these ${entries.length} ` +
+      `path(s) are\n` +
+      `  excluded from the collapse and left stranded on top of rewritten\n` +
+      `  history — where this flow's own recovery step (git reset --hard)\n` +
+      `  destroys them. Ignored files are already exempt; these are not.\n\n` +
+      `  Fix — land the dirty files FIRST, then squash. Commit with an\n` +
+      `  explicit pathspec (never \`git add -A\`, it sweeps a parallel\n` +
+      `  session's files):\n` +
+      `    git -C ${src} add -- <your-paths>\n` +
+      `    git -C ${src} commit -m "chore: land before squash"\n` +
+      `    # then re-run the squash\n\n` +
+      `  Do NOT stash, do NOT branch, do NOT wait for a quiet window —\n` +
+      `  history flattens anyway, so any subject will do. See\n` +
+      `  docs/agents.md/fleet/parallel-claude-sessions.md ("Land the dirty\n` +
+      `  files BEFORE squashing").`,
+  )
+  return 2
 }

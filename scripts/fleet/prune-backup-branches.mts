@@ -26,6 +26,13 @@
  *
  *   Usage: node scripts/fleet/prune-backup-branches.mts
  *     [--all | --repo owner/name] [--keep N] [--days N] [--local] [--dry-run]
+ *     [--allow-pre-root]
+ *
+ *   `--allow-pre-root` clears the squash-artifact veto class after a human has
+ *   reviewed it: in a `squash-history` repo every old ref trips the safety gate
+ *   because the squash erased the removal commits, so without an override the
+ *   scrubber can never prune the refs it most wants to. It does NOT clear a
+ *   veto on a ref inside the current history — that one is a real finding.
  *   Auth: `gh`/git push access for a remote delete; none for --dry-run.
  */
 
@@ -67,6 +74,8 @@ export interface PruneOptions {
   readonly days?: number | undefined
   readonly dryRun?: boolean | undefined
   readonly local?: boolean | undefined
+  // Clear the PRE-ROOT veto class only. See allowPreRoot in the CLI notes.
+  readonly allowPreRoot?: boolean | undefined
 }
 
 export interface VetoedRef {
@@ -118,6 +127,26 @@ export async function resolveDefaultBranch(repoDir: string): Promise<string> {
       `neither ${REMOTE}/main nor ${REMOTE}/master exists. Fix: run ` +
       `\`git remote set-head ${REMOTE} --auto\` in that clone.`,
   )
+}
+
+/**
+ * Refresh remote-tracking refs against the real remote, pruning ones whose
+ * branch is gone.
+ *
+ * This is load-bearing, not hygiene. `refs/remotes/origin/*` is a LOCAL cache
+ * that only changes when something fetches; a clone that has not pruned in
+ * weeks still lists branches deleted long ago. Reading it directly makes the
+ * scrubber report phantom refs, "delete" them, and produce a
+ * `remote ref does not exist` failure per ref — while its own counts overstate
+ * the backlog by however many are stale. A wheelhouse clone showed 27 tracking
+ * refs against 5 that actually existed.
+ *
+ * Runs even under --dry-run: the dry run's whole job is to preview what a real
+ * run would do, so it needs the same view. The fetch mutates only local
+ * tracking refs and never the remote or the working tree.
+ */
+export async function syncRemoteRefs(repoDir: string): Promise<void> {
+  await runCapture('git', ['fetch', '--prune', '--quiet', REMOTE], repoDir)
 }
 
 export interface DiscoverOptions {
@@ -237,6 +266,8 @@ export async function pruneRepo(
   options?: PruneOptions | undefined,
 ): Promise<PruneOutcome> {
   const opts = { __proto__: null, ...options } as PruneOptions
+  // Before ANY read of refs/remotes/*, make that cache match the remote.
+  await syncRemoteRefs(repoDir)
   const defaultBranch = await resolveDefaultBranch(repoDir)
   const historyRootMs = await resolveHistoryRootMs(repoDir, defaultBranch)
   const refs = await discoverBackupRefs(repoDir, { local: opts.local })
@@ -257,12 +288,20 @@ export async function pruneRepo(
     // oxlint-disable-next-line no-await-in-loop -- serial by design: each delete is a remote mutation whose failure must not strand the rest
     const onlyOnBackup = await findUniqueContent(repoDir, name, defaultBranch)
     if (onlyOnBackup.length > 0) {
-      vetoed.push({
-        name,
-        onlyOnBackup,
-        preRoot: precedesHistoryRoot(verdict.ref.committedAtMs, historyRootMs),
-      })
-      continue
+      const preRoot = precedesHistoryRoot(
+        verdict.ref.committedAtMs,
+        historyRootMs,
+      )
+      // --allow-pre-root clears ONLY the squash-artifact class: a ref older
+      // than the history root, where the diff cannot separate a deliberate
+      // removal from a lost one. A ref INSIDE the current history that still
+      // carries unique files is a real finding and stays held regardless — the
+      // flag is a reviewed-and-cleared signal for one known-ambiguous case, not
+      // a blanket --force.
+      if (!(preRoot && opts.allowPreRoot === true)) {
+        vetoed.push({ name, onlyOnBackup, preRoot })
+        continue
+      }
     }
     if (opts.dryRun === true) {
       deleted.push(name)
@@ -359,19 +398,40 @@ export function resolveTargetDirs(
 }
 
 export async function main(): Promise<void> {
-  const { values } = parseArgs({
+  const { positionals, values } = parseArgs({
+    allowPositionals: true,
     options: {
       all: { type: 'boolean' },
       days: { type: 'string' },
       'dry-run': { type: 'boolean' },
+      'allow-pre-root': { type: 'boolean' },
       keep: { type: 'string' },
       local: { type: 'boolean' },
       repo: { type: 'string' },
     },
     strict: true,
   })
+  // A stray positional means the flags did NOT land where the caller thinks.
+  // `pnpm run prune-backups -- --all --dry-run` forwards the `--` itself, and
+  // Node's parseArgs treats everything after it as positionals — so `--dry-run`
+  // silently evaporates and what the operator believed was a preview is a LIVE
+  // run against every repo. Refuse instead of guessing; this deletes remote
+  // refs, so a misread argv must never fail open.
+  if (positionals.length > 0) {
+    logger.error(
+      `unexpected argument(s): ${positionals.join(' ')}\n` +
+        `  Where: the prune-backups argv.\n` +
+        `  Saw:   flags after a bare \`--\`, which parseArgs treats as ` +
+        `positionals, so they were NOT applied.\n` +
+        `  Fix:   drop the \`--\` — run ` +
+        `\`node scripts/fleet/prune-backup-branches.mts --all --dry-run\`.`,
+    )
+    process.exitCode = 1
+    return
+  }
   const dryRun = values['dry-run'] === true
   const options: PruneOptions = {
+    allowPreRoot: values['allow-pre-root'] === true,
     days: values['days'] === undefined ? undefined : Number(values['days']),
     dryRun,
     keep: values['keep'] === undefined ? undefined : Number(values['keep']),

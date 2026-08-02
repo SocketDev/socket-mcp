@@ -61,6 +61,7 @@ import { formatBackupBranch } from '../../../../scripts/fleet/lib/backup-branch.
 import {
   checkNotShallowClone,
   checkSquashAllowed,
+  checkTreeIsClean,
   resolveFreezeBoundaryForRepo,
 } from './run-guards.mts'
 import {
@@ -616,6 +617,14 @@ export async function main(options: MainConfig = {}): Promise<number> {
   } catch {
     logger.error(`error: ${src} is not a git checkout`)
     return 2
+  }
+
+  // Uncommitted work is excluded from EVERY mode's collapse (each mints from a
+  // committed tip), so it must be landed before the rewrite, never after. Runs
+  // ahead of the feature-branch dispatch below so all four modes are covered.
+  const dirtyExit = checkTreeIsClean({ src })
+  if (dirtyExit !== undefined) {
+    return dirtyExit
   }
 
   // Feature-branch mode: an author-agreed squash of ONE feature branch down to
