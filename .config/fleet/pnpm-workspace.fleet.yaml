@@ -53,7 +53,7 @@ catalog:
   # .claude/skills/fleet/property-and-fuzz-testing.
   'fast-check': 4.9.0
   'magic-string': 1.1.0
-  'markdownlint-cli2': 0.23.1
+  'markdownlint-cli2': 0.23.2
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'neosanitize': 0.3.0
