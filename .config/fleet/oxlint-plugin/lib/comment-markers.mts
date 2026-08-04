@@ -58,6 +58,16 @@ export const SOCKET_LINT_ALLOW_PREFIX_RE = /socket-lint\s*:\s*allow\b/
 export const SOCKET_LINT_ALLOW_WELL_FORMED_RE =
   /socket-lint\s*:\s*allow\s+[a-z0-9][a-z0-9-]*/
 
+// A line that is ONLY an opt-out marker comment — the marker right after the
+// comment opener, optionally a `-- reason` tail, optionally a block-comment
+// close. The PREFERRED placement: such a line covers the line below it on
+// every enforcement surface (this plugin's leading-comment walk, the Claude
+// guards, the git-hook scanners), so a long pragma reads as a heading instead
+// of trailing off the right edge. Mirrors the same regex in
+// .claude/hooks/fleet/_shared/markers.mts and .git-hooks/_shared/scan-core.mts.
+export const SOCKET_LINT_MARKER_ONLY_LINE_RE: RegExp =
+  /^\s*(?:#|\/\*|\/\/)\s*socket-lint:\s*allow(?:\s+([\w-]+))?(?:\s*\*\/|\s+--.*)?\s*$/
+
 /**
  * Build a rule's `socket-lint: allow <id>` bypass regex from the canonical
  * grammar. Pass the result to `makeBypassChecker` so every rule's opt-out

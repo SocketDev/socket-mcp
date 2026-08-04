@@ -9,7 +9,6 @@ name: 'Setup'
 description: 'Setup debug, Node.js, pnpm, Socket firewall shims, and bootstrap zero-dep foundation packages (@socketsecurity/lib, @socketsecurity/sdk, @socketregistry/packageurl-js, @sinclair/typebox)'
 
 # Dependencies:
-#   - actions/setup-node@v6.4.0
 #   - ./.github/actions/debug
 
 inputs:
@@ -25,14 +24,6 @@ inputs:
     description: 'Node.js version'
     required: false
     default: '26.5.0'
-  scope:
-    description: 'npm registry scope for package authentication'
-    required: false
-    default: ''
-  registry-url:
-    description: 'npm registry URL'
-    required: false
-    default: 'https://registry.npmjs.org'
   socket-api-token:
     description: 'Socket API token — when provided, uses sfw-enterprise instead of sfw-free'
     required: false
@@ -194,23 +185,69 @@ runs:
         export PNPM_VERSION PLATFORM ASSET INTEGRITY PNPM_BIN PNPM_DIR
         node "$PLAN" pnpm-env >> "${GITHUB_ENV:-/dev/null}"
 
-    - name: Setup Node.js
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0 (2026-05-15)
-      with:
-        node-version: ${{ inputs.node-version }}
-        registry-url: ${{ inputs.registry-url }}
-        scope: ${{ inputs.scope }}
-
-    - name: Export Node.js version
+    - name: Install Node.js
       shell: bash
       env:
-        # Route through env to avoid zizmor template-injection findings —
-        # the input is still plumbed from the caller but never expanded
-        # directly into the shell source.
-        NODE_VERSION: ${{ inputs.node-version }}
+        # Map the input to env so the run block reads $NODE_WANTED instead of
+        # interpolating ${{ inputs.* }} into shell (zizmor template-injection).
+        NODE_WANTED: ${{ inputs.node-version }}
       run: | # zizmor: ignore[github-env]
-        # Mirror the node version that setup-node resolved so Docker
-        # builds COPY'd from CI can pin to the same Node major.
+        set -euo pipefail
+        # Native port of actions/setup-node (reference pin
+        # upstream/actions-setup-node, reviewed at v7.0.0): resolve the wanted
+        # version, download the platform archive from nodejs.org, verify it
+        # against the release's own SHASUMS256.txt, extract, and prepend the
+        # bin dir to $GITHUB_PATH — the same pinned-tool shape as the pnpm and
+        # sfw installs beside it. Deliberately NOT ported: the
+        # registry-url/.npmrc surface. Upstream writes
+        # `//<registry>/:_authToken=${NODE_AUTH_TOKEN}` into the runner .npmrc
+        # and leaves a placeholder NODE_AUTH_TOKEN in every later step's env;
+        # fleet npm publishes authenticate via OIDC trusted publishing and the
+        # preflight refuses any set token
+        # (scripts/fleet/publish-infra/npm/auth-posture.mts), so the port
+        # removes that credential surface instead of reproducing it. Branch
+        # decisions — version-spec resolution, the platform → asset mapping,
+        # and the SHASUMS256 hex → SRI conversion — live in the co-located
+        # plan-setup-node.mjs: pure functions, unit-tested in the wheelhouse,
+        # run via $GITHUB_ACTION_PATH so they travel when a member consumes
+        # the action. Inputs go in via env; decisions come back on stdout.
+        PLAN="${GITHUB_ACTION_PATH}/plan-setup-node.mjs"
+        PLATFORM_TOOL="${GITHUB_ACTION_PATH}/../_shared/platform.mjs"
+        INSTALL_TOOL="${GITHUB_ACTION_PATH}/../_shared/install-tool.mjs"
+        PLATFORM="$(node "$PLATFORM_TOOL")"
+        # An exact X.Y.Z input passes through with no network read; a bare
+        # X / X.Y / X.x prefix resolves against the nodejs.org release index.
+        NODE_VERSION="$(node "$PLAN" resolve-version)"
+        DIST="$(NODE_VERSION="$NODE_VERSION" PLATFORM="$PLATFORM" node "$PLAN" dist-asset)"
+        {
+          read -r ASSET
+          read -r BIN_REL
+        } <<<"$DIST"
+        NODE_DIR="${RUNNER_TOOL_CACHE:-${RUNNER_TEMP:-/tmp}}/socket-node/${NODE_VERSION}-${PLATFORM}"
+        NODE_BIN_DIR="${NODE_DIR}/${BIN_REL}"
+        NODE_BIN="${NODE_BIN_DIR}/node"
+        [[ "$ASSET" == *.zip ]] && NODE_BIN="${NODE_BIN_DIR}/node.exe"
+        if [ ! -x "$NODE_BIN" ]; then
+          # SHASUMS256.txt is fetched fresh beside the archive on every
+          # install; the plan converts the asset's hex line into the SRI
+          # string install-tool.mjs verifies, so a digest mismatch fails the
+          # step before any extraction.
+          INTEGRITY="$(NODE_VERSION="$NODE_VERSION" ASSET="$ASSET" node "$PLAN" shasums-sri)"
+          node "$INSTALL_TOOL" \
+            "https://nodejs.org/dist/v${NODE_VERSION}/${ASSET}" \
+            "$INTEGRITY" \
+            "$NODE_DIR"
+          if [ ! -x "$NODE_BIN" ]; then
+            echo "× Node.js install reported success but ${NODE_BIN} is missing or not executable." >&2
+            echo "  Contents of ${NODE_DIR}:" >&2
+            ls -la "$NODE_DIR" >&2 || true
+            exit 1
+          fi
+        fi
+        echo "$NODE_BIN_DIR" >> "${GITHUB_PATH:-/dev/null}"
+        # Mirror the resolved node version so Docker builds COPY'd from CI can
+        # pin to the same Node — SOCKET_TOOL_NODE_VERSION is load-bearing and
+        # exports unconditionally.
         echo "SOCKET_TOOL_NODE_VERSION=$NODE_VERSION" >> "${GITHUB_ENV:-/dev/null}"
 
     - name: Download sfw
@@ -643,7 +680,7 @@ runs:
       # no minimum-release-age, so the fleet enforces one with per-tap SHA pins
       # in scripts/fleet/constants/brew-tap-pins.mts (owned by
       # scripts/fleet/update/brew.mts --apply, gated by
-      # scripts/fleet/check/brew-install-is-pinned.mts). Runs after Setup Node.js,
+      # scripts/fleet/check/brew-install-is-pinned.mts). Runs after Install Node.js,
       # but the pins are read with grep/sed so this stays dependency-free.
       if: ${{ hashFiles('.config/repo/Brewfile') != '' }}
       shell: bash

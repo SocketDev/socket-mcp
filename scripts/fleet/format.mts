@@ -28,6 +28,7 @@ import {
 } from './_shared/format-scope.mts'
 import { isMainModule } from './_shared/is-main-module.mts'
 import { nodeModulesBinPath } from './paths.mts'
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 
 // oxfmt is spawned from `node_modules/.bin` rather than through `pnpm exec`,
 // which would add the package manager's startup and a Socket Firewall
@@ -38,7 +39,7 @@ const OXFMT_BIN = nodeModulesBinPath('oxfmt')
 // directly via spawnSync (CVE-2024-27980 hardening); the shell wrapper resolves
 // it. On POSIX we keep direct invocation so no shell-quoting surface is
 // introduced.
-const useShell = process.platform === 'win32'
+const useShell = WIN32
 
 // The decision `main` reduces argv down to before it ever spawns oxfmt —
 // pure + exported so a test drives every argv shape without a subprocess.

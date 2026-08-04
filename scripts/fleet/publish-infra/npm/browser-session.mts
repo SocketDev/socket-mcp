@@ -43,10 +43,9 @@
  *     session as signed out until the sign-in timeout, which presents as
  *     "login does not persist". The only auth failure reported is "signed
  *     out".
- *   - A human-verification challenge is PAUSED for the operator with a visible
- *     elapsed/remaining countdown, NEVER retried on a backoff ladder: a blind
- *     retry against a bot challenge earns a rate limit, which then masquerades
- *     as a broken session. Nothing is written while a challenge is outstanding.
+ *   - A human-verification challenge is PAUSED for the operator, never
+ *     retried on a ladder; {@link runChallengeAware} owns that rhythm for
+ *     every consumer. See `docs/agents.md/fleet/npm-anti-bot-rhythm.md`.
  *     `scripts/fleet/check/playwright-launches-are-sanctioned.mts` enforces the
  *     launch rules across the tree, so a new tool cannot re-derive its own.
  */
@@ -261,6 +260,67 @@ export async function pauseForChallenge(
   )
   await sleep(cfg.pollMs ?? CHALLENGE_POLL_MS)
   return { announced: true }
+}
+
+/**
+ * One attempt's outcome inside {@link runChallengeAware}: a finished value, a
+ * human-verification challenge to pause on, or an immediate re-attempt for a
+ * transient race the operation already slept through. `runChallengeAware`
+ * returns on `done`, pauses then re-attempts on `challenge`, and re-attempts
+ * without pausing on `retry`.
+ */
+export type ChallengeAwareStep<T> =
+  | { kind: 'challenge' }
+  | { kind: 'done'; value: T }
+  | { kind: 'retry' }
+
+/**
+ * The shared npm anti-bot rhythm: run `operation`, and each time it reports a
+ * human-verification challenge, PAUSE for the operator (visible countdown,
+ * cooldown opt-in ticked, budget enforced) through {@link pauseForChallenge},
+ * then re-attempt — bounded by the budget, NEVER a blind retry ladder, which
+ * against a live challenge earns a rate limit that masquerades as a broken
+ * session. The `operation` owns what it does and how it classifies its own
+ * result; this helper owns only the pause-then-retry orchestration. A `done`
+ * step returns its value; a `retry` step (a transient race the operation
+ * already slept through) loops without pausing; a `challenge` step pauses.
+ * The operation throws for its own terminal failures, which propagate out. The
+ * timings are injectable so tests run in milliseconds. See
+ * `docs/agents.md/fleet/npm-anti-bot-rhythm.md`.
+ */
+export async function runChallengeAware<T>(
+  page: Page,
+  operation: () => Promise<ChallengeAwareStep<T>>,
+  config: {
+    budgetMs?: number | undefined
+    label: string
+    pollMs?: number | undefined
+    url: string
+  },
+): Promise<T> {
+  const cfg = { __proto__: null, ...config } as typeof config
+  const started = Date.now()
+  let announced = false
+  for (;;) {
+    // eslint-disable-next-line no-await-in-loop -- serial: one live page solves one challenge at a time, each attempt awaiting the last.
+    const step = await operation()
+    if (step.kind === 'done') {
+      return step.value
+    }
+    if (step.kind === 'retry') {
+      continue
+    }
+    // eslint-disable-next-line no-await-in-loop -- serial pause while the operator solves the challenge.
+    const pause = await pauseForChallenge(page, {
+      announced,
+      budgetMs: cfg.budgetMs,
+      elapsedMs: Date.now() - started,
+      label: cfg.label,
+      pollMs: cfg.pollMs,
+      url: cfg.url,
+    })
+    announced = pause.announced
+  }
 }
 
 /**

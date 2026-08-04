@@ -378,7 +378,8 @@ export function readFacts(file: string, tree: FileFacts['tree']): FileFacts {
   // then `from '<source>'` — captures the quoted module specifier. Alternations
   // sorted (`\n` before `^`; `export` before `import`) per sort-regex-alternations.
   const importFromRe =
-    /(?:\n|^)\s*(?:export\b[^;]*?|import\b[^;]*?)\bfrom\s*['"]([^'"]+)['"]/g // socket-lint: allow uncommented-regex
+    // socket-lint: allow uncommented-regex
+    /(?:\n|^)\s*(?:export\b[^;]*?|import\b[^;]*?)\bfrom\s*['"]([^'"]+)['"]/g
   let m: RegExpExecArray | null
   while ((m = importFromRe.exec(src)) !== null) {
     addImportSource(m[1])
@@ -388,7 +389,8 @@ export function readFacts(file: string, tree: FileFacts['tree']): FileFacts {
   // Alternatives sorted by leading char (`(?:const…` < `class` < `function`)
   // per sort-regex-alternations; the name is read order-agnostically below.
   const declRe =
-    /^(export\s+)?(?:async\s+)?(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*[:=]|class\s+([A-Za-z_$][\w$]*)|function\s+([A-Za-z_$][\w$]*))/gm // socket-lint: allow uncommented-regex
+    // socket-lint: allow uncommented-regex
+    /^(export\s+)?(?:async\s+)?(?:(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*[:=]|class\s+([A-Za-z_$][\w$]*)|function\s+([A-Za-z_$][\w$]*))/gm
   while ((m = declRe.exec(src)) !== null) {
     const name = m[2] ?? m[3] ?? m[4]
     if (name) {

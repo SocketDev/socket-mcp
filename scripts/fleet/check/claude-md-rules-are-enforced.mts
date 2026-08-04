@@ -98,7 +98,8 @@ const SCRIPT_CITATION_RE = /scripts\/((?:fleet|repo)\/[A-Za-z0-9/_-]+\.mts)/g
 // `docs/agents.md/fleet/*.md` path. The two alternatives are sorted (`.claude`
 // before `docs`) per sort-regex-alternations.
 const DETAIL_LINK_RE =
-  /(?:[`'"]|\]\()((?:\.claude\/skills\/[A-Za-z0-9._/-]+\/SKILL\.md)|(?:docs\/agents\.md\/fleet\/[A-Za-z0-9._/-]+\.md))/g // socket-lint: allow uncommented-regex
+  // socket-lint: allow uncommented-regex
+  /(?:[`'"]|\]\()((?:\.claude\/skills\/[A-Za-z0-9._/-]+\/SKILL\.md)|(?:docs\/agents\.md\/fleet\/[A-Za-z0-9._/-]+\.md))/g
 
 // Opt-out: `<!-- enforcement: <category> — <reason> -->`. <category> is a single
 // word from the allowed set; a separated <reason> must be present (category +

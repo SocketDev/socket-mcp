@@ -122,7 +122,8 @@ export async function main(argv: readonly string[]): Promise<number> {
     const m = await measureBundle(repoDir)
     if (argv.includes('--json')) {
       const json = `${JSON.stringify(m, undefined, 2)}\n`
-      process.stdout.write(json) // socket-lint: allow console -- machine JSON; logger would corrupt it
+      // socket-lint: allow console -- machine JSON; logger would corrupt it
+      process.stdout.write(json)
     } else {
       logger.info(
         `bundle size: ${m.bundleSizeBytes} bytes across ${m.perFileSizes.length} file(s)`,

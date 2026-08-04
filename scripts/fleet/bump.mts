@@ -61,7 +61,7 @@ import {
   insertChangelogSection,
   replaceVersion,
 } from './bump/changelog-sections.mts'
-import { findBackupBranchesWithUnreleasedCommits } from './lib/backup-branch.mts'
+import { findBackupBranchesWithUnreleasedCommits } from './backup-branches/naming.mts'
 import {
   bumpLevelFor,
   changelogHeading,
@@ -88,7 +88,7 @@ import { runCapture } from './publish-infra/shared.mts'
 import type {
   BackupBranchGitExec,
   BackupBranchUnreleased,
-} from './lib/backup-branch.mts'
+} from './backup-branches/naming.mts'
 import type { BumpLevel, ConventionalCommit } from './lib/changelog.mts'
 import type { ReleaseDerivation, ReleaseLane } from './lib/release-anchor.mts'
 import { isMainModule } from './_shared/is-main-module.mts'

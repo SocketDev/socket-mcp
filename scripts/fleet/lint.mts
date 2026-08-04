@@ -50,6 +50,7 @@ import {
 } from './_shared/scope-flags.mts'
 import type { ScopeMode } from './_shared/scope-flags.mts'
 import { isMainModule } from './_shared/is-main-module.mts'
+import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 
 // Re-exported for existing consumers (test/repo/unit/lint.test.mts) — the
 // canonical definition lives in _shared/scope-flags.mts so fix.mts can reuse
@@ -66,7 +67,7 @@ const quiet = args.includes('--quiet') || args.includes('--silent')
 // On Windows, `pnpm` is a .cmd shim that Node refuses to exec directly via
 // spawnSync (CVE-2024-27980 hardening). The shell wrapper resolves the shim; on
 // POSIX we keep direct invocation so no shell-quoting surface is introduced.
-const useShell = process.platform === 'win32'
+const useShell = WIN32
 
 const LINTABLE_EXTS = new Set(['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts'])
 

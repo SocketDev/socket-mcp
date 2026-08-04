@@ -16,9 +16,10 @@ import type { Page } from 'playwright-core'
 import {
   NPM_ORIGIN,
   optIntoChallengeCooldown,
-  pauseForChallenge,
+  runChallengeAware,
   sleep,
 } from './browser-session.mts'
+import type { ChallengeAwareStep } from './browser-session.mts'
 import {
   classifyAccessPage,
   parseTrustedPublisherForm,
@@ -101,20 +102,27 @@ export async function readTrustedPublisher(
   const { challengeBudgetMs, challengePollMs } = opts
   const raceRetryMs = opts.raceRetryMs ?? RACE_RETRY_MS
   const url = accessUrl(pkg)
-  const started = Date.now()
   let raceAttempts = 0
-  let announced = false
-  for (;;) {
-    // eslint-disable-next-line no-await-in-loop -- serial poll: one live page, one challenge at a time.
+  // The challenge PAUSE + retry rhythm lives in runChallengeAware; this
+  // operation only classifies one fetch into done / challenge / a race retry.
+  const attempt = async (): Promise<
+    ChallengeAwareStep<{
+      current: TrustedPublisherCurrent | undefined
+      state: AccessPageState
+    }>
+  > => {
     const last = await fetchAccessPage(page, pkg)
     const state = classifyAccessPage({ body: last.body, status: last.status })
     if (state === 'configured' || state === 'unconfigured') {
       return {
-        current:
-          state === 'configured'
-            ? parseTrustedPublisherForm(last.body)
-            : undefined,
-        state,
+        kind: 'done',
+        value: {
+          current:
+            state === 'configured'
+              ? parseTrustedPublisherForm(last.body)
+              : undefined,
+          state,
+        },
       }
     }
     if (state === 'auth') {
@@ -133,9 +141,8 @@ export async function readTrustedPublisher(
       // error: retry it a couple of times, fast, then report honestly.
       if (last.status === 0 && raceAttempts < RACE_MAX_ATTEMPTS) {
         raceAttempts += 1
-        // eslint-disable-next-line no-await-in-loop -- serial short retry for a navigation race.
         await sleep(raceRetryMs)
-        continue
+        return { kind: 'retry' }
       }
       throw new Error(
         [
@@ -147,19 +154,14 @@ export async function readTrustedPublisher(
         ].join('\n'),
       )
     }
-    // A challenge: PAUSE for the operator, visibly, through the sanctioned
-    // helper — it owns the countdown and the budget refusal.
-    // eslint-disable-next-line no-await-in-loop -- serial pause while the operator solves the challenge.
-    const pause = await pauseForChallenge(page, {
-      announced,
-      budgetMs: challengeBudgetMs,
-      elapsedMs: Date.now() - started,
-      label: pkg,
-      pollMs: challengePollMs,
-      url,
-    })
-    announced = pause.announced
+    return { kind: 'challenge' }
   }
+  return runChallengeAware(page, attempt, {
+    budgetMs: challengeBudgetMs,
+    label: pkg,
+    pollMs: challengePollMs,
+    url,
+  })
 }
 
 // Fill one form field, preferring the wire-contract input name and falling

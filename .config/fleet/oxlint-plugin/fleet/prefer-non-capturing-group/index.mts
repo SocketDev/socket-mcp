@@ -183,7 +183,7 @@ const rule = {
     // only; the author chooses non-capturing vs named.
     messages: {
       captureGroup:
-        'Numbered capturing group `({{inner}})` is not referenced in THIS file. If its capture is unused, make it non-capturing `(?:{{inner}})`. If it IS used — including via `match[N]` / `$N` in another file — convert it to a NAMED capture `(?<name>{{inner}})` (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Named_capturing_group) so the intent is explicit and later edits do not renumber it. Or append `// socket-lint: allow capture` on this line if the capture is intentional.',
+        'Numbered capturing group `({{inner}})` is not referenced in THIS file. If its capture is unused, make it non-capturing `(?:{{inner}})`. If it IS used — including via `match[N]` / `$N` in another file — convert it to a NAMED capture `(?<name>{{inner}})` (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Named_capturing_group) so the intent is explicit and later edits do not renumber it. Or add `// socket-lint: allow capture` on its own line above if the capture is intentional.',
     },
     schema: [],
   },

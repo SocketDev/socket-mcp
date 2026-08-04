@@ -96,7 +96,8 @@ export function frontmatterValue(
     const m = new RegExp(`^${key}:[ \\t]*(.*)$`).exec(line)
     if (m) {
       // Strip one leading or trailing quote char, a YAML-style quoted scalar.
-      return m[1]!.trim().replace(/^['"]|['"]$/g, '') // socket-lint: allow uncommented-regex
+      // socket-lint: allow uncommented-regex
+      return m[1]!.trim().replace(/^['"]|['"]$/g, '')
     }
   }
   return undefined

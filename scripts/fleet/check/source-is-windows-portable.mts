@@ -257,7 +257,8 @@ export function scanFile(filePath: string): PortabilityHit[] {
       file: rel,
       line,
       rule: 'cmd-shim',
-      snippet: 'pnpm/npm/npx/yarn spawn without a `shell:` option', // socket-lint: allow npx
+      // socket-lint: allow npx
+      snippet: 'pnpm/npm/npx/yarn spawn without a `shell:` option',
     })
   }
   for (const line of scanUrlPathname(raw)) {
@@ -341,7 +342,7 @@ export function scanRepo(repoRoot: string): PortabilityHit[] {
 // ever LOWER this number as sites are fixed; a count above it means NEW
 // windows-portability debt and fails the gate. (Count-ratchet chosen over a
 // per-site baseline for weight; the doc's classes make each fix mechanical.)
-export const BASELINE_FINDINGS = 54
+export const BASELINE_FINDINGS = 53
 
 async function main(): Promise<void> {
   const quiet = process.argv.includes('--quiet')

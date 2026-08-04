@@ -10,7 +10,7 @@
  *   - Single-alternative groups (`(foo)`) — nothing to sort.
  *   - Position-bearing alternations where order encodes precedence (e.g.
  *     `<!--|-->` where `-->` MUST be tried after `<!--`). The rule can't prove
- *     this is the case, so it requires authors to append `// socket-lint: allow
+ *     this is the case, so it requires authors to add `// socket-lint: allow
  *     regex-alternation-order` on the line for the genuine exception.
  *   - Alternations whose elements aren't simple literals (containing `(`, `[`,
  *     `?`, `*`, `+`, `{`, etc.) — sorting may change match semantics in subtle
@@ -235,7 +235,7 @@ const rule = {
       unsorted:
         'Regex alternation `({{actual}})` is not sorted alphanumerically. Expected `({{sorted}})`.',
       unsortedNoFix:
-        'Regex alternation `({{actual}})` is not sorted alphanumerically. Expected `({{sorted}})`. (Not auto-fixed: contains non-literal elements; sort manually or append `// socket-lint: allow regex-alternation-order` if the order is intentional.)',
+        'Regex alternation `({{actual}})` is not sorted alphanumerically. Expected `({{sorted}})`. (Not auto-fixed: contains non-literal elements; sort manually or add `// socket-lint: allow regex-alternation-order` on its own line above if the order is intentional.)',
     },
     schema: [],
   },

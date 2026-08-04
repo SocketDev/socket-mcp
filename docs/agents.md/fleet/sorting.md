@@ -58,7 +58,8 @@ These are the exact semantics every `socket/sort-*` lint rule uses.
   Capturing, non-capturing, and named-capture groups all follow the rule.
   Auto-fixable when every alternative is a simple literal. Order-bearing
   alternations (rare; markup parsers where `<!--|-->` would silently mismatch if
-  reordered) append `// socket-lint: allow regex-alternation-order`. Enforced by
+  reordered) add `// socket-lint: allow regex-alternation-order` on its own line
+above. Enforced by
   `socket/sort-regex-alternations`.
 - **String-equality disjunctions**: `x === 'a' || x === 'b' || x === 'c'` reads
   with the comparand strings in alpha order. The De Morgan dual
@@ -115,7 +116,7 @@ Before re-sorting any sibling list, verify that order is not load-bearing. Two
 failure classes:
 
 1. **Shared-object aliasing / mutation order.** When siblings are objects that
-   share identity — the same reference held by multiple callers — and one sibling
+   share identity, the same reference held by multiple callers, and one sibling
    writes to the shared object's properties, the write sequence is load-bearing.
    Alphabetical re-sorting changes which write happens first and can silently
    corrupt the shared object's state for subsequent reads. The kw() incident:

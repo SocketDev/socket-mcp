@@ -25,6 +25,7 @@ import {
   RepoSchema,
   SecondarySchema,
 } from './socket-wheelhouse-schema/build.mts'
+import { CapabilitiesSchema } from './socket-wheelhouse-schema/capabilities.mts'
 import {
   ClaudeSchema,
   GithubSchema,
@@ -40,6 +41,7 @@ import {
   ReleaseSchema,
 } from './socket-wheelhouse-schema/policy.mts'
 import {
+  CoverageSchema,
   CoverSchema,
   VitestSchema,
 } from './socket-wheelhouse-schema/testing.mts'
@@ -84,8 +86,10 @@ export const SocketWheelhouseConfigSchema = Type.Object(
       }),
     ),
     ai: Type.Optional(AiSchema),
+    capabilities: Type.Optional(CapabilitiesSchema),
     claude: Type.Optional(ClaudeSchema),
     cover: Type.Optional(CoverSchema),
+    coverage: Type.Optional(CoverageSchema),
     design: Type.Optional(DesignSchema),
     docker: Type.Optional(DockerSchema),
     docs: Type.Optional(DocsSchema),
@@ -114,8 +118,10 @@ export const SocketWheelhouseConfigSchema = Type.Object(
 )
 
 export type SocketWheelhouseConfig = Static<typeof SocketWheelhouseConfigSchema>
+export type Capabilities = Static<typeof CapabilitiesSchema>
 export type Repo = Static<typeof RepoSchema>
 export type BuildConfig = Static<typeof BuildSchema>
 export type Secondary = Static<typeof SecondarySchema>
 export type Vite = Static<typeof ViteSchema>
 export type Vitest = Static<typeof VitestSchema>
+export type Coverage = Static<typeof CoverageSchema>

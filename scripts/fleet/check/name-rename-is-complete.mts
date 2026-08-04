@@ -42,7 +42,8 @@ const logger = getDefaultLogger()
 // and surrounding backticks. The captured token is the PRIOR name whose
 // disappearance this gate verifies.
 const RENAMED_FROM_RE =
-  /renamed-from:\s*`?((?:socket\/)?[a-z][a-z0-9-]*(?:\.mts)?)`?/gi // socket-lint: allow uncommented-regex
+  // socket-lint: allow uncommented-regex
+  /renamed-from:\s*`?((?:socket\/)?[a-z][a-z0-9-]*(?:\.mts)?)`?/gi
 
 // Fleet surfaces a renamed name lives in (as a file) or is referenced from:
 // scripts/{fleet,repo}, the fleet hooks, the oxlint plugin, the fleet docs, and

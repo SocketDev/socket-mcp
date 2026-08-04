@@ -23,7 +23,10 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 // oxlint-disable-next-line socket/prefer-async-spawn -- sequential git plumbing; each step gates the next on exit status.
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
-import { hasAiAttribution, stripAiAttribution } from './lib/attribution.mts'
+import {
+  hasAiAttribution,
+  stripAiAttribution,
+} from '../../.claude/hooks/fleet/_shared/ai-attribution.mts'
 import { REPO_ROOT } from './paths.mts'
 import { isMainModule } from './_shared/is-main-module.mts'
 import { runMain } from './_shared/run-main.mts'
@@ -83,8 +86,30 @@ function gitOrDie(
 // rewrite loop applies per commit.
 export function rewriteMessage(message: string): string {
   return hasAiAttribution(message)
-    ? stripAiAttribution(message)
+    ? stripAiAttribution(message).cleaned
     : `${message}\n`
+}
+
+/**
+ * A message's subject: its first non-blank line, or '' when it has none.
+ *
+ * The strip is line-oriented, and the attribution catalog it reads is the
+ * WHOLE-TEXT one, which matches a bare robot emoji anywhere on a line. A
+ * subject that legitimately contains that token — a commit naming a CI job
+ * `🤖 Build AI Models WASM` — is therefore removed like a trailer, and a
+ * one-line message strips down to nothing at all. Neither of the rewriter's
+ * two verifications notices: the tree is untouched by a message edit, and an
+ * empty message trivially carries no attribution.
+ */
+export function messageSubject(message: string): string {
+  const lines = message.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!.trim()
+    if (line !== '') {
+      return line
+    }
+  }
+  return ''
 }
 
 export async function main(): Promise<void> {
@@ -130,7 +155,22 @@ export async function main(): Promise<void> {
     const sha = list[i]!
     const message = gitOrDie(['log', '-1', '--format=%B', sha], 'read message')
     const flagged = hasAiAttribution(message)
+    const rewritten = rewriteMessage(message)
     if (flagged) {
+      // Refuse rather than mint a subject-less commit. Checked before the
+      // dry-run bail so the preview surfaces it too, and before `update-ref`
+      // so HEAD never moves: the loop may have written commit objects by now,
+      // but nothing references them and git will garbage-collect them.
+      if (messageSubject(rewritten) === '') {
+        logger.fail(
+          `[strip-ai-attribution] stripping ${sha.slice(0, 12)} would leave an EMPTY commit message.\n` +
+            `  Where: ${sha.slice(0, 12)}, whose subject is itself the attribution match: ${JSON.stringify(message.split('\n')[0] ?? '')}\n` +
+            '  Saw: every line removed. Wanted: a rewritten commit always keeps a subject.\n' +
+            '  Fix: reword this one by hand so its subject says what the change does without the attribution token, then re-run.',
+        )
+        process.exitCode = 1
+        return
+      }
       rewrote += 1
       logger.substep(
         `reword ${sha.slice(0, 12)} ${message.split('\n')[0] ?? ''}`,
@@ -143,7 +183,6 @@ export async function main(): Promise<void> {
     const authorName = gitOrDie(['log', '-1', '--format=%an', sha], 'author')
     const authorEmail = gitOrDie(['log', '-1', '--format=%ae', sha], 'email')
     const authorDate = gitOrDie(['log', '-1', '--format=%ad', sha], 'date')
-    const newMessage = rewriteMessage(message)
     parent = gitOrDie(
       ['commit-tree', tree, '-p', parent, '-S', '-F', '-'],
       `commit-tree ${sha.slice(0, 12)}`,
@@ -153,7 +192,7 @@ export async function main(): Promise<void> {
           GIT_AUTHOR_EMAIL: authorEmail,
           GIT_AUTHOR_NAME: authorName,
         },
-        input: newMessage,
+        input: rewritten,
       },
     )
   }

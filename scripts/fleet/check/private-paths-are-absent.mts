@@ -97,7 +97,8 @@ function isSelfExempt(relFile: string): boolean {
 // the pattern, not leaking a real path. Matched against the captured path's
 // owner segment.
 const PLACEHOLDER_MATCH_RE =
-  /(?:^|[/.])(?:socket-foo\b|Users\/(?:\.\.\.|me|x)(?:\/|$))/ // socket-lint: allow personal-path -- placeholder-token detector, not a real path.
+  // socket-lint: allow personal-path -- placeholder-token detector, not a real path.
+  /(?:^|[/.])(?:socket-foo\b|Users\/(?:\.\.\.|me|x)(?:\/|$))/
 
 function findingIsDocumentation(
   rawLine: string,
@@ -253,7 +254,7 @@ function main(): void {
       '  These leak internal fleet layout, operator-local notes, or a dev-box path into committed source.',
     )
     logger.error(
-      '  Remove the path from the comment (describe the constraint, not where a plan doc lives), or append `// socket-lint: allow private-path` on a line that must keep an illustrative example. See docs/agents.md/fleet/public-surface-hygiene.md.',
+      '  Remove the path from the comment (describe the constraint, not where a plan doc lives), or add `// socket-lint: allow private-path` on its own line above a line that must keep an illustrative example. See docs/agents.md/fleet/public-surface-hygiene.md.',
     )
     process.exitCode = 1
     return

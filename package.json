@@ -88,6 +88,7 @@
     "weekly-update:ci": "gh workflow run weekly-update.lock.yml"
   },
   "devDependencies": {
+    "@actions/cache": "catalog:",
     "@anthropic-ai/mcpb": "catalog:",
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/core": "2.0.0",
