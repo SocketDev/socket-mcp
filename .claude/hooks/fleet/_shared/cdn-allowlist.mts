@@ -27,11 +27,21 @@ import { findInvocation } from './shell-command.mts'
 export const ALLOWED_CDN_HOSTS: readonly string[] = [
   // uv installer: `curl -LsSf https://astral.sh/uv/install.sh`, fleet Python tooling.
   'astral.sh',
+  // Google Chrome stable .deb — the odai chrome-builtin provisioning path
+  // (setup-odai action + the odai repo's on-device model cache workflow);
+  // real Chrome is required, Chromium cannot run the on-device model.
+  'dl.google.com',
   // The Rust package registry's public API — the cargo publish-infra reads
   // crate state before acting (scripts/fleet/publish-infra/cargo/
   // placeholder.mts verifies a name is unclaimed; the trusted-publisher lane
   // reads its config), which the verify-state-before-acting rule requires.
   'crates.io',
+  // The npm registry's public API — the npm publish-infra reads package state
+  // before acting (verify-state-before-acting), and provenance verification
+  // reads the SLSA attestation bundle to recover the source commit a published
+  // version was built from. `npm view` already reaches this host; a direct read
+  // of the attestation endpoint needs it too.
+  'registry.npmjs.org',
   // Socket's own badge service — the fleet README skeleton's Socket Badge;
   // agents verify badge markup/dimensions against the live SVG.
   'badge.socket.dev',

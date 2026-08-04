@@ -153,7 +153,25 @@ export interface HookSpec {
   readonly bypassOptional?: boolean | undefined
   readonly bypassMode?: 'auto' | 'manual' | undefined
   readonly check: GuardCheck
-  readonly event: HookEvent
+  // One event, or several when a single rule owns more than one surface (a
+  // prose law that gates doc writes at PreToolUse AND the reply at Stop). Same
+  // one-or-many shape as `matcher`. The generator emits one dispatch-table row
+  // per event, all sharing this spec's `check`, so the check must recognize
+  // each payload shape it can now receive — a Stop payload carries no
+  // `tool_name`.
+  readonly event: HookEvent | readonly HookEvent[]
+  // MACHINE-WIDE law: when true the hook is also wired into the operator's
+  // `~/.claude/settings.json`, so it fires from EVERY repo session rather than
+  // only the repos carrying a cascaded `.claude/settings.json`. Read off the
+  // SOURCE (never by importing the hook) by
+  // `scripts/repo/user-global/global-hook-scan.mts`, which the installer
+  // `scripts/repo/setup/user-global-settings.mts` and its drift check
+  // `scripts/repo/check/user-global-settings-are-current.mts` both derive from —
+  // so the flag on the hook IS the wiring, with no hand-edited home file.
+  // Reserve it for rules that hold everywhere: a hook carrying
+  // `scope: 'convention'` stands down outside a fleet repo, which makes the two
+  // fields contradictory.
+  readonly global?: boolean | undefined
   readonly matcher?: HookMatcher | readonly HookMatcher[] | undefined
   // 'convention' marks a hook that encodes a FLEET convention (code style,
   // layout, tooling, prose shape) rather than a universal safety rule.

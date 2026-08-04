@@ -27,7 +27,7 @@
 // deploy can't wedge the session.
 
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
-import { lineIsSuppressed } from '../_shared/markers.mts'
+import { suppressionCoversLine } from '../_shared/markers.mts'
 // Personal-path matcher imported from the gate-free cross-tree shared module —
 // the SAME regexes + filter + rewrite the commit-time scanPersonalPaths uses,
 // so the two surfaces can't drift, was a lock-step inline copy.
@@ -85,7 +85,7 @@ export function scanPersonalPaths(content: string): PersonalPathHit[] {
     }
     // Per-line opt-out: `// socket-lint: allow personal-path` — the same
     // marker the commit-time scanner honors via skipDocs.
-    if (lineIsSuppressed(line, 'personal-path')) {
+    if (suppressionCoversLine(lines, i, 'personal-path')) {
       continue
     }
     hits.push({
@@ -122,7 +122,7 @@ export function formatBlockMessage(
   )
   out.push('  Env vars also work: `$HOME`, `${USER}`, `~/`.')
   out.push(
-    '  For a line that must keep the literal form, append `// socket-lint: allow personal-path`.',
+    '  For a line that must keep the literal form, add `// socket-lint: allow personal-path -- <reason>` on its own line above it.',
   )
   out.push('')
   return out.join('\n')

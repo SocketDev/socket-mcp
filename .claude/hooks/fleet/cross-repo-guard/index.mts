@@ -39,7 +39,7 @@
 // the two regexes in sync.
 
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
-import { lineIsSuppressed } from '../_shared/markers.mts'
+import { suppressionCoversLine } from '../_shared/markers.mts'
 // CROSS_REPO_ANY_RE (built from the canonical FLEET_REPO_NAMES roster) is
 // imported from the gate-free cross-tree _shared/cross-repo.mts — the SAME
 // regex the commit-time scanCrossRepoPaths uses, so the two can't drift (was
@@ -88,7 +88,7 @@ export function emitBlock(filePath: string, hits: Hit[]): string {
     lines.push(`  …and ${hits.length - 3} more.`)
   }
   lines.push(
-    '  Opt-out for one line (rare): append `// socket-lint: allow cross-repo`.',
+    '  Opt-out for one line (rare): add `// socket-lint: allow cross-repo` on its own line above it.',
   )
   return lines.join('\n')
 }
@@ -137,7 +137,7 @@ export function scan(source: string, fileAbsPath: string): Hit[] {
     ) {
       continue
     }
-    if (lineIsSuppressed(line, 'cross-repo')) {
+    if (suppressionCoversLine(lines, i, 'cross-repo')) {
       continue
     }
     hits.push({ lineNumber: i + 1, line, matched })

@@ -158,15 +158,31 @@ export function describeGitFailure(
 /**
  * Throw when the checkout is shallow. A truncated graph makes both "all
  * reachable history" and tag ancestry unreliable, and a boundary read off a
- * truncated graph would freeze the wrong span of commits.
+ * truncated graph would freeze the wrong span of commits. On a CI runner the
+ * shallow state is the bootstrap checkout's own depth-1 fetch, not an
+ * operator's choice, so the check self-heals there: one `git fetch
+ * --unshallow --tags` completes the graph, and only a still-shallow repo
+ * after that fetch throws. Off-runner the refusal stays loud and
+ * network-free — a dev box's shallow clone is the operator's to fix.
  */
-export async function assertNotShallowCheckout(git: GitRunner): Promise<void> {
+export async function assertNotShallowCheckout(
+  git: GitRunner,
+  env: Record<string, string | undefined> = process.env,
+): Promise<void> {
   const shallow = await git(['rev-parse', '--is-shallow-repository'])
-  if (shallow.ok && shallow.stdout.trim() === 'true') {
-    throw new AttributionScanError(
-      'this checkout is a shallow clone, so "all reachable history" would be a lie — fetch full history (e.g. `git fetch --unshallow`) or pass --unpushed to scan only the commits not yet on the default branch',
-    )
+  if (!shallow.ok || shallow.stdout.trim() !== 'true') {
+    return
   }
+  if (env['GITHUB_ACTIONS'] === 'true') {
+    await git(['fetch', '--quiet', '--unshallow', '--tags', 'origin'])
+    const after = await git(['rev-parse', '--is-shallow-repository'])
+    if (after.ok && after.stdout.trim() !== 'true') {
+      return
+    }
+  }
+  throw new AttributionScanError(
+    'this checkout is a shallow clone, so "all reachable history" would be a lie — fetch full history (e.g. `git fetch --unshallow`) or pass --unpushed to scan only the commits not yet on the default branch',
+  )
 }
 
 /**

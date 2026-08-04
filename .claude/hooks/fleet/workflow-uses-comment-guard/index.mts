@@ -111,9 +111,12 @@ export function isWorkflowYamlPath(rawPath: string): boolean {
   if (/\.lock\.ya?ml$/.test(p)) {
     return false
   }
+  // The composite-action arm is depth-agnostic: the fleet layout is SEGMENTED
+  // (`.github/actions/{fleet,repo}/<name>/action.yml`), so a one-level probe
+  // matches nothing at all and every real action edits through unguarded.
   return (
     /\/\.github\/workflows\/[^/]+\.(ya?ml)$/.test(p) ||
-    /\/\.github\/actions\/[^/]+\/action\.(ya?ml)$/.test(p)
+    /\/\.github\/actions\/(?:[^/]+\/)*action\.(ya?ml)$/.test(p)
   )
 }
 
@@ -141,7 +144,7 @@ export const check = editGuard((filePath, content) => {
       'when you pinned/refreshed (today is fine for new pins). The\n' +
       'date-stamp is the staleness signal — reviewers can see at-a-glance\n' +
       'when a SHA was last touched without running a drift audit.\n' +
-      '\nOne-off override: append `# socket-lint: allow uses-no-stamp`\n' +
+      '\nOne-off override: add `# socket-lint: allow uses-no-stamp` on its own line above\n' +
       'to the `uses:` line.',
   )
 })
