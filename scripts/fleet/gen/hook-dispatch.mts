@@ -33,6 +33,7 @@ import {
 import type { EligibleHook } from '../_shared/dispatch-scan.mts'
 import { collectEligibleHooks } from '../_shared/dispatch-scan.mts'
 import { hasFleetHookSource } from '../_shared/fleet-source-present.mts'
+import { writeHookValidators } from './hook-validators.mts'
 
 const logger = getDefaultLogger()
 
@@ -331,6 +332,11 @@ function main(): void {
     DISPATCH_MANIFEST_PATH,
     generateDispatchManifestSource(FLEET_HOOKS_DIR),
   )
+  // The ahead-of-time TypeBox validators belong to the same generated set: a
+  // hook the bundle pulls in IMPORTS them, so a tree with tables but no
+  // validators does not type-check or bundle. This maker is the pure-JS,
+  // cross-platform regen CI runs after install, so it emits them too.
+  writeHookValidators()
   // Dogfood: the wheelhouse carries template/base/ a member does not. Mirror
   // the generated full table + manifest into the template so its CI readers +
   // the release-bundle walk find them — both are gitignored + never committed,

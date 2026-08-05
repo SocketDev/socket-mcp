@@ -6,6 +6,21 @@ an action or tool the fleet inlines rather than consumes as a live dependency.
 It lives at the top level under `upstream/<name>`, fetched shallow, single-branch,
 and (where only a slice is referenced) sparse.
 
+## `upstream/<name>` at the repo root is the ONLY submodule home
+
+No submodule ever lives anywhere else — not `packages/<pkg>/upstream/<name>`,
+not a test-fixtures tree, not a bespoke `submodules/` directory. One home
+makes a reference's role unmistakable — the path itself says "this is
+upstream code we pin" — keeps the ignore + gitlink rules a single path
+test, and lets conformance runners, port maps, and the cascade all resolve
+references the same way. An upstream test suite (test262, WPT, a spec
+suite) is still an upstream reference: it lands at `upstream/<name>` with a
+`sparse-checkout` narrowing it to the exercised subtree, and the
+`.gitmodules` header comment records what consumes it. Enforced by
+`scripts/fleet/check/submodules-are-rooted-in-upstream.mts`; pre-law nests
+ride its script-owned `submoduleRoots.grandfathered` ratchet
+(`--update-baseline`) until migrated.
+
 ## `.gitmodules` is the sole record — never a gitlink
 
 `upstream/` is **always git-ignored** (the fleet-wide `**/upstream/` rule) and is
@@ -26,6 +41,9 @@ of the same SHA.
   shallow = true
 ```
 
+<details>
+<summary><b>Field by field</b>: `branch` + `shallow`, the release-tag pin policy, how `ref` and the sha256 header are provisioned together, and why no gitlink exists</summary>
+
 - `branch = <ref>` pins the ref the reference tracks; `shallow = true`
   keeps the fetch to that ref's tip depth. Together they are "shallow
   single-branch." A `sparse-checkout = <subpath>` field limits the materialized
@@ -38,9 +56,9 @@ of the same SHA.
   (`main`) — and then the block MUST carry a `# no-release-tag: <reason>`
   annotation. Enforced by `upstream-submodules-are-release-tagged`.
 - `ref = <40hex>` is the exact commit of record, and the `# <name>-<version>
-  sha256:<64hex>` header is the codeload-archive content hash of that ref. Both
+sha256:<64hex>` header is the codeload-archive content hash of that ref. Both
   are provisioned together by `scripts/fleet/gen/gitmodules-hash.mts --set
-  <name|path> <ref> --label <name>-<version>` — never hand-edit `ref` alone
+<name|path> <ref> --label <name>-<version>` — never hand-edit `ref` alone
   (`uses-sha-verify-guard` blocks it, because the archive hash can't be recomputed
   at edit time).
 - There is **no gitlink**: `git ls-files --stage upstream/` must show no `160000`
@@ -50,6 +68,8 @@ of the same SHA.
   `pathspec 'upstream/<name>' did not match any file(s) known to git`. Use
   `git-partial-submodule.mts clone`, which reads the `ref` pin from `.gitmodules`
   and clones + detaches directly. See "Materializing one" below.
+
+</details>
 
 ## Ported actions: the port map + the lock-step rule
 
@@ -136,6 +156,9 @@ blocks the staging that would create one in the first place.
 
 ## Enforcement
 
+<details>
+<summary><b>Gate roster</b>: no-upstream-gitlink-guard, upstream-gitlinks-are-absent, ignored-files-are-untracked, shallow-single-branch, release-tagged, gitmodules-comment-guard, uses-sha-verify-guard, action-ports-are-lock-stepped, and vendor-actions --check</summary>
+
 - `no-upstream-gitlink-guard` (PreToolUse) blocks any Bash `git add` /
   `git submodule add` / `git update-index --add` that would stage a path under
   `upstream/` — the gitlink can never be committed. Bypass:
@@ -165,3 +188,5 @@ blocks the staging that would create one in the first place.
   pin is behind its latest soaked upstream release. Network-bound, so it runs
   on the weekly-update cadence, the gate and the deterministic chain, not in
   the offline `check --all` gate.
+
+</details>

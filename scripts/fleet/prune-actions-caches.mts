@@ -439,7 +439,7 @@ async function resolveTargetRepos(config: {
   return [detected]
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       all: { default: false, type: 'boolean' },

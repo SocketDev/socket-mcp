@@ -29,7 +29,7 @@ import path from 'node:path'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import {
-  findCategoricalProseBans,
+  findCategoricalProseBanHits,
   findChangelogImplDetail,
   findProseAntipatterns,
 } from './patterns.mts'
@@ -123,23 +123,12 @@ export function findProseWriteVerdict(
         CHANGELOG_IMPL_BYPASS_PHRASE,
       )
     ) {
-      const lines: string[] = [
-        `🚨 anti-prose-guard: blocked CHANGELOG write to ${rel} — implementation detail.`,
-        '',
-      ]
-      for (let i = 0, { length } = implHits; i < length; i += 1) {
-        const hit = implHits[i]!
-        lines.push(`  ✗ ${hit.label}: ${hit.why}`)
-      }
-      lines.push(
-        '',
-        'A CHANGELOG entry states the user-visible behavior change only — the',
-        'API or commands a reader can now use, or what stopped breaking. Drop',
-        'dependency bumps, version deltas, and internal mechanism names.',
-        '',
-        `Bypass (rare): the user types "${CHANGELOG_IMPL_BYPASS_PHRASE}" verbatim.`,
+      const evidence = implHits
+        .map(hit => `${hit.label} "${hit.match}"`)
+        .join('; ')
+      return block(
+        `🚨 anti-prose-guard: blocked ${rel} — implementation detail: ${evidence} — state the user-visible change instead (bypass response "${CHANGELOG_IMPL_BYPASS_PHRASE}")`,
       )
-      return block(lines.join('\n'))
     }
   }
 
@@ -150,20 +139,10 @@ export function findProseWriteVerdict(
   if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
     return undefined
   }
-  const lines: string[] = [`🚨 anti-prose-guard: blocked write to ${rel}.`, '']
-  for (let i = 0, { length } = hits; i < length; i += 1) {
-    const hit = hits[i]!
-    lines.push(`  ✗ ${hit.label}: ${hit.why}`)
-  }
-  lines.push(
-    '',
-    'Per CLAUDE.md "Prose authoring": run human-facing prose through the `prose`',
-    'skill (.claude/skills/fleet/prose/SKILL.md) before it lands. Rewrite the',
-    'flagged spans, then retry the edit.',
-    '',
-    `Bypass (rare): the user types "${BYPASS_PHRASE}" verbatim.`,
+  const evidence = hits.map(hit => `${hit.label} "${hit.match}"`).join('; ')
+  return block(
+    `🚨 anti-prose-guard: blocked ${rel} — ${evidence} — rewrite the flagged span(s), then retry (bypass response "${BYPASS_PHRASE}")`,
   )
-  return block(lines.join('\n'))
 }
 
 // `fleetOnly` replaces the spec-level `scope: 'convention'`: it gates the
@@ -186,23 +165,20 @@ export function findReplyProseVerdict(payload: ToolCallPayload): GuardResult {
   if (!rawText) {
     return undefined
   }
-  const hits = findCategoricalProseBans(stripCodeFences(rawText))
+  const hits = findCategoricalProseBanHits(stripCodeFences(rawText))
   if (!hits.length) {
     return undefined
   }
-  const lines: string[] = [
-    '🚨 anti-prose-guard: blocked turn-end — banned prose in the reply.',
-    '',
-  ]
+  // Terse on purpose: the human already saw the draft, and the harness
+  // renders this verdict twice — the quoted word IS the whole instruction,
+  // one line per hit, no label, no lecture (doctrine stays on the edit-time
+  // surfaces).
+  const lines: string[] = []
   for (let i = 0, { length } = hits; i < length; i += 1) {
     const hit = hits[i]!
-    lines.push(`  ✗ ${hit.label}: ${hit.why}`)
+    const prefix = i === 0 ? '🚨 anti-prose-guard: ' : '   '
+    lines.push(`${prefix}delete "${hit.matched}" — …${hit.snippet}…`)
   }
-  lines.push(
-    '',
-    'Rewrite the reply without the banned framing — this match is a verdict, not',
-    'a heuristic. There is no bypass; delete the word.',
-  )
   // Blocks even mid-retry of another Stop guard. Degrading to a notice there
   // opened a real hole: a reply rewritten to satisfy a DIFFERENT guard can
   // introduce the banned framing, and on that retry this one only whispered,
@@ -226,6 +202,18 @@ export const hook = defineHook({
   bypassOptional: true,
   check,
   event: ['PreToolUse', 'Stop'],
+  // MACHINE-WIDE. The Stop path judges the REPLY, which has no repo — a banned
+  // word is just as wrong answering from a foreign checkout, and that is what
+  // the `fleetOnly: true` on `checkDocWrite` (rather than a spec-level
+  // `scope: 'convention'`) was for: scope the file surface, leave the reply
+  // surface universal. That intent shipped unrealized. Without this flag the
+  // hook is only wired into repos carrying a cascaded `.claude/settings.json`,
+  // so every session in a non-fleet repo ran with the fleet's ONLY blocking
+  // prose guard absent — the honesty ban had zero coverage there, because the
+  // one globally-wired reply hook (`reply-prose-nudge`) does not carry the
+  // categorical tier. Enforced by
+  // `scripts/fleet/check/categorical-prose-bans-are-live.mts`.
+  global: true,
   // No `matcher`: a Stop payload has no tool, and a tool-filtered entry is
   // skipped outright for a tool-less payload (`hookHandlesTool`), which would
   // silently unwire the Stop surface. `editGuard` already returns undefined for

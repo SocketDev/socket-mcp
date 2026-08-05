@@ -22,6 +22,11 @@
  */
 
 import { readFileSync } from 'node:fs'
+
+import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+
+import type { ScriptMeta } from '../_shared/run-main.mts'
 import process from 'node:process'
 
 import {
@@ -32,12 +37,15 @@ import {
 } from './dep-changes.mts'
 import { buildEntry, composePrBody } from './pr-body.mts'
 
-function flag(argv: readonly string[], name: string): string | undefined {
+export function flag(
+  argv: readonly string[],
+  name: string,
+): string | undefined {
   const i = argv.indexOf(name)
   return i === -1 ? undefined : argv[i + 1]
 }
 
-function flags(argv: readonly string[], name: string): string[] {
+export function flags(argv: readonly string[], name: string): string[] {
   const out: string[] = []
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === name && argv[i + 1] !== undefined) {
@@ -49,7 +57,7 @@ function flags(argv: readonly string[], name: string): string[] {
 
 // A file that is missing or unreadable reads as empty rather than throwing. A
 // body is more useful than a crashed step.
-function readOrEmpty(filepath: string | undefined): string {
+export function readOrEmpty(filepath: string | undefined): string {
   if (!filepath) {
     return ''
   }
@@ -60,7 +68,7 @@ function readOrEmpty(filepath: string | undefined): string {
   }
 }
 
-async function readStdin(): Promise<string> {
+export async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) {
     return ''
   }
@@ -71,7 +79,7 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const argv = process.argv.slice(2)
   const base = flag(argv, '--base') ?? 'main'
   const date = flag(argv, '--date') ?? new Date().toISOString().slice(0, 10)
@@ -107,4 +115,21 @@ async function main(): Promise<void> {
   )
 }
 
-void main()
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    "composes the rolling dependency PR's refreshed body from the previous body on stdin",
+  help: `Usage: printf '%s' "$BODY" | node scripts/fleet/weekly-update/pr-body-cli.mts [flags]
+
+  --base <branch>          diff base (default main)
+  --date <YYYY-MM-DD>      run date (default today)
+  --run-url <url>          workflow run link
+  --before-pkg <file>      package.json snapshot before the update
+  --before-workspace <file>  pnpm-workspace.yaml snapshot before
+  --after-pkg <file>       package.json snapshot after
+  --after-workspace <file>   pnpm-workspace.yaml snapshot after
+  --line <text>            commit subject line; repeatable`,
+}
+
+if (isMainModule(import.meta.url)) {
+  runMain(main, SCRIPT_META)
+}

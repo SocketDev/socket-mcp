@@ -85,10 +85,10 @@
     "mcp:reset": "node scripts/fleet/mcp-reset.mts",
     "setup:sfw-ca": "node scripts/fleet/setup/sfw-ca.mts",
     "get-green": "node scripts/fleet/get-green.mts",
-    "weekly-update:ci": "gh workflow run weekly-update.lock.yml"
+    "weekly-update:ci": "gh workflow run weekly-update.lock.yml",
+    "prune:backups": "node scripts/fleet/backup-branches.mts prune"
   },
   "devDependencies": {
-    "@actions/cache": "catalog:",
     "@anthropic-ai/mcpb": "catalog:",
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/core": "2.0.0",
@@ -132,6 +132,7 @@
     "shell-quote": "catalog:",
     "svgo": "catalog:",
     "taze": "catalog:",
+    "typebox": "catalog:",
     "typescript": "catalog:",
     "untracked": "catalog:",
     "vitest": "catalog:",
@@ -146,7 +147,7 @@
   },
   "engines": {
     "node": ">=24",
-    "npm": ">=12.0.1",
+    "npm": ">=12.0.2",
     "pnpm": ">=11.0.5"
   },
   "allowScripts": {

@@ -341,6 +341,18 @@ export const DISPATCH_MANIFEST_PATH = path.join(
 )
 
 /**
+ * The GENERATED ahead-of-time TypeBox validators (gen/hook-validators writes
+ * this). A hook process is one-per-tool-event, so compiling a schema at startup
+ * pays JIT codegen on every run and amortizes it over a single check; the maker
+ * emits the compiler's own JavaScript at BUILD time instead, and the runtime
+ * graph never loads TypeBox at all.
+ */
+export const HOOK_VALIDATORS_PATH = path.join(
+  DISPATCH_DIR,
+  'generated-validators.mts',
+)
+
+/**
  * The dispatcher entry that rolldown bundles.
  */
 export const DISPATCH_ENTRY_PATH = path.join(DISPATCH_DIR, 'dispatch-entry.mts')
@@ -408,6 +420,19 @@ export const PACKAGE_JSON = path.join(REPO_ROOT, 'package.json')
  * Absolute path to the repo's `pnpm-lock.yaml`.
  */
 export const PNPM_LOCK = path.join(REPO_ROOT, 'pnpm-lock.yaml')
+
+/**
+ * Absolute path to the release pipeline runner. Callers that re-enter the
+ * pipeline as a child process (the promote runner's `--reconcile` hand-off)
+ * resolve it from here rather than rebuilding the segments, so a move updates
+ * one definition instead of every call site.
+ */
+export const PUBLISH_PIPELINE_SCRIPT = path.join(
+  REPO_ROOT,
+  'scripts',
+  'fleet',
+  'publish-pipeline.mts',
+)
 
 /**
  * Absolute path to the script-only check tsconfig (`tsc -p`'d directly by the
