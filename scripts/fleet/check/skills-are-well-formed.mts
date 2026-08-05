@@ -38,6 +38,9 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+
+import type { ScriptMeta } from '../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -271,6 +274,12 @@ function main(): void {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe: 'checks every skill directory is a well-formed skill',
+  help: `Usage: node scripts/fleet/check/skills-are-well-formed.mts [flags]
+  --quiet  suppress the success message`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

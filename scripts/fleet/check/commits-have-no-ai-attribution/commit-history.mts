@@ -173,15 +173,29 @@ export async function assertNotShallowCheckout(
   if (!shallow.ok || shallow.stdout.trim() !== 'true') {
     return
   }
+  // When the self-heal runs and the checkout is STILL shallow, the reason the
+  // fetch gave is the whole diagnosis. Discarding it leaves CI reporting only
+  // "shallow clone", which is the symptom the heal was supposed to remove.
+  let healReport = ''
   if (env['GITHUB_ACTIONS'] === 'true') {
-    await git(['fetch', '--quiet', '--unshallow', '--tags', 'origin'])
+    const fetched = await git([
+      'fetch',
+      '--quiet',
+      '--unshallow',
+      '--tags',
+      'origin',
+    ])
     const after = await git(['rev-parse', '--is-shallow-repository'])
     if (after.ok && after.stdout.trim() !== 'true') {
       return
     }
+    healReport = fetched.ok
+      ? ' The CI self-heal fetch exited 0 yet the checkout is still shallow.'
+      : ` The CI self-heal fetch failed: ${fetched.error || 'git reported no error text'}.`
   }
   throw new AttributionScanError(
-    'this checkout is a shallow clone, so "all reachable history" would be a lie — fetch full history (e.g. `git fetch --unshallow`) or pass --unpushed to scan only the commits not yet on the default branch',
+    'this checkout is a shallow clone, so "all reachable history" would be a lie — fetch full history (e.g. `git fetch --unshallow`) or pass --unpushed to scan only the commits not yet on the default branch.' +
+      healReport,
   )
 }
 

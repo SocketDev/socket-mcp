@@ -82,6 +82,21 @@ export function repoNameFromRemoteUrl(remote: string): string | undefined {
   return m?.groups?.['repo']
 }
 
+/**
+ * The GitHub org/owner segment from a git remote URL — the path component
+ * immediately before the repo segment `repoNameFromRemoteUrl` extracts.
+ * Handles both `git@github.com:Owner/repo.git` (ssh, `:` before the owner)
+ * and `https://github.com/Owner/repo.git` (https, `/` throughout). Splits on
+ * every `/` and `:` after stripping a trailing `.git`, the same separator
+ * handling as `repoNameFromRemoteUrl`; undefined when the remote has fewer
+ * than two path segments (no owner to extract).
+ */
+export function ownerFromRemoteUrl(remote: string): string | undefined {
+  const normalized = normalizePath(remote.trim()).replace(/\.git$/, '')
+  const segments = normalized.split(/[/:]/).filter(Boolean)
+  return segments.length >= 2 ? segments[segments.length - 2] : undefined
+}
+
 export function resolveRepoName(cwd: string): string | undefined {
   const remote = gitOut(cwd, ['config', '--get', 'remote.origin.url'])
   const remoteName = remote ? repoNameFromRemoteUrl(remote) : undefined

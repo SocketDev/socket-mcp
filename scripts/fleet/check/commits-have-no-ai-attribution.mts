@@ -78,6 +78,7 @@ import {
 } from './commits-have-no-ai-attribution/report.mts'
 import { scanForAiAttribution } from './commits-have-no-ai-attribution/scan.mts'
 
+import type { ScriptMeta } from '../_shared/run-main.mts'
 import type { GitRunner } from './commits-have-no-ai-attribution/commit-history.mts'
 import type { ReleaseLineDeclaration } from './commits-have-no-ai-attribution/release-boundary.mts'
 import type { AttributionScan } from './commits-have-no-ai-attribution/scan.mts'
@@ -209,6 +210,16 @@ export async function main(): Promise<number> {
   })
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'checks commits and branches for AI-attribution trailers and agent branch prefixes',
+  help: `Usage: node scripts/fleet/check/commits-have-no-ai-attribution.mts [flags]
+
+  --all              scan every ref, ignoring the release boundary
+  --unpushed         scan only commits not yet on the default branch
+  --verify-registry  also verify the boundary against the published latest release`,
+}
+
 if (isMainModule(import.meta.url)) {
-  runMain(main)
+  runMain(main, SCRIPT_META)
 }

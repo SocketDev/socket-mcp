@@ -244,6 +244,25 @@ export function verifySavedState(config: {
 }
 
 /**
+ * The per-package failure detail after the save + its single fresh retry both
+ * failed to verify: it says the LIVE row may be partially saved (the save
+ * click landed, so some fields can already be live while others are not),
+ * names each mismatched field with its saved-vs-wanted values, and points at
+ * the page to hand-correct. Pure — exported for tests.
+ */
+export function formatPartialSaveFailure(config: {
+  mismatches: readonly string[]
+  url: string
+}): string {
+  const cfg = { __proto__: null, ...config } as typeof config
+  return (
+    'saved state did not verify after a fresh retry — the live row may be ' +
+    `PARTIALLY saved. Fields off desired: ${cfg.mismatches.join('; ')}. ` +
+    `Fix: open ${cfg.url} and correct those fields by hand.`
+  )
+}
+
+/**
  * One published package row from socket-registry's `registry/manifest.json`.
  */
 export interface RegistryManifestEntry {

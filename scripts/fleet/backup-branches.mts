@@ -24,6 +24,7 @@ import process from 'node:process'
 
 import { isMainModule } from './_shared/is-main-module.mts'
 import { runMain } from './_shared/run-main.mts'
+import type { ScriptMeta } from './_shared/run-main.mts'
 import { runNormalize } from './backup-branches/normalize.mts'
 import { runPrune } from './backup-branches/prune.mts'
 
@@ -85,8 +86,20 @@ export async function main(): Promise<void> {
   await runBackupBranches(process.argv.slice(2))
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'manage the fleet backup-YYYYMMDD-HHMMSS safety-net branches: prune spent ones, normalize legacy names',
+  help: `Usage: node scripts/fleet/backup-branches.mts <prune|normalize> [flags]
+
+Commands:
+  prune      retire spent safety nets, gated on retention AND a unique-content veto
+             --all | --repo <name> | --days <n> | --keep <n> | --local | --allow-pre-root | --dry-run
+  normalize  rename a repo's legacy recovery refs to the canonical timestamp form
+             --repo <name> (required) | --fix`,
+}
+
 if (isMainModule(import.meta.url)) {
   // runMain, not a bare async IIFE: a rejection here would otherwise surface as
   // a raw unhandled-rejection stack instead of a logged message + exit code.
-  runMain(main)
+  runMain(main, SCRIPT_META)
 }

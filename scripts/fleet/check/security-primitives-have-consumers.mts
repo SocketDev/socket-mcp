@@ -38,7 +38,10 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
 import { REPO_ROOT } from '../paths.mts'
+
+import type { ScriptMeta } from '../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -501,6 +504,11 @@ function main(): void {
   process.exitCode = 1
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe: 'checks every security-annotated export has an in-repo caller',
+  help: 'Usage: node scripts/fleet/check/security-primitives-have-consumers.mts',
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

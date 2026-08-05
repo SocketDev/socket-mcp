@@ -41,6 +41,9 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { PACKAGE_JSON, REPO_ROOT } from '../paths.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+
+import type { ScriptMeta } from '../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -428,6 +431,14 @@ function main(): void {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'verifies every static hook import is declared in the owning package.json',
+  help: `Usage: node scripts/fleet/check/hook-imports-are-declared.mts [flags]
+
+  --quiet  suppress the success message`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

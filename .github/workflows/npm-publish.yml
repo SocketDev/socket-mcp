@@ -191,6 +191,15 @@ jobs:
           # version. Empty forwards as unset, so normal dispatches keep the
           # dispatched-ref re-checkout.
           checkout-ref: ${{ inputs.checkout-ref }}
+          # Thin members download the wheelhouse release bundle during
+          # `pnpm install`, and the mint is what authorizes that download.
+          # Both stay EMPTY on a member that has not provisioned the payload
+          # App, which skips the mint and leaves the fetch a no-op — the same
+          # state a non-thin member wants. Wiring them here is inert until the
+          # credentials exist, so a thin member becomes publishable by adding
+          # the var and secret rather than by editing this cascaded workflow.
+          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
       # Build dist/ before publishing — the staged-publish script imports the
       # package's own built output (`@socketsecurity/lib/stdio/prompts` self-
       # resolves to dist/), and `files` ships dist/, so the tarball needs it.

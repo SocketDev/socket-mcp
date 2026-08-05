@@ -16,6 +16,8 @@
 import process from 'node:process'
 
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+import type { ScriptMeta } from '../_shared/run-main.mts'
 import {
   appendGithubOutputLines,
   cacheErrorText,
@@ -83,8 +85,16 @@ export async function runCacheRestore(
   return 0
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'restore paths from the GitHub Actions cache service, mirroring actions/cache/restore outputs',
+  help: `Usage: node scripts/fleet/cache/restore.mts --path <path>... --key <key> [flags]
+
+  --path <path>          path to restore (repeatable, required)
+  --key <key>            primary cache key (required)
+  --restore-key <prefix> fallback key prefix (repeatable)`,
+}
+
 if (isMainModule(import.meta.url)) {
-  runCacheRestore(process.argv.slice(2)).then(code => {
-    process.exitCode = code
-  })
+  runMain(() => runCacheRestore(process.argv.slice(2)), SCRIPT_META)
 }

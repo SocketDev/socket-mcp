@@ -49,6 +49,9 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { runGit } from '../../../.claude/hooks/fleet/_shared/git-runner.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
 import { REPO_ROOT } from '../paths.mts'
+import { runMain } from '../_shared/run-main.mts'
+
+import type { ScriptMeta } from '../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -194,6 +197,14 @@ function main(): void {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    "checks the repo's .gitignore ignores a node_modules SYMLINK, not just the directory",
+  help: `Usage: node scripts/fleet/check/node-modules-symlink-is-ignored.mts [flags]
+
+  --quiet  silent on clean`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

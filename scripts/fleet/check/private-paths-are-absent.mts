@@ -47,6 +47,8 @@ import { SOURCE_FILE_RE } from '../../../.git-hooks/_shared/file-scan.mts'
 import { isPurePlaceholder } from '../../../.git-hooks/_shared/personal-path.mts'
 import { REPO_ROOT } from '../paths.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+import type { ScriptMeta } from '../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -266,6 +268,13 @@ function main(): void {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'check that no tracked source comment carries an internal or private path',
+  help: `Usage: node scripts/fleet/check/private-paths-are-absent.mts [flags]
+  --quiet   suppress the success line`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

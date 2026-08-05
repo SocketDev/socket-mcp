@@ -3,11 +3,17 @@
  * @file A GitHub Action ships THE REPO ITSELF at a git tag — the runner
  *   checks out the tag and executes the committed `dist/` bundle, not `src/`.
  *   So when `src/` moves after `dist/` was last rebuilt, tagging a release
- *   ships a bundle that silently does not contain the change. This is a real,
- *   current bug in SocketDev/action: `dist/main.js` was last rebuilt in
- *   937f824 (March) while `src/tools/firewall.js` changed in 48bdbd2 (later),
- *   so the win32-arm64 fix landed in `src/` but never made it into the shipped
- *   bundle.
+ *   ships a bundle that silently does not contain the change.
+ *
+ *   This check is a CHEAP GIT PRE-FILTER for that failure. Git ancestry can
+ *   PROVE STALENESS — a source change on a line the dist rebuild never saw —
+ *   but it can never prove the committed bundle matches the source that
+ *   produced it. Equal or ancestral SHAs are satisfied by a commit that
+ *   touched `src/` and an unrelated `dist/` file, by a hand-edited `dist/`,
+ *   and by a `dist/` rebuilt from a stale working tree. The authoritative
+ *   proof of currency is a rebuild-and-diff in CI (install, build, then fail
+ *   on a non-empty `git diff` of `dist/`); this check only rules staleness in
+ *   or leaves it unproven.
  *
  *   DETECTION is git-only, no build tooling involved:
  *
@@ -16,14 +22,15 @@
  *   2. Either commit missing (the dir has no history — a repo with no such
  *      dir, or one this repo does not track) means NOT APPLICABLE: skip
  *      clean, no finding.
- *   3. Equal SHAs mean the same commit touched both — fine.
+ *   3. Equal SHAs mean the same commit touched both, so ancestry proves no
+ *      staleness — NO STALENESS PROVEN, not a claim that `dist/` is current.
  *   4. Otherwise ask `git merge-base --is-ancestor <srcCommit> <distCommit>`.
  *      Exit 0 means the source commit IS an ancestor of the dist commit — the
- *      dist rebuild came after (or alongside) that source change, so it is
- *      fine. Exit 1 means it is not an ancestor — the source changed on a line
- *      the dist rebuild never saw, so dist is STALE. Any other exit (a git
- *      error, a killed spawn) answers nothing, so it is NOT APPLICABLE rather
- *      than a guessed verdict.
+ *      dist rebuild came after (or alongside) that source change, so again NO
+ *      STALENESS PROVEN. Exit 1 means it is not an ancestor — the source
+ *      changed on a line the dist rebuild never saw, so dist is STALE. Any
+ *      other exit (a git error, a killed spawn) answers nothing, so it is NOT
+ *      APPLICABLE rather than a guessed verdict.
  *
  *   SCOPE. Only a repo whose cascade roster entry declares `publishes:
  *   ["github-action"]` ships this way at all — a repo that publishes to npm
@@ -34,10 +41,11 @@
  *   one-line reason — never a false negative reported as "no finding" with no
  *   explanation, and never a false positive on a repo this bug cannot touch.
  *
- *   MODE. Report-only (`ENFORCING = false`): no roster member declares
- *   `github-action` yet, so this gate has never run against a real target.
- *   Flip `ENFORCING` to `true` once the first `github-action` member onboards
- *   and this check has run clean against it at least once.
+ *   MODE. Enforcing (`ENFORCING = true`): `action` is on the channel and this
+ *   gate runs clean against it — its `dist/` and `src/` were last touched by
+ *   the same commit (b313d09), so no staleness is provable there. Report-only
+ *   mode existed only while no member declared the channel and the gate had
+ *   never met a real target.
  *
  *   Exit codes: 0 — not applicable, clean, or a finding while ENFORCING is
  *   off; 1 — a finding while ENFORCING is on.
@@ -56,18 +64,23 @@ import {
   resolveRepoName,
 } from '../../../.claude/hooks/fleet/_shared/fleet-roster.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+import type { ScriptMeta } from '../_shared/run-main.mts'
 import { REPO_ROOT } from '../paths.mts'
 
 const logger = getDefaultLogger()
 
-// Flip once the first `github-action` roster member onboards and this check
-// has run clean against it at least once. See the header.
-const ENFORCING = false
+// Enforcing: `action` is on the channel and this runs clean against it (its
+// dist/ and src/ were last touched by the same commit, b313d09).
+const ENFORCING = true
 
 export const DEFAULT_DIST_DIR = 'dist'
 export const DEFAULT_SRC_DIR = 'src'
 
-export type CommittedDistVerdict = 'fine' | 'not-applicable' | 'stale'
+export type CommittedDistVerdict =
+  | 'no-staleness-proven'
+  | 'not-applicable'
+  | 'stale'
 
 /**
  * Inputs to the staleness decision: the last commit to touch each dir, plus
@@ -80,8 +93,12 @@ export interface CommittedDistStalenessInputs {
 }
 
 /**
- * The pure decision: given `inputs`, is the committed `dist/` current with
- * `src/`?
+ * The pure decision: given `inputs`, does git ancestry prove the committed
+ * `dist/` is stale?
+ *
+ * `'no-staleness-proven'` is the strongest verdict ancestry supports — it says
+ * the check found no proof of staleness, never that the bundle matches `src/`.
+ * Only a rebuild-and-diff can say that.
  *
  * Equal SHAs are checked directly rather than folded into `isAncestorOrEqual`
  * so the caller can skip the `merge-base` spawn entirely when the two commits
@@ -99,12 +116,12 @@ export function judgeCommittedDistStaleness(
     return 'not-applicable'
   }
   if (srcCommit === distCommit) {
-    return 'fine'
+    return 'no-staleness-proven'
   }
   if (isAncestorOrEqual === undefined) {
     return 'not-applicable'
   }
-  return isAncestorOrEqual ? 'fine' : 'stale'
+  return isAncestorOrEqual ? 'no-staleness-proven' : 'stale'
 }
 
 /**
@@ -245,9 +262,12 @@ export function main(): void {
     )
     return
   }
-  if (verdict === 'fine') {
+  if (verdict === 'no-staleness-proven') {
     logger.log(
-      `[committed-dist-is-current] ${distDir}/ is current with ${srcDir}/.`,
+      `[committed-dist-is-current] no staleness detected — git ancestry puts the ` +
+        `last ${srcDir}/ change at or before the last ${distDir}/ rebuild.\n` +
+        `  Ancestry cannot prove the committed ${distDir}/ bundle matches ${srcDir}/; ` +
+        `a CI rebuild-and-diff of ${distDir}/ is that proof.`,
     )
     return
   }
@@ -267,6 +287,15 @@ export function main(): void {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'checks the committed dist/ bundle is not provably stale against src/',
+  help: `Usage: node scripts/fleet/check/committed-dist-is-current.mts [flags]
+
+  --dist <dir>  bundle directory to compare (default: dist)
+  --src <dir>   source directory to compare (default: src)`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

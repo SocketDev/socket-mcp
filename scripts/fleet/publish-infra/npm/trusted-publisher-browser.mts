@@ -36,6 +36,8 @@ import type { Page } from 'playwright-core'
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 
 import { isMainModule } from '../../_shared/is-main-module.mts'
+import { runMain } from '../../_shared/run-main.mts'
+import type { ScriptMeta } from '../../_shared/run-main.mts'
 import { logger, rootPath, runCapture } from '../shared.mts'
 import { openNpmBrowserSession } from './browser-session.mts'
 import type {
@@ -43,14 +45,15 @@ import type {
   NpmBrowserSessionOptions,
 } from './browser-session.mts'
 import {
-  awaitVerifiedSave,
-  driveFormEdits,
+  accessUrl,
+  driveVerifiedSave,
   readTrustedPublisher,
 } from './trusted-publisher-page.mts'
 import {
   desiredTrustedPublisher,
   diffTrustedPublisher,
   formatApplySummary,
+  formatPartialSaveFailure,
   parseSocketRegistryManifest,
   renderPlannedEdits,
   renderReadTable,
@@ -198,11 +201,13 @@ export async function applyOne(
       logger.log(`[dry-run] ${renderPlannedEdits(pkg, edits)}`)
       return { pkg, status: 'planned' }
     }
-    await driveFormEdits(page, pkg, desired)
-    const verify = await awaitVerifiedSave(page, pkg, desired)
-    if (!verify.ok) {
+    const saved = await driveVerifiedSave(page, pkg, desired)
+    if (!saved.ok) {
       return {
-        detail: `saved state did not verify: ${verify.mismatches.join('; ')}`,
+        detail: formatPartialSaveFailure({
+          mismatches: saved.mismatches,
+          url: accessUrl(pkg),
+        }),
         pkg,
         status: 'failed',
       }
@@ -419,11 +424,19 @@ export async function main(): Promise<void> {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'reads and mass-applies the canonical npm trusted-publisher config by driving the access page in a signed-in browser',
+  help: `${USAGE}
+
+  --socket-registry   expand the worklist to every published @socketregistry package
+  --drive             fill and save the form (apply is dry-run by default)
+  --repo <owner/name> override the repository the config binds to
+  --profile-dir <dir> use another browser profile directory`,
+}
+
 // Entrypoint-guarded: importing this module (unit tests of its exported
 // helpers) must not launch a browser.
 if (isMainModule(import.meta.url)) {
-  main().catch((e: unknown) => {
-    logger.error(errorMessage(e))
-    process.exitCode = 1
-  })
+  runMain(main, SCRIPT_META)
 }

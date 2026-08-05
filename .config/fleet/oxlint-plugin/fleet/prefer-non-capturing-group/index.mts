@@ -33,6 +33,7 @@
  *     match.
  */
 
+import { markerOnlyLineAllows } from '../../lib/comment-markers.mts'
 import type { AstNode, RuleContext } from '../../lib/rule-types.mts'
 
 interface CaptureGroup {
@@ -208,8 +209,12 @@ const rule = {
       if (!node.regex) {
         return
       }
-      const line = sourceCode.lines[node.loc.start.line - 1] ?? ''
-      if (isLineMarkered(line)) {
+      const lineIdx = node.loc.start.line - 1
+      const line = sourceCode.lines[lineIdx] ?? ''
+      if (
+        isLineMarkered(line) ||
+        markerOnlyLineAllows(sourceCode.lines[lineIdx - 1] ?? '', 'capture')
+      ) {
         return
       }
       const pattern: string = node.regex.pattern

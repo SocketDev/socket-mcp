@@ -40,12 +40,6 @@
       "publishes": ["cargo"]
     },
     {
-      "name": "facts",
-      "description": "Socket facts generation — build-tool emitters and the .socket.facts.json contract",
-      "optIns": ["squash-history"],
-      "publishes": ["js"]
-    },
-    {
       "name": "meander",
       "description": "Walkthrough generator — annotated code walkthroughs with comments, hosted on Val Town",
       "optIns": ["squash-history"],
@@ -69,26 +63,21 @@
       "publishes": ["none"]
     },
     {
-      "name": "scan-patterns",
-      "description": "Canonical detector pattern tables for Socket's baseline security scanners.",
-      "optIns": ["squash-history"],
-      "publishes": ["js"]
-    },
-    {
       "name": "sdxgen",
       "description": "CycloneDX and SPDX manifest generator (Socket dx gen)",
       "optIns": ["squash-history"],
       "publishes": ["binary", "js"]
     },
     {
-      "name": "socket-btm",
-      "description": "Build toolchain — produces signed prebuilt binaries for @socketaddon/* and @socketbin/*",
-      "optIns": ["squash-history"],
-      "publishes": ["custom"]
-    },
-    {
       "name": "socket-cli",
       "description": "Command-line interface for socket.dev security analysis",
+      "publishes": ["js"]
+    },
+    {
+      "name": "socket-facts",
+      "owner": "SocketDev",
+      "description": "Generation of .socket.facts.json and the wire contracts around it",
+      "optIns": ["squash-history"],
       "publishes": ["js"]
     },
     {
@@ -107,8 +96,22 @@
       "publishes": ["js"]
     },
     {
+      "name": "socket-page-automation",
+      "owner": "SocketDev",
+      "description": "Browser page-automation and an anti-bot challenge cadence for npm-style human-verification flows",
+      "optIns": ["squash-history"],
+      "publishes": ["js"]
+    },
+    {
       "name": "socket-registry",
       "description": "Optimized package overrides for Socket Optimize",
+      "publishes": ["js"]
+    },
+    {
+      "name": "socket-scan-patterns",
+      "owner": "SocketDev",
+      "description": "Canonical detector pattern tables for Socket's baseline security scanners",
+      "optIns": ["squash-history"],
       "publishes": ["js"]
     },
     {

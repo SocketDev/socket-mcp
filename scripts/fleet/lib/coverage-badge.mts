@@ -3,7 +3,7 @@
  *   badge SVG + README reference from a coverage run) and
  *   check/coverage-badge-is-current.mts (asserts the badge matches actual
  *   coverage). The badge is a repo-local optimized SVG asset — no third-party
- *   badge host — generated at `assets/repo/badges/coverage.svg` and referenced
+ *   badge host — generated at `assets/coverage.svg` and referenced
  *   by the README as a dimensioned `<img>` (standardized `height="20"` + the
  *   SVG's exact width, so the badge row aligns with no layout shift) whose src
  *   is the asset's ABSOLUTE raw-GitHub URL at HEAD. One place owns the SVG
@@ -25,7 +25,7 @@ import { COVERAGE_SUMMARY_PATH, REPO_ROOT } from '../paths.mts'
 // is the repo-owned asset tier, never cascade-synced, so each repo's percent
 // is its own. Seeded as a preset placeholder ("n/a", grey) so a fresh README
 // never references a missing image.
-export const BADGE_ASSET_PATH = 'assets/repo/badges/coverage.svg'
+export const BADGE_ASSET_PATH = 'assets/coverage.svg'
 
 // Standardized badge height (px) — every README badge <img> carries it so the
 // row aligns regardless of each SVG's own metrics. The width is set per-badge
@@ -100,19 +100,21 @@ export const BADGE_PLACEHOLDER = 'n/a'
 // matches, so the migrator rewrites it to this repo's HEAD url.
 const ABSOLUTE_IMG_BADGE_RE =
   // socket-lint: allow uncommented-regex
-  /<img src="https:\/\/raw\.githubusercontent\.com\/[^"]+\/assets\/repo\/badges\/coverage\.svg"[^>]*\/>/
+  /<img src="https:\/\/raw\.githubusercontent\.com\/[^"]+\/assets\/(?:repo\/badges\/)?coverage\.svg"[^>]*\/>/
 
 // The legacy relative-src <img>: the form that shipped before the url went
 // absolute. It renders on GitHub and breaks on npm, so it is recognized only to
-// migrate it.
+// migrate it. The optional `repo/badges/` segment matches the pre-flattening
+// asset path.
 const RELATIVE_IMG_BADGE_RE =
   // socket-lint: allow uncommented-regex
-  /<img src="assets\/repo\/badges\/coverage\.svg"[^>]*\/>/
+  /<img src="assets\/(?:repo\/badges\/)?coverage\.svg"[^>]*\/>/
 
-// The legacy markdown reference at the current path, matched only to migrate it
-// to the <img> form.
+// The legacy markdown reference at the current or pre-flattening path, matched
+// only to migrate it to the <img> form.
 // socket-lint: allow uncommented-regex
-const MARKDOWN_BADGE_RE = /!\[Coverage\]\(assets\/repo\/badges\/coverage\.svg\)/
+const MARKDOWN_BADGE_RE =
+  /!\[Coverage\]\(assets\/(?:repo\/badges\/)?coverage\.svg\)/
 
 // The legacy pre-badges/ asset path, matched only to migrate it.
 // socket-lint: allow uncommented-regex
@@ -328,7 +330,7 @@ export function parseBadgeSvgValue(svg: string): string | undefined {
 
 // Absolute path of the badge asset for a repo.
 export function badgeAssetPath(repoRoot: string): string {
-  return path.join(repoRoot, 'assets', 'repo', 'badges', 'coverage.svg')
+  return path.join(repoRoot, 'assets', 'coverage.svg')
 }
 
 // The line-coverage total percent from a coverage `coverage-summary.json` (the

@@ -60,7 +60,16 @@ import process from 'node:process'
 import { chromium } from 'playwright-core'
 import type { BrowserContext, Page } from 'playwright-core'
 
+import { clearChallengeGate, tickChallengeGate } from './challenge-gate.mts'
+import type { ChallengePauseUx } from './challenge-gate.mts'
 import { logger } from '../shared.mts'
+
+export {
+  formatChallengeTimeout,
+  formatChallengeWait,
+  NPM_CHALLENGE_GATE_EVENT_PATH,
+} from './challenge-gate.mts'
+export type { ChallengePauseUx } from './challenge-gate.mts'
 
 export const NPM_ORIGIN = 'https://www.npmjs.com'
 
@@ -184,52 +193,18 @@ export async function optIntoChallengeCooldown(page: Page): Promise<void> {
 }
 
 /**
- * Human-readable progress line for a PAUSED challenge — elapsed and
- * remaining seconds, so the wait is visible rather than a silent hang. Pure —
- * exported for tests.
- */
-export function formatChallengeWait(config: {
-  budgetMs: number
-  elapsedMs: number
-  url: string
-}): string {
-  const cfg = { __proto__: null, ...config } as typeof config
-  const elapsed = Math.round(cfg.elapsedMs / 1000)
-  const remaining = Math.max(
-    0,
-    Math.round((cfg.budgetMs - cfg.elapsedMs) / 1000),
-  )
-  return (
-    `Waiting on human verification at ${cfg.url} — ${elapsed}s elapsed, ` +
-    `${remaining}s before this run gives up. Solve the challenge in the ` +
-    'Chrome window; the run resumes on its own.'
-  )
-}
-
-/**
- * Failure block for a challenge that outlasted its budget, in What / Where /
- * Saw vs wanted / Fix order. Pure — exported for tests.
- */
-export function formatChallengeTimeout(config: {
-  budgetMs: number
-  url: string
-}): string {
-  const cfg = { __proto__: null, ...config } as typeof config
-  return [
-    'What: npm kept serving a human-verification challenge, so the run stopped rather than retrying into a rate limit.',
-    `Where: ${cfg.url}`,
-    `Saw: the challenge was still unsolved after ${Math.round(cfg.budgetMs / 1000)}s of waiting.`,
-    'Wanted: the challenge cleared in the Chrome window so the signed-in session can read the page.',
-    'Fix: solve the "Just a moment…" check in the Chrome window, then re-run. Nothing was changed, so a re-run is safe.',
-  ].join('\n')
-}
-
-/**
- * One tick of the challenge PAUSE, shared by every consumer's read loop: on
- * the first tick bring the challenge page to the front for the operator, then
- * keep the cooldown opt-in ticked, print the countdown, and sleep. Throws the
- * challenge-timeout block once the budget is spent — the caller therefore
- * never needs a retry ladder.
+ * One tick of the challenge PAUSE, shared by every consumer's read loop. The
+ * operator UX lives in `challenge-gate.mts` and is tracked per page + URL, so
+ * it survives re-entry from a fresh {@link runChallengeAware} call: ONE 🖐
+ * HUMAN GATE block and one desktop ping when a pause starts, a progress line
+ * at most every 30s while it holds, the gate event file kept current, and an
+ * elapsed counter anchored to the pause itself — never to the call that
+ * happens to observe it. On a pause's first tick the challenge page is
+ * brought to the front; every tick keeps the cooldown opt-in ticked and
+ * sleeps. Throws the challenge-timeout block once the budget is spent — the
+ * caller therefore never needs a retry ladder. `announced` reports what the
+ * CALLING loop has printed; the cross-call tracker is authoritative, which is
+ * what stops a re-entered loop from re-announcing the same pause.
  */
 export async function pauseForChallenge(
   page: Page,
@@ -239,25 +214,28 @@ export async function pauseForChallenge(
     elapsedMs: number
     label: string
     pollMs?: number | undefined
+    rerunHint?: string | undefined
     url: string
+    ux?: ChallengePauseUx | undefined
   },
 ): Promise<{ announced: true }> {
   const cfg = { __proto__: null, ...config } as typeof config
-  const budgetMs = cfg.budgetMs ?? CHALLENGE_BUDGET_MS
-  if (cfg.elapsedMs >= budgetMs) {
-    throw new Error(formatChallengeTimeout({ budgetMs, url: cfg.url }))
+  const tick = await tickChallengeGate(page, {
+    budgetMs: cfg.budgetMs ?? CHALLENGE_BUDGET_MS,
+    fallbackElapsedMs: cfg.elapsedMs,
+    pkg: cfg.label,
+    rerunHint: cfg.rerunHint,
+    url: cfg.url,
+    ux: cfg.ux,
+  })
+  if (tick.expiredMessage !== undefined) {
+    throw new Error(tick.expiredMessage)
   }
-  if (!cfg.announced) {
-    logger.warn(
-      `Human verification interjected on ${cfg.label}. This run is PAUSED — solve it in the Chrome window.`,
-    )
+  if (tick.freshPause) {
     await page.goto(cfg.url, { waitUntil: 'domcontentloaded' }).catch(() => {})
     await page.bringToFront().catch(() => {})
   }
   await optIntoChallengeCooldown(page)
-  logger.log(
-    formatChallengeWait({ budgetMs, elapsedMs: cfg.elapsedMs, url: cfg.url }),
-  )
   await sleep(cfg.pollMs ?? CHALLENGE_POLL_MS)
   return { announced: true }
 }
@@ -295,7 +273,9 @@ export async function runChallengeAware<T>(
     budgetMs?: number | undefined
     label: string
     pollMs?: number | undefined
+    rerunHint?: string | undefined
     url: string
+    ux?: ChallengePauseUx | undefined
   },
 ): Promise<T> {
   const cfg = { __proto__: null, ...config } as typeof config
@@ -305,6 +285,12 @@ export async function runChallengeAware<T>(
     // eslint-disable-next-line no-await-in-loop -- serial: one live page solves one challenge at a time, each attempt awaiting the last.
     const step = await operation()
     if (step.kind === 'done') {
+      // eslint-disable-next-line no-await-in-loop -- one await on the way out: a live pause is marked cleared before the value returns.
+      await clearChallengeGate(page, {
+        pkg: cfg.label,
+        url: cfg.url,
+        ux: cfg.ux,
+      })
       return step.value
     }
     if (step.kind === 'retry') {
@@ -317,7 +303,9 @@ export async function runChallengeAware<T>(
       elapsedMs: Date.now() - started,
       label: cfg.label,
       pollMs: cfg.pollMs,
+      rerunHint: cfg.rerunHint,
       url: cfg.url,
+      ux: cfg.ux,
     })
     announced = pause.announced
   }

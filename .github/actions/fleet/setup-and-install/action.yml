@@ -89,6 +89,14 @@ runs:
         fetch-depth: ${{ inputs.checkout-fetch-depth }}
         ref: ${{ inputs.checkout-ref }}
         working-directory: ${{ inputs.working-directory }}
+        # Forwarded so a thin member's payload can hydrate immediately after
+        # THIS checkout — before "Install zizmor" and every other reader that
+        # runs ahead of the "Install dependencies" step below. Empty on a
+        # non-thin member (or one that hasn't provisioned the payload App),
+        # which the checkout action's own detect step reads as "no hydration
+        # needed" regardless.
+        payload-token-client-id: ${{ inputs.payload-token-client-id }}
+        payload-token-private-key: ${{ inputs.payload-token-private-key }}
 
     - name: Setup environment
       uses: ./.github/actions/fleet/setup

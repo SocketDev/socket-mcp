@@ -75,7 +75,7 @@ export const BuildSchema = Type.Object(
   },
   {
     description:
-      'How the repo is built + released. Drives the release-checksums file cascade + CI breadth. `from: github-release` repos are native producers (socket-btm); `from: npm-registry` + non-`js` type wrap prebuilt native bits (socket-bin/socket-addon); `type: js` is a plain package; `from: crates-registry` + `type: rust` is a native Rust crate (crates.io provides integrity, so no release-checksums cascade).',
+      'How the repo is built + released. Drives the release-checksums file cascade + CI breadth. `from: github-release` repos build their own native artifacts and attach them to a GitHub Release; `from: npm-registry` + non-`js` type wrap prebuilt native bits; `type: js` is a plain package; `from: crates-registry` + `type: rust` is a native Rust crate (crates.io provides integrity, so no release-checksums cascade).',
     additionalProperties: false,
   },
 )

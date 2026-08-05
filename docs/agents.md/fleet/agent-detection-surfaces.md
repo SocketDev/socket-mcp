@@ -230,5 +230,5 @@ table.
 - `@unveil/identity@2.0.1` (MIT), the detection engine behind agentscan. Source
   files cited above: `src/modifiers/analyze-commit-metadata.ts`,
   `src/detectors/ai-branch-prefix.ts`. Read 2026-08-02.
-- agentscan pull request #281, "feat(gh-app): add honeypot comment" (merged),
+- agentscan pull request #281, "feat(gh-app): add honeypot comment" (merged), <!-- pr-ref-link: allow -->
   which adds `server/api/webhook/github/_honeypot.ts`. Read 2026-08-02.

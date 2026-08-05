@@ -27,6 +27,8 @@ import {
   pickConfig,
 } from './_shared/format-scope.mts'
 import { isMainModule } from './_shared/is-main-module.mts'
+import { runMain } from './_shared/run-main.mts'
+import type { ScriptMeta } from './_shared/run-main.mts'
 import { nodeModulesBinPath } from './paths.mts'
 import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 
@@ -131,6 +133,17 @@ function main(): void {
   process.exitCode = res.status ?? 1
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'format the working tree or the named files with oxfmt under the fleet ignore rules',
+  help: `Usage: node scripts/fleet/format.mts [flags] [<file> ...]
+  --check                    verify only; write nothing
+  --staged                   scope to staged files
+  --modified                 scope to working-tree-vs-HEAD files
+  --stdin-filepath=<name>    format stdin to stdout; the name selects the parser
+  <file> ...                 format exactly these files`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

@@ -43,6 +43,13 @@ export const MAX_LEADING_COMMENT_LINES = 12
 // file-level statement of intent, which is the point of bounding it at all.
 export const MAX_FILE_HEADER_COMMENT_LINES = 20
 
+// The DOCUMENTATION budget: a JSDoc `/** */` block documenting the symbol
+// beneath it gets twice the header budget. Docs are the sanctioned home for
+// parser lock-step notes and API contracts, so they never need an allow
+// marker — but they stay bounded; discussion past this belongs in
+// docs/agents.md/** behind a link.
+export const MAX_DOC_COMMENT_LINES = 40
+
 // A line that is entirely a comment (`//`, `/*`, or a `*` block continuation).
 // Used to keep walking upward through a contiguous comment block.
 const COMMENT_LINE_RE = /^\s*(?:\*|\/\*|\/\/)/
@@ -67,6 +74,20 @@ export const SOCKET_LINT_ALLOW_WELL_FORMED_RE =
 // .claude/hooks/fleet/_shared/markers.mts and .git-hooks/_shared/scan-core.mts.
 export const SOCKET_LINT_MARKER_ONLY_LINE_RE: RegExp =
   /^\s*(?:#|\/\*|\/\/)\s*socket-lint:\s*allow(?:\s+([\w-]+))?(?:\s*\*\/|\s+--.*)?\s*$/
+
+/**
+ * True when `line` is a marker-only comment line whose opt-out covers `id`
+ * (bare `allow` covers every rule). Line-scanning rules pair this with their
+ * own same-line check so BOTH marker placements work:
+ * `isLineMarkered(ownLine) || markerOnlyLineAllows(lineAbove, '<id>')`.
+ */
+export function markerOnlyLineAllows(line: string, id: string): boolean {
+  const m = line.match(SOCKET_LINT_MARKER_ONLY_LINE_RE)
+  if (!m) {
+    return false
+  }
+  return !m[1] || m[1] === id
+}
 
 /**
  * Build a rule's `socket-lint: allow <id>` bypass regex from the canonical
