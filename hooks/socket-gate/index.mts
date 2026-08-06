@@ -50,13 +50,15 @@ export interface HookInput {
 // aliases (npm add|i|install, cargo add|install, go get|install) without
 // capturing them.
 const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
-  { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i }, // socket-lint: allow uncommented-regex
+  // npm and its two install aliases, then the first non-flag token as the package name.
+  { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\byarn\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bpnpm\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bbun\s+add\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'pypi',
-    pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i, // socket-lint: allow uncommented-regex
+    // pip or pip3, optionally reached through `python -m`, then the package name.
+    pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'pypi', pattern: /\buv\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'pypi', pattern: /\buv\s+pip\s+install\s+([^\s-][^\s]*)/i },
@@ -64,11 +66,13 @@ const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
   { ecosystem: 'pypi', pattern: /\bpipenv\s+install\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'cargo',
-    pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i, // socket-lint: allow uncommented-regex
+    // cargo add or install, then the crate name.
+    pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'gem', pattern: /\bgem\s+install\s+([^\s-][^\s]*)/i },
   { ecosystem: 'gem', pattern: /\bbundle\s+add\s+([^\s-][^\s]*)/i },
-  { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i }, // socket-lint: allow uncommented-regex
+  // go get or install, then the module path.
+  { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bdotnet\s+add\s+package\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bnuget\s+install\s+([^\s-][^\s]*)/i },
 ]
