@@ -28,7 +28,7 @@
     "provenance": true
   },
   "scripts": {
-    "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
+    "prepare": "node scripts/repo/bootstrap/prepare.mts && node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
     "prepublishOnly": "echo 'ERROR: Use GitHub Actions workflow for publishing' && exit 1",
     "postpublish": "pnpm run clean",
     "npm:publish": "node scripts/fleet/publish-pipeline.mts",
