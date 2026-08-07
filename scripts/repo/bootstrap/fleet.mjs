@@ -378,6 +378,7 @@ const FLEET_CANONICAL_END_SENTINEL = ['#fleet', 'canonical', 'end'].join('-')
 const FLEET_CANONICAL_SPLICE_FILES = [
   '.config/fleet/oxlintrc.json',
   '.config/fleet/.prettierignore',
+  '.npmrc',
 ]
 /**
  * True when `relPath`, repo-relative, either separator, is a designated
@@ -469,15 +470,38 @@ function spliceFleetCanonicalContent(source, target) {
 //#region template/base/scripts/fleet/_shared/github-tracked-surface.mts
 const ALWAYS_TRACKED_GITHUB_PREFIXES = [
   '.github/actions/fleet/',
+  '.github/dependabot.yml',
   '.github/workflows/',
 ]
 /**
+ * Non-GitHub surfaces a member must keep tracked. The unifying rule for BOTH
+ * lists: anything a consumer reads BEFORE our fetch runs has to be in the
+ * commit. pnpm reads `.npmrc` and resolves `patchedDependencies` at install
+ * time, which on a thin member happens after hydration but on a FRESH clone
+ * can precede it; GitHub reads workflows and dependabot.yml from the
+ * committed tree. Same rule, different consumers.
+ *
+ * These cannot live in ALWAYS_TRACKED_GITHUB_PREFIXES: that predicate is
+ * `.github/`-scoped by construction, so a `.npmrc` entry there would never
+ * be reached.
+ */
+const ALWAYS_TRACKED_PREFIXES = ['.npmrc', 'patches/']
+/**
+ * True when `relPath` is any always-tracked surface, GitHub or not. This is
+ * what an untrack set should consult; the GitHub-only predicate below stays
+ * exported for callers that mean the CI surface specifically.
+ */
+function isAlwaysTrackedSurface(relPath) {
+  const p = relPath.replaceAll('\\', '/')
+  for (let i = 0, { length } = ALWAYS_TRACKED_PREFIXES; i < length; i += 1)
+    if (p.startsWith(ALWAYS_TRACKED_PREFIXES[i])) return true
+  return isAlwaysTrackedGitHubSurface(p)
+}
+/**
  * True when `relPath`, repo-relative, either separator, is part of the GitHub
- * CI surface a member must keep git-tracked even when thin — a workflow file or
- * a fleet composite action. `thinIgnoreEntries` gates on this so the untrack
- * set can never strand CI: GitHub reads both surfaces from the committed tree
- * before any fetch step runs, so a `git rm --cached` would break the member's
- * CI outright.
+ * CI surface a member must keep git-tracked even when thin — a workflow file,
+ * a fleet composite action, or dependabot.yml. GitHub reads all of them from
+ * the committed tree before any fetch step runs.
  */
 function isAlwaysTrackedGitHubSurface(relPath) {
   const p = relPath.replaceAll('\\', '/')
@@ -525,9 +549,9 @@ function lockFileReadonlySync(filePath) {
 }
 
 //#endregion
-//#region scripts/repo/gen/bootstrap/src/install-thin-prune.mts
+//#region scripts/repo/gen/bootstrap/src/install-fleet-pack-prune.mts
 /**
- * The hybrid (segment + settingsSegment) path set thinIgnoreEntries excludes
+ * The hybrid (segment + settingsSegment) path set fleetPackOwnedPaths excludes
  * from its wholly-fleet list.
  */
 function computeHybridPaths(manifest) {
@@ -603,24 +627,58 @@ function isLockablePlacement(config) {
 //#region scripts/repo/gen/bootstrap/src/yaml-merge.mts
 const COL0_KEY_RE = /^[A-Za-z][\w-]*:/
 /**
- * Parse a YAML string into an ordered list of top-level key blocks. Each block
- * owns all lines from the key line up to (not including) the next column-0 key
- * line or EOF.
+ * Splice off a block's trailing separator run — the comment/blank lines at the
+ * END of `blockLines` when the very last line is a comment. That run sits
+ * directly above the NEXT top-level key, so it is that key's preamble, not
+ * documentation of this block's last entry. Mutates `blockLines`; returns the
+ * spliced run (empty when the block ends with content or blank lines only —
+ * bare trailing blanks stay put as inter-block spacing).
+ */
+function spliceYamlSeparatorRun(blockLines) {
+  const last = blockLines[blockLines.length - 1]
+  if (blockLines.length < 2 || !last.trim().startsWith('#')) return []
+  let start = blockLines.length
+  while (start > 1) {
+    const trimmed = blockLines[start - 1].trim()
+    if (trimmed !== '' && !trimmed.startsWith('#')) break
+    start -= 1
+  }
+  return blockLines.splice(start)
+}
+/**
+ * Parse a YAML string into an ordered list of top-level key blocks. Each
+ * block's `lines` run from the key line up to (not including) the next
+ * column-0 key line or EOF — except a trailing comment run directly above the
+ * next key, which attaches to that FOLLOWING block as its `head`: it is a
+ * separator headed for the next key (the `overrides:` preamble in a member's
+ * pnpm-workspace.yaml), and leaving it as body tail makes the entry-scoped
+ * merge strand it mid-block when consumer-only entries append after it.
+ * Comment lines before the first key become the first block's head.
  */
 function parseYamlKeyBlocks(yaml) {
   const lines = yaml.split('\n')
   const blocks = []
+  let preamble = []
   let current
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i]
     if (COL0_KEY_RE.test(line)) {
-      if (current !== void 0) blocks.push(current)
+      let head
+      if (current !== void 0) {
+        head = spliceYamlSeparatorRun(current.lines)
+        blocks.push(current)
+      } else {
+        head = preamble
+        preamble = []
+      }
       const colonIdx = line.indexOf(':')
       current = {
+        head,
         key: line.slice(0, colonIdx),
         lines: [line],
       }
     } else if (current !== void 0) current.lines.push(line)
+    else preamble.push(line)
   }
   if (current !== void 0) blocks.push(current)
   return blocks
@@ -631,9 +689,10 @@ const LIST_ITEM_RE = /^(\s+)-\s+(.*)$/
  * Split a top-level key block's BODY lines into entry chunks. A chunk starts
  * at a map-entry or list-item line at the block's entry indent; comment and
  * blank lines BEFORE an entry attach to it as documentation for the entry
- * that immediately follows; deeper-indented lines are continuations. Returns
- * `undefined` when the body has no recognizable entries (scalar block —
- * nothing nested to merge).
+ * that immediately follows; deeper-indented lines are continuations. Comments
+ * and blanks after the last entry come back as `trailing`, unattached, since
+ * they document nothing that a merge can key on. Returns `undefined` when the
+ * body has no recognizable entries — a scalar block, nothing nested to merge.
  */
 function parseYamlEntryChunks(bodyLines) {
   const chunks = []
@@ -667,11 +726,14 @@ function parseYamlEntryChunks(bodyLines) {
     current.lines.push(...pending, line)
     pending = []
   }
-  if (current !== void 0) {
-    current.lines.push(...pending)
-    chunks.push(current)
-  } else if (pending.length > 0) return
-  return chunks.length > 0 ? chunks : void 0
+  if (current !== void 0) chunks.push(current)
+  else if (pending.length > 0) return
+  return chunks.length > 0
+    ? {
+        chunks,
+        trailing: pending,
+      }
+    : void 0
 }
 /**
  * Merge one fleet-managed top-level key block ENTRY-SCOPED — the workspace
@@ -681,7 +743,11 @@ function parseYamlEntryChunks(bodyLines) {
  * entries that appear only in the consumer block survive in their original
  * order after the fleet set. Scalar-shaped blocks (`saveExact: true`) have no
  * nested entries, so the bundle block replaces wholesale. Trailing blank lines
- * follow the consumer block so inter-block spacing is preserved.
+ * follow the consumer block so inter-block spacing is preserved. The merged
+ * block's head (the separator run above its key) is the BUNDLE's when the
+ * bundle ships one — canonical text, and it retires a stale consumer copy —
+ * falling back to the consumer's so local spacing and comments survive when
+ * the bundle has none.
  */
 function mergeYamlKeyBlock(bundleBlock, consumerBlock) {
   const stripTrailingBlanks = lines => {
@@ -689,20 +755,25 @@ function mergeYamlKeyBlock(bundleBlock, consumerBlock) {
     while (out.length > 0 && out[out.length - 1].trim() === '') out.pop()
     return out
   }
+  const head =
+    bundleBlock.head.length > 0 ? bundleBlock.head : consumerBlock.head
   const trailingBlankCount =
     consumerBlock.lines.length - stripTrailingBlanks(consumerBlock.lines).length
   const bundleBody = stripTrailingBlanks(bundleBlock.lines).slice(1)
   const consumerBody = stripTrailingBlanks(consumerBlock.lines).slice(1)
-  const bundleChunks = parseYamlEntryChunks(bundleBody)
-  const consumerChunks = parseYamlEntryChunks(consumerBody)
-  if (bundleChunks === void 0 || consumerChunks === void 0)
+  const bundleParsed = parseYamlEntryChunks(bundleBody)
+  const consumerParsed = parseYamlEntryChunks(consumerBody)
+  if (bundleParsed === void 0 || consumerParsed === void 0)
     return {
+      head,
       key: bundleBlock.key,
       lines: [
         ...stripTrailingBlanks(bundleBlock.lines),
         ...Array.from({ length: trailingBlankCount }, () => ''),
       ],
     }
+  const bundleChunks = bundleParsed.chunks
+  const consumerChunks = consumerParsed.chunks
   const bundleIds = new Set(bundleChunks.map(c => c.id))
   const merged = [bundleBlock.lines[0]]
   for (let i = 0, { length } = bundleChunks; i < length; i += 1)
@@ -711,8 +782,10 @@ function mergeYamlKeyBlock(bundleBlock, consumerBlock) {
     const chunk = consumerChunks[i]
     if (!bundleIds.has(chunk.id)) merged.push(...chunk.lines)
   }
+  merged.push(...bundleParsed.trailing)
   for (let i = 0; i < trailingBlankCount; i += 1) merged.push('')
   return {
+    head,
     key: bundleBlock.key,
     lines: merged,
   }
@@ -763,8 +836,14 @@ function mergeWorkspaceYaml(config) {
       const bundleBlock = bundleMap.get(key)
       if (bundleBlock !== void 0) resultBlocks.push(bundleBlock)
     }
+  for (let i = 1; i < resultBlocks.length; i += 1) {
+    if (resultBlocks[i].head.length === 0) continue
+    const { lines } = resultBlocks[i - 1]
+    while (lines.length > 1 && lines[lines.length - 1].trim() === '')
+      lines.pop()
+  }
   return `${resultBlocks
-    .map(b => b.lines.join('\n'))
+    .map(b => [...b.head, ...b.lines].join('\n'))
     .join('\n')
     .replace(/\n+$/, '')}\n`
 }
@@ -1106,6 +1185,7 @@ function installFiles(filesDir, dest, manifest) {
     const rel = rels[i]
     const source = path.join(filesDir, rel)
     const target = path.join(dest, rel)
+    if (isAlwaysTrackedSurface(rel) && existsSync(target)) continue
     mkdirSync(path.dirname(target), { recursive: true })
     let spliced
     if (isFleetCanonicalSpliceFile(rel) && existsSync(target)) {
@@ -1332,7 +1412,7 @@ function normalizeManifestEntryPath(entry) {
  * explicit list ignores exactly what the bundle supplies and nothing else.
  * The sync-prune is manifest-scoped too — see pruneStaleFleetFiles.
  */
-function thinIgnoreEntries(manifest) {
+function fleetPackOwnedPaths(manifest) {
   const hybridPaths = computeHybridPaths(manifest)
   const entries = /* @__PURE__ */ new Set()
   const files = Object.keys(manifest.files)
@@ -1341,7 +1421,7 @@ function thinIgnoreEntries(manifest) {
     if (
       hybridPaths.has(p) ||
       isFleetCanonicalSpliceFile(p) ||
-      isAlwaysTrackedGitHubSurface(p)
+      isAlwaysTrackedSurface(p)
     )
       continue
     entries.add(p)
@@ -1367,17 +1447,29 @@ function extractFleetBlockLines(target) {
     .filter(line => line.trim() !== '')
 }
 /**
- * Apply thin mode: write a fleet-managed `.gitignore` block carrying the
- * cascade's existing rules plus the wholly-fleet bundle untrack paths (see
- * thinIgnoreEntries) and `.agents/`, then untrack them from git so the fetch
- * action repopulates them going forward.
+ * Write the fleet-managed `.gitignore` block: the cascade's existing rules plus
+ * the wholly-fleet bundle untrack paths (see fleetPackOwnedPaths) and
+ * `.agents/`. Idempotent — entries already in the block are not re-added, so
+ * running this on every hydrate converges instead of growing.
+ *
+ * This is the HALF that is safe to run unconditionally for a thin consumer. It
+ * only edits `.gitignore`; it never touches the git index, so a member whose
+ * payload is still tracked keeps every file it has committed (gitignore has no
+ * effect on tracked paths). The index-mutating half lives in
+ * untrackFleetPackPaths and stays behind an explicit `--thin`.
+ *
+ * Splitting them is what lets the list stay CURRENT. The entries are explicit,
+ * one line per bundle file, so the list is only correct for the pack that
+ * generated it; a pack that adds files leaves those files matching nothing.
+ * Regenerating only under `--thin` — a one-time conversion flag no normal
+ * invocation passes — froze every member's list on its conversion day.
  */
-function applyThinMode(config) {
+function refreshFleetPackIgnores(config) {
   const { dest, manifest } = {
     __proto__: null,
     ...config,
   }
-  const sortedRoots = thinIgnoreEntries(manifest)
+  const sortedRoots = fleetPackOwnedPaths(manifest)
   const gitignorePath = path.join(dest, '.gitignore')
   const existing = existsSync(gitignorePath)
     ? readFileSync(gitignorePath, 'utf8')
@@ -1398,7 +1490,25 @@ function applyThinMode(config) {
     target: existing,
   })
   writeFileSync(gitignorePath, updated)
-  const rmTargets = ['.agents/', ...sortedRoots]
+}
+/**
+ * Apply thin mode: refresh the gitignore block (refreshFleetPackIgnores), then
+ * untrack those paths from git so the fetch action repopulates them going
+ * forward. The `git rm --cached` is the CONVERSION step and is destructive —
+ * it drops files from the index — so it stays behind an explicit `--thin` and
+ * is never inferred from repo state. socket-vscode is the case that forces the
+ * distinction: it carries a pinned `bundle.ref` AND 81 still-tracked payload
+ * files, so inferring the untrack from the pin alone would silently delete
+ * them from its index on the next ordinary hydrate.
+ */
+function untrackFleetPackPaths(config) {
+  const cfg = {
+    __proto__: null,
+    ...config,
+  }
+  const { dest, manifest } = cfg
+  refreshFleetPackIgnores(cfg)
+  const rmTargets = ['.agents/', ...fleetPackOwnedPaths(manifest)]
   if (rmTargets.length > 0)
     try {
       execFileSync(
@@ -1663,6 +1773,53 @@ function assertLockStep(config) {
     }),
   )
   return false
+}
+const ERR_BUNDLE_BEHIND_LOCAL = 'ERR_WHEELHOUSE_BUNDLE_BEHIND_LOCAL_TEMPLATE'
+/**
+ * True when a sibling wheelhouse checkout exists AND its HEAD is strictly
+ * DESCENDED from the bundle's template SHA — the bundle is a frozen snapshot
+ * of an older template, so unpacking it would roll the member backwards.
+ *
+ * `assertLockStep` only proves the bundle matches its own pin, which is a
+ * self-consistency check. It cannot see that the pin itself went stale. On a
+ * machine that also cascades from a local template, the two writers disagree
+ * and whichever runs last wins: the cascade writes current content, then
+ * `update`'s bundle pass restores the older snapshot over it. That reverted a
+ * Socket catalog pin, dropped fleet rules out of CLAUDE.md, and reintroduced a
+ * duplicated overrides block that broke `pnpm install` — each time reported as
+ * a successful update.
+ *
+ * Returns false when there is no local wheelhouse (a thin member, or CI),
+ * where the bundle IS the only source of truth and applying it is correct.
+ * Any git failure also returns false: this guard refuses a provably stale
+ * bundle, and never blocks on a question it could not answer.
+ */
+function isBundleBehindLocalTemplate(config) {
+  const { dest, manifestTemplateSha } = {
+    __proto__: null,
+    ...config,
+  }
+  if (!manifestTemplateSha) return false
+  const wheelhouse = path.join(dest, '..', 'socket-wheelhouse')
+  if (!existsSync(path.join(wheelhouse, '.git'))) return false
+  try {
+    execFileSync(
+      'git',
+      ['merge-base', '--is-ancestor', manifestTemplateSha, 'HEAD'],
+      {
+        cwd: wheelhouse,
+        stdio: 'ignore',
+      },
+    )
+    return (
+      execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: wheelhouse,
+        encoding: 'utf8',
+      }).trim() !== manifestTemplateSha
+    )
+  } catch {
+    return false
+  }
 }
 /**
  * Resolve the NEWEST `fleet-pack-<hex>` release tag via `gh release list`.
@@ -2407,6 +2564,17 @@ async function installFleet(config) {
         )
         return 1
       }
+      if (
+        isBundleBehindLocalTemplate({
+          dest,
+          manifestTemplateSha: manifest.templateSha,
+        })
+      ) {
+        logger.error(
+          `install-fleet: ${ERR_BUNDLE_BEHIND_LOCAL} — ${sourceRef} carries template ${manifest.templateSha}, which the sibling socket-wheelhouse checkout has already moved past. Applying it would revert this repo to an older snapshot. Nothing written.\n  Fix: cascade from the local template instead —\n    node scripts/repo/sync-scaffolding/cli.mts --target ${dest} --fix\n  Or repin bundle.ref/cascadeSha in .config/repo/socket-wheelhouse.json to a release cut from the current template.`,
+        )
+        return 1
+      }
     }
     const fileCount = Object.keys(manifest.files).length
     const segmentCount =
@@ -2434,7 +2602,12 @@ async function installFleet(config) {
     if (wsResult !== 0) return wsResult
     if (cfg.wire) wirePackageJson(dest)
     if (cfg.thin)
-      applyThinMode({
+      untrackFleetPackPaths({
+        dest,
+        manifest,
+      })
+    else if (readBundleRef(dest) !== void 0)
+      refreshFleetPackIgnores({
         dest,
         manifest,
       })
@@ -2470,6 +2643,7 @@ if (isMainModule()) {
 
 //#endregion
 export {
+  ERR_BUNDLE_BEHIND_LOCAL,
   ERR_LOCKSTEP_MISMATCH,
   FLEET_STATUS_SCRIPT,
   GHCR_HOST,
@@ -2479,7 +2653,6 @@ export {
   SYNC_FLEET_SCRIPT,
   UPDATE_NOTIFIER_OPT_OUT_ENV,
   applyMovedPaths,
-  applyThinMode,
   assertLockStep,
   beginMarker,
   computeSha256,
@@ -2491,6 +2664,7 @@ export {
   fetchBundleSource,
   fetchOciManifest,
   firstHeader,
+  fleetPackOwnedPaths,
   formatLockStepError,
   formatUpdateNotice,
   getGhcrToken,
@@ -2504,6 +2678,7 @@ export {
   installSegments,
   installSettingsSegment,
   installWorkspaceSegment,
+  isBundleBehindLocalTemplate,
   isMainModule,
   legacyBeginMarker,
   legacyEndMarker,
@@ -2529,6 +2704,7 @@ export {
   readBundleRef,
   readManifest,
   readNoticeStore,
+  refreshFleetPackIgnores,
   removeTombstonedPaths,
   resolveLockStepState,
   resolveNewestRef,
@@ -2541,11 +2717,12 @@ export {
   sha256Hex,
   shouldShowNotice,
   spliceFleetBlock,
+  spliceYamlSeparatorRun,
   statusJson,
   tarExecutable,
   tarExtractArgs,
-  thinIgnoreEntries,
   tokenFromBody,
+  untrackFleetPackPaths,
   untrackGeneratedOutputs,
   validateBundleBlock,
   validateCascadeSha,
