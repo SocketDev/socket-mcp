@@ -55,25 +55,14 @@
     },
     "blockExoticSubdeps": true,
     "minimumReleaseAge": 10080,
-    "minimumReleaseAgeExclude": [
-      "@socketregistry/*",
-      "@socketsecurity/*"
-    ],
+    "minimumReleaseAgeExclude": ["@socketregistry/*", "@socketsecurity/*"],
     "resolutionMode": "highest",
     "trustPolicy": "no-downgrade"
   },
   "github": {
-    "apps": [
-      "cursor",
-      "socket-security",
-      "socket-trufflehog"
-    ]
+    "apps": ["cursor", "socket-security", "socket-trufflehog"]
   },
   "coverage": {
-    "include": [
-      "index.ts",
-      "lib/**/*.ts",
-      "hooks/**/*.mts"
-    ]
+    "include": ["index.ts", "lib/**/*.ts", "hooks/**/*.mts"]
   }
 }
