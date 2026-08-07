@@ -43,6 +43,8 @@ handshake. Each prints the era it landed on.
 
 ## What a healthy run looks like
 
+<details><summary>The full expected transcript of a healthy run</summary>
+
 `pnpm run debug-sdk`:
 
 ```text
@@ -78,6 +80,8 @@ pkg:pypi/requests@2.31.0: license: 100, maintenance: 100, quality: 100, supplyCh
 
 Packages come back in the order the API returns them, not the order you asked
 for, and a package Socket has never seen is absent from the list.
+
+</details>
 
 ## HTTP mode
 
@@ -173,6 +177,8 @@ A JSON-RPC `error` object means the failure happened below the tool layer:
 
 ## Troubleshooting
 
+<details><summary>Failure signatures and their fixes</summary>
+
 **`SOCKET_API_TOKEN environment variable is required`** - the stdio server
 refuses to start without a token. Export one, or use the aliases the server
 accepts (`SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`,
@@ -209,6 +215,8 @@ stdout belongs to the JSON-RPC framing.
 **You want to point at a local Socket API** - set `SOCKET_API_BASE_URL`. Setting
 `SOCKET_DEBUG=1` alone also switches `depscore`'s default upstream to
 `http://localhost:8866`.
+
+</details>
 
 ## Testing other packages
 

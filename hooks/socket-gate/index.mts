@@ -196,7 +196,6 @@ export function outputAllow(): void {
   })
   // Stdout is the hook decision protocol; a raw write keeps the bundled hook
   // free of logger indirection.
-  // oxlint-disable-next-line socket/no-direct-stream-write -- stdout IPC
   process.stdout.write(payload)
 }
 
@@ -210,7 +209,6 @@ export function outputDeny(reason: string): void {
   })
   // Stdout is the hook decision protocol; a raw write keeps the bundled hook
   // free of logger indirection.
-  // oxlint-disable-next-line socket/no-direct-stream-write -- stdout IPC
   process.stdout.write(payload)
 }
 
@@ -315,7 +313,6 @@ export async function main(fd: number, fetchImpl: typeof fetch): Promise<void> {
     const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
     // Stderr feedback for the harness; a raw write keeps the bundled hook
     // free of logger indirection.
-    // oxlint-disable-next-line socket/no-direct-stream-write -- stderr IPC
     process.stderr.write(errLine)
     outputAllow()
   }

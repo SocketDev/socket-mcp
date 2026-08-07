@@ -285,6 +285,8 @@ Once installed, ask your AI assistant questions like:
 
 ### Tools exposed
 
+<details><summary>The full tool roster - names, arguments, and what each returns</summary>
+
 #### depscore
 
 Query the Socket API for dependency scoring information. Returns supply chain, quality, maintenance, vulnerability, and license scores per package.
@@ -439,6 +441,8 @@ Search a single file from a package for lines matching a JavaScript regular expr
 | `maxMatches`      | Integer | No       | `100`   | Cap on matching lines returned (1–500)                  |
 | `path`            | String  | No       | -       | File path, for display only; does not affect the lookup |
 
+</details>
+
 ### Authentication for organization-scoped tools
 
 `depscore` works without credentials on the public server. The `organizations`, `alerts`, `threat_feed`, and `package_files` tools call Socket's authenticated REST API, so they need a Socket API token.
@@ -514,6 +518,8 @@ Supported ecosystems and package managers:
 
 ### Setup
 
+<details><summary>Per-client setup steps - Claude Desktop, Claude Code, Cursor, and VS Code</summary>
+
 **Prerequisites:** Node.js 24+.
 
 1. Copy the whole `dist/socket-gate` directory into your hooks folder. The
@@ -557,6 +563,8 @@ Supported ecosystems and package managers:
 
 See [`hooks/socket-gate/README.md`](hooks/socket-gate/README.md) for the full
 reference.
+
+</details>
 
 ### How it works
 

@@ -16,6 +16,7 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
 import { buildConfigs } from '../../.config/repo/rolldown.config.mts'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 import {
   DIST_DIR,
   SOCKET_GATE_DIST_DIR,
@@ -66,7 +67,9 @@ async function main(): Promise<void> {
   logger.log(`Built ${buildConfigs.length} artifact(s)`)
 }
 
-main().catch(err => {
-  logger.fail(`build: ${errorMessage(err)}`)
-  process.exitCode = 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch(err => {
+    logger.fail(`build: ${errorMessage(err)}`)
+    process.exitCode = 1
+  })
+}

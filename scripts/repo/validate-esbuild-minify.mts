@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+
 const logger = getDefaultLogger()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -95,7 +97,9 @@ async function main(): Promise<void> {
   process.exitCode = 1
 }
 
-main().catch((e: unknown) => {
-  logger.error('Validation failed:', e)
-  process.exitCode = 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.error('Validation failed:', e)
+    process.exitCode = 1
+  })
+}
