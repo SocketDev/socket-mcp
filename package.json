@@ -97,7 +97,8 @@
     "ruleset:bypass": "node scripts/fleet/grant-ruleset-bypass.mts",
     "soak:bypass": "node scripts/fleet/soak-bypass.mts",
     "npm:trust": "node scripts/fleet/publish-infra/npm/trust.mts",
-    "prune:branch-backups": "node scripts/fleet/backup-branches.mts prune"
+    "prune:branch-backups": "node scripts/fleet/backup-branches.mts prune",
+    "preflight": "node scripts/fleet/preflight.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "catalog:",
