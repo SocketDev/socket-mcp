@@ -3,9 +3,10 @@ name: 🔁 Weekly Update
 # PLAIN workflow — no gh-aw, no ANTHROPIC_API_KEY. The update's judgment legs
 # run on the on-device model through the odai seam (setup-odai provisions
 # Chrome + the cached ~4 GB component; every gap clean-skips on exit 69), so
-# the whole workflow is keyless by construction. The multi-turn agentic
-# escalation lives in get-green, which stays gh-aw and keyed; this workflow
-# dispatches it when tests go red after an update.
+# the whole workflow is keyless by construction. The escalation it dispatches
+# when tests go red, get-green, is keyless the same way now — a plain workflow
+# running the deterministic fixer then an odai digest, no gh-aw and no
+# per-repo model key.
 #
 # Two cadences share one workflow, same as before: Monday runs the full
 # weekly update; the daily cron exists for the soaked-exclusion promotion the
@@ -65,6 +66,10 @@ jobs:
       - uses: ./.github/actions/fleet/setup-and-install
         with:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
+          # Authorizes a thin member's bundle download during install. Both
+          # stay empty on a member with no payload App, which skips the mint.
+          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
 
       # The runner script IS the gate: exit 0 = actionable drift, 1 = no-op.
       - name: Run the check-updates gate
@@ -110,6 +115,10 @@ jobs:
       - uses: ./.github/actions/fleet/setup-and-install
         with:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
+          # Authorizes a thin member's bundle download during install. Both
+          # stay empty on a member with no payload App, which skips the mint.
+          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
 
       # Provision the on-device model (fail-open: ready=false just means the
       # decision leg clean-skips and the run stays deterministic-only).
