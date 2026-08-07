@@ -12,9 +12,9 @@ The clients split across the two MCP protocol eras so both stay covered:
 
 | Client            | Script                 | Era                                                                              |
 | ----------------- | ---------------------- | -------------------------------------------------------------------------------- |
-| `debug-client.ts` | `pnpm run debug-stdio` | Legacy 2025 — raw JSON-RPC frames, `initialize` + `notifications/initialized`    |
-| `stdio-client.ts` | `pnpm run debug-sdk`   | Modern — SDK client, `versionNegotiation: { mode: 'auto' }` over stdio           |
-| `http-client.ts`  | `pnpm run debug-http`  | Modern — SDK client, `versionNegotiation: { mode: 'auto' }` over Streamable HTTP |
+| `debug-client.ts` | `pnpm run debug-stdio` | Legacy 2025 - raw JSON-RPC frames, `initialize` + `notifications/initialized`    |
+| `stdio-client.ts` | `pnpm run debug-sdk`   | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over stdio           |
+| `http-client.ts`  | `pnpm run debug-http`  | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over Streamable HTTP |
 
 `mode: 'auto'` probes the server with `server/discover` and falls back to the
 2025 `initialize` handshake when the server only speaks the legacy protocol.

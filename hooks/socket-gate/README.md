@@ -87,7 +87,7 @@ Add to `~/.claude/settings.json`:
 
 ## How it works
 
-`supplyChain < 20` denies, anything else allows — e.g. `express` / `lodash` /
+`supplyChain < 20` denies, anything else allows - e.g. `express` / `lodash` /
 `react` (75–97) allow, `browserlist` (typosquat of `browserslist`, 15) and
 confirmed malware (0) block. Network, timeout, and parse errors all fail open
 (decision `allow`), with the cause written to stderr; stdout stays the
