@@ -220,7 +220,9 @@ export function setStaticApiKey(
  * transport already writes.
  */
 export function toPlainSchemaSpec(spec: ToolSpec): ToolSpec {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse widens to any; the value round-trips through the same encoding every shipping transport applies to it.
+  // JSON.parse widens to any; the value round-trips through the same
+  // encoding every shipping transport applies to it.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- round trip
   const inputSchema = JSON.parse(
     JSON.stringify(spec.inputSchema),
   ) as ToolInputSchema

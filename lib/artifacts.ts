@@ -53,7 +53,8 @@ export function deduplicateArtifacts(
   }
 
   const results: ArtifactData[] = []
-  // oxlint-disable-next-line socket/prefer-cached-for-loop -- Map.values() iterator, not a bare identifier
+  // Map.values() iterator, not a bare identifier.
+  // oxlint-disable-next-line socket/prefer-cached-for-loop -- Map iterator
   for (const group of groups.values()) {
     results.push(selectBestArtifact(group, platform))
   }

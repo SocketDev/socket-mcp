@@ -50,13 +50,13 @@ export interface HookInput {
 // aliases (npm add|i|install, cargo add|install, go get|install) without
 // capturing them.
 const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
-  { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i }, // socket-lint: allow uncommented-regex
+  { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\byarn\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bpnpm\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bbun\s+add\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'pypi',
-    pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i, // socket-lint: allow uncommented-regex
+    pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'pypi', pattern: /\buv\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'pypi', pattern: /\buv\s+pip\s+install\s+([^\s-][^\s]*)/i },
@@ -64,11 +64,11 @@ const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
   { ecosystem: 'pypi', pattern: /\bpipenv\s+install\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'cargo',
-    pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i, // socket-lint: allow uncommented-regex
+    pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'gem', pattern: /\bgem\s+install\s+([^\s-][^\s]*)/i },
   { ecosystem: 'gem', pattern: /\bbundle\s+add\s+([^\s-][^\s]*)/i },
-  { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i }, // socket-lint: allow uncommented-regex
+  { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bdotnet\s+add\s+package\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bnuget\s+install\s+([^\s-][^\s]*)/i },
 ]
@@ -190,7 +190,7 @@ export function outputAllow(): void {
       permissionDecision: 'allow',
     },
   })
-  process.stdout.write(payload) // socket-lint: allow process-stdio -- stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection
+  process.stdout.write(payload)
 }
 
 export function outputDeny(reason: string): void {
@@ -201,7 +201,7 @@ export function outputDeny(reason: string): void {
       permissionDecisionReason: reason,
     },
   })
-  process.stdout.write(payload) // socket-lint: allow process-stdio -- stdout is the hook decision protocol; raw write keeps the bundled hook free of logger indirection
+  process.stdout.write(payload)
 }
 
 export function parseSupplyChainScore(text: string): number | undefined {
@@ -303,7 +303,7 @@ export async function main(fd: number, fetchImpl: typeof fetch): Promise<void> {
     // not a hard gate — see the file header). Surface the error on stderr so
     // the failure is observable; stdout stays the allow/deny IPC channel.
     const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
-    process.stderr.write(errLine) // socket-lint: allow process-stdio -- stderr feedback for the harness; raw write keeps the bundled hook free of logger indirection
+    process.stderr.write(errLine)
     outputAllow()
   }
 }

@@ -58,7 +58,7 @@ export function buildPurl(
     name = depname
   }
 
-  const merged: Record<string, string> = { ...(qualifiers ?? {}) }
+  const merged: Record<string, string> = { ...qualifiers }
   if (ecoLower === 'openvsx' && !merged['repository_url']) {
     merged['repository_url'] = 'https://open-vsx.org'
   }

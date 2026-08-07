@@ -12,7 +12,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.join(__dirname, '..')
 
-// oxlint-disable-next-line typescript/consistent-return -- the non-returning arm ends in process.exit(1); the analyzer cannot see the never.
+// The non-returning arm ends in process.exit(1); the analyzer cannot see
+// the never.
+// oxlint-disable-next-line typescript/consistent-return -- exit ends the arm
 function readJsonFile(filePath: string): Record<string, unknown> {
   try {
     const content = readFileSync(filePath, 'utf8')

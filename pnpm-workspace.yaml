@@ -175,22 +175,22 @@ catalog:
   '@playwright/mcp': 0.0.78
   '@vitest/ui': 4.1.10
 
-# pnpm `overrides` block — two purposes:
-#
-# 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
-#    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
-#    so the bump is compatible. The override is what actually removes
-#    esbuild from the install tree — without it, vitest would still
-#    resolve vite ^6.x.
-#
-# 2. Force every consumer of Socket's own packages to resolve through
-#    the catalog-pinned published versions. The `catalog:` form rewrites
-#    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
-#    in the default `catalog:` block above. This is the safety property
-#    that prevents accidental local-checkout resolution when a sibling
-#    repo is on disk: even if a downstream package declares
-#    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
-#    pinned npm version instead of a sibling working tree.
+  # pnpm `overrides` block — two purposes:
+  #
+  # 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
+  #    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
+  #    so the bump is compatible. The override is what actually removes
+  #    esbuild from the install tree — without it, vitest would still
+  #    resolve vite ^6.x.
+  #
+  # 2. Force every consumer of Socket's own packages to resolve through
+  #    the catalog-pinned published versions. The `catalog:` form rewrites
+  #    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
+  #    in the default `catalog:` block above. This is the safety property
+  #    that prevents accidental local-checkout resolution when a sibling
+  #    repo is on disk: even if a downstream package declares
+  #    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
+  #    pinned npm version instead of a sibling working tree.
   '@anthropic-ai/mcpb': 1.2.0
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   'ecc-agentshield': 1.4.0
@@ -316,12 +316,12 @@ overrides:
   'vite': 'catalog:'
   'which@>=4': '7.0.0'
 
-# Native post-install build scripts. These three arrive transitively via
-# @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
-# published CLI (`dist/cli.js`) runs without them — verified `agent-ci --help`
-# works with the builds skipped — so we decline to run their post-install
-# scripts. Declining is the safe default; running native build scripts from a
-# transitive dep is unnecessary attack surface here.
+  # Native post-install build scripts. These three arrive transitively via
+  # @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
+  # published CLI (`dist/cli.js`) runs without them — verified `agent-ci --help`
+  # works with the builds skipped — so we decline to run their post-install
+  # scripts. Declining is the safe default; running native build scripts from a
+  # transitive dep is unnecessary attack surface here.
 
   # Repo-specific overrides below.
   '@hono/node-server': '1.19.14'

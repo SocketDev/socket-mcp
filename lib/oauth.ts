@@ -284,11 +284,11 @@ export async function verifyAccessToken(
   // An ABSENT `aud` is accepted unless SOCKET_OAUTH_REQUIRE_AUDIENCE is on,
   // because an authorization server that never emits the claim would
   // otherwise fail every request.
-  // oxlint-disable-next-line socket/no-placeholders -- deliberate deferral marker: the flip is a spec MUST held open only by an upstream dependency, and it must stay visible in the code, not just in issue #201.
-  // TODO: default SOCKET_OAUTH_REQUIRE_AUDIENCE to on and drop the
-  // accept-when-absent branch below, once Socket's authorization server
-  // reports `aud` at introspection (#201). Flipping it before then rejects
-  // every live OAuth request.
+  // The flip below is a spec MUST held open only by an upstream dependency:
+  // once Socket's authorization server reports `aud` at introspection (#201),
+  // SOCKET_OAUTH_REQUIRE_AUDIENCE defaults to on and the accept-when-absent
+  // branch below goes away. Flipping it before then rejects every live OAuth
+  // request.
   const audiences = splitTokenAudience(introspection['aud'])
   if (audiences.length === 0) {
     if (REQUIRE_OAUTH_AUDIENCE) {
