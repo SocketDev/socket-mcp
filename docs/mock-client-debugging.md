@@ -173,29 +173,29 @@ A JSON-RPC `error` object means the failure happened below the tool layer:
 
 ## Troubleshooting
 
-**`SOCKET_API_TOKEN environment variable is required`** — the stdio server
+**`SOCKET_API_TOKEN environment variable is required`** - the stdio server
 refuses to start without a token. Export one, or use the aliases the server
 accepts (`SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`,
 `SOCKET_SECURITY_API_TOKEN`, `SOCKET_SECURITY_API_KEY`). The debug clients
 themselves only read `SOCKET_API_TOKEN`.
 
 **`Authentication is required.` from `organizations` / `alerts` /
-`threat_feed` / `package_files`** — these tools are org-scoped and never fall
+`threat_feed` / `package_files`** - these tools are org-scoped and never fall
 back to a shared deploy key. Over HTTP, send your own token as
 `Authorization: Bearer <token>`.
 
-**The HTTP client gets a 404** — the MCP endpoint is `/`, so drop any trailing
+**The HTTP client gets a 404** - the MCP endpoint is `/`, so drop any trailing
 path and any trailing slash from `MCP_URL`. Confirm the server came up in HTTP
 mode; `pnpm run server-http` prints `Connect to: http://localhost:3000/`.
 
-**Connection refused** — nothing is listening. Check the port matches between
+**Connection refused** - nothing is listening. Check the port matches between
 `MCP_PORT` and `MCP_URL`.
 
-**The stdio client hangs** — Ctrl+C. Make sure `MCP_HTTP_MODE` is not exported
+**The stdio client hangs** - Ctrl+C. Make sure `MCP_HTTP_MODE` is not exported
 in your shell; it would put the spawned server into HTTP mode, where it never
 reads stdin.
 
-**You want to see every request** — set `SOCKET_DEBUG=1`. The server logs
+**You want to see every request** - set `SOCKET_DEBUG=1`. The server logs
 request and cache traces, and there is a script for it:
 
 ```bash
@@ -206,7 +206,7 @@ pnpm run server-stdio:debug
 All server output goes to stderr. Nothing is written to a log file, because
 stdout belongs to the JSON-RPC framing.
 
-**You want to point at a local Socket API** — set `SOCKET_API_BASE_URL`. Setting
+**You want to point at a local Socket API** - set `SOCKET_API_BASE_URL`. Setting
 `SOCKET_DEBUG=1` alone also switches `depscore`'s default upstream to
 `http://localhost:8866`.
 

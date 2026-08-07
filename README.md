@@ -6,7 +6,7 @@
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
 [![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
 
-A Model Context Protocol (MCP) server for Socket integration — lets AI assistants query dependency vulnerability scores and security metadata.
+A Model Context Protocol (MCP) server for Socket integration - lets AI assistants query dependency vulnerability scores and security metadata.
 
 Socket MCP exposes Socket.dev's package-scoring API through the Model Context Protocol, so any MCP-aware AI assistant (Claude, VS Code Copilot, Cursor, Windsurf) can score a package, audit a `package.json`, or flag risky dependencies as part of a conversation. It ships as both a hosted public server (`https://mcp.socket.dev/`, no setup) and a self-hostable npm package, so you can choose between zero-friction and full data isolation.
 
@@ -25,12 +25,12 @@ Socket MCP exposes Socket.dev's package-scoring API through the Model Context Pr
 
 ### Option 1: Use the public Socket MCP server (recommended)
 
-The easiest way to get started. The public server uses OAuth — your MCP client opens a browser to sign in to Socket on first connect; no API key to copy or manage. Click a button below to install in your favorite AI assistant.
+The easiest way to get started. The public server uses OAuth - your MCP client opens a browser to sign in to Socket on first connect; no API key to copy or manage. Click a button below to install in your favorite AI assistant.
 
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"url":"https://mcp.socket.dev/","type":"http"})
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D)
 
-<details><summary><b>Manual install — Claude Desktop / Claude Code</b></summary>
+<details><summary><b>Manual install - Claude Desktop / Claude Code</b></summary>
 
 Custom integrations are not available on every paid Claude plan. Check [Anthropic's remote-MCP article](https://support.anthropic.com/en/articles/11175166-about-custom-integrations-using-remote-mcp) before you start.
 
@@ -59,7 +59,7 @@ claude mcp add --transport http socket-mcp https://mcp.socket.dev/
 
 </details>
 
-<details><summary><b>Manual install — VS Code</b></summary>
+<details><summary><b>Manual install - VS Code</b></summary>
 
 ```sh
 # For VS Code with GitHub Copilot
@@ -81,7 +81,7 @@ Or add to `.vscode/mcp.json`:
 
 </details>
 
-<details><summary><b>Manual install — Cursor</b></summary>
+<details><summary><b>Manual install - Cursor</b></summary>
 
 `Cursor Settings` → `MCP` → `Add new MCP Server`. Name `socket-mcp`, `http` type, URL `https://mcp.socket.dev/`.
 
@@ -98,7 +98,7 @@ Or add to `.vscode/mcp.json`:
 
 </details>
 
-<details><summary><b>Manual install — Windsurf</b></summary>
+<details><summary><b>Manual install - Windsurf</b></summary>
 
 Windsurf does not support `http` type MCP servers. Use the stdio configuration in Option 2 below, or the `serverUrl` form:
 
@@ -114,7 +114,7 @@ Windsurf does not support `http` type MCP servers. Use the stdio configuration i
 
 </details>
 
-<details><summary><b>Manual install — Factory</b></summary>
+<details><summary><b>Manual install - Factory</b></summary>
 
 [Factory](https://factory.ai) is an AI-powered software engineering platform. Install the Socket MCP server with the Factory CLI:
 
@@ -145,12 +145,12 @@ Self-hosting keeps every request inside your own infrastructure. It needs a Sock
 
 Stdio is the default and the right answer for a single developer. Choose HTTP when more than one person, or something that is not a local process, needs to reach the server.
 
-<details><summary><b>Option 2a — Stdio mode (default)</b></summary>
+<details><summary><b>Option 2a - Stdio mode (default)</b></summary>
 
 Claude Code:
 
 ```sh
-claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- npx -y @socketsecurity/mcp@latest # socket-lint: allow npx
+claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- pnpm dlx @socketsecurity/mcp@latest
 ```
 
 Most other MCP clients:
@@ -159,7 +159,7 @@ Most other MCP clients:
 {
   "mcpServers": {
     "socket-mcp": {
-      "command": "npx", // socket-lint: allow npx
+      "command": "npx",
       "args": ["@socketsecurity/mcp@latest"],
       "env": {
         "SOCKET_API_TOKEN": "your-api-token-here"
@@ -171,12 +171,12 @@ Most other MCP clients:
 
 </details>
 
-<details><summary><b>Option 2b — HTTP mode</b></summary>
+<details><summary><b>Option 2b - HTTP mode</b></summary>
 
-Run the server in HTTP mode using npx:
+Run the server in HTTP mode with pnpm dlx:
 
 ```sh
-MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token npx @socketsecurity/mcp@latest --http # socket-lint: allow npx
+MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token pnpm dlx @socketsecurity/mcp@latest --http
 ```
 
 The server listens on `http://localhost:3000/`. The MCP endpoint is `/` and the health endpoint is `/health`; every other path answers `404`.
@@ -229,7 +229,7 @@ MCP_HTTP_MODE=true \
 SOCKET_OAUTH_ISSUER=https://issuer.example.com \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_ID=your-client-id \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret \
-npx @socketsecurity/mcp@latest --http # socket-lint: allow npx
+pnpm dlx @socketsecurity/mcp@latest --http
 ```
 
 With OAuth enabled, every request to the MCP endpoint goes through RFC 7662 token introspection. A raw Socket API token is rejected with a `401`, whatever its prefix; a `sktsec_` token is no more privileged than any other string here. Callers send an OAuth access token, and the server uses that token for the Socket API calls it makes on their behalf. Run without the OAuth variables to accept raw Socket API tokens instead.
@@ -374,7 +374,7 @@ List the latest security alerts for one Socket organization: supply-chain, vulne
 | `alert_type`    | String  | No       | -       | Comma-separated Socket alert types (e.g. `usesEval,unmaintained`)                     |
 | `repo_slug`     | String  | No       | -       | Comma-separated repository slugs                                                      |
 | `per_page`      | Integer | No       | `100`   | Results per page (1–5000)                                                             |
-| `cursor`        | String  | No       | -       | Pagination cursor — the `endCursor` from a previous response                          |
+| `cursor`        | String  | No       | -       | Pagination cursor - the `endCursor` from a previous response                          |
 
 #### threat_feed
 
@@ -393,7 +393,7 @@ Look up items in a Socket organization's threat feed: packages recently flagged 
 | `updated_after`     | String  | No       | -            | ISO timestamp; only items updated after this                                                                       |
 | `created_after`     | String  | No       | -            | ISO timestamp; only items created after this                                                                       |
 | `per_page`          | Integer | No       | `30`         | Results per page (1–100)                                                                                           |
-| `cursor`            | String  | No       | -            | Pagination cursor — the `nextPageCursor` from a previous response                                                  |
+| `cursor`            | String  | No       | -            | Pagination cursor - the `nextPageCursor` from a previous response                                                  |
 
 #### package_files
 
@@ -499,7 +499,7 @@ Always check dependency scores with the depscore tool when you add a new depende
 
 ## Claude Code Hook (Optional)
 
-The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install — copy the file and wire it up; the public server signs in via OAuth on first use.
+The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up; the public server signs in via OAuth on first use.
 
 Supported ecosystems and package managers:
 
@@ -560,7 +560,7 @@ reference.
 
 ### How it works
 
-The hook denies installation when `supplyChain < 20`, allows it otherwise — e.g. `express`/`lodash`/`react` (75–97) allow, `browserlist` (typosquat of `browserslist`, 15) and confirmed malware (0) block. Network, timeout, or parse errors all fail open, so a Socket outage will not block legitimate work.
+The hook denies installation when `supplyChain < 20`, allows it otherwise - e.g. `express`/`lodash`/`react` (75–97) allow, `browserlist` (typosquat of `browserslist`, 15) and confirmed malware (0) block. Network, timeout, or parse errors all fail open, so a Socket outage will not block legitimate work.
 
 ### Limitations
 
@@ -631,15 +631,15 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 
 ### Troubleshooting
 
-**Q: The public server isn't responding** — Check the URL `https://mcp.socket.dev/`, verify your MCP client configuration, restart your MCP client.
+**Q: The public server isn't responding** - Check the URL `https://mcp.socket.dev/`, verify your MCP client configuration, restart your MCP client.
 
-**Q: Local server fails to start** — Ensure Node.js 24+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission. In stdio mode a missing token is fatal: the server prints `SOCKET_API_TOKEN environment variable is required in stdio mode` and exits `1`.
+**Q: Local server fails to start** - Ensure Node.js 24+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission. In stdio mode a missing token is fatal: the server prints `SOCKET_API_TOKEN environment variable is required in stdio mode` and exits `1`.
 
-**Q: The server exits with `Incomplete OAuth configuration for HTTP mode`** — `SOCKET_OAUTH_ISSUER`, `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`, and `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` must all be set or all be unset.
+**Q: The server exits with `Incomplete OAuth configuration for HTTP mode`** - `SOCKET_OAUTH_ISSUER`, `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`, and `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` must all be set or all be unset.
 
-**Q: Getting authentication errors with local server** — Double-check your API key is valid, ensure `packages:list` scope, regenerate if needed. If the tool that failed was `organizations`, `alerts`, `threat_feed`, or `package_files` on an HTTP deployment, the server is refusing to answer with the operator's token by design; send your own in an `Authorization: Bearer` header.
+**Q: Getting authentication errors with local server** - Double-check your API key is valid, ensure `packages:list` scope, regenerate if needed. If the tool that failed was `organizations`, `alerts`, `threat_feed`, or `package_files` on an HTTP deployment, the server is refusing to answer with the operator's token by design; send your own in an `Authorization: Bearer` header.
 
-**Q: AI assistant can't find the depscore tool** — Restart your MCP client after configuration changes, verify config is saved, check the server is running. `tools/list` advertises a one-hour public cache, so a client that caches the tool list may need a restart to pick up a newly added tool.
+**Q: AI assistant can't find the depscore tool** - Restart your MCP client after configuration changes, verify config is saved, check the server is running. `tools/list` advertises a one-hour public cache, so a client that caches the tool list may need a restart to pick up a newly added tool.
 
 ### Getting help
 

@@ -139,10 +139,10 @@
 
 socket-mcp is the Socket MCP server: it exposes Socket scanning and the Socket.dev API to MCP-aware clients such as Claude Desktop, Claude Code, and Cursor.
 
-- 🚨 Stdio is framed JSON-RPC on stdout — diagnostics go to stderr via `logger` from `lib/logger.ts`, never `console.log`. [`architecture`](docs/agents.md/repo/architecture.md)
-- 🚨 Tool descriptions and input schemas are wire contract — changing one breaks clients, so bump the server version with it. [`architecture`](docs/agents.md/repo/architecture.md)
+- 🚨 Stdio is framed JSON-RPC on stdout - diagnostics go to stderr via `logger` from `lib/logger.ts`, never `console.log`. [`architecture`](docs/agents.md/repo/architecture.md)
+- 🚨 Tool descriptions and input schemas are wire contract - changing one breaks clients, so bump the server version with it. [`architecture`](docs/agents.md/repo/architecture.md)
 - 🚨 Both transports take the server FACTORY, so `createConfiguredServer()` must return a fresh `Server` on every call. [`architecture`](docs/agents.md/repo/architecture.md)
 - Tests live under `test/{unit,integration,e2e,fleet}/` as `*.test.mts` mirroring the module they cover, never beside `lib/`. [`architecture`](docs/agents.md/repo/architecture.md)
-- 🚨 Never put `--` before a test path — the path stops being positional and the run widens to the whole suite. [`architecture`](docs/agents.md/repo/architecture.md)
+- 🚨 Never put `--` before a test path - the path stops being positional and the run widens to the whole suite. [`architecture`](docs/agents.md/repo/architecture.md)
 - Mock the Socket API in tests; only `test/e2e/` reaches the network, run by `pnpm run test:e2e` behind a token. [`architecture`](docs/agents.md/repo/architecture.md)
 - Layout, the SDK package split, the tool roster, and the command table live in [`architecture`](docs/agents.md/repo/architecture.md).
