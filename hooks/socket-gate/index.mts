@@ -50,12 +50,14 @@ export interface HookInput {
 // aliases (npm add|i|install, cargo add|install, go get|install) without
 // capturing them.
 const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
+  // npm and its two install aliases, then the first non-flag token as the package name.
   { ecosystem: 'npm', pattern: /\bnpm\s+(?:add|i|install)\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\byarn\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bpnpm\s+add\s+([^\s-][^\s]*)/i },
   { ecosystem: 'npm', pattern: /\bbun\s+add\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'pypi',
+    // pip or pip3, optionally reached through `python -m`, then the package name.
     pattern: /(?:\bpython3?\s+-m\s+)?\bpip3?\s+install\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'pypi', pattern: /\buv\s+add\s+([^\s-][^\s]*)/i },
@@ -64,10 +66,12 @@ const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
   { ecosystem: 'pypi', pattern: /\bpipenv\s+install\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'cargo',
+    // cargo add or install, then the crate name.
     pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'gem', pattern: /\bgem\s+install\s+([^\s-][^\s]*)/i },
   { ecosystem: 'gem', pattern: /\bbundle\s+add\s+([^\s-][^\s]*)/i },
+  // go get or install, then the module path.
   { ecosystem: 'golang', pattern: /\bgo\s+(?:get|install)\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bdotnet\s+add\s+package\s+([^\s-][^\s]*)/i },
   { ecosystem: 'nuget', pattern: /\bnuget\s+install\s+([^\s-][^\s]*)/i },
@@ -190,6 +194,9 @@ export function outputAllow(): void {
       permissionDecision: 'allow',
     },
   })
+  // Stdout is the hook decision protocol; a raw write keeps the bundled hook
+  // free of logger indirection.
+  // oxlint-disable-next-line socket/no-direct-stream-write -- stdout IPC
   process.stdout.write(payload)
 }
 
@@ -201,6 +208,9 @@ export function outputDeny(reason: string): void {
       permissionDecisionReason: reason,
     },
   })
+  // Stdout is the hook decision protocol; a raw write keeps the bundled hook
+  // free of logger indirection.
+  // oxlint-disable-next-line socket/no-direct-stream-write -- stdout IPC
   process.stdout.write(payload)
 }
 
@@ -303,6 +313,9 @@ export async function main(fd: number, fetchImpl: typeof fetch): Promise<void> {
     // not a hard gate — see the file header). Surface the error on stderr so
     // the failure is observable; stdout stays the allow/deny IPC channel.
     const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
+    // Stderr feedback for the harness; a raw write keeps the bundled hook
+    // free of logger indirection.
+    // oxlint-disable-next-line socket/no-direct-stream-write -- stderr IPC
     process.stderr.write(errLine)
     outputAllow()
   }
