@@ -2,6 +2,8 @@ packages:
   - '.config/fleet/oxlint-plugin'
   - '.config/fleet/oxlint-plugin/fleet/*'
   - '.claude/hooks/fleet/*'
+  - '.claude/hooks/repo/*'
+  - '.config/repo/oxlint-plugin/*'
 
 # Native post-install build scripts. These three arrive transitively via
 # @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
