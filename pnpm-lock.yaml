@@ -2762,6 +2762,8 @@ importers:
 
   .config/fleet/oxlint-plugin/fleet/no-literal-control-char: {}
 
+  .config/fleet/oxlint-plugin/fleet/no-logger-glyph-prefix: {}
+
   .config/fleet/oxlint-plugin/fleet/no-logger-newline-literal: {}
 
   .config/fleet/oxlint-plugin/fleet/no-malformed-bypass-marker: {}
@@ -2853,6 +2855,8 @@ importers:
   .config/fleet/oxlint-plugin/fleet/prefer-async-spawn: {}
 
   .config/fleet/oxlint-plugin/fleet/prefer-cached-for-loop: {}
+
+  .config/fleet/oxlint-plugin/fleet/prefer-crlf-safe-split: {}
 
   .config/fleet/oxlint-plugin/fleet/prefer-ellipsis-char: {}
 
