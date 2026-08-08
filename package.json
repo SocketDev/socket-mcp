@@ -91,7 +91,6 @@
     "npm:approve": "node scripts/fleet/publish-pipeline.mts --approve",
     "npm:auth": "node scripts/fleet/npm-auth.mts",
     "npm:dispatch": "gh workflow run npm-publish-packages.yml -R SocketDev/socket-registry --ref main -f publish=true",
-    "npm:login": "node scripts/fleet/npm-web-auth.mts login",
     "npm:staged": "node scripts/fleet/publish-pipeline.mts --status",
     "hide-comments": "node scripts/fleet/hide-comments.mts",
     "ruleset:bypass": "node scripts/fleet/grant-ruleset-bypass.mts",
