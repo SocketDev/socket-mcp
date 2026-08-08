@@ -116,7 +116,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const content = result.content as TextContent[]
     const numpyLines = content[0]!.text
-      .split('\n')
+      .split(/\r?\n/)
       .filter(line => line.includes('pkg:pypi/numpy'))
     expect(numpyLines.length).toBe(1)
   })
@@ -133,7 +133,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
     const content = result.content as TextContent[]
     expect(content[0]!.text).toContain('pkg:pypi/numpy')
     const numpyLines = content[0]!.text
-      .split('\n')
+      .split(/\r?\n/)
       .filter(line => line.includes('pkg:pypi/numpy'))
     expect(numpyLines.length).toBe(1)
   })

@@ -239,7 +239,7 @@ export function parseNdjsonPackageBody(
   // batch — NDJSON is line-oriented, and a truncated/garbage line is skipped
   // (logged) rather than thrown.
   const jsonLines: Array<Record<string, unknown>> = []
-  const lines = responseText.split('\n')
+  const lines = responseText.split(/\r?\n/)
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i]!.trim()
     if (!line) {

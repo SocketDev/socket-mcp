@@ -54,7 +54,7 @@ export function parseShmRows(
     owner: string
     shmid: number
   }> = []
-  const lines = ipcsOutput.split('\n')
+  const lines = ipcsOutput.split(/\r?\n/)
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i]!
     const cols = line.trim().split(/\s+/u)

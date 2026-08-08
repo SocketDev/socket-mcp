@@ -49,7 +49,7 @@ interface WireToolsListMessage {
 // line. Legacy serving always frames this way — the 2025 `enableJsonResponse`
 // knob has no equivalent on the handler's legacy fallback leg.
 function parseSseData(text: string): unknown {
-  const line = text.split('\n').find(l => l.startsWith('data: '))
+  const line = text.split(/\r?\n/).find(l => l.startsWith('data: '))
   if (!line) {
     throw new Error(`No SSE data frame in response: ${text}`)
   }

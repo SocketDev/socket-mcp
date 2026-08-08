@@ -100,7 +100,7 @@ describe('renderTree', () => {
       { path: 'index.js', type: 'file', size: 200 },
       { path: 'README.md', type: 'file', size: 50 },
     ])
-    const lines = tree.split('\n')
+    const lines = tree.split(/\r?\n/)
     expect(lines[0]).toBe('├── src/')
     expect(lines[1]).toBe('│   └── a.js  100B')
     expect(lines[2]).toBe('├── index.js  200B')

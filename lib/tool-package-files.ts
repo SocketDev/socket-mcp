@@ -240,7 +240,7 @@ export function definePackageFileGrepTool(): ToolSpec {
             isError: true,
           }
         }
-        const lines = blob.text.split('\n')
+        const lines = blob.text.split(/\r?\n/)
         const matchIndexes: number[] = []
         for (let i = 0; i < lines.length; i += 1) {
           if (re.test(lines[i]!)) {
