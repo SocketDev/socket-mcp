@@ -2778,6 +2778,8 @@ importers:
 
   .config/fleet/oxlint-plugin/fleet/no-npx-dlx: {}
 
+  .config/fleet/oxlint-plugin/fleet/no-optional-param-before-options-bag: {}
+
   .config/fleet/oxlint-plugin/fleet/no-optional-positional-trap: {}
 
   .config/fleet/oxlint-plugin/fleet/no-options-param-mutation: {}
