@@ -4,6 +4,7 @@ packages:
   - '.claude/hooks/fleet/*'
   - '.claude/hooks/repo/*'
   - '.config/repo/oxlint-plugin/*'
+enableGlobalVirtualStore: true
 
 # Native post-install build scripts. These three arrive transitively via
 # @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
