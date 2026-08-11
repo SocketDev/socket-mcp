@@ -40,6 +40,21 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    # FIRST step on purpose. $GITHUB_ENV only reaches SUBSEQUENT steps, so
+    # exporting here is what puts the no-phone-home posture in front of
+    # everything this composite goes on to do - notably the pnpm install, which
+    # is the step NO_UPDATE_NOTIFIER exists for.
+    #
+    # Derived from FLEET_ENV, the one list in
+    # .claude/hooks/fleet/_shared/fleet-env.mts, so a workflow inherits every
+    # knob by running setup rather than hand-copying an env: block. That
+    # duplication is what let OTEL_SDK_DISABLED reach ci.yml and miss
+    # github-release.yml.
+    - name: Export the fleet no-phone-home env
+      shell: bash
+      run: | # zizmor: ignore[github-env] - emits fixed NAME=value lines read from the tracked fleet-env.json, no runtime-attacker data.
+        node "${GITHUB_ACTION_PATH}/export-fleet-env.mjs" >> "$GITHUB_ENV"
+
     - name: Check GitHub platform health
       uses: ./.github/actions/fleet/github-status-check
 
