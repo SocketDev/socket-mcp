@@ -21,6 +21,7 @@ import process from 'node:process'
 
 import { logger } from './logger.ts'
 import { errorMessage } from '@socketsecurity/lib/errors/message'
+import { isPlainObject } from '@socketsecurity/lib/objects/predicates'
 
 /**
  * One audit event. The shape is stable so a SIEM or export consumer can parse
@@ -149,12 +150,8 @@ export function maskArgs(
     const value = args[key]
     if (SENSITIVE_KEY_PATTERNS.some(p => lower.includes(p))) {
       out[key] = REDACTED
-    } else if (
-      value !== null &&
-      typeof value === 'object' &&
-      !Array.isArray(value)
-    ) {
-      out[key] = maskArgs(value as Record<string, unknown>)
+    } else if (isPlainObject(value)) {
+      out[key] = maskArgs(value)
     } else {
       out[key] = value
     }
