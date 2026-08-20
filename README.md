@@ -41,8 +41,12 @@ Custom integrations are not available on every paid Claude plan. Check [Anthropi
    {
      "mcpServers": {
        "socket-mcp": {
-         "type": "http",
-         "url": "https://mcp.socket.dev/"
+         "command": "npx",
+         "args": [
+           "-y",
+           "mcp-remote@latest",
+           "https://mcp.socket.dev/"
+         ]
        }
      }
    }
