@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
+import path, { dirname, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
@@ -42,22 +42,55 @@ function getDep0Logger() {
   return dep0Logger
 }
 /**
- * Fail-open recursive delete. The dep-0 fetcher cannot import the lib
- * `safeDeleteSync`, so it wraps node's `rmSync` with the same force + recursive
- * fail-open semantics: a missing path is a no-op, never a throw.
+ * Whether `candidate` sits strictly INSIDE `root` - a descendant, never `root`
+ * itself and never above it.
+ *
+ * The prune walk builds its target with `path.join(dest, rel)` where `rel`
+ * comes from a state file on disk. `path.join(dest, '.')` is `dest`, and
+ * `path.join(dest, '..')` is its parent, so a single stray line in that record
+ * turns a per-file prune into a recursive delete of the checkout or of the
+ * directory holding it. Comparing resolved paths is the only check a caller
+ * cannot get wrong.
+ */
+function isInsidePath(root, candidate) {
+  const resolvedRoot = resolve(root)
+  const resolvedCandidate = resolve(candidate)
+  if (resolvedCandidate === resolvedRoot) return false
+  return resolvedCandidate.startsWith(`${resolvedRoot}${sep}`)
+}
+/**
+ * Fail-open recursive delete, CONTAINED to `root`. The dep-0 fetcher cannot
+ * import the lib `safeDeleteSync`, so it wraps node's `rmSync` with the same
+ * force + recursive fail-open semantics: a missing path is a no-op, never a
+ * throw.
+ *
+ * `root` is required and not optional on purpose. This deletes recursively with
+ * force, so the one thing every caller must state is the boundary it may not
+ * cross. A target outside `root` throws instead of deleting: the alternative is
+ * a warning nobody reads about a tree that is already gone.
  *
  * A read-only target gets ONE retry after a chmod +w. The installer locks the
- * files it places (0444/0555), and Windows refuses to unlink a read-only file —
+ * files it places (0444/0555), and Windows refuses to unlink a read-only file -
  * POSIX does not, it checks the parent directory, which the lock never touches.
  */
-function rm(targetPath) {
+function rm(targetPath, root) {
+  if (!isInsidePath(root, targetPath))
+    throw new Error(
+      `refusing to delete outside the install root.\n  Where: ${resolve(targetPath)}\n  Saw:   a target that is not a descendant of ${resolve(root)}\n  Fix:   this is a bug in the caller - a prune entry resolved to the root or above it. Report the manifest or applied-files line that produced it.`,
+    )
+  rmForce(targetPath)
+}
+/**
+ * The unguarded force delete, for a path this module minted itself.
+ */
+function rmForce(targetPath) {
   try {
     rmSync(targetPath, {
       force: true,
       recursive: true,
     })
   } catch (e) {
-    const code = errorCode(e)
+    const code = errorCode$1(e)
     if (code !== 'EACCES' && code !== 'EPERM') throw e
     chmodSync(targetPath, (statSync(targetPath).mode & 511) | 128)
     rmSync(targetPath, {
@@ -70,7 +103,7 @@ function rm(targetPath) {
  * The `errno` string of a thrown filesystem error (`EACCES`, `EPERM`, …), or
  * undefined for anything that is not one. Dep-0: no lib `isErrnoException`.
  */
-function errorCode(e) {
+function errorCode$1(e) {
   if (e instanceof Error) {
     const { code } = e
     return code
@@ -87,6 +120,7 @@ const dep0Logger = {
 
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/helpers.mts
+const HYBRID_BUNDLE_PATHS = /* @__PURE__ */ new Set(['.gitignore', 'CLAUDE.md'])
 /**
  * Normalize bundle-manifest paths to their portable `/` wire format.
  */
@@ -380,6 +414,23 @@ function readBuildShape(dest) {
   }
 }
 /**
+ * The member's declared capabilities — the `capabilities` map in its
+ * wheelhouse settings file (an empty or ABSENT map declares NONE, matching
+ * the cascade-side gate). Drives the manifest's capability-scoped hook
+ * groups: a `@capability`-tagged hook is placed only when the member
+ * declares the capability.
+ */
+function readDeclaredCapabilities(dest) {
+  const p = resolveSettingsPath(dest)
+  if (!p) return []
+  try {
+    const json = JSON.parse(readFileSync(p, 'utf8'))
+    return Object.keys(json.capabilities ?? {})
+  } catch {
+    return []
+  }
+}
+/**
  * Read the member's full pinned `bundle` block (ref + cascadeSha) from the
  * wheelhouse settings file. The lock-step verify + the `fleet:status` verb need
  * BOTH halves — `readBundleRef` returns only the ref for the fetch default.
@@ -535,7 +586,18 @@ function spliceFleetCanonicalContent(source, target) {
 //#endregion
 //#region template/base/scripts/fleet/_shared/github-tracked-surface.mts
 const ALWAYS_TRACKED_GITHUB_PREFIXES = [
-  '.github/actions/fleet/',
+  '.github/actions/fleet/_shared/',
+  '.github/actions/fleet/cache-pnpm-store/',
+  '.github/actions/fleet/checkout/',
+  '.github/actions/fleet/debug/',
+  '.github/actions/fleet/download-artifact/',
+  '.github/actions/fleet/expose-actions-runtime/',
+  '.github/actions/fleet/github-payload-app-token/',
+  '.github/actions/fleet/github-status-check/',
+  '.github/actions/fleet/install/',
+  '.github/actions/fleet/setup-and-install/',
+  '.github/actions/fleet/setup/',
+  '.github/actions/fleet/upload-artifact/',
   '.github/dependabot.yml',
   '.github/workflows/',
 ]
@@ -544,14 +606,21 @@ const ALWAYS_TRACKED_GITHUB_PREFIXES = [
  * lists: anything a consumer reads BEFORE our fetch runs has to be in the
  * commit. pnpm reads `.npmrc` and resolves `patchedDependencies` at install
  * time, which on a thin member happens after hydration but on a FRESH clone
- * can precede it; GitHub reads workflows and dependabot.yml from the
- * committed tree. Same rule, different consumers.
+ * can precede it; git resolves `core.hooksPath` from the working tree on
+ * every operation; `tsc -p` and editors read tsconfig/.editorconfig at rest;
+ * the dep-0 bootstrap runs from a fresh clone. Same rule, different consumers.
  *
  * These cannot live in ALWAYS_TRACKED_GITHUB_PREFIXES: that predicate is
  * `.github/`-scoped by construction, so a `.npmrc` entry there would never
  * be reached.
  */
-const ALWAYS_TRACKED_PREFIXES = ['.npmrc', 'patches/']
+const ALWAYS_TRACKED_PREFIXES = [
+  '.config/fleet/tsconfig.check.json',
+  '.editorconfig',
+  '.git-hooks/',
+  '.npmrc',
+  'scripts/repo/bootstrap/',
+]
 /**
  * True when `relPath` is any always-tracked surface, GitHub or not. This is
  * what an untrack set should consult; the GitHub-only predicate below stays
@@ -630,6 +699,101 @@ function computeHybridPaths(manifest) {
 }
 
 //#endregion
+//#region scripts/repo/gen/bootstrap/src/local-template-manifest.mts
+const PACKAGE_MANAGER_DIRS = /* @__PURE__ */ new Set(['.venv', 'node_modules'])
+/**
+ * Every regular file beneath `dir`, as paths relative to `dir`, skipping any
+ * package-manager directory. Bare-node walk: this module is dep-0 and must not
+ * reach for a glob library.
+ */
+function walkFilesRelative(dir, prefix, out) {
+  let entries
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const entry = entries[i]
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) {
+      if (PACKAGE_MANAGER_DIRS.has(entry.name)) continue
+      walkFilesRelative(path.join(dir, entry.name), rel, out)
+    } else if (entry.isFile()) out.push(rel)
+  }
+}
+/**
+ * Every hybrid path the expansion must leave alone: what the manifest declares
+ * as a segment, plus the static mirror in `helpers.mts`.
+ *
+ * The mirror is load-bearing rather than belt-and-braces. A manifest built for
+ * a LOCAL template carries no `segments` at all - the segment list is written
+ * by the release-bundle producer - so a manifest-only check finds nothing to
+ * skip on exactly the path where the clobber happens.
+ */
+function hybridBundlePaths(manifest) {
+  const hybrids = computeHybridPaths(manifest)
+  for (const rel of HYBRID_BUNDLE_PATHS) hybrids.add(normalizeBundlePath(rel))
+  return hybrids
+}
+/**
+ * Expand a manifest into one entry per FILE that `filesDir` actually carries.
+ *
+ * Four shapes need handling, and only the first is one `installFiles` already
+ * deals with:
+ *
+ * - A file entry with a source: kept as-is.
+ * - A DIRECTORY entry: expanded into every file beneath it, each inheriting the
+ *   directory's flags. 39 of the manifest's entries are whole-tree mirror roots
+ *   (`scripts/fleet`, `.claude/hooks/fleet`, `docs/agents.md/fleet`) and they
+ *   are the bulk of the payload. Expanding rather than special-casing keeps the
+ *   always-tracked skip, the canonical splice and the per-file read-only lock
+ *   all applying, with no second placement path to drift from the first.
+ * - An entry with NO source: dropped. The manifest describes every shape the
+ *   fleet can deliver, including conditional entries seeded by other fixers
+ *   (`.cargo/config.darwin-signing.toml` under `hasRust`); 94 of them have no
+ *   template source here.
+ * - A HYBRID entry: dropped. Its live copy is half member-owned - the cascade
+ *   splices the fleet block in and the repo keeps its own cutouts - so the
+ *   template holds only one of the two halves, and copying it over the live
+ *   file silently drops the other. `.gitignore` is the costly case: its repo
+ *   region carries the mirror-untrack block, so one `--from-template`
+ *   materialize re-tracked 2,973 mirrors and left a tree that read as clean.
+ *   The cascade's block splicer owns these files; a whole-file copy never
+ *   does.
+ */
+function expandManifestForLocalTemplate(filesDir, manifest) {
+  const files = Object.create(null)
+  const hybrids = hybridBundlePaths(manifest)
+  const rels = Object.keys(manifest.files)
+  for (let i = 0, { length } = rels; i < length; i += 1) {
+    const rel = rels[i]
+    const entry = manifest.files[rel]
+    if (hybrids.has(normalizeBundlePath(rel))) continue
+    const source = path.join(filesDir, normalizeBundlePath(rel))
+    let stat
+    try {
+      stat = statSync(source)
+    } catch {
+      continue
+    }
+    if (stat.isFile()) {
+      files[rel] = entry
+      continue
+    }
+    if (!stat.isDirectory()) continue
+    const nested = []
+    walkFilesRelative(source, '', nested)
+    for (let j = 0, { length: nestedLength } = nested; j < nestedLength; j += 1)
+      files[`${rel}/${nested[j]}`] = entry
+  }
+  return {
+    ...manifest,
+    files,
+  }
+}
+
+//#endregion
 //#region scripts/repo/gen/bootstrap/src/placement-lock.mts
 /**
  * True when the release-bundle installer should lock what it places. Reads the
@@ -661,7 +825,7 @@ function ensureWritableTarget(target) {
     chmodSync(target, mode | 128)
   } catch {
     /* c8 ignore start - chmod on a file this process owns only fails under root or an OS immutable flag (macOS chflags uchg), so a portable unit test cannot reach this fallback. */
-    rm(target)
+    rm(target, dirname(target))
   }
 }
 /**
@@ -1116,8 +1280,8 @@ function spliceRepoHookEntry(settings, event, matcher, hook) {
  *   manifest-scoped (they read the manifest / applied-files record, never a
  *   directory walk) and carry the same producer-agnostic "shipped belt" so a
  *   bad manifest entry can never touch freshly placed payload. Split out of
- *   install.mts along the sync-prune seam to hold that file under the line cap;
- *   install.mts re-exports these so its public surface (and fleet.mts's
+ *   install.mts along the sync-prune boundary to hold that file under the line
+ *   cap; install.mts re-exports these so its public surface (and fleet.mts's
  *   re-export of it) is unchanged. Dep-0, same invariant as install.mts (node:
  *   builtins only, never socket-lib).
  */
@@ -1153,7 +1317,7 @@ function applyMovedPaths(dest, manifest) {
     const fromAbs = path.join(dest, from)
     if (!existsSync(fromAbs)) continue
     const toAbs = path.join(dest, to)
-    if (existsSync(toAbs)) rm(fromAbs)
+    if (existsSync(toAbs)) rm(fromAbs, dest)
     else {
       mkdirSync(path.dirname(toAbs), { recursive: true })
       renameSync(fromAbs, toAbs)
@@ -1185,7 +1349,7 @@ function removeTombstonedPaths(dest, manifest) {
       continue
     const abs = path.join(dest, rel)
     if (existsSync(abs)) {
-      rm(abs)
+      rm(abs, dest)
       removed += 1
     }
   }
@@ -1217,7 +1381,7 @@ function pruneStaleFleetFiles(dest, manifest, previousFiles) {
     if (kept.has(rel)) continue
     const abs = path.join(dest, rel)
     if (existsSync(abs)) {
-      rm(abs)
+      rm(abs, dest)
       pruned += 1
     }
   }
@@ -1227,7 +1391,12 @@ function pruneStaleFleetFiles(dest, manifest, previousFiles) {
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/install.mts
 const logger$4 = getDep0Logger()
-function installFiles(filesDir, dest, manifest) {
+function installFiles(filesDir, dest, manifest, options) {
+  const refreshTracked =
+    {
+      __proto__: null,
+      ...options,
+    }.refreshTracked === true
   const locking = readonlyBundleMirrorsEnabled()
   const generatedPaths = new Set(
     (manifest.generatedPaths ?? []).map(normalizeBundlePath),
@@ -1236,13 +1405,17 @@ function installFiles(filesDir, dest, manifest) {
   const rels = Object.keys(manifest.files)
   let placed = 0
   let skippedAlwaysTracked = 0
+  const refreshedTracked = []
   for (let i = 0, { length } = rels; i < length; i += 1) {
     const rel = rels[i]
     const source = path.join(filesDir, rel)
     const target = path.join(dest, rel)
     if (isAlwaysTrackedSurface(rel) && existsSync(target)) {
-      skippedAlwaysTracked += 1
-      continue
+      if (!refreshTracked) {
+        skippedAlwaysTracked += 1
+        continue
+      }
+      refreshedTracked.push(rel)
     }
     mkdirSync(path.dirname(target), { recursive: true })
     let spliced
@@ -1275,7 +1448,41 @@ function installFiles(filesDir, dest, manifest) {
   return {
     placed,
     skippedAlwaysTracked,
+    refreshedTracked,
   }
+}
+/**
+ * Materialize the fleet mirrors in a PRODUCER checkout from its own
+ * `template/base`, rather than from a fetched bundle.
+ *
+ * The wheelhouse holds the canon locally, so it has no bundle to fetch and is
+ * not a fleet-pack consumer. That is the only reason its mirrors stayed in
+ * version control: nothing else could put them back. Producing the payload does
+ * not require tracking the output, so this is the producer's belt.
+ *
+ * Why it must live in this dep-0 entry and not in the cascade: the cascade
+ * cannot load without the payload it would be materializing.
+ * `template/base/scripts/fleet/land-work.mts` and its siblings import the LIVE
+ * `.claude/hooks/fleet/_shared/**`, so a checkout whose mirrors are absent dies
+ * at module resolution before any fixer runs. Same reason the fetcher cannot
+ * ship inside the bundle it fetches.
+ *
+ * Returns undefined when `template/base` is absent, which is every consumer:
+ * the caller then knows this checkout is not a producer and fetches instead.
+ */
+function materializeFromLocalTemplate(dest, manifest, options) {
+  const filesDir = path.join(dest, 'template', 'base')
+  if (!existsSync(filesDir)) return
+  const shaped = filterManifestForCapabilities(
+    filterManifestForShape(manifest, readBuildShape(dest)),
+    readDeclaredCapabilities(dest),
+  )
+  return installFiles(
+    filesDir,
+    dest,
+    expandManifestForLocalTemplate(filesDir, shaped),
+    options,
+  )
 }
 /**
  * Untrack the bundle's GENERATED build outputs (`manifest.generatedPaths`)
@@ -1409,6 +1616,14 @@ function installWorkspaceSegment(segmentsDir, dest, manifest) {
 }
 const SYNC_FLEET_SCRIPT = 'node scripts/repo/bootstrap/fleet.mjs'
 const PREPARE_FETCH = 'node scripts/repo/bootstrap/prepare.mts'
+/**
+ * The PRODUCER belt: materialize the mirrors from this checkout's own
+ * `template/base` instead of fetching a bundle. The wheelhouse's counterpart to
+ * PREPARE_FETCH, and it runs in the same slot for the same reason — the
+ * git-hooks installer it precedes is itself one of the untracked mirrors.
+ */
+const PREPARE_FROM_TEMPLATE =
+  'node scripts/repo/bootstrap/fleet.mjs --from-template'
 const FLEET_STATUS_SCRIPT = 'node scripts/repo/bootstrap/fleet.mjs --status'
 /**
  * Wire the consumer's package.json for thin distribution: a `sync-fleet` script
@@ -1459,11 +1674,40 @@ function normalizeManifestEntryPath(entry) {
  * not ship, so every downstream consumer (placement, prune, ignore refresh,
  * applied-files record) sees one consistent, member-effective file set. The
  * matcher mirrors releaseChecksumFiles in sync-scaffolding/repo-shape.mts;
- * the group DATA is stamped by make-release-bundle from that one source.
+ * the group DATA is stamped by make-publish-bundle from that one source.
  * Fail-open: no stamped groups, or an unknown shape (absent/malformed member
  * config), returns the manifest untouched — a config problem must never
  * withhold payload.
  */
+/**
+ * Drop the manifest's capability-scoped hook payloads the member does not
+ * declare, so a `@capability cargo` hook never lands in a repo with no cargo
+ * capability — the pack-side twin of the cascade's dirMirrorSkipPredicate
+ * capability gate. Fails OPEN on an unknown capabilities read (absent or
+ * malformed settings file): a config problem must never withhold payload.
+ * The prune sees the same filtered set, so a wrongly placed copy heals on
+ * the next fetch.
+ */
+function filterManifestForCapabilities(manifest, capabilities) {
+  const groups = manifest.capabilityScopedFiles
+  if (!groups?.length || capabilities === void 0) return manifest
+  const declared = new Set(capabilities)
+  const excluded = /* @__PURE__ */ new Set()
+  for (let i = 0, { length } = groups; i < length; i += 1) {
+    const group = groups[i]
+    if (declared.has(group.capability)) continue
+    for (let j = 0, { length: flen } = group.files; j < flen; j += 1)
+      excluded.add(normalizeBundlePath(group.files[j]))
+  }
+  if (!excluded.size) return manifest
+  const files = {}
+  for (const { 0: rel, 1: hash } of Object.entries(manifest.files))
+    if (!excluded.has(normalizeBundlePath(rel))) files[rel] = hash
+  return {
+    ...manifest,
+    files,
+  }
+}
 function filterManifestForShape(manifest, shape) {
   const groups = manifest.shapeScopedFiles
   if (!groups?.length || shape.from === void 0) return manifest
@@ -1559,6 +1803,37 @@ function isLegacyFleetRegionUntrackEntry(line) {
   )
 }
 /**
+ * The header an OLDER fetcher wrote above its untrack list, before the region
+ * gained `<fleet-pack>` markers.
+ */
+const LEGACY_PACK_HEADER_RE = /^#[\s\u2500-]*fleet-pack thin untrack list\b/
+/**
+ * Strip a pre-marker untrack block: its header plus the run of path lines under
+ * it, up to the next comment or end of file.
+ *
+ * Without markers there is nothing for {@link splicePackBlock} to replace, so
+ * such a block is never regenerated and never pruned. Its entries then outlive
+ * their reason: measured on ultrathink, a 2498-line legacy block still ignored
+ * `.config/repo/vitest.config.mts` long after that file was reclassified from
+ * bundle payload to a cascaded conditional-group file, so the member could not
+ * track it and CI's fresh clone had no copy at all. Removing the whole run is
+ * safe because the block is wholly tool-written — every line is an exact path,
+ * so a hand-authored glob or directory ignore never lives inside it — and
+ * anything the CURRENT manifest still ships is re-emitted into the managed
+ * region on the same hydrate.
+ */
+function stripLegacyPackBlock(target) {
+  const lines = target.split('\n')
+  const headerIdx = lines.findIndex(line => LEGACY_PACK_HEADER_RE.test(line))
+  if (headerIdx === -1) return target
+  let endIdx = headerIdx + 1
+  for (let i = headerIdx + 1, { length } = lines; i < length; i += 1) {
+    if (lines[i].startsWith('#')) break
+    endIdx = i + 1
+  }
+  return [...lines.slice(0, headerIdx), ...lines.slice(endIdx)].join('\n')
+}
+/**
  * Strip the old refresh's per-file untrack entries from INSIDE the `<fleet>`
  * region — they live in the fetcher-owned `<fleet-pack>` region now. The
  * cascade's own rules in the region are preserved untouched; a file with no
@@ -1608,8 +1883,10 @@ function refreshFleetPackIgnores(config) {
   }
   const sortedRoots = fleetPackOwnedPaths(manifest)
   const gitignorePath = path.join(dest, '.gitignore')
-  const migrated = stripLegacyUntrackEntriesFromFleetBlock(
-    existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '',
+  const migrated = stripLegacyPackBlock(
+    stripLegacyUntrackEntriesFromFleetBlock(
+      existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '',
+    ),
   )
   const packBlock = [
     packBeginMarker(),
@@ -1874,163 +2151,128 @@ function formatUpdateNotice(config) {
 }
 
 //#endregion
-//#region scripts/repo/gen/bootstrap/src/resolve.mts
+//#region scripts/repo/gen/bootstrap/src/network-errors.mts
+const TLS_CODES = [
+  'CERT_HAS_EXPIRED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+]
 /**
- * @file GitHub release resolution and lock-step assertion helpers.
- *   Extracted from fleet.mts to keep that file under the 500-line soft cap.
- *   All functions here shell out to `gh` (dep-0: no socket-lib) or are pure
- *   logic; none do filesystem writes.
- *   Lock-step note: assertLockStep enforces the cascadeSha === templateSha
- *   invariant but does not resolve refs itself — see resolveReleaseTemplateSha.
+ * Read the `code` off an unknown throwable. Pure, and tolerant: a rejected
+ * promise can carry a string, an AggregateError, or nothing useful at all.
  */
-const logger$3 = getDep0Logger()
-const MANIFEST_NAME$2 = 'release-bundle-manifest.json'
+function errorCode(error) {
+  if (typeof error !== 'object' || error === null) return ''
+  const code = error.code
+  if (typeof code === 'string') return code
+  const errors = error.errors
+  if (Array.isArray(errors) && errors.length > 0) return errorCode(errors[0])
+  return ''
+}
 /**
- * Assert the lock-step invariant before applying a release: the member's pinned
- * `bundle.cascadeSha` MUST equal the release's `templateSha`.
- * `--frozen-lockfile` semantics — a hard fail (never apply a mismatched
- * release). Returns true when intact OR when the member declares no
- * `cascadeSha` (a non-lock-step member — the legacy ref-only pin still
- * fetches). Logs the parsed error + returns false on mismatch.
+ * Classify a transport failure. Pure over the error, so every branch is
+ * testable without a socket.
  */
-function assertLockStep(config) {
-  const { cascadeSha, manifestTemplateSha, ref } = {
+function classifyNetworkError(error) {
+  const code = errorCode(error)
+  if (TLS_CODES.includes(code))
+    return {
+      code,
+      kind: 'tls',
+      retryable: false,
+    }
+  switch (code) {
+    case 'ENOTFOUND':
+      return {
+        code,
+        kind: 'dns',
+        retryable: false,
+      }
+    case 'EAI_AGAIN':
+      return {
+        code,
+        kind: 'dns',
+        retryable: true,
+      }
+    case 'ECONNREFUSED':
+      return {
+        code,
+        kind: 'refused',
+        retryable: false,
+      }
+    case 'ETIMEDOUT':
+    case 'ESOCKETTIMEDOUT':
+    case 'UND_ERR_CONNECT_TIMEOUT':
+      return {
+        code,
+        kind: 'timeout',
+        retryable: true,
+      }
+    case 'ECONNRESET':
+    case 'EPIPE':
+      return {
+        code,
+        kind: 'reset',
+        retryable: true,
+      }
+    default:
+      return {
+        code,
+        kind: 'unknown',
+        retryable: false,
+      }
+  }
+}
+/**
+ * The action most likely to clear each failure kind. One line, imperative, and
+ * specific enough to run.
+ */
+function fixFor(failure, host) {
+  switch (failure.kind) {
+    case 'dns':
+      return failure.retryable
+        ? 'run the same command again; the resolver was briefly unavailable.'
+        : `confirm you are online and that ${host} resolves (\`nslookup ${host}\`). Behind a split-DNS VPN, connect it first.`
+    case 'refused':
+      return `something rejected the connection to ${host} rather than the registry refusing it — check an HTTP(S)_PROXY setting or a firewall rule.`
+    case 'reset':
+      return 'run the same command again; the connection dropped mid-transfer.'
+    case 'timeout':
+      return 'run the same command again; if it repeats, check whether a proxy is intercepting the connection.'
+    case 'tls':
+      return 'the certificate chain did not verify. Inside the sandbox, point NODE_EXTRA_CA_CERTS at the persistent sfw CA (`pnpm run setup:sfw-ca`); never disable TLS verification to get past this.'
+    default:
+      return 'run the same command again; if it repeats, report the code above with the URL.'
+  }
+}
+/**
+ * The fail-loud message for a fetch that could not complete: what broke, where,
+ * what was seen against what was wanted, and the fix. Says outright whether a
+ * retry is worth it, so nobody has to guess from an errno.
+ */
+function networkFailureMessage(config) {
+  const cfg = {
     __proto__: null,
     ...config,
   }
-  if (cascadeSha === void 0) return true
-  if (cascadeSha === manifestTemplateSha) return true
-  logger$3.error(
-    formatLockStepError({
-      cascadeSha,
-      pinnedTemplateSha: manifestTemplateSha,
-      ref,
-    }),
-  )
-  return false
-}
-const ERR_BUNDLE_BEHIND_LOCAL = 'ERR_WHEELHOUSE_BUNDLE_BEHIND_LOCAL_TEMPLATE'
-/**
- * True when a sibling wheelhouse checkout exists AND its HEAD is strictly
- * DESCENDED from the bundle's template SHA — the bundle is a frozen snapshot
- * of an older template, so unpacking it would roll the member backwards.
- *
- * `assertLockStep` only proves the bundle matches its own pin, which is a
- * self-consistency check. It cannot see that the pin itself went stale. On a
- * machine that also cascades from a local template, the two writers disagree
- * and whichever runs last wins: the cascade writes current content, then
- * `update`'s bundle pass restores the older snapshot over it. That reverted a
- * Socket catalog pin, dropped fleet rules out of CLAUDE.md, and reintroduced a
- * duplicated overrides block that broke `pnpm install` — each time reported as
- * a successful update.
- *
- * Returns false when there is no local wheelhouse (a thin member, or CI),
- * where the bundle IS the only source of truth and applying it is correct.
- * Any git failure also returns false: this guard refuses a provably stale
- * bundle, and never blocks on a question it could not answer.
- */
-function isBundleBehindLocalTemplate(config) {
-  const { dest, manifestTemplateSha } = {
-    __proto__: null,
-    ...config,
-  }
-  if (!manifestTemplateSha) return false
-  const wheelhouse = path.join(dest, '..', 'socket-wheelhouse')
-  if (!existsSync(path.join(wheelhouse, '.git'))) return false
+  const failure = classifyNetworkError(cfg.error)
+  let host = cfg.url
   try {
-    execFileSync(
-      'git',
-      ['merge-base', '--is-ancestor', manifestTemplateSha, 'HEAD'],
-      {
-        cwd: wheelhouse,
-        stdio: 'ignore',
-      },
-    )
-    return (
-      execFileSync('git', ['rev-parse', 'HEAD'], {
-        cwd: wheelhouse,
-        encoding: 'utf8',
-      }).trim() !== manifestTemplateSha
-    )
-  } catch {
-    return false
-  }
-}
-/**
- * Resolve the NEWEST `fleet-pack-<hex>` release tag via `gh release list`.
- * Returns the latest tag, or undefined when none / offline. The list is
- * newest-first.
- */
-function resolveNewestRef(repo) {
-  try {
-    const out = execFileSync(
-      'gh',
-      [
-        'release',
-        'list',
-        '--repo',
-        repo,
-        '--limit',
-        '30',
-        '--json',
-        'tagName,createdAt',
-      ],
-      {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      },
-    )
-    const rows = JSON.parse(out)
-    for (const row of rows)
-      if (
-        typeof row.tagName === 'string' &&
-        /^fleet-pack-[0-9a-f]{7,40}$/.test(row.tagName)
-      )
-        return row.tagName
-    return
-  } catch {
-    return
-  }
-}
-/**
- * Resolve a release's `templateSha` from its manifest asset via gh. Dep-0:
- * shells `gh release download <ref> --pattern release-bundle-manifest.json` and
- * reads the stamped field. Returns undefined when the release / asset / field
- * is absent (offline, no such tag) — the caller decides whether that's fatal.
- */
-function resolveReleaseTemplateSha(ref, repo) {
-  if (!ref) return
-  const tmp = mkdtempSync(path.join(os.tmpdir(), 'fleet-status-'))
-  try {
-    execFileSync(
-      'gh',
-      [
-        'release',
-        'download',
-        ref,
-        '--repo',
-        repo,
-        '--pattern',
-        MANIFEST_NAME$2,
-        '--dir',
-        tmp,
-      ],
-      { stdio: ['ignore', 'ignore', 'ignore'] },
-    )
-    const manifestPath = path.join(tmp, MANIFEST_NAME$2)
-    if (!existsSync(manifestPath)) return
-    const json = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    return typeof json.templateSha === 'string' ? json.templateSha : void 0
-  } catch {
-    return
-  } finally {
-    rm(tmp)
-  }
+    host = new URL(cfg.url).host
+  } catch {}
+  const detail =
+    cfg.error instanceof Error ? cfg.error.message : String(cfg.error)
+  const saw = failure.code ? `${failure.code} — ${detail}` : detail
+  return `${cfg.what} could not reach ${host}.\n  Where: ${cfg.url}\n  Saw:   ${saw}\n  Wanted: an HTTP response from ${host}\n  Retry: ${failure.retryable ? 'yes, this is transient' : 'no, the same attempt fails the same way'}\n  Fix:   ${fixFor(failure, host)}`
 }
 
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/ghcr-fetch.mts
 const GHCR_HOST = 'ghcr.io'
+const TAG_PAGE_SIZE = 100
+const MAX_TAG_PAGES = 100
 const MANIFEST_ACCEPT = [
   'application/vnd.oci.image.manifest.v1+json',
   'application/vnd.oci.image.index.v1+json',
@@ -2038,6 +2280,7 @@ const MANIFEST_ACCEPT = [
   'application/vnd.docker.distribution.manifest.list.v2+json',
 ].join(', ')
 const MAX_REDIRECTS = 5
+const REQUEST_TIMEOUT_MS = 3e4
 /**
  * Read the first value of a possibly-array HTTP header.
  */
@@ -2054,36 +2297,54 @@ function httpGet(url, options) {
 }
 function httpGetWithRedirects(url, headers, redirectCount) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, { headers }, res => {
-        const status = res.statusCode ?? 0
-        const location = firstHeader(res.headers['location'])
-        if (
-          status >= 300 &&
-          status < 400 &&
-          location &&
-          redirectCount < MAX_REDIRECTS
-        ) {
-          res.resume()
-          const nextUrl = new URL(location, url).toString()
-          const nextHeaders = Object.create(null)
-          for (const key of Object.keys(headers))
-            if (key.toLowerCase() !== 'authorization')
-              nextHeaders[key] = headers[key]
-          resolve(httpGetWithRedirects(nextUrl, nextHeaders, redirectCount + 1))
-          return
-        }
-        const chunks = []
-        res.on('data', chunk => chunks.push(chunk))
-        res.on('end', () => {
-          resolve({
-            body: Buffer.concat(chunks),
-            headers: res.headers,
-            status,
-          })
+    const req = https.get(url, { headers }, res => {
+      const status = res.statusCode ?? 0
+      const location = firstHeader(res.headers['location'])
+      if (
+        status >= 300 &&
+        status < 400 &&
+        location &&
+        redirectCount < MAX_REDIRECTS
+      ) {
+        res.resume()
+        const nextUrl = new URL(location, url).toString()
+        const nextHeaders = Object.create(null)
+        for (const key of Object.keys(headers))
+          if (key.toLowerCase() !== 'authorization')
+            nextHeaders[key] = headers[key]
+        resolve(httpGetWithRedirects(nextUrl, nextHeaders, redirectCount + 1))
+        return
+      }
+      const chunks = []
+      res.on('data', chunk => chunks.push(chunk))
+      res.on('end', () => {
+        resolve({
+          body: Buffer.concat(chunks),
+          headers: res.headers,
+          status,
         })
       })
-      .on('error', reject)
+    })
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy(
+        Object.assign(
+          /* @__PURE__ */ new Error(`timed out after ${REQUEST_TIMEOUT_MS}ms`),
+          { code: 'ETIMEDOUT' },
+        ),
+      )
+    })
+    req.on('error', e => {
+      reject(
+        new Error(
+          networkFailureMessage({
+            error: e,
+            url,
+            what: 'install-fleet: fetching the fleet bundle',
+          }),
+          { cause: e },
+        ),
+      )
+    })
   })
 }
 /**
@@ -2124,10 +2385,30 @@ function tokenFromBody(body) {
   }
 }
 /**
- * Obtain an anonymous pull token. Hits the documented token endpoint first; on
- * anything but a usable token, falls back to the 401 WWW-Authenticate challenge
- * form (probe /v2/, follow the advertised realm). Fails loud when no token can
- * be obtained.
+ * `Authorization: Basic` for GHCR's token endpoint, built from the workflow
+ * token when one is in the environment.
+ *
+ * A PUBLIC package needs none of this - anonymous pull is the common path and
+ * stays first. A package that is private, or newly published and not yet made
+ * public, answers the anonymous request with 403 and no token, which reads as
+ * "confirm the package is public" and is unactionable inside a job that already
+ * holds a credential for the same repo. GHCR accepts the workflow token as the
+ * password with any username.
+ *
+ * Returns undefined when no token is in the environment, so a local run keeps
+ * its anonymous behavior. Never logged: the value only ever becomes a header.
+ */
+function ghcrBasicAuthHeader(env) {
+  const token = env['GH_TOKEN'] || env['GITHUB_TOKEN']
+  if (!token) return
+  return `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`
+}
+/**
+ * Obtain a pull token. Hits the documented token endpoint first; on anything
+ * but a usable token, falls back to the 401 WWW-Authenticate challenge form
+ * (probe /v2/, follow the advertised realm), and finally retries the challenge
+ * WITH the workflow token when the environment carries one. Fails loud when no
+ * token can be obtained.
  */
 async function getGhcrToken(repo, registry, httpFn = httpGet) {
   const primary = await httpFn(ghcrTokenUrl(repo, registry), {
@@ -2152,10 +2433,24 @@ async function getGhcrToken(repo, registry, httpFn = httpGet) {
   const res = await httpFn(`${challenge.realm}?${params.toString()}`, {
     headers: { accept: 'application/json' },
   })
-  const token = tokenFromBody(res.body)
+  let token = tokenFromBody(res.body)
+  if (!token) {
+    const authorization = ghcrBasicAuthHeader(process.env)
+    if (authorization)
+      token = tokenFromBody(
+        (
+          await httpFn(`${challenge.realm}?${params.toString()}`, {
+            headers: {
+              accept: 'application/json',
+              authorization,
+            },
+          })
+        ).body,
+      )
+  }
   if (!token)
-    throw new Error(`Cannot obtain a GHCR anonymous pull token.
-  Where: ${challenge.realm} for repo ${repo}\n  Saw:   HTTP ${res.status} with no token in the body\n  Fix:   confirm the package is public and speaks the OCI token flow.`)
+    throw new Error(`Cannot obtain a GHCR pull token.
+  Where: ${challenge.realm} for repo ${repo}\n  Saw:   HTTP ${res.status} with no token in the body, anonymously or with the workflow token\n  Fix:   make the package public, or give the job a token with read:packages on it.`)
   return token
 }
 /**
@@ -2187,6 +2482,69 @@ async function fetchOciManifest(repo, ref, token, registry, httpFn = httpGet) {
     return fetchOciManifest(repo, sub, token, registry, httpFn)
   }
   return manifest
+}
+/**
+ * Every tag the registry holds for an artifact repo, via GET
+ * /v2/<repo>/tags/list.
+ *
+ * Dep-0 like the rest of this module: it uses the same httpGet + Bearer token
+ * path as the manifest fetch, so the seed can resolve which packs exist without
+ * a `gh` binary and without authenticating to a private repo. That matters
+ * because the GHCR package is PUBLIC while the repo that produces it is not.
+ *
+ * Order is the registry's, which is NOT newest-first. A caller that needs
+ * recency has to derive it from the tags themselves; the pack tags carry their
+ * template SHA, so ancestry answers it without another call.
+ */
+async function listOciTags(
+  repo,
+  token,
+  registry = GHCR_HOST,
+  httpFn = httpGet,
+) {
+  const tags = []
+  let url = `https://${registry}/v2/${repo}/tags/list?n=${TAG_PAGE_SIZE}`
+  let pages = 0
+  while (url !== void 0) {
+    if (pages >= MAX_TAG_PAGES)
+      throw new Error(`GHCR tag list did not terminate.
+  Where: /v2/${repo}/tags/list on ${registry}\n  Saw:   more than ${MAX_TAG_PAGES} pages of tags\n  Fix:   a truncated list would silently hide the newest pack, so this refuses rather than guessing.`)
+    const res = await httpFn(url, {
+      headers: {
+        accept: 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+    })
+    if (res.status < 200 || res.status >= 300)
+      throw new Error(`GHCR tag list failed.
+  Where: ${url}\n  Saw:   HTTP ${res.status}\n  Fix:   confirm the package exists and is public.`)
+    const parsed = JSON.parse(res.body.toString('utf8'))
+    if (Array.isArray(parsed.tags)) {
+      for (const tag of parsed.tags) if (typeof tag === 'string') tags.push(tag)
+    }
+    pages += 1
+    url = nextTagPageUrl(firstHeader(res.headers['link']), registry)
+  }
+  return tags
+}
+/**
+ * The next tags-list URL advertised by a Link header, or undefined at the end.
+ *
+ * The registry sends a path-only target, so it is resolved against the registry
+ * host rather than used as-is.
+ */
+function nextTagPageUrl(link, registry) {
+  if (!link) return
+  for (const part of link.split(',')) {
+    if (!part.includes('rel="next"') && !part.includes('rel=next')) continue
+    const open = part.indexOf('<')
+    const close = part.indexOf('>', open + 1)
+    if (open === -1 || close === -1) continue
+    const target = part.slice(open + 1, close).trim()
+    return target.startsWith('http')
+      ? target
+      : `https://${registry}${target.startsWith('/') ? '' : '/'}${target}`
+  }
 }
 /**
  * Choose the tarball layer from an artifact manifest: prefer a layer whose
@@ -2268,7 +2626,7 @@ async function pullFleetBundleTarball(config) {
 
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/bundle-source.mts
-const logger$2 = getDep0Logger()
+const logger$3 = getDep0Logger()
 const MANIFEST_NAME$1 = 'release-bundle-manifest.json'
 /**
  * Derive the GHCR fleet-pack package repo from the gh `owner/repo`. GHCR
@@ -2313,82 +2671,165 @@ async function ghcrFetchBundle(config) {
   }
 }
 /**
- * Default GitHub-Release fetch (the fallback): `gh release download` of the
- * tarball + manifest assets. Throws with an actionable message when the release
- * lacks either asset.
- */
-async function ghReleaseFetchBundle(config) {
-  const cfg = {
-    __proto__: null,
-    ...config,
-  }
-  run('gh', [
-    'release',
-    'download',
-    cfg.ref,
-    '--repo',
-    cfg.repo,
-    '--pattern',
-    '*.tar.gz',
-    '--pattern',
-    MANIFEST_NAME$1,
-    '--dir',
-    cfg.tmp,
-  ])
-  const manifest = path.join(cfg.tmp, MANIFEST_NAME$1)
-  if (!existsSync(manifest))
-    throw new Error(`release ${cfg.ref} has no ${MANIFEST_NAME$1} asset.`)
-  const tarball = readdirSync(cfg.tmp).find(f => f.endsWith('.tar.gz'))
-  if (!tarball) throw new Error(`release ${cfg.ref} has no .tar.gz asset.`)
-  return {
-    manifest,
-    tarball: path.join(cfg.tmp, tarball),
-  }
-}
-/**
- * Fetch the fleet bundle: GHCR primary, GitHub-Release fallback. Tries the
- * anonymous OCI pull first; on ANY failure logs the reason to STDERR and falls
- * back to `gh release download`. Returns the on-disk tarball + manifest paths
- * plus which source served them. The injectable `ghcrFetch` / `ghFetch` seams
- * let tests drive both paths without network.
+ * Fetch the fleet bundle from GHCR.
+ *
+ * GHCR is the only source. A GitHub-Release fallback used to sit behind this,
+ * described in its own comment as transitional until the public GHCR package
+ * existed. That package exists, and the pack no longer publishes a Release at
+ * all, so the fallback could only ever fail now: it turned a clear GHCR error
+ * into a confusing `gh` one and hid the real cause. The injected `ghcrFetch`
+ * lets tests drive it without network.
  */
 async function fetchBundleSource(config) {
   const cfg = {
     __proto__: null,
     ...config,
   }
-  const ghcrFetch = cfg.ghcrFetch ?? ghcrFetchBundle
-  const ghFetch = cfg.ghFetch ?? ghReleaseFetchBundle
-  try {
-    const fetched = await ghcrFetch({
-      ref: cfg.ref,
-      repo: cfg.repo,
-      tmp: cfg.tmp,
-    })
-    logger$2.error(
-      `install-fleet: fetched ${cfg.ref} from ghcr (${ghcrBundleRepo(cfg.repo)}).`,
-    )
-    return {
-      ...fetched,
-      source: 'ghcr',
-    }
-  } catch (e) {
-    logger$2.error(
-      `install-fleet: ghcr pull failed for ${cfg.ref} (${errorMessage(e)}); falling back to gh release download.`,
-    )
-  }
-  const fetched = await ghFetch({
+  const fetched = await (cfg.ghcrFetch ?? ghcrFetchBundle)({
     ref: cfg.ref,
     repo: cfg.repo,
     tmp: cfg.tmp,
   })
-  logger$2.error(
-    `install-fleet: fetched ${cfg.ref} from gh release (${cfg.repo}).`,
+  logger$3.error(
+    `install-fleet: fetched ${cfg.ref} from ghcr (${ghcrBundleRepo(cfg.repo)}).`,
   )
   return {
     ...fetched,
-    source: 'gh-release',
+    source: 'ghcr',
   }
+}
+
+//#endregion
+//#region scripts/repo/gen/bootstrap/src/resolve.mts
+/**
+ * @file Pack-ref resolution and lock-step assertion helpers.
+ *   Extracted from fleet.mts to keep that file under the 500-line soft cap.
+ *   Dep-0 (no socket-lib): pure logic plus the anonymous GHCR reads in
+ *   ghcr-fetch.mts. None do filesystem writes.
+ *   Lock-step note: assertLockStep enforces the cascadeSha === templateSha
+ *   invariant but does not resolve refs itself - see packTemplateSha and
+ *   resolveNewestRef.
+ */
+const MOVING_TAG = 'latest'
+const REVISION_ANNOTATION = 'org.opencontainers.image.revision'
+const logger$2 = getDep0Logger()
+/**
+ * Assert the lock-step invariant before applying a release: the member's pinned
+ * `bundle.cascadeSha` MUST equal the release's `templateSha`.
+ * `--frozen-lockfile` semantics — a hard fail (never apply a mismatched
+ * release). Returns true when intact OR when the member declares no
+ * `cascadeSha` (a non-lock-step member — the legacy ref-only pin still
+ * fetches). Logs the parsed error + returns false on mismatch.
+ */
+function assertLockStep(config) {
+  const { cascadeSha, manifestTemplateSha, ref } = {
+    __proto__: null,
+    ...config,
+  }
+  if (cascadeSha === void 0) return true
+  if (cascadeSha === manifestTemplateSha) return true
+  logger$2.error(
+    formatLockStepError({
+      cascadeSha,
+      pinnedTemplateSha: manifestTemplateSha,
+      ref,
+    }),
+  )
+  return false
+}
+const ERR_BUNDLE_BEHIND_LOCAL = 'ERR_WHEELHOUSE_BUNDLE_BEHIND_LOCAL_TEMPLATE'
+/**
+ * True when a sibling wheelhouse checkout exists AND its HEAD is strictly
+ * DESCENDED from the bundle's template SHA — the bundle is a frozen snapshot
+ * of an older template, so unpacking it would roll the member backwards.
+ *
+ * `assertLockStep` only proves the bundle matches its own pin, which is a
+ * self-consistency check. It cannot see that the pin itself went stale. On a
+ * machine that also cascades from a local template, the two writers disagree
+ * and whichever runs last wins: the cascade writes current content, then
+ * `update`'s bundle pass restores the older snapshot over it. That reverted a
+ * Socket catalog pin, dropped fleet rules out of CLAUDE.md, and reintroduced a
+ * duplicated overrides block that broke `pnpm install` — each time reported as
+ * a successful update.
+ *
+ * Returns false when there is no local wheelhouse (a thin member, or CI),
+ * where the bundle IS the only source of truth and applying it is correct.
+ * Any git failure also returns false: this guard refuses a provably stale
+ * bundle, and never blocks on a question it could not answer.
+ */
+function isBundleBehindLocalTemplate(config) {
+  const { dest, manifestTemplateSha } = {
+    __proto__: null,
+    ...config,
+  }
+  if (!manifestTemplateSha) return false
+  const wheelhouse = path.join(dest, '..', 'socket-wheelhouse')
+  if (!existsSync(path.join(wheelhouse, '.git'))) return false
+  try {
+    execFileSync(
+      'git',
+      ['merge-base', '--is-ancestor', manifestTemplateSha, 'HEAD'],
+      {
+        cwd: wheelhouse,
+        stdio: 'ignore',
+      },
+    )
+    return (
+      execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: wheelhouse,
+        encoding: 'utf8',
+      }).trim() !== manifestTemplateSha
+    )
+  } catch {
+    return false
+  }
+}
+/**
+ * Resolve the NEWEST pack ref from GHCR's moving `latest` tag.
+ *
+ * One anonymous call, and it has to work this way rather than by ordering a tag
+ * list. Measured against the live registry: `/v2/<repo>/tags/list` returns
+ * OLDEST first and pages at 100, so the first page began at the oldest tag and
+ * did not contain the newest pack. A member also cannot settle it by git
+ * ancestry, because its history is its own, not the wheelhouse's.
+ *
+ * So the publisher writes the same manifest at `latest` and stamps the template
+ * SHA into `org.opencontainers.image.revision`. This reads that annotation and
+ * rebuilds the ref from it.
+ *
+ * Returns undefined when the tag, the annotation, or the network is
+ * unavailable. The caller treats that as "cannot tell", the same as the old
+ * offline case, rather than as "up to date".
+ */
+async function resolveNewestRef(repo) {
+  try {
+    const ghcrRepo = ghcrBundleRepo(repo)
+    const token = await getGhcrToken(ghcrRepo, GHCR_HOST)
+    const revision = (
+      await fetchOciManifest(ghcrRepo, MOVING_TAG, token, GHCR_HOST)
+    ).annotations?.[REVISION_ANNOTATION]
+    if (typeof revision !== 'string') return
+    const ref = `fleet-pack-${revision}`
+    return packTemplateSha(ref) === void 0 ? void 0 : ref
+  } catch {
+    return
+  }
+}
+/**
+ * The template SHA a pack ref names, read from the ref itself.
+ *
+ * No network and no `gh`. The publish workflow derives the OCI tag and the
+ * bundle contents from one `git rev-parse HEAD`, so the tag sha IS the template
+ * sha and a fetched manifest could only restate it. That matters beyond speed:
+ * the old path shelled `gh release download` against a channel the pack no
+ * longer publishes to, so it now returns undefined for every new pack and
+ * `fleet:status` silently loses the pinned sha.
+ *
+ * Returns undefined for a ref that carries no full sha, which the caller treats
+ * the same as the old "asset absent" case.
+ */
+function packTemplateSha(ref) {
+  return /^fleet-pack-(?<sha>[0-9a-f]{40})$/.exec(ref)?.groups?.['sha']
 }
 
 //#endregion
@@ -2518,9 +2959,11 @@ function parseArgs(argv) {
     manifest: void 0,
     noHeader: false,
     quiet: false,
+    refreshTracked: false,
     ref: '',
     repo: DEFAULT_REPO,
     status: false,
+    fromTemplate: false,
     thin: false,
     wire: false,
   }
@@ -2533,9 +2976,11 @@ function parseArgs(argv) {
     else if (arg === '--exit-code') opts.exitCode = true
     else if (arg === '--if-current') opts.ifCurrent = true
     else if (arg === '--json') opts.json = true
+    else if (arg === '--from-template') opts.fromTemplate = true
     else if (arg === '--manifest') opts.manifest = argv[++i]
     else if (arg === '--no-header') opts.noHeader = true
     else if (arg === '--quiet') opts.quiet = true
+    else if (arg === '--refresh-tracked') opts.refreshTracked = true
     else if (arg === '--ref') opts.ref = argv[++i] ?? ''
     else if (arg === '--repo') opts.repo = argv[++i] ?? DEFAULT_REPO
     else if (arg === '--status') opts.status = true
@@ -2550,7 +2995,7 @@ function parseArgs(argv) {
  * state, prints the table / JSON / line, and returns the terraform-style exit
  * code (0 CURRENT, 0|10 UPDATE-AVAILABLE, 1 OUT-OF-SYNC).
  */
-function runStatus(config) {
+async function runStatus(config) {
   const cfg = {
     __proto__: null,
     ...config,
@@ -2570,14 +3015,14 @@ function runStatus(config) {
     cascadeSha: bundleConfig.cascadeSha ?? '',
     ref,
   }
-  const pinnedTemplateSha = resolveReleaseTemplateSha(ref, repo)
-  const newestRef = resolveNewestRef(repo)
+  const pinnedTemplateSha = packTemplateSha(ref)
+  const newestRef = await resolveNewestRef(repo)
   const newestTemplateSha =
     newestRef === void 0
       ? void 0
       : newestRef === ref
         ? pinnedTemplateSha
-        : resolveReleaseTemplateSha(newestRef, repo)
+        : packTemplateSha(newestRef)
   const state = resolveLockStepState({
     config: lockStepConfig,
     newestRef,
@@ -2711,9 +3156,9 @@ async function installFleet(config) {
         return 1
       }
     }
-    const memberManifest = filterManifestForShape(
-      manifest,
-      readBuildShape(dest),
+    const memberManifest = filterManifestForCapabilities(
+      filterManifestForShape(manifest, readBuildShape(dest)),
+      readDeclaredCapabilities(dest),
     )
     const fileCount = Object.keys(memberManifest.files).length
     const segmentCount =
@@ -2725,7 +3170,9 @@ async function installFleet(config) {
       )
       return 0
     }
-    const installResult = installFiles(filesDir, dest, memberManifest)
+    const installResult = installFiles(filesDir, dest, memberManifest, {
+      refreshTracked: cfg.refreshTracked === true,
+    })
     untrackGeneratedOutputs(dest, manifest.generatedPaths)
     const prunedCount = pruneStaleFleetFiles(
       dest,
@@ -2760,12 +3207,17 @@ async function installFleet(config) {
       installResult.skippedAlwaysTracked > 0
         ? ` ${installResult.skippedAlwaysTracked} always-tracked file(s) left to the cascade (run sync-scaffolding to refresh them).`
         : ''
+    const refreshedNote =
+      installResult.refreshedTracked.length > 0
+        ? ` Refreshed ${installResult.refreshedTracked.length} always-tracked file(s) from the bundle — commit these changes:\n` +
+          installResult.refreshedTracked.map(rel => `  • ${rel}`).join('\n')
+        : ''
     logger.log(
-      `install-fleet: placed ${installResult.placed} of ${fileCount} file(s) + ${segmentCount} segment(s)${prunedNote} from ${sourceRef} (template ${manifest.templateSha}) → ${dest}.${skippedNote}`,
+      `install-fleet: placed ${installResult.placed} of ${fileCount} file(s) + ${segmentCount} segment(s)${prunedNote} from ${sourceRef} (template ${manifest.templateSha}) → ${dest}.${skippedNote}${refreshedNote}`,
     )
     return 0
   } finally {
-    rm(tmp)
+    rm(tmp, os.tmpdir())
   }
 }
 function isMainModule() {
@@ -2777,11 +3229,54 @@ function isMainModule() {
     return false
   }
 }
+/**
+ * The `--from-template` verb: materialize this checkout's fleet mirrors from
+ * its own `template/base`, then report what was placed.
+ *
+ * Exit 1 when the checkout carries no `template/base` — a consumer ran the
+ * producer verb, a wiring mistake worth failing on rather than silently
+ * no-opping into an unusable tree.
+ */
+function runFromTemplate(config) {
+  const dest = path.resolve(config.dest ?? repoRoot)
+  const manifestPath = path.join(
+    dest,
+    'scripts',
+    'repo',
+    'sync-scaffolding',
+    'manifest',
+    'fleet-files.json',
+  )
+  if (!existsSync(manifestPath)) {
+    logger.error(
+      `install-fleet: --from-template: no mirror manifest at ${manifestPath}.`,
+    )
+    return 1
+  }
+  const result = materializeFromLocalTemplate(
+    dest,
+    JSON.parse(readFileSync(manifestPath, 'utf8')),
+    { refreshTracked: config.refreshTracked },
+  )
+  if (result === void 0) {
+    logger.error(
+      'install-fleet: --from-template: no template/base here — that verb is for the payload PRODUCER; a consumer fetches its bundle.',
+    )
+    return 1
+  }
+  if (!config.quiet)
+    logger.log(
+      `install-fleet: materialized ${result.placed} file(s) from template/base (${result.skippedAlwaysTracked} always-tracked left alone).`,
+    )
+  return 0
+}
 if (isMainModule()) {
   const parsed = parseArgs(process.argv.slice(2))
   process.exitCode = parsed.status
-    ? runStatus(parsed)
-    : await installFleet(parsed)
+    ? await runStatus(parsed)
+    : parsed.fromTemplate
+      ? runFromTemplate(parsed)
+      : await installFleet(parsed)
 }
 
 //#endregion
@@ -2790,8 +3285,10 @@ export {
   ERR_LOCKSTEP_MISMATCH,
   FLEET_STATUS_SCRIPT,
   GHCR_HOST,
+  HYBRID_BUNDLE_PATHS,
   MANIFEST_ACCEPT,
   PREPARE_FETCH,
+  PREPARE_FROM_TEMPLATE,
   SETTINGS_CANDIDATES,
   SYNC_FLEET_SCRIPT,
   UPDATE_NOTIFIER_OPT_OUT_ENV,
@@ -2806,6 +3303,7 @@ export {
   fetchBlob,
   fetchBundleSource,
   fetchOciManifest,
+  filterManifestForCapabilities,
   filterManifestForShape,
   findFleetBlockSpans,
   firstHeader,
@@ -2813,7 +3311,7 @@ export {
   formatLockStepError,
   formatUpdateNotice,
   getGhcrToken,
-  ghReleaseFetchBundle,
+  ghcrBasicAuthHeader,
   ghcrBundleRepo,
   ghcrFetchBundle,
   ghcrTokenUrl,
@@ -2825,14 +3323,18 @@ export {
   installWorkspaceSegment,
   isBundleBehindLocalTemplate,
   isMainModule,
+  listOciTags,
   lockStepExitCode,
+  materializeFromLocalTemplate,
   maybeShowUpdateNotice,
   mergeWorkspaceYaml,
   mergeYamlKeyBlock,
+  nextTagPageUrl,
   normalizeBundlePath,
   normalizeManifestEntryPath,
   packBeginMarker,
   packEndMarker,
+  packTemplateSha,
   parseArgs,
   parseWwwAuthenticate,
   parseYamlEntryChunks,
@@ -2846,13 +3348,13 @@ export {
   readBuildShape,
   readBundleConfig,
   readBundleRef,
+  readDeclaredCapabilities,
   readManifest,
   readNoticeStore,
   refreshFleetPackIgnores,
   removeTombstonedPaths,
   resolveLockStepState,
   resolveNewestRef,
-  resolveReleaseTemplateSha,
   resolveRepoRoot,
   resolveSettingsPath,
   run,
@@ -2864,6 +3366,7 @@ export {
   splicePackBlock,
   spliceYamlSeparatorRun,
   statusJson,
+  stripLegacyPackBlock,
   stripLegacyUntrackEntriesFromFleetBlock,
   tarExecutable,
   tarExtractArgs,

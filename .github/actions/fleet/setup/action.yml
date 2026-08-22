@@ -88,6 +88,9 @@ runs:
         # darwin-arm64, win-x64, …). Detects musl via Node's own
         # process.report so we don't shell out to ldd.
         PLATFORM="$(node "$PLATFORM_TOOL")"
+        # Schema-lookup key for external-tools.json `platforms` (win32-*).
+        # NOT $PLATFORM, which is the prose shape (win-*) and misses on Windows.
+        PLATFORM_KEY="$(node "${GITHUB_ACTION_PATH}/../_shared/platform-key.mjs")"
         PNPM_DIR="${RUNNER_TEMP:-/tmp}/pnpm-bin"
         PNPM_BIN="$PNPM_DIR/pnpm"
         if [ -f "$TOOLS_FILE" ]; then
@@ -106,17 +109,17 @@ runs:
             exit 1
           fi
           # Branch decisions — the tools-file schema probe and the extended-env
-          # disabled-seam gating — live in the co-located plan-setup-tools.mjs:
+          # gating — live in the co-located plan-setup-tools.mjs:
           # pure functions, unit-tested in the wheelhouse, run via
           # $GITHUB_ACTION_PATH so it travels when a member consumes the action
           # — same shape as github-status-check's probe-github-status.mjs.
           # Inputs go in via env; decisions come back on stdout.
           export TOOLS_FILE
           # The staged file always exists at $TOOLS_DEST; only the env-var
-          # pointer to it is gated. Disabled-seam: the cp above stays
-          # unconditional (the wire-in point), but the SOCKET_TOOL_CHECKSUMS_FILE
+          # pointer to it is gated. Gated off: the cp above stays
+          # unconditional (the extension point), but the SOCKET_TOOL_CHECKSUMS_FILE
           # export — which no load-bearing step reads — is off unless a consumer
-          # opts in via extended-env. See disabled-seam-pattern (fleet docs).
+          # opts in via extended-env. See gated-extension-point (fleet docs).
           TOOLS_DEST="$TOOLS_DEST" node "$PLAN" pnpm-checksums-env >> "${GITHUB_ENV:-/dev/null}"
           # Read JSON values via lib/jq.mjs. Node is preinstalled on
           # every GitHub-hosted runner image and in node:* Docker base
@@ -129,8 +132,8 @@ runs:
           # top level (legacy flat). Probe once; an empty $NS splits away.
           NS="$(node "$PLAN" namespace)"
           PNPM_VERSION="$(node "$JQ" "$TOOLS_FILE" $NS pnpm version)"
-          ASSET="$(node "$JQ" "$TOOLS_FILE" $NS pnpm platforms "$PLATFORM" asset)"
-          INTEGRITY="$(node "$JQ" "$TOOLS_FILE" $NS pnpm platforms "$PLATFORM" integrity)"
+          ASSET="$(node "$JQ" "$TOOLS_FILE" $NS pnpm platforms "$PLATFORM_KEY" asset)"
+          INTEGRITY="$(node "$JQ" "$TOOLS_FILE" $NS pnpm platforms "$PLATFORM_KEY" integrity)"
           # An `<name>-<version>.tgz` asset is a JS-only npm-registry tarball
           # (pnpm ships no darwin-x64 SEA binary since 11.0.5,
           # nodejs/node#62893) — it downloads from the npm registry and runs
@@ -141,7 +144,7 @@ runs:
           # mac setup 404'd against the GitHub release).
           SOURCE=""
           [[ "$ASSET" == *.tgz ]] && SOURCE="npm-registry"
-          BINARY_REL="$(node "$JQ" "$TOOLS_FILE" $NS pnpm platforms "$PLATFORM" binary 2>/dev/null || echo "")"
+          BINARY_REL="$(node "$JQ" "$TOOLS_FILE" $NS pnpm platforms "$PLATFORM_KEY" binary 2>/dev/null || echo "")"
           BINARY_REL="${BINARY_REL:-package/bin/pnpm.cjs}"
           [[ "$ASSET" == *.zip ]] && PNPM_BIN="$PNPM_DIR/pnpm.exe"
           if [ ! -x "$PNPM_BIN" ]; then
@@ -256,10 +259,10 @@ runs:
         # Optional pnpm provenance for downstream steps and Docker builds —
         # lets a consumer pass `--build-arg PNPM_VERSION` sourced from the
         # SOCKET_TOOL_PNPM_VERSION env var instead of a drift-prone ARG
-        # default. Disabled-seam: pnpm is already on $GITHUB_PATH above (the
-        # load-bearing wire-in), so these provenance vars have no required
+        # default. Gated off: pnpm is already on $GITHUB_PATH above (the
+        # load-bearing export), so these provenance vars have no required
         # consumer — gated off unless extended-env opts in. See
-        # disabled-seam-pattern (fleet docs).
+        # gated-extension-point (fleet docs).
         export PNPM_VERSION PLATFORM ASSET INTEGRITY PNPM_BIN PNPM_DIR
         node "$PLAN" pnpm-env >> "${GITHUB_ENV:-/dev/null}"
 
@@ -380,16 +383,19 @@ runs:
         } <<<"$SFW_SELECT"
         SFW_VERSION="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_VERSION_PATH)"
         PLATFORM="$(node "$PLATFORM_TOOL")"
+        # Schema-lookup key for external-tools.json `platforms` (win32-*).
+        # NOT $PLATFORM, which is the prose shape (win-*) and misses on Windows.
+        PLATFORM_KEY="$(node "${GITHUB_ACTION_PATH}/../_shared/platform-key.mjs")"
         # Hard-fail with a clear message on unsupported platforms (eg
         # win-arm64) rather than silently skipping. SFW is a required
         # dependency of the install flow, unlike zizmor (audit-only).
-        if ! ASSET="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM" asset 2>/dev/null)"; then
-          echo "× SFW (${SFW_FLAVOR}) is not published for ${PLATFORM} at v${SFW_VERSION}." >&2
-          echo "  Supported: linux-{x64,arm64}{,-musl}, darwin-{x64,arm64}, win-x64." >&2
-          echo "  win-arm64 has no upstream binary — skip SFW-dependent steps on that runner or wait for upstream support." >&2
+        if ! ASSET="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM_KEY" asset 2>/dev/null)"; then
+          echo "× SFW (${SFW_FLAVOR}) is not published for ${PLATFORM_KEY} at v${SFW_VERSION}." >&2
+          echo "  Supported: linux-{x64,arm64}{,-musl}, darwin-{x64,arm64}, win32-x64." >&2
+          echo "  win32-arm64 has no upstream binary — skip SFW-dependent steps on that runner or wait for upstream support." >&2
           exit 1
         fi
-        INTEGRITY="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM" integrity)"
+        INTEGRITY="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM_KEY" integrity)"
         SFW_BIN_NAME="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH binaryName)"
         if [[ "$ASSET" == *.exe ]]; then
           SFW_BIN_NAME="${SFW_BIN_NAME}.exe"
@@ -495,11 +501,11 @@ runs:
             if [ -n "$SFW_VERSION_PATH" ]; then
               SFW_VERSION="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_VERSION_PATH)"
             fi
-            if ! ASSET="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM" asset 2>/dev/null)"; then
+            if ! ASSET="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM_KEY" asset 2>/dev/null)"; then
               echo "× SFW-free fallback: no asset for ${PLATFORM} at v${SFW_VERSION}." >&2
               exit 1
             fi
-            INTEGRITY="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM" integrity)"
+            INTEGRITY="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH platforms "$PLATFORM_KEY" integrity)"
             SFW_BIN_NAME="$(node "$JQ" "$TOOLS_FILE" $NS $SFW_PATH binaryName)"
             if [[ "$ASSET" == *.exe ]]; then
               SFW_BIN_NAME="${SFW_BIN_NAME}.exe"

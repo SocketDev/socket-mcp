@@ -68,7 +68,7 @@
     "lockstep": "node scripts/fleet/lockstep.mts",
     "lockstep:emit-schema": "node scripts/fleet/lockstep-emit-schema.mts",
     "lockstep:emit-mirror-globs": "node scripts/fleet/lockstep-emit-mirror-globs.mts",
-    "ci:local": "node scripts/fleet/agent-ci-skip-locks.mts run --all --quiet --pause-on-failure --github-token",
+    "ci:local": "node scripts/fleet/local-ci-skip-locks.mts run --all --quiet --pause-on-failure --github-token",
     "weekly-update": "node scripts/fleet/weekly-update.mts",
     "doctor:auth": "node scripts/fleet/check/setup-is-prompt-less.mts",
     "sync-oxlint-rules": "node scripts/fleet/sync-oxlint-rules.mts",
@@ -76,7 +76,6 @@
     "doctor": "node scripts/fleet/doctor.mts",
     "setup:brew": "node scripts/fleet/setup/brew.mts",
     "setup:go": "node scripts/fleet/setup/go.mts",
-    "setup:mcp": "node scripts/fleet/setup/mcp.mts",
     "setup:python": "node scripts/fleet/setup/python.mts",
     "setup:refero": "node scripts/fleet/setup/refero.mts",
     "setup:rust": "node scripts/fleet/setup/rust.mts",
@@ -106,16 +105,21 @@
     "fix:repo": "node scripts/fleet/fix.mts --repo",
     "fmt:js": "node scripts/fleet/format.mts",
     "lint:js": "node scripts/fleet/lint.mts",
-    "gh:auth": "node scripts/fleet/gh-auth.mts"
+    "gh:auth": "node scripts/fleet/gh-auth.mts",
+    "sync-global-hooks": "node scripts/fleet/sync-global-hooks.mts",
+    "backup": "node scripts/fleet/backup-work.mts",
+    "offload:model": "node scripts/fleet/offload-model.mts",
+    "setup:fireconnect": "node scripts/fleet/setup/fireconnect.mts",
+    "setup:offload-providers": "node scripts/fleet/setup/offload-providers.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "catalog:",
+    "@mdn/browser-compat-data": "catalog:",
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/core": "2.0.0",
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.0.0",
     "@playwright/mcp": "catalog:",
-    "@redwoodjs/agent-ci": "catalog:",
     "@shadscan/cli": "catalog:",
     "@sinclair/typebox": "catalog:",
     "@socketregistry/packageurl-js": "catalog:",
@@ -129,6 +133,7 @@
     "@types/semver": "catalog:",
     "@types/shell-quote": "catalog:",
     "@typescript/native-preview": "catalog:",
+    "@ultrathink/acorn.rs.wasm": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
     "@vitiate/core": "catalog:",
@@ -153,6 +158,7 @@
     "portless": "catalog:",
     "regjsparser": "catalog:",
     "rolldown": "catalog:",
+    "run-local-ci": "catalog:",
     "semver": "catalog:",
     "shell-quote": "catalog:",
     "svgo": "catalog:",
@@ -161,7 +167,8 @@
     "typescript": "catalog:",
     "untracked": "catalog:",
     "vitest": "catalog:",
-    "vitiate": "catalog:"
+    "vitiate": "catalog:",
+    "yaml": "catalog:"
   },
   "devEngines": {
     "packageManager": {

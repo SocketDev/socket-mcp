@@ -1,7 +1,7 @@
 name: 🔁 Weekly Update
 
 # PLAIN workflow — no gh-aw, no ANTHROPIC_API_KEY. The update's judgment legs
-# run on the on-device model through the odai seam (setup-odai provisions
+# run on the on-device model through the odai runner (setup-odai provisions
 # Chrome + the cached ~4 GB component; every gap clean-skips on exit 69), so
 # the whole workflow is keyless by construction. The escalation it dispatches
 # when tests go red, get-green, is keyless the same way now — a plain workflow
@@ -79,6 +79,9 @@ jobs:
           set -euo pipefail
           ACTIONABLE='true'
           node scripts/fleet/weekly-update.mts --check-updates || ACTIONABLE='false'
+          # Report inline-action port drift (does not gate the update; a
+          # behind port is reported for the weekly output).
+          node scripts/fleet/sync-inline-action-pins.mts || true
           echo "actionable=${ACTIONABLE}" >> "$GITHUB_OUTPUT"
 
   update:
