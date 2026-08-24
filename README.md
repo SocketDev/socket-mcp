@@ -41,12 +41,8 @@ Custom integrations are not available on every paid Claude plan. Check [Anthropi
    {
      "mcpServers": {
        "socket-mcp": {
-         "command": "npx",
-         "args": [
-           "-y",
-           "mcp-remote@latest",
-           "https://mcp.socket.dev/"
-         ]
+         "type": "http",
+         "url": "https://mcp.socket.dev/"
        }
      }
    }
@@ -149,12 +145,18 @@ Self-hosting keeps every request inside your own infrastructure. It needs a Sock
 
 Stdio is the default and the right answer for a single developer. Choose HTTP when more than one person, or something that is not a local process, needs to reach the server.
 
+Install it once, globally, before either option:
+
+```sh
+pnpm add -g @socketsecurity/mcp
+```
+
 <details><summary><b>Option 2a - Stdio mode (default)</b></summary>
 
 Claude Code:
 
 ```sh
-claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- pnpm dlx @socketsecurity/mcp@latest
+claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- socket-mcp
 ```
 
 Most other MCP clients:
@@ -163,8 +165,7 @@ Most other MCP clients:
 {
   "mcpServers": {
     "socket-mcp": {
-      "command": "npx",
-      "args": ["@socketsecurity/mcp@latest"],
+      "command": "socket-mcp",
       "env": {
         "SOCKET_API_TOKEN": "your-api-token-here"
       }
@@ -177,10 +178,10 @@ Most other MCP clients:
 
 <details><summary><b>Option 2b - HTTP mode</b></summary>
 
-Run the server in HTTP mode with pnpm dlx:
+Run the server in HTTP mode:
 
 ```sh
-MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token pnpm dlx @socketsecurity/mcp@latest --http
+MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token socket-mcp --http
 ```
 
 The server listens on `http://localhost:3000/`. The MCP endpoint is `/` and the health endpoint is `/health`; every other path answers `404`.
@@ -233,7 +234,7 @@ MCP_HTTP_MODE=true \
 SOCKET_OAUTH_ISSUER=https://issuer.example.com \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_ID=your-client-id \
 SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret \
-pnpm dlx @socketsecurity/mcp@latest --http
+socket-mcp --http
 ```
 
 With OAuth enabled, every request to the MCP endpoint goes through RFC 7662 token introspection. A raw Socket API token is rejected with a `401`, whatever its prefix; a `sktsec_` token is no more privileged than any other string here. Callers send an OAuth access token, and the server uses that token for the Socket API calls it makes on their behalf. Run without the OAuth variables to accept raw Socket API tokens instead.
@@ -303,7 +304,7 @@ Query the Socket API for dependency scoring information. Returns supply chain, q
 | `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                                                                                                                                                                |
 | `platform`             | String | No       | -           | OS-architecture hint (`linux-x64`, `darwin-arm64`, `win32-x64`) applied to every package in the request. Picks the most relevant artifact when a package ships platform-specific builds. |
 
-**Supported ecosystems**
+##### Supported ecosystems
 
 Based on [Socket's language support](https://docs.socket.dev/docs/language-support). The `ecosystem` parameter maps to PURL types:
 
