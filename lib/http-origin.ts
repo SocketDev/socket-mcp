@@ -47,6 +47,21 @@ export function patchAcceptHeader(req: IncomingMessage): void {
 // Same-origin policy for the HTTP transport: allow localhost (any port),
 // production hosts, or Origin-less same-origin requests from matching
 // Host headers.
+//
+// The Origin check exists for DNS-rebinding protection: a malicious webpage
+// in a browser tab can reach a locally-bound MCP server through the user's
+// browser, so a localhost listener must reject cross-origin requests it
+// didn't expect. That threat model doesn't extend to the hosted deployment -
+// once a request has actually reached mcp.socket.dev/mcp.socket-staging.dev
+// (real public hosts, not a rebindable private listener), the only credential
+// that matters is the Bearer token authenticateRequest checks; there's no
+// ambient/cookie-based credential for a forged cross-origin request to ride
+// on. Gating the hosted host on a fixed Origin allowlist doesn't add real
+// CSRF protection there - it only breaks legitimate non-browser MCP clients
+// (Claude Desktop, Codex, etc.) whose HTTP stacks happen to set an Origin
+// header. So: once the request's Host matches a known hosted deployment, any
+// Origin (or none) passes; the strict allowlist stays in force for the
+// localhost/dev-rebinding case, which is the case it actually protects.
 export function validateOriginAndHost(
   origin: string,
   host: string,
@@ -59,9 +74,13 @@ export function validateOriginAndHost(
     host === 'localhost' ||
     host === '127.0.0.1' ||
     allowedHosts.includes(host)
-  return origin
-    ? isLocalhostOrigin(origin) || ALLOWED_ORIGINS.includes(origin)
-    : isAllowedHost
+  if (!origin) {
+    return isAllowedHost
+  }
+  if (allowedHosts.includes(host)) {
+    return true
+  }
+  return isLocalhostOrigin(origin) || ALLOWED_ORIGINS.includes(origin)
 }
 
 // Wire CORS response headers when the request carried an Origin. We
