@@ -7,7 +7,9 @@
  *   - `isLocalhostOrigin` returns a boolean for ANY string (never throws), true
  *     iff the URL's hostname is `localhost` or `127.0.0.1`.
  *   - `validateOriginAndHost` allows a request iff (origin present) the origin is
- *     localhost or on the production allow-list, or (origin absent) the host
+ *     localhost or on the production allow-list or the Host itself is an
+ *     allow-listed hosted deployment (Bearer-token auth, not Origin, gates that
+ *     case - see the doc comment on the function), or (origin absent) the host
  *     matches localhost / 127.0.0.1 (with or without the bound port) or an
  *     allow-listed production host. It never throws. Properties CONSTRUCT
  *     origins/hosts whose verdict is known up front rather than reimplementing
@@ -105,13 +107,34 @@ describe('lib/http-origin validateOriginAndHost (fuzz)', () => {
     )
   })
 
-  // A present-but-unlisted public origin is rejected regardless of host: when
-  // an origin is sent the host branch is not consulted.
-  test('an unlisted public origin is rejected regardless of host', () => {
+  // A present-but-unlisted public origin is rejected unless the Host itself
+  // is an allow-listed hosted deployment - the fixed exception documented on
+  // the function.
+  test('an unlisted public origin is rejected against a non-hosted host', () => {
     fc.assert(
-      fc.property(publicOrigin, fc.string(), port, (origin, host, p) => {
-        expect(validateOriginAndHost(origin, host, p)).toBe(false)
-      }),
+      fc.property(
+        publicOrigin,
+        word.map(w => `${w}.example.com`),
+        port,
+        (origin, host, p) => {
+          expect(validateOriginAndHost(origin, host, p)).toBe(false)
+        },
+      ),
+    )
+  })
+
+  // A present-but-unlisted public origin is accepted once the Host matches a
+  // hosted deployment: Bearer-token auth gates that case, not Origin.
+  test('an unlisted public origin is accepted against an allow-listed host', () => {
+    fc.assert(
+      fc.property(
+        publicOrigin,
+        fc.constantFrom(...ALLOWED_HOSTS),
+        port,
+        (origin, host, p) => {
+          expect(validateOriginAndHost(origin, host, p)).toBe(true)
+        },
+      ),
     )
   })
 

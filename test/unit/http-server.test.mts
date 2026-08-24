@@ -131,6 +131,26 @@ describe('routeRequest', () => {
     expect(calls).toHaveLength(0)
   })
 
+  test('reaches the MCP handler when the Origin is a native client against the hosted host', async () => {
+    // Claude Desktop's custom connector sends Origin: https://claude.ai
+    // against Host: mcp.socket.dev. That combination used to 403 before ever
+    // reaching OAuth discovery or the MCP handler - this is the regression
+    // test for that report.
+    const { res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await routeRequest(
+      handler,
+      plainReq({
+        url: '/',
+        method: 'GET',
+        headers: { origin: 'https://claude.ai', host: 'mcp.socket.dev' },
+      }),
+      res,
+      3000,
+    )
+    expect(calls).toHaveLength(1)
+  })
+
   test('answers an OPTIONS preflight with CORS headers', async () => {
     const { captured, res } = makeRes()
     const { handler } = recordingMcpHandler()

@@ -43,10 +43,26 @@ describe('validateOriginAndHost', () => {
     ).toBe(true)
   })
 
-  test('rejects a non-allow-listed origin', () => {
+  test('rejects a non-allow-listed origin against a localhost host', () => {
     expect(
       validateOriginAndHost('https://evil.example.com', 'localhost:3000', 3000),
     ).toBe(false)
+  })
+
+  test('allows a non-allow-listed origin once the Host matches the hosted deployment', () => {
+    // Claude Desktop's custom connector (and other native MCP clients) send
+    // an Origin header their HTTP stack sets automatically; Bearer-token
+    // auth, not Origin, is what actually gates the hosted deployment.
+    expect(
+      validateOriginAndHost('https://claude.ai', 'mcp.socket.dev', 3000),
+    ).toBe(true)
+    expect(
+      validateOriginAndHost(
+        'https://chatgpt.com',
+        'mcp.socket-staging.dev',
+        3000,
+      ),
+    ).toBe(true)
   })
 
   test('falls back to host check when no origin is sent', () => {
