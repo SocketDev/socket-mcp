@@ -126,7 +126,7 @@ The spec wants both content types in `Accept`. The server rewrites a missing or
 partial `Accept` header before the MCP handler sees it, so a bare `curl` also
 works, but a real client should send both.
 
-The response is a Server-Sent Events stream, so the JSON arrives on a `data: `
+The response is a Server-Sent Events stream, so the JSON arrives on a `data:`
 line rather than as a bare body.
 
 Sending an `Origin` header that does not name this server gets a `403`. Omitting
