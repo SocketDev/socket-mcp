@@ -646,6 +646,8 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 
 **Q: The public server isn't responding** - Check the URL `https://mcp.socket.dev/`, verify your MCP client configuration, restart your MCP client.
 
+**Q: Getting a `403 Forbidden: Invalid origin` error, or the connector never opens an OAuth screen** - Fixed as of the native HTTP config above. Some MCP clients (Claude Desktop's custom connector, Codex, etc.) send an `Origin` header their HTTP stack sets automatically; the server now trusts the hosted deployment's `Host` over a fixed Origin allowlist. If you still see this, make sure your client is pointed at `https://mcp.socket.dev/` (not a stale cached config) and retry.
+
 **Q: Local server fails to start** - Ensure Node.js 24+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission. In stdio mode a missing token is fatal: the server prints `SOCKET_API_TOKEN environment variable is required in stdio mode` and exits `1`.
 
 **Q: The server exits with `Incomplete OAuth configuration for HTTP mode`** - `SOCKET_OAUTH_ISSUER`, `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`, and `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` must all be set or all be unset.
