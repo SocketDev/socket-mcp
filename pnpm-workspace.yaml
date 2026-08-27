@@ -41,23 +41,6 @@ autoInstallPeers: true
 # can't silently widen the trust boundary.
 blockExoticSubdeps: true
 
-# Proceed with a node_modules purge WITHOUT an interactive confirm. The fleet
-# runs pnpm non-interactively everywhere (skills, scripts, hooks, agents, CI) —
-# no TTY. pnpm's default ABORTS a purge for lack of a TTY
-# (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), wedging any commit whose
-# pre-commit re-checks deps after a workspace/.npmrc change. Purging
-# node_modules is safe (gitignored + regenerable). Unlike CI=true this does NOT
-# force a frozen lockfile; CI keeps owning frozen-vs-update policy.
-confirmModulesPurge: false
-
-# Opt out of pnpm's packageManager-version self-check. CI installs pnpm from
-# its native bin via the shared setup workflow, not corepack, so the runner's
-# pnpm legitimately differs from the `packageManager` pin (which is
-# informational, not a version to enforce). Without this, pnpm hard-fails
-# ("This project is configured to use <pin> ... your current pnpm is <run>")
-# the moment the runner's pnpm differs from the pin.
-managePackageManagerVersions: false
-
 catalog:
   '@mdn/browser-compat-data': 8.0.11
   # agent-ci runs a repo's GitHub Actions workflows locally in Docker so a
