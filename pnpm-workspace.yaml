@@ -198,6 +198,7 @@ catalog:
   'ecc-agentshield': 1.4.0
   'npm-run-all2': 9.0.2
   'untracked': 1.6.5
+  'yaml': 2.9.0
 enablePrePostScripts: true
 
 # pnpm `overrides` block — two purposes:
