@@ -98,7 +98,7 @@ beforeEach(async () => {
     httpServer.listen(0, '127.0.0.1', resolve)
   })
   const address = httpServer.address()
-  port = typeof address === 'object' && address ? address.port : 0
+  port = typeof address === 'object' && address !== null ? address.port : 0
   endpoint = `http://127.0.0.1:${port}/`
 })
 

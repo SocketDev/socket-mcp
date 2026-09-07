@@ -42,7 +42,8 @@ async function reserveFreePort(): Promise<number> {
     probe.listen(0, '127.0.0.1', resolve)
   })
   const address = probe.address()
-  const port = typeof address === 'object' && address ? address.port : 0
+  const port =
+    typeof address === 'object' && address !== null ? address.port : 0
   await new Promise<void>(resolve => {
     probe.close(() => resolve())
   })

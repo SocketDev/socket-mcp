@@ -7,7 +7,7 @@ const SOCKET_REPORT_BASE = 'https://socket.dev'
 // ecosystem (npm scopes use `@ns/name`, golang/maven/composer use `ns/name`).
 export function buildSocketReportUrl(data: unknown): string {
   let obj: Record<string, unknown> = Object.create(null)
-  if (data && typeof data === 'object') {
+  if (data !== null && typeof data === 'object') {
     // Narrowed by the typeof-object check above; Record<string, unknown> is
     // the loosest object view and each field is type-guarded below.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- widening

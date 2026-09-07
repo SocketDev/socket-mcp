@@ -105,9 +105,7 @@ describe('routeRequest', () => {
       3000,
     )
     expect(captured.statusCode).toBe(403)
-    expect(JSON.parse(captured.body!).error.message).toBe(
-      'Forbidden: Invalid origin',
-    )
+    expect(JSON.parse(captured.body!).error.code).toBe(-32_000)
     expect(calls).toHaveLength(0)
   })
 
