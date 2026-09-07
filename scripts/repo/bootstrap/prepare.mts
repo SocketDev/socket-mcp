@@ -295,7 +295,7 @@ export async function maybeNotifyUpdate(): Promise<void> {
         ) =>
           | { lastCheckMs: number; lastSeenRef: string | undefined }
           | undefined
-        resolveNewestRef: (repo: string) => string | undefined
+        resolveNewestRef: (repo: string) => Promise<string | undefined>
       }
     const cfg = readBundleConfig(REPO_ROOT)
     if (!cfg.ref) {
@@ -327,7 +327,7 @@ export async function maybeNotifyUpdate(): Promise<void> {
       return
     }
     const repo = 'SocketDev/socket-wheelhouse'
-    const newestRef = resolveNewestRef(repo)
+    const newestRef = await resolveNewestRef(repo)
     if (newestRef === undefined || newestRef === cfg.ref) {
       return
     }
