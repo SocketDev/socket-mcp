@@ -4,7 +4,7 @@
  *   TypeBox's `Type.*` constructors return JSON Schema directly, so a tool's
  *   `inputSchema` reaches clients verbatim — no zod, no conversion, no per-call
  *   validation layer. Every type here is structural, with no MCP SDK import, so
- *   the seam is portable across SDK majors and extractable into a shared
+ *   the interface is portable across SDK majors and extractable into a shared
  *   package. Every `tool-*.ts` module exports a `define*Tool(): ToolSpec`. The
  *   server consumes the array via `server.ts` and dispatches `tools/list` +
  *   `tools/call` requests by name.
@@ -15,24 +15,29 @@
  * `default: null`, a `null` entry in an `enum` — so the type has to admit it
  * even though socket-mcp code prefers `undefined`.
  */
+// JSON member names are arbitrary strings; values follow the recursive JSON type.
+export interface JsonObject {
+  [key: string]: JsonValue
+}
+
 export type JsonValue =
   | string
   | number
   | boolean
   | null
   | JsonValue[]
-  | { [key: string]: JsonValue }
+  | JsonObject
 
 /**
  * MCP `Tool.inputSchema` shape: a JSON Schema object with `type: 'object'`, an
  * optional `properties` map and an optional `required` string array, plus any
  * further JSON Schema keywords a tool wants to set. Defined structurally so the
- * seam stays SDK-free; it is checked against the SDK's own
+ * interface stays SDK-free; it is checked against the SDK's own
  * `Tool['inputSchema']` at the `tools/list` registration site in `server.ts`.
  */
 export interface ToolInputSchema {
   type: 'object'
-  properties?: Record<string, JsonValue> | undefined
+  properties?: JsonObject | undefined
   required?: string[] | undefined
   [key: string]: unknown
 }
