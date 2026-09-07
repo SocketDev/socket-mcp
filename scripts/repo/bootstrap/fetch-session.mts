@@ -9,7 +9,8 @@
  *   SAME dep-0 bootstrap fetcher: `scripts/repo/bootstrap/fleet.mjs
  *   --if-current`. It never reimplements fetching — it shells the fetcher.
  *   Dep-0: node: builtins only, so it runs before node_modules exists. Plain
- *   `.mjs` (never type-stripped) so it runs on any Node the developer has —
+ *   `.mts`, type-stripped by Node, which every fleet repo already requires via
+ *   `engines.node >=24` —
  *   copied verbatim into the cascaded bootstrap payload by
  *   `scripts/repo/gen/bootstrap.mts`, beside `fleet.mjs`. Idempotent + fast:
  *   when the payload is already present it does a single existsSync check and
@@ -18,7 +19,7 @@
  *   `fleet.mjs` is dep-0 (node: builtins only), so it runs even on a bare clone
  *   with no node_modules — the kernel shells it to self-fetch the payload the
  *   moment a session opens, before any `pnpm install`. USAGE (settings.json
- *   SessionStart hook): node scripts/repo/bootstrap/session-fetch.mjs.
+ *   SessionStart hook): node scripts/repo/bootstrap/fetch-session.mts.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -28,13 +29,23 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 /**
+ * What the kernel must do, as a pure function of on-disk state. Declared here
+ * rather than in a sidecar `.d.mts`: the kernel is typed source now, so the
+ * declaration and the code cannot drift apart.
+ */
+export type FetchPlan =
+  | { action: 'fetch'; fleet: string }
+  | { action: 'no-fetcher' }
+  | { action: 'present' }
+
+/**
  * Ensure the fleet payload is present, materializing it via the bootstrap
  * fetcher when it is absent. Always returns 0 — the kernel is FAIL-OPEN, so a
  * SessionStart hook can never block the session on it. Warnings go to STDERR;
  * STDOUT is left clean so SessionStart never injects fetcher chatter as
  * context.
  */
-export function ensurePayload(repoRoot) {
+export function ensurePayload(repoRoot: string): number {
   const plan = planFetch(repoRoot)
   if (plan.action === 'present') {
     return 0
@@ -68,7 +79,7 @@ export function ensurePayload(repoRoot) {
  * `process.argv[1]` keeps the path as invoked, so a bare URL equality silently
  * skips the CLI body under a symlinked invocation.
  */
-export function isMainModule() {
+export function isMainModule(): boolean {
   const entry = process.argv[1]
   if (!entry) {
     return false
@@ -87,7 +98,7 @@ export function isMainModule() {
  * hooks to fire. A non-thin member tracks it, so this is always true there and
  * the kernel is inert.
  */
-export function payloadPresent(repoRoot) {
+export function payloadPresent(repoRoot: string): boolean {
   return existsSync(
     path.join(repoRoot, '.claude', 'hooks', 'fleet', 'index.cjs'),
   )
@@ -103,7 +114,7 @@ export function payloadPresent(repoRoot) {
  *   absolute `fleet` path to invoke. `fleet.mjs` is dep-0, so this holds even
  *   with no node_modules: a bare clone self-fetches.
  */
-export function planFetch(repoRoot) {
+export function planFetch(repoRoot: string): FetchPlan {
   if (payloadPresent(repoRoot)) {
     return { action: 'present' }
   }
@@ -120,7 +131,7 @@ export function planFetch(repoRoot) {
  * positional three-up if none is found (this file lives three levels deep at
  * scripts/repo/bootstrap/); never throws — the kernel must stay robust.
  */
-export function resolveRepoRoot(startDir) {
+export function resolveRepoRoot(startDir: string): string {
   let cur = startDir
   const { root } = path.parse(cur)
   while (cur && cur !== root) {
@@ -140,12 +151,54 @@ export function resolveRepoRoot(startDir) {
  * Emit a fail-open warning on STDERR. STDOUT is reserved so a SessionStart hook
  * never injects kernel output into the session context.
  */
-export function warn(message) {
-  process.stderr.write(`fleet-session-fetch: ${message}\n`)
+export function warn(message: string): void {
+  process.stderr.write(`fleet-fetch-session: ${message}\n`)
+}
+
+/**
+ * The one-line summary `--describe` prints.
+ *
+ * Spelled inline rather than through the shared `runMain` runner. That runner
+ * imports `@socketsecurity/lib-stable` at top level, and this kernel runs on a
+ * bare clone where no `node_modules` exists yet. Dep-0 is the whole point of
+ * the file, so self-describing has to cost zero dependencies.
+ */
+export const DESCRIBE =
+  're-materializes the fleet hook payload at SessionStart when a thin member was cloned without an install'
+
+export const HELP = `Usage: node scripts/repo/bootstrap/fetch-session.mts [flags]
+
+  --describe  print the one-line summary
+  --help, -h  print this usage
+
+A thin fleet member gitignores its .claude/hooks/fleet payload, so a clone
+opened before \`pnpm install\` has no hooks and they silently never fire. This
+kernel sits in a tracked location, notices the missing payload, and shells the
+dep-0 fetcher \`scripts/repo/bootstrap/fleet.mjs --if-current\` to fetch it.
+
+Fail-open: a missing fetcher or a failed fetch warns on stderr and exits 0, so
+a session never blocks. Idempotent: with the payload already present it does
+one existsSync and exits.`
+
+/**
+ * Answer `--describe` / `--help`, reporting whether the run should stop here.
+ */
+export function answeredSelfDescribe(argv: readonly string[]): boolean {
+  if (argv.includes('--describe')) {
+    process.stdout.write(`${DESCRIBE}\n`)
+    return true
+  }
+  if (argv.includes('--help') || argv.includes('-h')) {
+    process.stdout.write(`${DESCRIBE}\n\n${HELP}\n`)
+    return true
+  }
+  return false
 }
 
 if (isMainModule()) {
-  process.exitCode = ensurePayload(
-    resolveRepoRoot(path.dirname(fileURLToPath(import.meta.url))),
-  )
+  process.exitCode = answeredSelfDescribe(process.argv.slice(2))
+    ? 0
+    : ensurePayload(
+        resolveRepoRoot(path.dirname(fileURLToPath(import.meta.url))),
+      )
 }

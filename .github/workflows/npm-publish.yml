@@ -1,4 +1,4 @@
-name: 📦 npm publish
+name: 📦 npm Publish
 
 # Cascade-owned — every npm-publishing repo carries the byte-identical copy
 # (adopt by copying the template once; the sync then keeps it in lock-step;
@@ -58,16 +58,6 @@ on:
           - minor
           - patch
         default: ''
-      bump:
-        description: >-
-          Run the CI bump step: consume the committed version hint, write
-          CHANGELOG, and commit via the release App before staging. The
-          publish pipeline dispatches with false — its bump stage already
-          landed the bump commit, and a re-entrant CI bump once committed a
-          duplicate CHANGELOG section. Ignored by backfills, which never
-          bump.
-        type: boolean
-        default: true
       backfill-version:
         description: >-
           Backfill a never-published GAP version below registry latest with

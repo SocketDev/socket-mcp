@@ -81,7 +81,7 @@
     "setup:rust": "node scripts/fleet/setup/rust.mts",
     "type": "node node_modules/typescript/bin/tsc --noEmit -p .config/fleet/tsconfig.check.json",
     "socket-wheelhouse:emit-schema": "node scripts/fleet/socket-wheelhouse-emit-schema.mts",
-    "mcp:reset": "node scripts/fleet/mcp-reset.mts",
+    "mcp:reset": "node scripts/fleet/mcp/reset.mts",
     "setup:sfw-ca": "node scripts/fleet/setup/sfw-ca.mts",
     "get-green": "node scripts/fleet/get-green.mts",
     "weekly-update:ci": "gh workflow run weekly-update.yml",
@@ -110,7 +110,11 @@
     "backup": "node scripts/fleet/backup-work.mts",
     "offload:model": "node scripts/fleet/offload-model.mts",
     "setup:fireconnect": "node scripts/fleet/setup/fireconnect.mts",
-    "setup:offload-providers": "node scripts/fleet/setup/offload-providers.mts"
+    "setup:offload-providers": "node scripts/fleet/setup/offload-providers.mts",
+    "build:hook-bundle": "node scripts/fleet/build-hook-bundle.mts",
+    "build:hook-snapshot": "node scripts/fleet/build-hook-snapshot.mts",
+    "build:snapshot-launcher": "node scripts/fleet/build-snapshot-launcher.mts",
+    "gen:glyph": "node scripts/fleet/gen/glyph.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "catalog:",
@@ -179,8 +183,8 @@
   },
   "engines": {
     "node": ">=24",
-    "npm": ">=12.0.2",
-    "pnpm": ">=11.0.5"
+    "npm": "^11.19.0 || >=12.0.2",
+    "pnpm": "^11.25.0 || >=12.3.4"
   },
   "allowScripts": {
     "cpu-features": false,

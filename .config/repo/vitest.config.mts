@@ -15,11 +15,11 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
-import { getCI } from '@socketsecurity/lib-stable/env/ci'
+import { isCI } from '@socketsecurity/lib-stable/env/ci'
 import { defineConfig } from 'vitest/config'
 
 import { GENERATED_GLOBS } from '../../scripts/fleet/constants/generated-globs.mts'
-import { resolveCoverageConfig } from '../fleet/vitest.coverage.fleet.config.mts'
+import { resolveCoverageConfig } from '../../.config/fleet/vitest.coverage.fleet.config.mts'
 import {
   readConformanceExcludeGlobs,
   readNonIsolatedGlobs,
@@ -120,7 +120,7 @@ export function resolveTestBudgetMs(
       }
     | undefined,
 ): number {
-  const ci = getCI()
+  const ci = isCI()
   const base =
     ci && isCoverageEnabled
       ? 120_000
@@ -158,7 +158,7 @@ export function resolveFallbackMaxWorkers(
     cores?: number | undefined
     isCI?: boolean | undefined
   }
-  if (opts.isCI ?? getCI()) {
+  if (opts.isCI ?? isCI()) {
     return 4
   }
   // Coverage instrumentation is memory-hungry, so it keeps the flat, lower cap
@@ -456,7 +456,7 @@ export default defineConfig({
     // fuzz-tiers-are-covered's question, and which legs fire is the workflow's.
     passWithNoTests: !conformanceTier,
     // Reporters left unset so vitest applies its own default:
-    // `[isAgent ? 'minimal' : 'default', ...(GITHUB_ACTIONS ? ['github-actions'] : [])]`
+    // `[isAgent() ? 'minimal' : 'default', ...(GITHUB_ACTIONS ? ['github-actions'] : [])]`
     // (vitest/src/defaults.ts). That yields the token-lean `minimal` reporter
     // inside an AI coding agent (std-env `isAgent`: CLAUDECODE/CURSOR_/…),
     // `default` for humans, and the `github-actions` annotations reporter in CI.
@@ -468,7 +468,7 @@ export default defineConfig({
     // `singleFork` → `fileParallelism: false` (forces maxWorkers to 1);
     // `minThreads` and `useAtomics` were dropped with no replacement.
     // Worker count tuned to physical CPUs: GH Actions ubuntu-latest has
-    // 4 cores, dev laptops typically 8-16. `getCI()` (rewire-aware
+    // 4 cores, dev laptops typically 8-16. `isCI()` (rewire-aware
     // presence check on `CI`) is truthy even for CI="" or CI=0, matching
     // the fleet convention that any CI value means CI.
     //
@@ -524,7 +524,7 @@ export default defineConfig({
     testTimeout: resolveTestBudgetMs(),
     hookTimeout: resolveTestBudgetMs(),
     bail: resolveBail({
-      isCI: getCI(),
+      isCI: isCI(),
       isCoverage: isCoverageEnabled,
     }),
     // Coverage shape comes from the fleet base merged with the repo-owned

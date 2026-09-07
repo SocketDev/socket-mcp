@@ -4,7 +4,7 @@
  *   (.config/repo/socket-wheelhouse.json), split from vitest.config.mts along
  *   its natural boundary: everything here READS settings, everything there
  *   RESOLVES runtime config from them. One file, one parse; each key's
- *   contract is on its field below, and docs/agents.md/fleet/test-layout.md
+ *   contract is on its field below, and docs/fleet/agents.md/test-layout.md
  *   carries the tier rationale.
  *   Exported readers are ordered alphabetically, which `socket/sort-source-
  *   methods` enforces in every consuming member. Neither copy of this file is

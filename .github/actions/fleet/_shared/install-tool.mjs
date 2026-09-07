@@ -5,10 +5,10 @@
  *   automatically (github.com → objects.githubusercontent.com),
  *   `node:crypto.createHash` computes the digest in-process, and tar/unzip
  *   shell out, already preinstalled on every supported runner image. Usage:
- *   node install-tool.mjs <url> <integrity> <dest-dir> [<bin-name>] <integrity>
- *   is a Subresource Integrity string: `<algo>-<base64>` OR `<algo>-<hex>`
- *   (publisher checksum form, e.g. `sha256-<64 hex>` from go.dev / rustup /
- *   Google's Packages index). Examples: `sha256-67PM...=`,
+ *   `node install`-tool.mjs <url> <integrity> <dest-dir> [<bin-name>]
+ *   <integrity> is a Subresource Integrity string: `<algo>-<base64>` OR
+ *   `<algo>-<hex>` (publisher checksum form, e.g. `sha256-<64 hex>` from go.dev
+ *   / rustup / Google's Packages index). Examples: `sha256-67PM...=`,
  *   `sha256-544932...c0749c`. The algorithm is parsed from the prefix; multiple
  *   algos are supported (sha256, sha384, sha512). Same encoding as npm
  *   package-lock.json's `integrity` field and as `external-tools.json`'s
@@ -92,13 +92,18 @@ export function parseIntegrity(s) {
     if (rest.length === hexLen && /^[0-9a-f]+$/i.test(rest)) {
       // `<algo>-<hex>` form (go.dev / rustup / Google .deb checksums) —
       // convert to base64 so the comparison is shape-consistent.
-      return { algo, expected: Buffer.from(rest, 'hex').toString('base64') }
+      return {
+        __proto__: null,
+        algo,
+        expected: Buffer.from(rest, 'hex').toString('base64'),
+      }
     }
-    return { algo, expected: rest }
+    return { __proto__: null, algo, expected: rest }
   }
   if (/^[0-9a-f]{64}$/i.test(s)) {
     // Bare sha256 hex — convert to SRI base64 for the comparison.
     return {
+      __proto__: null,
       algo: 'sha256',
       expected: Buffer.from(s, 'hex').toString('base64'),
     }
@@ -106,6 +111,25 @@ export function parseIntegrity(s) {
   throw new Error(
     `unrecognized integrity format: ${s}\n  Expected SRI (e.g. sha256-base64=) or sha256-<hex>`,
   )
+}
+
+export async function fetchToolResponse(url, headers) {
+  for (let attempt = 0; ; attempt++) {
+    // oxlint-disable-next-line socket/no-fetch-prefer-http-request -- dep-0 bootstrap
+    const response = await fetch(url, {
+      redirect: 'follow',
+      headers,
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (
+      attempt === 2 ||
+      ![408, 429, 500, 502, 503, 504].includes(response.status)
+    ) {
+      return response
+    }
+    await response.body?.cancel()
+    await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt))
+  }
 }
 
 // true when this file is the invoked script (not imported). Lets the pure
@@ -146,7 +170,7 @@ async function run() {
       positionals.push(a)
     }
   }
-  const [url, integrityArg, destDir, binName] = positionals
+  const { 0: url, 1: integrityArg, 2: destDir, 3: binName } = positionals
 
   if (!url || !integrityArg || !destDir) {
     logger.fail(
@@ -178,10 +202,7 @@ async function run() {
   // the never.
   // oxlint-disable-next-line socket/export-top-level-functions, typescript/consistent-return -- action helper
   async function main() {
-    // pre-setup-node action; @socketsecurity/lib-stable not installed yet, only
-    // built-in fetch is available.
-    // oxlint-disable-next-line socket/no-fetch-prefer-http-request -- fetch only
-    const res = await fetch(url, { redirect: 'follow', headers })
+    const res = await fetchToolResponse(url, headers)
     if (!res.ok) {
       // oxlint-disable-next-line socket/no-logger-glyph-prefix -- bootstrap shim; logger.fail does not print a glyph
       logger.fail(
