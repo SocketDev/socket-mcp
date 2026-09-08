@@ -2761,6 +2761,7 @@ scripts/fleet/ai/fireworks-store.mts
 scripts/fleet/ai/infra.mts
 scripts/fleet/ai/model-catalog.mts
 scripts/fleet/ai/model-choices.mts
+scripts/fleet/ai/model-fallback-tiers.mts
 scripts/fleet/ai/model-list-cache.mts
 scripts/fleet/ai/model-target-ids.mts
 scripts/fleet/ai/model-targets.mts
@@ -3234,13 +3235,16 @@ scripts/fleet/cover-report.mts
 scripts/fleet/cover-run.mts
 scripts/fleet/cover.mts
 scripts/fleet/cover/bun-lane.mts
+scripts/fleet/cover/command.mts
 scripts/fleet/cover/cpp-lane.mts
 scripts/fleet/cover/discovery.mts
 scripts/fleet/cover/go-lane.mts
+scripts/fleet/cover/lane-budget.mts
 scripts/fleet/cover/lane-contract.mts
 scripts/fleet/cover/lane-paths.mts
 scripts/fleet/cover/lanes.mts
 scripts/fleet/cover/native-lanes.mts
+scripts/fleet/cover/native-phases.mts
 scripts/fleet/cover/phases.mts
 scripts/fleet/cover/run.mts
 scripts/fleet/cover/rust-lane.mts
