@@ -177,6 +177,11 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
+      - name: Hydrate fleet actions
+        uses: ./.github/actions/fleet/checkout
+        with:
+          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
       - name: Rust toolchain
         uses: ./.github/actions/fleet/setup-rust-toolchain
         with:
@@ -376,6 +381,11 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
+      - name: Hydrate fleet actions
+        uses: ./.github/actions/fleet/checkout
+        with:
+          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
       - name: Go toolchain
         uses: ./.github/actions/fleet/setup-go-toolchain
         with:
