@@ -3,6 +3,7 @@ import {
   chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -768,6 +769,8 @@ const ALWAYS_TRACKED_PREFIXES = [
   '.config/fleet/.prettierignore',
   '.config/fleet/oxlintrc.json',
   '.config/fleet/tsconfig.check.json',
+  '.config/repo/external-tools.json',
+  '.config/repo/socket-wheelhouse-schema.json',
   '.editorconfig',
   '.git-hooks/',
   '.npmrc',
@@ -777,6 +780,7 @@ const ALWAYS_TRACKED_PREFIXES = [
   'assets/fleet/important.svg',
   'assets/fleet/socket-combomark-dark.svg',
   'assets/fleet/socket-combomark-light.svg',
+  'patches/run-local-ci@0.18.1.patch',
   'scripts/repo/bootstrap/',
 ]
 /**
@@ -1159,6 +1163,56 @@ function lockFileReadonlySync(filePath) {
 
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/local-template-manifest.mts
+function localTemplateManifests(filesDir, manifest, dest) {
+  const groups = [...(manifest.conditionalScopedFiles ?? [])]
+  for (const [file, value] of Object.entries(manifest.files)) {
+    const entry = value
+    if (
+      entry &&
+      typeof entry === 'object' &&
+      entry.conditional &&
+      entry.triggerKind
+    )
+      groups.push({
+        [entry.triggerKind]: entry.conditional,
+        files: [file],
+      })
+  }
+  const conditionalRoot = path.join(path.dirname(filesDir), 'conditional')
+  const roots = [filesDir]
+  if (existsSync(conditionalRoot))
+    for (const name of readdirSync(conditionalRoot).toSorted().reverse()) {
+      const root = path.join(conditionalRoot, name)
+      if (statSync(root).isDirectory()) roots.push(root)
+    }
+  const sources = /* @__PURE__ */ new Map()
+  for (const root of roots) {
+    const expanded = expandManifestForLocalTemplate(root, manifest)
+    const filtered = filterManifestForConditions(
+      {
+        ...expanded,
+        conditionalScopedFiles: groups,
+      },
+      dest,
+    )
+    for (const [file, value] of Object.entries(filtered.files))
+      sources.set(file, {
+        root,
+        value,
+      })
+  }
+  return roots.map(root => ({
+    filesDir: root,
+    manifest: {
+      ...manifest,
+      files: Object.fromEntries(
+        [...sources]
+          .filter(([, source]) => source.root === root)
+          .map(([file, source]) => [file, source.value]),
+      ),
+    },
+  }))
+}
 const PACKAGE_MANAGER_DIRS = /* @__PURE__ */ new Set(['.venv', 'node_modules'])
 /**
  * Every regular file beneath `dir`, as paths relative to `dir`, skipping any
@@ -1250,6 +1304,53 @@ function expandManifestForLocalTemplate(filesDir, manifest) {
     ...manifest,
     files,
   }
+}
+
+//#endregion
+//#region scripts/repo/gen/bootstrap/src/layered-content.mts
+const TEXT_SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
+  '.cjs',
+  '.cts',
+  '.js',
+  '.json',
+  '.md',
+  '.mjs',
+  '.mts',
+  '.ts',
+  '.yaml',
+  '.yml',
+])
+function isConditionalTemplateSource(source, templateDir) {
+  const prefix = `${normalizeBundlePath(path.join(templateDir, 'base', 'conditional'))}/`
+  return normalizeBundlePath(source).startsWith(prefix)
+}
+function rewriteTemplateLayerContent(
+  srcAbs,
+  relFile,
+  dirEntry,
+  content,
+  templateDir,
+) {
+  if (!isConditionalTemplateSource(srcAbs, templateDir)) return content
+  const depth = [
+    ...dirEntry.split('/'),
+    ...path.posix.dirname(relFile).split('/'),
+  ].filter(segment => segment !== '' && segment !== '.').length
+  const toRoot = '../'.repeat(depth)
+  return content.replace(/(['"`])(?:\.\.\/)+universal\//g, `$1${toRoot}`)
+}
+function localTemplateFileContent(source, memberPath, templateDir) {
+  if (!isConditionalTemplateSource(source, templateDir)) return void 0
+  if (!TEXT_SOURCE_EXTENSIONS.has(path.extname(source))) return void 0
+  const content = readFileSync(source, 'utf8')
+  const rewritten = rewriteTemplateLayerContent(
+    source,
+    memberPath,
+    '.',
+    content,
+    templateDir,
+  )
+  return rewritten === content ? void 0 : rewritten
 }
 
 //#endregion
@@ -1841,29 +1942,31 @@ function removeTombstonedPaths(dest, manifest) {
   }
   return removed
 }
-/**
- * Prune stale fleet files so a fetch is a true SYNC (place + prune) — scoped
- * to what the bundle PREVIOUSLY owned. Only a file the last-applied manifest
- * shipped (the applied-files record, see readAppliedFiles) that the current
- * manifest no longer ships is deleted. The prune list comes from MANIFESTS,
- * never a directory walk, so repo-owned files that merely live beside the
- * fleet payload — per-repo EXPECTED variants like
- * `.config/fleet/tsconfig.check.json`, `.gitkeep` seeds, cascade-only
- * release-excluded scripts under `scripts/fleet/` — can never be collateral.
- * With no record (fresh clone, or the first refresh that introduces the
- * record) nothing is pruned; the record starts with this apply and the next
- * refresh prunes precisely.
- */
-function pruneStaleFleetFiles(dest, manifest, previousFiles) {
-  if (!previousFiles || previousFiles.length === 0) return 0
+function pruneStaleFleetFiles(dest, manifest, previousFiles, options) {
+  const { archiveManifest } = {
+    __proto__: null,
+    ...options,
+  }
+  const candidates = new Set(previousFiles)
+  for (const group of archiveManifest?.conditionalScopedFiles ?? [])
+    for (const file of group.files) {
+      const absolute = path.join(dest, normalizeBundlePath(file))
+      if (
+        !Object.hasOwn(manifest.files, file) &&
+        existsSync(absolute) &&
+        lstatSync(absolute).isFile() &&
+        computeSha256(readFileSync(absolute)) === archiveManifest?.files[file]
+      )
+        candidates.add(file)
+    }
   const kept = new Set(Object.keys(manifest.files).map(normalizeBundlePath))
   for (const segment of manifest.segments ?? [])
     kept.add(normalizeBundlePath(segment.path))
   if (manifest.settingsSegment !== void 0)
     kept.add(normalizeBundlePath(manifest.settingsSegment.path))
   let pruned = 0
-  for (let i = 0, { length } = previousFiles; i < length; i += 1) {
-    const rel = normalizeBundlePath(previousFiles[i])
+  for (const file of candidates) {
+    const rel = normalizeBundlePath(file)
     if (kept.has(rel)) continue
     const abs = path.join(dest, rel)
     if (existsSync(abs)) {
@@ -1898,11 +2001,11 @@ function hasIdenticalBytes(source, target) {
   }
 }
 function installFiles(filesDir, dest, manifest, options) {
-  const refreshTracked =
-    {
-      __proto__: null,
-      ...options,
-    }.refreshTracked === true
+  const opts = {
+    __proto__: null,
+    ...options,
+  }
+  const refreshTracked = opts.refreshTracked === true
   const locking = readonlyBundleMirrorsEnabled()
   const generatedPaths = new Set(
     (manifest.generatedPaths ?? []).map(normalizeBundlePath),
@@ -1917,10 +2020,14 @@ function installFiles(filesDir, dest, manifest, options) {
     const rel = rels[i]
     const source = path.join(filesDir, rel)
     const target = path.join(dest, rel)
+    const rewritten =
+      opts.templateDir === void 0
+        ? void 0
+        : localTemplateFileContent(source, rel, opts.templateDir)
     mkdirSync(path.dirname(target), { recursive: true })
     let spliced
     if (isFleetCanonicalSpliceFile(rel) && existsSync(target)) {
-      const sourceContent = readFileSync(source, 'utf8')
+      const sourceContent = rewritten ?? readFileSync(source, 'utf8')
       if (hasFleetCanonicalEndSentinel(sourceContent))
         spliced = spliceFleetCanonicalContent(
           sourceContent,
@@ -1932,6 +2039,15 @@ function installFiles(filesDir, dest, manifest, options) {
       existsSync(target)
     ) {
       if (!refreshTracked && spliced === void 0) {
+        if (
+          locking &&
+          isLockablePlacement({
+            generatedPaths,
+            hybridPaths,
+            relPath: rel,
+          })
+        )
+          lockFileReadonlySync(target)
         skippedAlwaysTracked += 1
         continue
       }
@@ -1947,7 +2063,11 @@ function installFiles(filesDir, dest, manifest, options) {
       placed += 1
       continue
     }
-    if (hasIdenticalBytes(source, target)) {
+    if (
+      rewritten === void 0
+        ? hasIdenticalBytes(source, target)
+        : existsSync(target) && readFileSync(target, 'utf8') === rewritten
+    ) {
       unchanged += 1
       if (
         locking &&
@@ -1960,7 +2080,10 @@ function installFiles(filesDir, dest, manifest, options) {
         lockFileReadonlySync(target)
       continue
     }
-    placeWithLockRetry(target, () => copyFileSync(source, target))
+    placeWithLockRetry(target, () => {
+      if (rewritten === void 0) copyFileSync(source, target)
+      else writeFileSync(target, rewritten)
+    })
     placed += 1
     if (
       locking &&
@@ -2003,12 +2126,23 @@ function materializeFromLocalTemplate(dest, manifest, options) {
   const filesDir = path.join(dest, 'template', 'base', 'universal')
   if (!existsSync(filesDir)) return
   const shaped = effectiveMemberManifest(manifest, dest)
-  return installFiles(
-    filesDir,
-    dest,
-    expandManifestForLocalTemplate(filesDir, shaped),
-    options,
-  )
+  const total = {
+    placed: 0,
+    unchanged: 0,
+    skippedAlwaysTracked: 0,
+    refreshedTracked: [],
+  }
+  for (const source of localTemplateManifests(filesDir, shaped, dest)) {
+    const result = installFiles(source.filesDir, dest, source.manifest, {
+      ...options,
+      templateDir: path.join(dest, 'template'),
+    })
+    total.placed += result.placed
+    total.unchanged += result.unchanged
+    total.skippedAlwaysTracked += result.skippedAlwaysTracked
+    total.refreshedTracked.push(...result.refreshedTracked)
+  }
+  return total
 }
 /**
  * Untrack the bundle's GENERATED build outputs (`manifest.generatedPaths`)
@@ -3378,6 +3512,7 @@ async function installFleet(config) {
       dest,
       memberManifest,
       readAppliedFiles(dest),
+      { archiveManifest: manifest },
     )
     const movedCount = applyMovedPaths(dest, manifest)
     const tombstonedCount = removeTombstonedPaths(dest, manifest)

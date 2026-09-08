@@ -32,7 +32,7 @@ import process from 'node:process'
 import {
   ISOLATED_ENV_VARS,
   TOOLCHAIN_ROOT_VARS,
-} from '../../../../scripts/fleet/prose/test-isolation-law.mts'
+} from '../../../../scripts/fleet/constants/test-isolation.mts'
 
 // Where each isolated var lands inside the sandbox. The KEYS are not listed
 // here -- they come from ISOLATED_ENV_VARS, which is the law's own statement of
@@ -104,7 +104,9 @@ export function isolateHomeEnv(): string {
   // name is inert and the store relocates into the sandbox anyway.
   if (!process.env['PNPM_CONFIG_STORE_DIR']) {
     const pnpmHome = process.env['PNPM_HOME']
-    const store = pnpmHome ? path.join(pnpmHome, 'store') : undefined
+    const store =
+      process.env['PNPM_STORE_PATH'] ||
+      (pnpmHome ? path.join(pnpmHome, 'store') : undefined)
     if (store && existsSync(store)) {
       process.env['PNPM_CONFIG_STORE_DIR'] = store
     }

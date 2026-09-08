@@ -113,6 +113,14 @@ export function parseIntegrity(s) {
   )
 }
 
+export function toolDownloadHeaders(url, token) {
+  const origin = new URL(url).origin
+  return token &&
+    (origin === 'https://api.github.com' || origin === 'https://github.com')
+    ? { Authorization: `Bearer ${token}` }
+    : {}
+}
+
 export async function fetchToolResponse(url, headers) {
   for (let attempt = 0; ; attempt++) {
     // oxlint-disable-next-line socket/no-fetch-prefer-http-request -- dep-0 bootstrap
@@ -186,14 +194,7 @@ async function run() {
   const assetName = path.basename(new URL(url).pathname)
   const archivePath = path.join(destDir, assetName)
 
-  const headers = { __proto__: null }
-  // GitHub release assets in private repos require auth. When
-  // GITHUB_TOKEN is in env, every Actions run sets it, forward it as
-  // a bearer header so the same call site works for both public and
-  // private release-asset URLs.
-  if (process.env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`
-  }
+  const headers = toolDownloadHeaders(url, process.env.GITHUB_TOKEN)
 
   // Composite-action helper runs as a standalone node script on the raw runner;
   // the CJS bundle target rejects top-level await, so the download / verify /
