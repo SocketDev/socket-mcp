@@ -21,12 +21,12 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
-import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
+import { isWin32 } from '@socketsecurity/lib-stable/constants/platform'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -36,7 +36,7 @@ const VITEST_BIN = path.join(
   repoRoot,
   'node_modules',
   '.bin',
-  WIN32 ? 'vitest.cmd' : 'vitest',
+  isWin32() ? 'vitest.cmd' : 'vitest',
 )
 
 /**

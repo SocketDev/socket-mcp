@@ -16,7 +16,7 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
 import { buildConfigs } from '../../.config/repo/rolldown.config.mts'
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
 import {
   DIST_DIR,
   SOCKET_GATE_DIST_DIR,
