@@ -32,24 +32,12 @@ The easiest way to get started. The public server uses OAuth - your MCP client o
 
 <details><summary><b>Manual install - Claude Desktop / Claude Code</b></summary>
 
-Custom integrations are not available on every paid Claude plan. Check [Anthropic's remote-MCP article](https://support.anthropic.com/en/articles/11175166-about-custom-integrations-using-remote-mcp) before you start.
+Add the hosted server through Claude's [custom connector settings](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). The Developer configuration file is for local servers.
 
-1. In Claude Desktop, go to Settings > Developer > Edit Config.
-2. Add the Socket MCP server configuration:
-
-   ```json
-   {
-     "mcpServers": {
-       "socket-mcp": {
-         "type": "http",
-         "url": "https://mcp.socket.dev/"
-       }
-     }
-   }
-   ```
-
-3. Save the configuration and restart Claude Desktop.
-4. Ask Claude "Check the security score for express version 4.18.2".
+1. Open Customize > Connectors in Claude.
+2. Select **Add custom connector** and enter `https://mcp.socket.dev/` as the server URL. On Team and Enterprise plans, an organization owner adds the connector through Organization settings > Connectors first.
+3. Select **Connect** and complete the Socket authorization flow when prompted.
+4. Enable the connector for your conversation, then ask Claude "Check the security score for express version 4.18.2".
 
 For Claude Code, one command does all of it:
 
@@ -646,7 +634,7 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 
 **Q: The public server isn't responding** - Check the URL `https://mcp.socket.dev/`, verify your MCP client configuration, restart your MCP client.
 
-**Q: Getting a `403 Forbidden: Invalid origin` error, or the connector never opens an OAuth screen** - Fixed as of the native HTTP config above. Some MCP clients (Claude Desktop's custom connector, Codex, etc.) send an `Origin` header their HTTP stack sets automatically; the server now trusts the hosted deployment's `Host` over a fixed Origin allowlist. If you still see this, make sure your client is pointed at `https://mcp.socket.dev/` (not a stale cached config) and retry.
+**Q: Getting a `403 Forbidden: Invalid origin` error, or the connector never opens an OAuth screen** - The server accepts client `Origin` headers when the request's `Host` matches the hosted deployment. Confirm that your client uses `https://mcp.socket.dev/` and follows its setup steps above. A persistent `Invalid origin` response requires checking that the hosted deployment includes the fix.
 
 **Q: Local server fails to start** - Ensure Node.js 24+ is installed, check `SOCKET_API_TOKEN` is set, verify the API token has `packages:list` permission. In stdio mode a missing token is fatal: the server prints `SOCKET_API_TOKEN environment variable is required in stdio mode` and exits `1`.
 
