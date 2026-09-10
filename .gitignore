@@ -2473,6 +2473,7 @@ opencode.json
 .config/fleet/pnpm-workspace.fleet.yaml
 .config/fleet/rolldown/bundle-regions.mts
 .config/fleet/rolldown/bundle-stub.mts
+.config/fleet/rolldown/define-guarded.mts
 .config/fleet/rolldown/engine-gate-fold.mts
 .config/fleet/rolldown/factory-collision.mts
 .config/fleet/rolldown/hook-bundle-excluded.config.mts
@@ -3234,7 +3235,9 @@ scripts/fleet/coordination/claim.mts
 scripts/fleet/cover-report.mts
 scripts/fleet/cover-run.mts
 scripts/fleet/cover.mts
+scripts/fleet/cover/budget-allowances.mts
 scripts/fleet/cover/bun-lane.mts
+scripts/fleet/cover/capacity.mts
 scripts/fleet/cover/command.mts
 scripts/fleet/cover/cpp-lane.mts
 scripts/fleet/cover/discovery.mts
@@ -3243,6 +3246,7 @@ scripts/fleet/cover/lane-budget.mts
 scripts/fleet/cover/lane-contract.mts
 scripts/fleet/cover/lane-paths.mts
 scripts/fleet/cover/lanes.mts
+scripts/fleet/cover/measure.mts
 scripts/fleet/cover/native-lanes.mts
 scripts/fleet/cover/native-phases.mts
 scripts/fleet/cover/phases.mts
@@ -3250,6 +3254,9 @@ scripts/fleet/cover/run.mts
 scripts/fleet/cover/rust-lane.mts
 scripts/fleet/cover/scope.mts
 scripts/fleet/cover/scratch-isolation.mts
+scripts/fleet/cover/types/analysis.mts
+scripts/fleet/cover/types/report.mts
+scripts/fleet/cover/types/run.mts
 scripts/fleet/crate-release-sha.mts
 scripts/fleet/cross-cli/fleet-fork-detect.mts
 scripts/fleet/cross-cli/pretooluse-hook.mts
@@ -3432,6 +3439,7 @@ scripts/fleet/lib/telemetry-payload-shapes.mts
 scripts/fleet/lib/telemetry-scan.mts
 scripts/fleet/lib/unit-test-scan.mts
 scripts/fleet/lib/verify-release-hashes.mts
+scripts/fleet/lib/workspace-installation.mts
 scripts/fleet/lib/workspace-yaml.mts
 scripts/fleet/lint-actions.mts
 scripts/fleet/lint-cpp.mts
@@ -3475,6 +3483,7 @@ scripts/fleet/mcp/janus/runner.mts
 scripts/fleet/mcp/janus/workspace.mts
 scripts/fleet/mcp/playwright/run.mts
 scripts/fleet/mcp/reset.mts
+scripts/fleet/mcp/schemas.mts
 scripts/fleet/mcp/slack/client.mts
 scripts/fleet/mcp/slack/credential.mts
 scripts/fleet/mcp/slack/format.mts
@@ -3503,6 +3512,7 @@ scripts/fleet/pack/template-payload-scope.mts
 scripts/fleet/patching-findings/cli.mts
 scripts/fleet/patching-findings/lib/patch-parse.mts
 scripts/fleet/paths.mts
+scripts/fleet/paths/runtime.mts
 scripts/fleet/paths/util.mts
 scripts/fleet/power-state.mts
 scripts/fleet/pr-care/bots.mts
@@ -3524,6 +3534,9 @@ scripts/fleet/process/lifecycle.mts
 scripts/fleet/process/poll-with-decay.mts
 scripts/fleet/process/run-main.mts
 scripts/fleet/process/runaway-memory.mts
+scripts/fleet/process/script-meta.mts
+scripts/fleet/process/script-output.mts
+scripts/fleet/process/script-result.mts
 scripts/fleet/process/spawn-env-scan.mts
 scripts/fleet/prose/bot-directives.mts
 scripts/fleet/prose/comment-voice-store.mts
@@ -3649,6 +3662,7 @@ scripts/fleet/release/changelog-path.mts
 scripts/fleet/release/channels.mts
 scripts/fleet/release/gap-recovery.mts
 scripts/fleet/release/github-release-enabled.mts
+scripts/fleet/release/github/config.mts
 scripts/fleet/release/member-probe.mts
 scripts/fleet/release/subject.mts
 scripts/fleet/release/version-source.mts
@@ -3792,6 +3806,7 @@ scripts/fleet/team-activity/lib/render.mts
 scripts/fleet/team-activity/lib/scan.mts
 scripts/fleet/team-activity/lib/state.mts
 scripts/fleet/team-activity/lib/types.mts
+scripts/fleet/temporal/calendar-month.mts
 scripts/fleet/test-runner/cli-args.mts
 scripts/fleet/test-runner/git-files.mts
 scripts/fleet/test-runner/mirror-resolver.mts
@@ -3805,6 +3820,10 @@ scripts/fleet/test-support/coverage-exclusions.mts
 scripts/fleet/test-support/fictional-identities.mts
 scripts/fleet/test-support/fixture-names.mts
 scripts/fleet/test.mts
+scripts/fleet/test/runtime/budget.mts
+scripts/fleet/test/runtime/cache.mts
+scripts/fleet/test/runtime/capacity.mts
+scripts/fleet/test/runtime/session.mts
 scripts/fleet/triaging-findings/cli.mts
 scripts/fleet/triaging-findings/lib/ingest.mts
 scripts/fleet/triaging-findings/lib/report.mts
@@ -3824,9 +3843,12 @@ scripts/fleet/update/model-pricing.mts
 scripts/fleet/update/node.mts
 scripts/fleet/update/patch-rekey.mts
 scripts/fleet/update/patched-deps.mts
+scripts/fleet/util/coverage-children.mts
+scripts/fleet/util/coverage-functions.mts
 scripts/fleet/util/coverage-locations.mts
 scripts/fleet/util/coverage-merge.mts
 scripts/fleet/util/coverage-normalize.mts
+scripts/fleet/util/coverage-v8.mjs
 scripts/fleet/util/multi-package-publish-verify.mts
 scripts/fleet/util/multi-package-publish.mts
 scripts/fleet/util/napi-targets.mts

@@ -114,7 +114,12 @@
     "build:hook-bundle": "node scripts/fleet/build-hook-bundle.mts",
     "build:hook-snapshot": "node scripts/fleet/build-hook-snapshot.mts",
     "build:snapshot-launcher": "node scripts/fleet/build-snapshot-launcher.mts",
-    "gen:glyph": "node scripts/fleet/gen/glyph.mts"
+    "gen:glyph": "node scripts/fleet/gen/glyph.mts",
+    "mcp:schema:update": "mcp-tada introspect --command node --arg index.ts --env SOCKET_API_TOKEN=YOUR_API_TOKEN --env MCP_HTTP_MODE=false --timeout 5000 --json --out test/integration/server-schema.golden.json && pnpm run format test/integration/server-schema.golden.json",
+    "mcp:schema:check": "mcp-tada check --command node --arg index.ts --env SOCKET_API_TOKEN=YOUR_API_TOKEN --env MCP_HTTP_MODE=false --timeout 5000 --against test/integration/server-schema.golden.json",
+    "mcp:introspect": "node scripts/fleet/mcp/schemas.mts introspect",
+    "mcp:check": "node scripts/fleet/mcp/schemas.mts check",
+    "cover:types": "node scripts/fleet/cover/types/run.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "catalog:",
@@ -146,6 +151,7 @@
     "fast-check": "catalog:",
     "magic-string": "catalog:",
     "markdownlint-cli2": "catalog:",
+    "mcp-tada": "catalog:",
     "mdast-util-from-markdown": "catalog:",
     "mdast-util-gfm": "catalog:",
     "mdast-util-to-markdown": "catalog:",

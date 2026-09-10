@@ -14,7 +14,8 @@
   },
   "build": {
     "from": "npm-registry",
-    "type": "js"
+    "type": "js",
+    "bundlesVendoredDeps": true
   },
   "hooks": {
     "enablePrePush": true,
