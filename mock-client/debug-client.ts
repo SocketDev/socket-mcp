@@ -8,13 +8,14 @@
  *   server still answers a pre-2026 client exactly as it always did. The two
  *   SDK-backed clients in this directory cover the modern era.
  */
-import path from 'node:path'
 import process from 'node:process'
 import readline from 'node:readline'
 
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/client'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
+
+import { SERVER_SOURCE } from '../scripts/repo/paths.mts'
 
 const logger = getDefaultLogger()
 
@@ -132,10 +133,9 @@ async function main() {
 
   logger.info('Starting MCP server debug client…')
 
-  const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
-  logger.info(`Using server script: ${serverPath}`)
+  logger.info(`Using server script: ${SERVER_SOURCE}`)
 
-  const client = new SimpleJSONRPCClient('node', [serverPath], {
+  const client = new SimpleJSONRPCClient('node', [SERVER_SOURCE], {
     SOCKET_API_TOKEN: apiKey,
   })
 

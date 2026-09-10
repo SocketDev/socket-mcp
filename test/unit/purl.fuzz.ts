@@ -21,9 +21,11 @@ import { buildPurl } from '../../lib/purl.ts'
 // other uncontrolled crash — is a real bug, so rethrow it and let vitiate
 // report the crash.
 fuzz('buildPurl throws only PurlError on arbitrary bytes', data => {
-  const [ecosystem = '', depname = '', version = ''] = data
-    .toString('utf8')
-    .split('\u0000')
+  const {
+    0: ecosystem = '',
+    1: depname = '',
+    2: version = '',
+  } = data.toString('utf8').split('\u0000')
   try {
     buildPurl(ecosystem, depname, version)
   } catch (e) {

@@ -157,6 +157,7 @@ export function definePackageFileContentsTool(): ToolSpec {
         const blob = await getOrFetchBlob(hash)
         if (blob.binary) {
           return {
+            __proto__: null,
             content: [
               {
                 type: 'text',
@@ -170,6 +171,7 @@ export function definePackageFileContentsTool(): ToolSpec {
           : ''
         const header = `${label} (${blob.bytes} bytes)`
         return {
+          __proto__: null,
           content: [
             {
               type: 'text',
@@ -181,6 +183,7 @@ export function definePackageFileContentsTool(): ToolSpec {
         const errorMsg = `Error fetching blob ${hash}: ${errorMessage(e)}`
         logger.error(errorMsg)
         return {
+          __proto__: null,
           content: [{ type: 'text', text: errorMsg }],
           isError: true,
         }
@@ -223,6 +226,7 @@ export function definePackageFileGrepTool(): ToolSpec {
       } catch (e) {
         const errorMsg = `Invalid regular expression: ${errorMessage(e)}`
         return {
+          __proto__: null,
           content: [{ type: 'text', text: errorMsg }],
           isError: true,
         }
@@ -231,6 +235,7 @@ export function definePackageFileGrepTool(): ToolSpec {
         const blob = await getOrFetchBlob(hash)
         if (blob.binary) {
           return {
+            __proto__: null,
             content: [
               {
                 type: 'text',
@@ -241,17 +246,10 @@ export function definePackageFileGrepTool(): ToolSpec {
           }
         }
         const lines = blob.text.split(/\r?\n/)
-        const matchIndexes: number[] = []
-        for (let i = 0; i < lines.length; i += 1) {
-          if (re.test(lines[i]!)) {
-            matchIndexes.push(i)
-            if (matchIndexes.length >= cap) {
-              break
-            }
-          }
-        }
+        const matchIndexes = findPackageFileMatches(lines, re, cap)
         if (matchIndexes.length === 0) {
           return {
+            __proto__: null,
             content: [
               {
                 type: 'text',
@@ -260,23 +258,7 @@ export function definePackageFileGrepTool(): ToolSpec {
             ],
           }
         }
-        const lineWidth = String(lines.length).length
-        const formatLine = (idx: number, sep: ':' | '-'): string =>
-          `${String(idx + 1).padStart(lineWidth, ' ')}${sep} ${lines[idx]}`
-        const out: string[] = []
-        let lastPrinted = -1
-        for (let m = 0; m < matchIndexes.length; m += 1) {
-          const matchIdx = matchIndexes[m]!
-          const start = Math.max(0, matchIdx - ctx)
-          const end = Math.min(lines.length - 1, matchIdx + ctx)
-          if (ctx > 0 && lastPrinted >= 0 && start > lastPrinted + 1) {
-            out.push('--')
-          }
-          for (let i = Math.max(start, lastPrinted + 1); i <= end; i += 1) {
-            out.push(formatLine(i, i === matchIdx ? ':' : '-'))
-          }
-          lastPrinted = end
-        }
+        const out = formatPackageFileMatches(lines, matchIndexes, ctx)
         const truncationNote = blob.truncated
           ? `\n[note: file is ${blob.bytes} bytes; searched only the first 1 MB]`
           : ''
@@ -286,6 +268,7 @@ export function definePackageFileGrepTool(): ToolSpec {
             : ''
         const header = `${label} — ${matchIndexes.length} match${matchIndexes.length === 1 ? '' : 'es'} for /${pattern}/${caseInsensitive ? 'i' : ''}`
         return {
+          __proto__: null,
           content: [
             {
               type: 'text',
@@ -297,6 +280,7 @@ export function definePackageFileGrepTool(): ToolSpec {
         const errorMsg = `Error grepping blob ${hash}: ${errorMessage(e)}`
         logger.error(errorMsg)
         return {
+          __proto__: null,
           content: [{ type: 'text', text: errorMsg }],
           isError: true,
         }
@@ -351,6 +335,7 @@ export function definePackageFilesTool(): ToolSpec {
         })
         if (result.fileCount === 0) {
           return {
+            __proto__: null,
             content: [
               { type: 'text', text: `No files found for ${result.purl}` },
             ],
@@ -359,16 +344,64 @@ export function definePackageFilesTool(): ToolSpec {
         const sizeKb = (result.totalBytes / 1024).toFixed(1)
         const header = `${result.purl} — ${result.fileCount} files, ${sizeKb} KB`
         return {
+          __proto__: null,
           content: [{ type: 'text', text: `${header}\n${result.tree}` }],
         }
       } catch (e) {
         const errorMsg = `Error fetching file list for ${purlWithQualifiers}: ${errorMessage(e)}`
         logger.error(errorMsg)
         return {
+          __proto__: null,
           content: [{ type: 'text', text: errorMsg }],
           isError: true,
         }
       }
     },
   }
+}
+
+export function findPackageFileMatches(
+  lines: string[],
+  pattern: RegExp,
+  cap: number,
+): number[] {
+  const matches: number[] = []
+  for (let index = 0; index < lines.length; index += 1) {
+    if (pattern.test(lines[index]!)) {
+      matches.push(index)
+      if (matches.length >= cap) {
+        break
+      }
+    }
+  }
+  return matches
+}
+
+export function formatPackageFileMatches(
+  lines: string[],
+  matchIndexes: number[],
+  contextLines: number,
+): string[] {
+  const lineWidth = String(lines.length).length
+  const formatLine = (index: number, separator: ':' | '-'): string =>
+    `${String(index + 1).padStart(lineWidth, ' ')}${separator} ${lines[index]}`
+  const output: string[] = []
+  let lastPrinted = -1
+  for (let match = 0; match < matchIndexes.length; match += 1) {
+    const matchIndex = matchIndexes[match]!
+    const start = Math.max(0, matchIndex - contextLines)
+    const end = Math.min(lines.length - 1, matchIndex + contextLines)
+    if (contextLines > 0 && lastPrinted >= 0 && start > lastPrinted + 1) {
+      output.push('--')
+    }
+    for (
+      let index = Math.max(start, lastPrinted + 1);
+      index <= end;
+      index += 1
+    ) {
+      output.push(formatLine(index, index === matchIndex ? ':' : '-'))
+    }
+    lastPrinted = end
+  }
+  return output
 }

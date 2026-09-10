@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import path from 'node:path'
 import process from 'node:process'
 
 import {
@@ -7,6 +6,8 @@ import {
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
+
+import { SERVER_SOURCE } from '../scripts/repo/paths.mts'
 
 const logger = getDefaultLogger()
 
@@ -90,14 +91,13 @@ export async function testHTTPMode(): Promise<void> {
 
 // Usage instructions
 if (process.argv.includes('--help')) {
-  const serverScript = path.join(import.meta.dirname, '..', 'index.ts')
   // oxlint-disable-next-line socket/no-logger-newline-literal -- multi-line help text; intentional newlines for readability.
   logger.info(`
 Socket MCP HTTP Client Debugger
 
 Usage:
   # Start the MCP server in HTTP mode first:
-  MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token node ${serverScript}
+  MCP_HTTP_MODE=true SOCKET_API_TOKEN=your-api-token node ${SERVER_SOURCE}
 
   # Then run this client:
   node ./mock-client/http-client.ts

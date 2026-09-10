@@ -28,7 +28,7 @@ fuzz('isLocalhostOrigin never throws on arbitrary bytes', data => {
 // independently) and derive a port from the leading bytes so all three args are
 // fuzzed together.
 fuzz('validateOriginAndHost never throws on arbitrary bytes', data => {
-  const [origin = '', host = ''] = data.toString('utf8').split('\u0000')
+  const { 0: origin = '', 1: host = '' } = data.toString('utf8').split('\u0000')
   const port = data.length >= 2 ? data.readUInt16BE(0) : 0
   validateOriginAndHost(origin, host, port)
 })

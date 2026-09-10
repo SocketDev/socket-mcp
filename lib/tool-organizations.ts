@@ -35,12 +35,14 @@ export function defineOrganizationsTool(): ToolSpec {
           authToken: accessToken,
         })
         return {
+          __proto__: null,
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         }
       } catch (e) {
         const errorMsg = `Error fetching organizations: ${errorMessage(e)}`
         logger.error(errorMsg)
         return {
+          __proto__: null,
           content: [{ type: 'text', text: errorMsg }],
           isError: true,
         }

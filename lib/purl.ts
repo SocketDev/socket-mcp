@@ -21,42 +21,9 @@ export function buildPurl(
   const rawEcoLower = ecosystem.toLowerCase()
   const ecoLower = rawEcoLower === 'packagist' ? 'composer' : rawEcoLower
   const type = ecoLower === 'openvsx' ? 'vscode' : ecoLower
-  let namespace: string | undefined
-  let name: string
-
-  if (ecoLower === 'npm' && depname.startsWith('@') && depname.includes('/')) {
-    const slash = depname.indexOf('/')
-    namespace = depname.slice(0, slash)
-    name = depname.slice(slash + 1)
-  } else if (
-    ecoLower === 'maven' &&
-    (depname.includes(':') || depname.includes('/'))
-  ) {
-    const sep = depname.includes(':') ? ':' : '/'
-    const idx = depname.indexOf(sep)
-    namespace = depname.slice(0, idx)
-    name = depname.slice(idx + 1)
-  } else if (ecoLower === 'golang' && depname.includes('/')) {
-    const lastSlash = depname.lastIndexOf('/')
-    namespace = depname.slice(0, lastSlash)
-    name = depname.slice(lastSlash + 1)
-  } else if (
-    (ecoLower === 'openvsx' || ecoLower === 'vscode') &&
-    depname.includes('/')
-  ) {
-    const slash = depname.indexOf('/')
-    namespace = depname.slice(0, slash)
-    name = depname.slice(slash + 1)
-  } else if (ecoLower === 'composer' && depname.includes('/')) {
-    // Composer packages are `vendor/package`; the vendor is the PURL
-    // namespace (e.g. `pkg:composer/laravel/framework`). Without this split
-    // the vendor folds into the name and the lookup returns no/wrong score.
-    const slash = depname.indexOf('/')
-    namespace = depname.slice(0, slash)
-    name = depname.slice(slash + 1)
-  } else {
-    name = depname
-  }
+  const separator = purlNamespaceSeparator(ecoLower, depname)
+  const namespace = separator < 0 ? undefined : depname.slice(0, separator)
+  const name = separator < 0 ? depname : depname.slice(separator + 1)
 
   const merged: Record<string, string> = { ...qualifiers }
   if (ecoLower === 'openvsx' && !merged['repository_url']) {
@@ -82,4 +49,26 @@ export function buildPurl(
     undefined,
   )
   return purl.toString()
+}
+
+export function purlNamespaceSeparator(
+  ecosystem: string,
+  depname: string,
+): number {
+  switch (ecosystem) {
+    case 'npm':
+      return depname.startsWith('@') ? depname.indexOf('/') : -1
+    case 'maven': {
+      const colon = depname.indexOf(':')
+      return colon < 0 ? depname.indexOf('/') : colon
+    }
+    case 'golang':
+      return depname.lastIndexOf('/')
+    case 'openvsx':
+    case 'vscode':
+    case 'composer':
+      return depname.indexOf('/')
+    default:
+      return -1
+  }
 }

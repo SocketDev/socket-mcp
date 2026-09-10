@@ -22,6 +22,8 @@ export const DIST_DIR = path.join(REPO_ROOT, 'dist')
  */
 export const SERVER_BUNDLE = path.join(DIST_DIR, 'index.cjs')
 
+export const SERVER_SOURCE = path.join(REPO_ROOT, 'index.ts')
+
 /**
  * Absolute path to the socket-gate hook's SOURCE directory: the hook source
  * (`index.mts`) and its README. Dev/test content only — the published,

@@ -1,6 +1,8 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+
 import {
   buildPurlForFiles,
   definePackageFileContentsTool,
@@ -139,7 +141,9 @@ describe('package_file_contents tool handler', () => {
       withToken,
     )
     expect(result.isError).toBeUndefined()
-    expect(result.content[0]!.text).toMatch(/src\/a\.js \(\d+ bytes\)/)
+    expect(normalizePath(result.content[0]!.text)).toMatch(
+      /src\/a\.js \(\d+ bytes\)/,
+    )
     expect(result.content[0]!.text).toMatch(/line one\nline two/)
   })
 
@@ -217,7 +221,7 @@ describe('package_file_grep tool handler', () => {
       withToken,
     )
     expect(result.isError).toBeUndefined()
-    expect(result.content[0]!.text).toMatch(/no matches for \/zzz\//)
+    expect(result.content[0]!.text).toBe(`${hash}: no matches for /zzz/`)
   })
 
   test('honors contextLines and caseInsensitive', async () => {
@@ -289,7 +293,7 @@ describe('package_file_grep tool handler', () => {
       withToken,
     )
     expect(result.isError).toBeUndefined()
-    expect(result.content[0]!.text).toMatch(/no matches for \/ZZZ\/i$/)
+    expect(result.content[0]!.text).toBe(`${hash}: no matches for /ZZZ/i`)
   })
 
   test('rejects an invalid regular expression before fetching', async () => {

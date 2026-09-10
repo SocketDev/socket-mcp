@@ -173,7 +173,7 @@ describe('stateless serving', () => {
         arguments: {},
       })
       expect(result.isError).toBe(true)
-      const [block] = result.content
+      const { 0: block } = result.content
       expect(block?.type === 'text' && block.text).toMatch(
         /Unknown tool: does-not-exist/,
       )

@@ -130,12 +130,14 @@ export function defineAlertsTool(): ToolSpec {
           },
         })
         return {
+          __proto__: null,
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         }
       } catch (e) {
         const errorMsg = `Error fetching alerts for ${args.org_slug}: ${errorMessage(e)}`
         logger.error(errorMsg)
         return {
+          __proto__: null,
           content: [{ type: 'text', text: errorMsg }],
           isError: true,
         }

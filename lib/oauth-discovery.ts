@@ -164,7 +164,7 @@ export function validateOAuthMetadataFields(
   metadata: Record<string, unknown>,
 ): asserts metadata is OAuthAuthorizationServerMetadata {
   for (let i = 0, { length } = REQUIRED_OAUTH_FIELDS; i < length; i += 1) {
-    const [field, reason] = REQUIRED_OAUTH_FIELDS[i]!
+    const { 0: field, 1: reason } = REQUIRED_OAUTH_FIELDS[i]!
     if (typeof metadata[field] !== 'string' || !metadata[field]) {
       throw new Error(
         `OAuth metadata missing required field: ${field} — ${reason}. Fix: have the authorization server publish ${field} in its metadata document.`,

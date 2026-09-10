@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import path from 'node:path'
 import process from 'node:process'
 
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
+
+import { SERVER_SOURCE } from '../scripts/repo/paths.mts'
 
 const logger = getDefaultLogger()
 
@@ -22,12 +23,11 @@ export function buildServerEnv(): Record<string, string> {
 }
 
 async function main(): Promise<void> {
-  const serverPath = path.join(import.meta.dirname, '..', 'index.ts')
-  logger.log(`Using server script: ${serverPath}`)
+  logger.log(`Using server script: ${SERVER_SOURCE}`)
 
   const transport = new StdioClientTransport({
     command: 'node',
-    args: [serverPath],
+    args: [SERVER_SOURCE],
     env: buildServerEnv(),
     stderr: 'inherit',
   })

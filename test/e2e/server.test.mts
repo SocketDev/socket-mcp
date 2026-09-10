@@ -1,9 +1,9 @@
-import path from 'node:path'
-
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { readSocketApiTokenSync } from '@socketsecurity/lib-stable/secrets/socket-api-token'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+
+import { SERVER_SOURCE } from '../../scripts/repo/paths.mts'
 
 // End-to-end suite: spawns the real MCP server over stdio and exercises
 // depscore against the live Socket API. Requires a Socket API token, so
@@ -19,7 +19,6 @@ interface TextContent {
 }
 
 describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
-  const serverPath = path.join(import.meta.dirname, '..', '..', 'index.ts')
   const client = new Client(
     { name: 'test-mcp-client', version: '1.0.0' },
     { capabilities: {} },
@@ -28,7 +27,7 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
   beforeAll(async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath],
+      args: [SERVER_SOURCE],
       env: {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
         ...(Object.fromEntries(

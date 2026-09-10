@@ -125,6 +125,7 @@ export function createConfiguredServer(): Server {
   )
 
   server.setRequestHandler('tools/list', () => ({
+    __proto__: null,
     tools: specs.map(toToolListEntry),
   }))
 
@@ -136,6 +137,7 @@ export function createConfiguredServer(): Server {
       // unknown name — clients render it the same way as any other tool error.
       const message = `Unknown tool: ${name}`
       return {
+        __proto__: null,
         content: [{ type: 'text', text: message }],
         isError: true,
       }
@@ -151,6 +153,7 @@ export function createConfiguredServer(): Server {
 
 export function errorResult(text: string): ToolErrorResult {
   return {
+    __proto__: null,
     content: [{ type: 'text', text }],
     isError: true,
   }

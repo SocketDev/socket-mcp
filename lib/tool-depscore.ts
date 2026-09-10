@@ -79,7 +79,7 @@ export function buildPackageComponents(
     ) {
       logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`)
     }
-    return { purl }
+    return { __proto__: null, purl }
   })
 }
 
