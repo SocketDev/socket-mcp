@@ -97,7 +97,7 @@ export async function authenticateRequest(
 
   // `authHeader` is trimmed and non-empty, so splitting on whitespace always
   // yields a non-empty first element.
-  const [type, token] = authHeader.split(/\s+/u)
+  const { 0: type, 1: token } = authHeader.split(/\s+/u)
   if (type!.toLowerCase() !== 'bearer' || !token) {
     writeOAuthError(
       res,
@@ -136,7 +136,7 @@ export async function authenticateRequest(
 
   if (
     typeof authInfo.expiresAt === 'number' &&
-    authInfo.expiresAt < Date.now() / 1000
+    authInfo.expiresAt <= Date.now() / 1000
   ) {
     writeOAuthError(
       res,

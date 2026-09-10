@@ -116,6 +116,31 @@ Alternatively, type `/mcp` within the Factory droid to manage MCP servers from a
 
 </details>
 
+### Clients that need a local bridge
+
+Prefer your client's native remote HTTP connection to `https://mcp.socket.dev/` when available. For clients that only launch local stdio servers, install `mcp-remote` 0.8.3:
+
+```bash
+pnpm add --global mcp-remote@0.8.3
+```
+
+Add this local server configuration to your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "socket": {
+      "command": "mcp-remote",
+      "args": ["https://mcp.socket.dev/"]
+    }
+  }
+}
+```
+
+The bridge runs on your computer and receives OAuth redirects at `http://localhost:<port>/oauth/callback`. Keep it running while you authorize. Version 0.3.3 introduced the [mid-session authorization fix](https://github.com/punkpeye/mcp-remote/pull/340); the forwarding and reauthorization retry paths were verified against the published 0.8.3 package. This verification does not cover a complete browser sign-in.
+
+Reuse saved authorization while it remains valid. If a browser reports connection refused at the localhost callback, check the bridge's version and process. The callback listener belongs to the bridge; changing the hosted MCP URL does not start it.
+
 ### Option 2: Self-host the Socket MCP server
 
 Self-hosting keeps every request inside your own infrastructure. It needs a Socket API token and Node.js 24 or later.
