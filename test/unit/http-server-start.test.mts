@@ -7,7 +7,6 @@
  */
 
 import { once } from 'node:events'
-import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 
 import { httpRequest } from '@socketsecurity/lib-stable/http-request/request'
@@ -34,28 +33,16 @@ vi.mock(import('node:http'), async importOriginal => {
   return { ...actual, default: actual, createServer: capturingCreateServer }
 })
 
-// Bind an ephemeral port, read it back, and release it — startHttpServer
-// takes a concrete port, so the free one has to be found first.
-async function reserveFreePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>(resolve => {
-    probe.listen(0, '127.0.0.1', resolve)
-  })
-  const address = probe.address()
-  const port =
-    typeof address === 'object' && address !== null ? address.port : 0
-  await new Promise<void>(resolve => {
-    probe.close(() => resolve())
-  })
-  return port
-}
-
 // Boot the server the way production does and wait for the socket to be up.
-async function bootServer(port: number): Promise<Server> {
-  startHttpServer(port)
+async function bootServer(): Promise<number> {
+  startHttpServer(0)
   const server = createdServers.at(-1)!
   await once(server, 'listening')
-  return server
+  const address = server.address()
+  if (typeof address !== 'object' || address === null) {
+    throw new Error('Expected a listening TCP server')
+  }
+  return address.port
 }
 
 afterEach(async () => {
@@ -70,9 +57,8 @@ afterEach(async () => {
   )
 })
 
-test('startHttpServer serves /health on the requested port', async () => {
-  const port = await reserveFreePort()
-  await bootServer(port)
+test('startHttpServer serves /health on its assigned port', async () => {
+  const port = await bootServer()
 
   const res = await httpRequest(`http://127.0.0.1:${port}/health`)
   expect(res.status).toBe(200)
@@ -80,8 +66,7 @@ test('startHttpServer serves /health on the requested port', async () => {
 })
 
 test('startHttpServer wires the MCP handler onto the listening server', async () => {
-  const port = await reserveFreePort()
-  await bootServer(port)
+  const port = await bootServer()
 
   const res = await httpRequest(`http://127.0.0.1:${port}/`, {
     method: 'POST',

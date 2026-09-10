@@ -5,24 +5,15 @@ import type { BlobResult } from '../../lib/blob.ts'
 
 const BLOB_HOST = 'https://socketusercontent.com'
 
-let savedCap: string | undefined
-
 beforeEach(() => {
-  savedCap = process.env['SOCKET_BLOB_CACHE_BYTES']
-  delete process.env['SOCKET_BYPASS_HEADER_NAME']
-  delete process.env['SOCKET_BYPASS_HEADER_VALUE']
+  vi.stubEnv('SOCKET_BLOB_CACHE_BYTES', undefined)
+  vi.stubEnv('SOCKET_BYPASS_HEADER_NAME', undefined)
+  vi.stubEnv('SOCKET_BYPASS_HEADER_VALUE', undefined)
   nock.disableNetConnect()
-  vi.resetModules()
 })
 
 afterEach(() => {
-  if (savedCap === undefined) {
-    delete process.env['SOCKET_BLOB_CACHE_BYTES']
-  } else {
-    process.env['SOCKET_BLOB_CACHE_BYTES'] = savedCap
-  }
-  delete process.env['SOCKET_BYPASS_HEADER_NAME']
-  delete process.env['SOCKET_BYPASS_HEADER_VALUE']
+  vi.unstubAllEnvs()
   nock.cleanAll()
   nock.enableNetConnect()
 })
@@ -31,7 +22,7 @@ afterEach(() => {
 // cap is read at import time, so it must be set before the dynamic import.
 async function freshCache(capBytes?: number | undefined) {
   if (capBytes !== undefined) {
-    process.env['SOCKET_BLOB_CACHE_BYTES'] = String(capBytes)
+    vi.stubEnv('SOCKET_BLOB_CACHE_BYTES', String(capBytes))
   }
   vi.resetModules()
   return import('../../lib/blob-cache.ts')
@@ -67,7 +58,7 @@ describe('getOrFetchBlob', () => {
       .get('/blob/Qrace')
       .reply(200, 'shared', { 'content-type': 'text/plain' })
 
-    const [a, b] = await Promise.all([
+    const { 0: a, 1: b } = await Promise.all([
       getOrFetchBlob('Qrace'),
       getOrFetchBlob('Qrace'),
     ])
@@ -113,8 +104,8 @@ describe('getOrFetchBlob', () => {
 
 describe('WAF bypass header', () => {
   test('sends the configured bypass header on every blob request', async () => {
-    process.env['SOCKET_BYPASS_HEADER_NAME'] = 'x-waf-bypass'
-    process.env['SOCKET_BYPASS_HEADER_VALUE'] = 'let-me-through'
+    vi.stubEnv('SOCKET_BYPASS_HEADER_NAME', 'x-waf-bypass')
+    vi.stubEnv('SOCKET_BYPASS_HEADER_VALUE', 'let-me-through')
     const { getOrFetchBlob } = await freshCache()
     // The matchHeader is the assertion: without the pair configured at module
     // init the interceptor never matches and the request fails.
@@ -127,7 +118,7 @@ describe('WAF bypass header', () => {
   })
 
   test('sends no bypass header when only the name is configured', async () => {
-    process.env['SOCKET_BYPASS_HEADER_NAME'] = 'x-waf-bypass'
+    vi.stubEnv('SOCKET_BYPASS_HEADER_NAME', 'x-waf-bypass')
     const { getOrFetchBlob } = await freshCache()
     // A half-configured pair must not produce a header with an empty value.
     nock(BLOB_HOST)

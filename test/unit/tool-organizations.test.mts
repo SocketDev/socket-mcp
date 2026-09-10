@@ -38,8 +38,11 @@ describe('organizations tool handler', () => {
   })
 
   test('returns an isError result on upstream failure', async () => {
-    nock(API).get('/v0/organizations').reply(401, { error: 'unauthorized' })
+    const scope = nock(API)
+      .get('/v0/organizations')
+      .reply(401, { error: 'unauthorized' })
     const result = await defineOrganizationsTool().handler({}, withToken)
+    expect(scope.isDone()).toBe(true)
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toMatch(/Error fetching organizations/)
   })

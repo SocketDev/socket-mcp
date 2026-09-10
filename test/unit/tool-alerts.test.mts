@@ -87,11 +87,15 @@ describe('alerts tool handler', () => {
   })
 
   test('returns an isError result on upstream failure', async () => {
-    nock(API).get('/v0/orgs/my-org/alerts').query(true).reply(403, 'forbidden')
+    const scope = nock(API)
+      .get('/v0/orgs/my-org/alerts')
+      .query(true)
+      .reply(403, 'forbidden')
     const result = await defineAlertsTool().handler(
       { org_slug: 'my-org' },
       withToken,
     )
+    expect(scope.isDone()).toBe(true)
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toMatch(/Error fetching alerts for my-org/)
   })

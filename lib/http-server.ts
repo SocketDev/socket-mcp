@@ -57,7 +57,7 @@ export function applyClientApiKey(req: AuthenticatedRequest): void {
   }
   // `authHeader` is trimmed and non-empty, so splitting on whitespace always
   // yields a non-empty first element.
-  const [type, token] = authHeader.split(/\s+/u)
+  const { 0: type, 1: token } = authHeader.split(/\s+/u)
   if (type!.toLowerCase() !== 'bearer' || !token) {
     return
   }
@@ -250,8 +250,6 @@ export async function routeRequest(
   }
 
   const origin = getRequestHeaderValue(req.headers.origin).trim()
-  // Strict host matching prevents spoofing via subdomains like
-  // "malicious-localhost.evil.com".
   const host = getRequestHeaderValue(req.headers.host).trim()
 
   if (!validateOriginAndHost(origin, host, port)) {
@@ -350,16 +348,21 @@ export function startHttpServer(port: number): void {
     { onerror: handleMcpAdapterError },
   )
 
+  let listeningPort = port
   const httpServer = createServer((req, res) => {
-    routeRequest(mcpHandler, req, res, port).catch(
+    routeRequest(mcpHandler, req, res, listeningPort).catch(
       createRouteFailureHandler(res),
     )
   })
 
   httpServer.listen(port, () => {
+    const address = httpServer.address()
+    if (typeof address === 'object' && address !== null) {
+      listeningPort = address.port
+    }
     logger.info(
-      `Socket MCP HTTP server version ${VERSION} started successfully on port ${port}`,
+      `Socket MCP HTTP server version ${VERSION} started successfully on port ${listeningPort}`,
     )
-    logger.info(`Connect to: http://localhost:${port}/`)
+    logger.info(`Connect to: http://localhost:${listeningPort}/`)
   })
 }
