@@ -103,5 +103,11 @@ const SCRIPT_META: ScriptMeta = {
   json: 'result',
 }
 if (isMainModule(import.meta.url)) {
-  runMain(() => main().catch(e => logger.error(e)), SCRIPT_META)
+  runMain(
+    () =>
+      main().catch(e => {
+        logger.error(e)
+      }),
+    SCRIPT_META,
+  )
 }
