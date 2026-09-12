@@ -1,30 +1,59 @@
+import { createServer } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
-import { readSocketApiTokenSync } from '@socketsecurity/lib-stable/secrets/socket-api-token'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { SERVER_SOURCE } from '../../scripts/repo/paths.mts'
 
-// End-to-end suite: spawns the real MCP server over stdio and exercises
-// depscore against the live Socket API. Requires a Socket API token, so
-// it skips cleanly when one isn't configured (e.g. CI without the
-// secret). The stdio + client.callTool path makes no direct
-// fetch/httpRequest call from this file, so it isn't a mock-the-network
-// case — the network it touches is the live API behind a real token.
-const apiToken = readSocketApiTokenSync()
+const FIXTURE_RESPONSE = [
+  { type: 'npm', namespace: '@babel', name: 'core', version: '7.24.0' },
+  { type: 'pypi', name: 'numpy', version: '1.26.4' },
+  {
+    type: 'maven',
+    namespace: 'org.springframework.boot',
+    name: 'spring-boot-starter-web',
+    version: '3.1.0',
+  },
+  { type: 'nuget', name: 'Newtonsoft.Json', version: '13.0.3' },
+  { type: 'cargo', name: 'serde', version: '1.0.193' },
+  { type: 'gem', name: 'puma', version: '6.4.0' },
+]
+  .map(item => JSON.stringify({ ...item, score: { overall: 0.9 } }))
+  .join('\n')
+
+function serveFixtureApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+): void {
+  request.resume()
+  response.writeHead(200, { 'content-type': 'application/x-ndjson' })
+  response.end(FIXTURE_RESPONSE)
+}
+
+const fixtureApi = createServer(serveFixtureApi)
 
 interface TextContent {
   type: string
   text: string
 }
 
-describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
+describe('Socket MCP Server', () => {
   const client = new Client(
     { name: 'test-mcp-client', version: '1.0.0' },
     { capabilities: {} },
   )
 
   beforeAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      fixtureApi.once('error', reject)
+      fixtureApi.listen(0, '127.0.0.1', resolve)
+    })
+    const address = fixtureApi.address()
+    if (!address || typeof address === 'string') {
+      throw new TypeError('Fixture API did not bind to a TCP port')
+    }
     const transport = new StdioClientTransport({
       command: 'node',
       args: [SERVER_SOURCE],
@@ -35,7 +64,8 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
             ([, value]) => value !== undefined,
           ),
         ) as Record<string, string>),
-        SOCKET_API_TOKEN: apiToken!,
+        SOCKET_API_BASE_URL: `http://127.0.0.1:${address.port}/v0/purl`,
+        SOCKET_API_TOKEN: 'socket_test_placeholder',
       },
     })
     await client.connect(transport)
@@ -43,6 +73,9 @@ describe.skipIf(!apiToken)('Socket MCP Server (live API)', () => {
 
   afterAll(async () => {
     await client.close().catch(() => {})
+    await new Promise<void>((resolve, reject) => {
+      fixtureApi.close(error => (error ? reject(error) : resolve()))
+    })
   })
 
   test('lists the depscore tool', async () => {
