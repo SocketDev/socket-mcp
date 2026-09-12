@@ -12,18 +12,152 @@ import {
   renameSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import path, { dirname, resolve, sep } from 'node:path'
 import crypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import process$1 from 'node:process'
+import { format } from 'node:util'
 import os from 'node:os'
-import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import https from 'node:https'
 
+//#region template/base/universal/scripts/fleet/gitignore/compose.mts
+function updateGitignoreOwners(stack, marker) {
+  const name = marker[2]
+  if (marker[1] === '/') {
+    if (stack.pop() !== name)
+      throw new TypeError(
+        'Invalid .gitignore: unmatched ownership marker. Balance its ownership markers.',
+      )
+    return
+  }
+  const isChild = name === 'fleet-allowlist' || name === 'fleet-pack'
+  if (stack.length && (!isChild || stack.at(-1) !== 'fleet'))
+    throw new TypeError(
+      'Invalid .gitignore: nested ownership region. Balance its ownership markers.',
+    )
+  stack.push(name)
+}
+function gitignoreOwner(stack) {
+  const name = stack.at(-1)
+  if (name === 'fleet-pack') return 'pack'
+  if (name === 'fleet-allowlist') return 'fleetAllowlist'
+  return name === 'fleet' ? 'fleet' : 'repo'
+}
+function parseGitignoreSections(source) {
+  const sections = {
+    __proto__: null,
+    fleet: [],
+    fleetAllowlist: [],
+    pack: [],
+    repo: [],
+    denyByDefault: false,
+  }
+  const stack = []
+  const lines = source.split(/\r?\n/)
+  for (let index = 0, { length } = lines; index < length; index += 1) {
+    const line = lines[index]
+    const marker = /^# <(\/?)(fleet|repo|fleet-pack|fleet-allowlist)>$/.exec(
+      line,
+    )
+    if (marker) {
+      updateGitignoreOwners(stack, marker)
+      continue
+    }
+    const owner = gitignoreOwner(stack)
+    if (line === '*' && (owner === 'fleet' || owner === 'repo'))
+      sections.denyByDefault = true
+    else sections[owner].push(line)
+  }
+  if (stack.length)
+    throw new TypeError(
+      'Invalid .gitignore: unclosed ownership region. Balance its ownership markers.',
+    )
+  if (sections.denyByDefault) {
+    sections.fleet = sections.fleet.filter(line => line !== '!*/')
+    sections.repo = sections.repo.filter(line => line !== '!*/')
+  }
+  sections.fleet = trimGitignoreLines(sections.fleet)
+  sections.fleetAllowlist = trimGitignoreLines(sections.fleetAllowlist)
+  sections.pack = trimGitignoreLines(sections.pack)
+  sections.repo = trimGitignoreLines(sections.repo)
+  return sections
+}
+function trimGitignoreLines(lines) {
+  const result = [...lines]
+  while (result[0]?.trim() === '') result.shift()
+  while (result.at(-1)?.trim() === '') result.pop()
+  return result
+}
+function composeGitignore(config) {
+  const options = {
+    __proto__: null,
+    ...config,
+  }
+  const current = parseGitignoreSections(options.target)
+  const fleet =
+    options.fleetBlock === void 0
+      ? current.fleet
+      : parseGitignoreSections(options.fleetBlock).fleet
+  const allowed =
+    options.fleetAllowlist === void 0
+      ? current.fleetAllowlist
+      : parseGitignoreSections(options.fleetAllowlist).fleetAllowlist
+  const pack =
+    options.packBlock === void 0
+      ? current.pack
+      : parseGitignoreSections(options.packBlock).pack
+  const repo =
+    options.repoBlock === void 0
+      ? current.repo
+      : parseGitignoreSections(options.repoBlock).repo
+  return [
+    '# <fleet>',
+    ...((options.denyByDefault ?? current.denyByDefault) ? ['*', '!*/'] : []),
+    ...(allowed.length
+      ? ['# <fleet-allowlist>', ...allowed, '# </fleet-allowlist>']
+      : []),
+    ...trimGitignoreLines(fleet),
+    ...(pack.length
+      ? ['# <fleet-pack>', ...trimGitignoreLines(pack), '# </fleet-pack>']
+      : []),
+    '# </fleet>',
+    '# <repo>',
+    ...trimGitignoreLines(repo),
+    '# </repo>',
+    '',
+  ].join('\n')
+}
+
+//#endregion
+//#region template/base/universal/scripts/fleet/paths/util.mts
+function sharedScriptsRepoCommitCascadeManifestFleetFilesJsonPath(root) {
+  return path.join(
+    root,
+    'scripts',
+    'repo',
+    'commit-cascade',
+    'manifest',
+    'fleet-files.json',
+  )
+}
+function sharedSystem32TarExePath(root) {
+  return path.join(root, 'System32', 'tar.exe')
+}
+function sharedTemplateBasePath(root) {
+  return path.join(root, 'template', 'base', 'universal')
+}
+
+//#endregion
 //#region scripts/repo/gen/bootstrap/src/helpers.mts
-const HYBRID_BUNDLE_PATHS = /* @__PURE__ */ new Set(['.gitignore', 'CLAUDE.md'])
+const HYBRID_BUNDLE_PATHS = /* @__PURE__ */ new Set([
+  '.gitattributes',
+  '.gitignore',
+  'CLAUDE.md',
+])
 /**
  * Normalize bundle-manifest paths to their portable `/` wire format.
  */
@@ -32,7 +166,7 @@ function normalizeBundlePath(filePath) {
 }
 function tarExecutable(platform, systemRoot) {
   return platform === 'win32'
-    ? path.join(systemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+    ? sharedSystem32TarExePath(systemRoot ?? 'C:\\Windows')
     : 'tar'
 }
 /**
@@ -93,31 +227,13 @@ function packEndMarker() {
   return '# </fleet-pack>'
 }
 /**
- * Splice the fetcher-owned `<fleet-pack>` block into `target`. When the
- * markers exist the whole region (markers inclusive) is REPLACED — that is
- * what prunes a stale entry; the region is wholly fetcher-owned, so hand
- * ignores belong outside it. When absent, the block is appended at end of
- * file, after the cascade's `<fleet>` region and the member's `<repo>`
- * wrapper, so the fleet splice's repo-region adjacency is never broken.
+ * Replace the nested fleet-pack inventory and preserve repo overrides.
  */
 function splicePackBlock(config) {
-  const { packBlock, target } = {
-    __proto__: null,
-    ...config,
-  }
-  const begin = packBeginMarker()
-  const end = packEndMarker()
-  const lines = target.split('\n')
-  const startIdx = lines.findIndex(l => l === begin)
-  const endIdx = lines.findIndex(l => l === end)
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const before = lines.slice(0, startIdx)
-    const after = lines.slice(endIdx + 1)
-    return [...before, packBlock, ...after].join('\n')
-  }
-  const trimmed = target.replace(/\n+$/, '')
-  if (trimmed === '') return `${packBlock}\n`
-  return `${trimmed}\n\n${packBlock}\n`
+  return composeGitignore({
+    target: config.target,
+    packBlock: config.packBlock,
+  })
 }
 /**
  * Every balanced fleet block in `lines`, in document order. Each open marker
@@ -197,7 +313,11 @@ function spliceFleetBlock(config) {
   return `${target.replace(/\n+$/, '')}\n\n${fleetBlock}\n`
 }
 function run(cmd, args) {
-  execFileSync(cmd, args, { stdio: 'inherit' })
+  execFileSync(cmd, args, {
+    stdio: process$1.argv.includes('--json')
+      ? ['inherit', 2, 'inherit']
+      : 'inherit',
+  })
 }
 function segmentFileName(relativePath) {
   return `${relativePath.replace(/^\./, 'dot-')}.fleetblock`
@@ -394,6 +514,91 @@ function writeAppliedRef(dest, ref) {
 }
 
 //#endregion
+//#region scripts/repo/gen/bootstrap/src/workspace-migration.mts
+function isWorkspaceRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+function migrateWorkspaceSettings(dest, yaml) {
+  const lines = yaml.split('\n')
+  const kept = []
+  const patterns = []
+  let migrating = false
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (/^(confirmModulesPurge|managePackageManagerVersions):/.test(line)) {
+      if (!/^[\w]+:\s*(true|false)\s*(?:#.*)?$/.test(line))
+        throw new Error(
+          `Unsupported workspace setting in ${dest}: expected a boolean. Fix pnpm-workspace.yaml.`,
+        )
+      continue
+    }
+    if (!/^catalogDriftIgnore:/.test(line)) {
+      kept.push(line)
+      continue
+    }
+    if (migrating || !/^catalogDriftIgnore:\s*(?:#.*)?$/.test(line))
+      throw new Error(
+        `Invalid drift exemptions in ${dest}: expected one block list. Fix pnpm-workspace.yaml.`,
+      )
+    migrating = true
+    while (index + 1 < lines.length) {
+      const entry = lines[index + 1]
+      if (entry && !/^\s|^#/.test(entry)) break
+      index += 1
+      if (!entry.trim() || entry.trim().startsWith('#')) {
+        kept.push(entry)
+        continue
+      }
+      const match =
+        /^\s+-\s+(?:'([^']+)'|"([^"\\]+)"|([^\s'"#\[\]{}&,]+))\s*(?:#.*)?$/.exec(
+          entry,
+        )
+      if (!match)
+        throw new Error(
+          `Invalid drift exemption in ${dest}: expected a string list item. Fix pnpm-workspace.yaml.`,
+        )
+      patterns.push(match[1] ?? match[2] ?? match[3])
+    }
+  }
+  if (migrating) {
+    const configPath = path.join(dest, SETTINGS_CANDIDATES[0])
+    const config = JSON.parse(readFileSync(configPath, 'utf8'))
+    if (
+      !isWorkspaceRecord(config) ||
+      (config['workspace'] !== void 0 &&
+        !isWorkspaceRecord(config['workspace']))
+    )
+      throw new Error(
+        `Invalid workspace metadata at ${configPath}: expected objects. Fix the config before migration.`,
+      )
+    const workspace = config['workspace'] ?? {}
+    const existing =
+      workspace['catalogDriftIgnore'] === void 0
+        ? []
+        : workspace['catalogDriftIgnore']
+    if (
+      !Array.isArray(existing) ||
+      !existing.every(value => typeof value === 'string')
+    )
+      throw new Error(
+        `Invalid drift exemptions at ${configPath}: expected a string array. Fix workspace['catalogDriftIgnore'].`,
+      )
+    workspace['catalogDriftIgnore'] = [
+      .../* @__PURE__ */ new Set([...existing, ...patterns]),
+    ]
+    config['workspace'] = workspace
+    writeFileSync(configPath, `${JSON.stringify(config, void 0, 2)}\n`)
+  }
+  return kept.join('\n')
+}
+
+//#endregion
+//#region template/base/universal/scripts/fleet/release/github/config.mts
+function githubReleaseEnabled(config) {
+  return config?.release?.github !== false
+}
+
+//#endregion
 //#region template/base/universal/scripts/fleet/lib/conditional-config.mts
 function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
@@ -401,13 +606,18 @@ function isPlainObject(value) {
   const prototype = Object.getPrototypeOf(value)
   return prototype === null || prototype === Object.prototype
 }
+function hasCodeql(raw) {
+  const github = raw['github']
+  return isPlainObject(github) && github['codeql'] === true
+}
 function markerCompilesRust(value) {
   const build = value['build']
   if (
     typeof build === 'object' &&
     build !== null &&
     !Array.isArray(build) &&
-    build['type'] === 'rust'
+    'type' in build &&
+    build.type === 'rust'
   )
     return true
   const capabilities = value['capabilities']
@@ -417,7 +627,7 @@ function markerCompilesRust(value) {
     Array.isArray(capabilities)
   )
     return false
-  const cargoPaths = capabilities['cargo']
+  const cargoPaths = 'cargo' in capabilities ? capabilities.cargo : void 0
   return Array.isArray(cargoPaths) && cargoPaths.length > 0
 }
 function hasNonEmptyPrebakes(raw) {
@@ -454,6 +664,14 @@ function bundlesVendoredDeps(raw) {
   const build = raw['build']
   return isPlainObject(build) && build['bundlesVendoredDeps'] === true
 }
+function publishesCrates(raw) {
+  const channels = [raw['build']]
+  const secondaries = raw['secondaries']
+  if (Array.isArray(secondaries)) channels.push(...secondaries)
+  return channels.some(
+    channel => isPlainObject(channel) && channel['from'] === 'crates-registry',
+  )
+}
 /**
  * True when the config-data trigger `flag` holds for the raw socket-wheelhouse
  * marker. THE authority for the CONDITIONAL_FILES `configFlag` triggers — the
@@ -464,6 +682,12 @@ function configFlagHolds(flag, raw) {
   switch (flag) {
     case 'bundlesVendoredDeps':
       return bundlesVendoredDeps(raw)
+    case 'hasCodeql':
+      return hasCodeql(raw)
+    case 'hasGithubRelease':
+      return githubReleaseEnabled(raw)
+    case 'hasCratesRegistry':
+      return publishesCrates(raw)
     case 'hasGhcr':
       return publishesToGhcr(raw)
     case 'hasNapi':
@@ -622,6 +846,10 @@ const dep0Logger = {
     console.error(...args)
   },
   log(...args) {
+    if (process$1.argv.includes('--json')) {
+      process$1.stderr.write(`${format(...args)}\n`)
+      return
+    }
     console.log(...args)
   },
 }
@@ -780,7 +1008,9 @@ const ALWAYS_TRACKED_PREFIXES = [
   'assets/fleet/important.svg',
   'assets/fleet/socket-combomark-dark.svg',
   'assets/fleet/socket-combomark-light.svg',
+  'patches/@socketsecurity__lib@7.0.1.patch',
   'patches/run-local-ci@0.18.1.patch',
+  'patches/vitest@5.0.0.patch',
   'scripts/repo/bootstrap/',
 ]
 /**
@@ -936,12 +1166,8 @@ function extractFleetBlockLines(target) {
   const beginAt = target.indexOf(begin)
   if (beginAt === -1) return []
   const bodyStart = beginAt + begin.length
-  const endAt = target.indexOf(end, bodyStart)
-  if (endAt === -1) return []
-  return target
-    .slice(bodyStart, endAt)
-    .split(/\r?\n/)
-    .filter(line => line.trim() !== '')
+  if (target.indexOf(end, bodyStart) === -1) return []
+  return parseGitignoreSections(target).fleet.filter(line => line.trim() !== '')
 }
 /**
  * Non-Claude harness surfaces the fleet GENERATES, never tracks.
@@ -1034,25 +1260,33 @@ function stripLegacyUntrackEntriesFromFleetBlock(target) {
   ].join('\n')
 }
 /**
- * Write the fetcher-owned `<fleet-pack>` `.gitignore` region: `.agents/` (the
- * regenerated agent mirror — dead weight in a thin consumer; the fetch
- * repopulates it) plus the wholly-fleet bundle untrack paths (see
- * fleetPackOwnedPaths). The region is REGENERATED from the manifest on every
- * run — replaced whole, so a stale entry from an earlier pack is pruned
- * instead of carried forward (the old append-only refresh accreted every
- * prior line forever). Hand-added ignores belong outside the markers and are
- * untouched, as is the cascade's `<fleet>` region — the two writers own
- * disjoint regions, so neither can discard the other's rules. The dep-0
- * bootstrap (`scripts/repo/bootstrap/`) is NOT listed: it ships via the
- * manual cascade, never the release bundle, so it never enters this untrack
- * set and stays tracked by default.
- *
- * This is the HALF that is safe to run unconditionally for a thin consumer. It
- * only edits `.gitignore`; it never touches the git index, so a member whose
- * payload is still tracked keeps every file it has committed (gitignore has no
- * effect on tracked paths). The index-mutating half lives in
- * untrackFleetPackPaths and stays behind an explicit `--thin`.
+ * Refresh exact tracked fleet paths using the active ownership classification.
  */
+function fleetTrackedAllowlist(manifest, current) {
+  const candidates = [
+    ...Object.keys(manifest.files),
+    ...current.filter(line => line.startsWith('!/')).map(line => line.slice(2)),
+  ]
+  const removed = manifest.removedPaths ?? []
+  return [
+    '# <fleet-allowlist>',
+    ...[
+      ...new Set(
+        candidates.filter(
+          entry =>
+            isAlwaysTrackedSurface(entry) &&
+            !removed.some(
+              removedPath =>
+                entry === removedPath || entry.startsWith(`${removedPath}/`),
+            ),
+        ),
+      ),
+    ]
+      .toSorted()
+      .map(entry => `!/${entry}`),
+    '# </fleet-allowlist>',
+  ].join('\n')
+}
 function refreshFleetPackIgnores(config) {
   const { dest, manifest } = {
     __proto__: null,
@@ -1060,10 +1294,13 @@ function refreshFleetPackIgnores(config) {
   }
   const sortedRoots = fleetPackOwnedPaths(manifest)
   const gitignorePath = path.join(dest, '.gitignore')
+  const existing = existsSync(gitignorePath)
+    ? readFileSync(gitignorePath, 'utf8')
+    : ''
   const migrated = stripLegacyPackBlock(
-    stripLegacyUntrackEntriesFromFleetBlock(
-      existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '',
-    ),
+    existing.includes(packBeginMarker())
+      ? existing
+      : stripLegacyUntrackEntriesFromFleetBlock(existing),
   )
   const packBlock = [
     packBeginMarker(),
@@ -1074,9 +1311,14 @@ function refreshFleetPackIgnores(config) {
     ...sortedRoots,
     packEndMarker(),
   ].join('\n')
-  const updated = splicePackBlock({
+  const sections = parseGitignoreSections(migrated)
+  const fleetAllowlist = sections.denyByDefault
+    ? fleetTrackedAllowlist(manifest, sections.fleetAllowlist)
+    : void 0
+  const updated = composeGitignore({
     packBlock,
     target: migrated,
+    fleetAllowlist,
   })
   writeFileSync(gitignorePath, updated)
 }
@@ -1128,6 +1370,194 @@ function effectiveMemberManifest(manifest, dest) {
 }
 
 //#endregion
+//#region template/base/universal/scripts/fleet/process/script-meta.mts
+/**
+ * True when argv carries a bare `--`.
+ *
+ * `pnpm run <script> -- --flag` forwards the `--` to the script, and the argv
+ * parser truncates there — every flag after it is DISCARDED, not collected as a
+ * positional. The script then runs with default behaviour while the caller
+ * believes they passed flags. That is merely confusing for a read-only script
+ * and dangerous for a destructive one: `prune:branch-backups -- --dry-run`
+ * drops the `--dry-run` and performs a live run against every repo.
+ *
+ * Checked against `process.argv` because by the time parsing finishes the
+ * dropped flags are unrecoverable — the parsed result cannot tell you what was
+ * lost.
+ */
+function hasBareDoubleDash(argv) {
+  return argv.includes('--')
+}
+/**
+ * The message shown when argv carries a bare `--`. Names the script so the
+ * corrected command can be pasted directly.
+ */
+function bareDoubleDashMessage(scriptName) {
+  return `a bare \`--\` in the command line
+  Where: the argv for ${scriptName}.\n  Saw:   flags after \`--\`. The argv parser truncates there, so those flags were NOT applied and the script ran with its defaults.
+  Fix:   drop the \`--\`, e.g. \`pnpm run ${scriptName} --dry-run\`.`
+}
+/**
+ * The help request found on argv, if any: `--describe` wins over `-h`/`--help`
+ * when both are present (the narrower ask costs one line; printing both forms
+ * for a mixed argv helps no caller). Pure — exported for tests.
+ */
+function helpRequest(argv) {
+  if (argv.includes('--describe')) return 'describe'
+  if (argv.includes('-h') || argv.includes('--help')) return 'help'
+}
+/**
+ * True when argv carries `--json` on its own — orthogonal to `helpRequest`,
+ * which only reads `--describe`/`-h`/`--help`. A script's own `main()` calls
+ * this to switch its RESULT output to structured JSON without re-parsing
+ * argv itself; `--describe --json` (either order) is answered entirely by
+ * the runner before `main()` runs and never reaches this predicate. Pure —
+ * exported for tests and entry scripts.
+ */
+function isJsonRequested(argv) {
+  return argv.includes('--json')
+}
+/**
+ * The text a help request prints: the one-liner alone for `--describe`, or
+ * the one-liner + blank line + usage body for `--help`. Pure — exported for
+ * tests.
+ */
+function helpText(kind, meta) {
+  return kind === 'describe'
+    ? meta.describe
+    : `${meta.describe}\n\n${meta.help}`
+}
+function describeManifestText(meta, config) {
+  const { name, version } = {
+    __proto__: null,
+    ...config,
+  }
+  return JSON.stringify(
+    {
+      $schema:
+        'https://raw.githubusercontent.com/SocketDev/socket-wheelhouse/main/schemas/cli-describe.schema.json',
+      name,
+      version,
+      description: meta.describe,
+    },
+    void 0,
+    2,
+  )
+}
+
+//#endregion
+//#region template/base/universal/scripts/fleet/process/script-result.mts
+function renderScriptResult(result) {
+  if (
+    !Number.isInteger(result.exitCode) ||
+    result.exitCode < 0 ||
+    result.exitCode > 255
+  )
+    throw new Error(
+      'Script result requires an integer exit code between 0 and 255.',
+    )
+  return JSON.stringify({
+    ok: result.exitCode === 0,
+    exitCode: result.exitCode,
+    ...(result.data === void 0 ? {} : { data: result.data }),
+    ...(result.error === void 0 ? {} : { error: result.error }),
+  })
+}
+var ScriptExit = class extends Error {
+  exitCode
+  constructor(exitCode) {
+    if (!Number.isInteger(exitCode) || exitCode < 1 || exitCode > 255)
+      throw new Error(
+        'Script abort requires an integer exit code between 1 and 255.',
+      )
+    super(
+      `Script stopped with exit code ${exitCode}. Review the preceding diagnostic and retry.`,
+    )
+    this.name = 'ScriptExit'
+    this.exitCode = exitCode
+  }
+}
+
+//#endregion
+//#region template/base/universal/scripts/fleet/process/run-main-minimal.mts
+function errorMessage$1(error) {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+function scriptVersion() {
+  try {
+    const value = JSON.parse(readFileSync('package.json', 'utf8'))
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      'version' in value &&
+      typeof value.version === 'string'
+    )
+      return value.version
+  } catch {}
+  return '0.0.0'
+}
+function writeLine(text) {
+  process.stdout.write(`${text}\n`)
+}
+function runMainMinimal(main, meta) {
+  runMainMinimalAsync(main, meta)
+}
+async function runMainMinimalAsync(main, meta) {
+  const argv = process.argv.slice(2)
+  const json = isJsonRequested(argv)
+  const request = helpRequest(argv)
+  const name = process.argv[1]?.split('/').pop() ?? 'script'
+  if (request) {
+    writeLine(
+      request === 'describe' && json
+        ? describeManifestText(meta, {
+            name,
+            version: scriptVersion(),
+          })
+        : helpText(request, meta),
+    )
+    process.exitCode = 0
+    return
+  }
+  try {
+    if (hasBareDoubleDash(argv)) throw new Error(bareDoubleDashMessage(name))
+    if (json && !meta.json)
+      throw new Error('This script has not declared JSON execution support.')
+    await invokeMinimalMain(main, meta)
+  } catch (error) {
+    const message = errorMessage$1(error)
+    const exitCode = error instanceof ScriptExit ? error.exitCode : 1
+    process.exitCode = exitCode
+    if (json)
+      writeLine(
+        renderScriptResult({
+          exitCode,
+          error: message,
+        }),
+      )
+    else process.stderr.write(`${message}\n`)
+  }
+}
+async function invokeMinimalMain(main, meta) {
+  const json = isJsonRequested(process.argv.slice(2))
+  const result = await main()
+  const code =
+    typeof result === 'object' && result !== null ? result.exitCode : result
+  if (typeof code === 'number') process.exitCode = code
+  else if (!process.exitCode) process.exitCode = 0
+  if (json && meta.json === 'result')
+    writeLine(
+      renderScriptResult({
+        ...(typeof result === 'object' && result !== null ? result : {}),
+        exitCode: Number(process.exitCode ?? 0),
+      }),
+    )
+  else if (!json && typeof result === 'object' && result?.error)
+    process.stderr.write(`${result.error}\n`)
+}
+
+//#endregion
 //#region template/base/universal/scripts/fleet/fs/mirror-lock.mts
 /**
  * @file Mirror-lock lift primitives. The cascade chmods live fleet mirrors
@@ -1176,6 +1606,9 @@ function localTemplateManifests(filesDir, manifest, dest) {
       groups.push({
         [entry.triggerKind]: entry.conditional,
         files: [file],
+        ...(entry.removeWhenInactive === true
+          ? { removeWhenInactive: true }
+          : {}),
       })
   }
   const conditionalRoot = path.join(path.dirname(filesDir), 'conditional')
@@ -1500,7 +1933,7 @@ function parseYamlKeyBlocks(yaml) {
   if (current !== void 0) blocks.push(current)
   return blocks
 }
-const MAP_ENTRY_RE = /^(\s+)(['"]?)([^'":\n]+)\2:/
+const MAP_ENTRY_RE = /^(\s+)(?:(['"])(.*?)\2|([^'"\n]+?)):(?:\s|$)/
 const LIST_ITEM_RE = /^(\s+)-\s+(.*)$/
 /**
  * Split a top-level key block's BODY lines into entry chunks. A chunk starts
@@ -1533,7 +1966,7 @@ function parseYamlEntryChunks(bodyLines) {
       entryIndent ??= indent
       if (current !== void 0) chunks.push(current)
       current = {
-        id: map ? `k:${map[3].trim()}` : `i:${item[2].trim()}`,
+        id: map ? `k:${(map[3] ?? map[4]).trim()}` : `i:${item[2].trim()}`,
         lines: [...pending, line],
       }
       pending = []
@@ -1663,6 +2096,37 @@ function mergeWorkspaceYaml(config) {
     .map(b => [...b.head, ...b.lines].join('\n'))
     .join('\n')
     .replace(/\n+$/, '')}\n`
+}
+
+//#endregion
+//#region scripts/repo/gen/bootstrap/src/opencode-settings.mts
+function isOpenCodeRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+function mergeOpenCodeMcpSettings(fleetText, repoText) {
+  const fleet = JSON.parse(fleetText)
+  const repo = JSON.parse(repoText)
+  if (!isOpenCodeRecord(fleet) || !isOpenCodeRecord(repo))
+    throw new Error(
+      'Cannot merge opencode.json: expected configuration objects. Repair the file before installing the fleet pack.',
+    )
+  const fleetMcp = fleet['mcp'] === void 0 ? {} : fleet['mcp']
+  const repoMcp = repo['mcp'] === void 0 ? {} : repo['mcp']
+  if (!isOpenCodeRecord(fleetMcp) || !isOpenCodeRecord(repoMcp))
+    throw new Error(
+      'Cannot merge opencode.json mcp: expected server maps. Repair the file before installing the fleet pack.',
+    )
+  return `${JSON.stringify(
+    {
+      ...repo,
+      mcp: {
+        ...repoMcp,
+        ...fleetMcp,
+      },
+    },
+    void 0,
+    2,
+  )}\n`
 }
 
 //#endregion
@@ -1955,7 +2419,9 @@ function pruneStaleFleetFiles(dest, manifest, previousFiles, options) {
         !Object.hasOwn(manifest.files, file) &&
         existsSync(absolute) &&
         lstatSync(absolute).isFile() &&
-        computeSha256(readFileSync(absolute)) === archiveManifest?.files[file]
+        (group.removeWhenInactive === true ||
+          computeSha256(readFileSync(absolute)) ===
+            archiveManifest?.files[file])
       )
         candidates.add(file)
     }
@@ -2000,6 +2466,17 @@ function hasIdenticalBytes(source, target) {
     return false
   }
 }
+function isPreservedInstallPath(relative, options) {
+  const opts = {
+    __proto__: null,
+    ...options,
+  }
+  const segments = normalizeBundlePath(relative).split('/')
+  for (let index = 1; index <= segments.length; index += 1)
+    if (opts.preservedPaths?.has(segments.slice(0, index).join('/')))
+      return true
+  return false
+}
 function installFiles(filesDir, dest, manifest, options) {
   const opts = {
     __proto__: null,
@@ -2018,6 +2495,10 @@ function installFiles(filesDir, dest, manifest, options) {
   const refreshedTracked = []
   for (let i = 0, { length } = rels; i < length; i += 1) {
     const rel = rels[i]
+    if (isPreservedInstallPath(rel, { preservedPaths: opts.preservedPaths })) {
+      skippedAlwaysTracked += 1
+      continue
+    }
     const source = path.join(filesDir, rel)
     const target = path.join(dest, rel)
     const rewritten =
@@ -2026,6 +2507,11 @@ function installFiles(filesDir, dest, manifest, options) {
         : localTemplateFileContent(source, rel, opts.templateDir)
     mkdirSync(path.dirname(target), { recursive: true })
     let spliced
+    if (rel === 'opencode.json' && existsSync(target))
+      spliced = mergeOpenCodeMcpSettings(
+        rewritten ?? readFileSync(source, 'utf8'),
+        readFileSync(target, 'utf8'),
+      )
     if (isFleetCanonicalSpliceFile(rel) && existsSync(target)) {
       const sourceContent = rewritten ?? readFileSync(source, 'utf8')
       if (hasFleetCanonicalEndSentinel(sourceContent))
@@ -2123,8 +2609,19 @@ function installFiles(filesDir, dest, manifest, options) {
  * instead.
  */
 function materializeFromLocalTemplate(dest, manifest, options) {
-  const filesDir = path.join(dest, 'template', 'base', 'universal')
+  const filesDir = sharedTemplateBasePath(dest)
   if (!existsSync(filesDir)) return
+  const preservedPaths = options?.preserveTracked
+    ? new Set(
+        execFileSync('git', ['ls-files', '--cached', '-z'], {
+          cwd: dest,
+          encoding: 'utf8',
+        })
+          .split('\0')
+          .filter(Boolean)
+          .map(normalizeBundlePath),
+      )
+    : options?.preservedPaths
   const shaped = effectiveMemberManifest(manifest, dest)
   const total = {
     placed: 0,
@@ -2135,6 +2632,7 @@ function materializeFromLocalTemplate(dest, manifest, options) {
   for (const source of localTemplateManifests(filesDir, shaped, dest)) {
     const result = installFiles(source.filesDir, dest, source.manifest, {
       ...options,
+      preservedPaths,
       templateDir: path.join(dest, 'template'),
     })
     total.placed += result.placed
@@ -2145,14 +2643,14 @@ function materializeFromLocalTemplate(dest, manifest, options) {
   return total
 }
 /**
- * Untrack the bundle's GENERATED build outputs (`manifest.generatedPaths`)
- * from the git index after placement. The bundle SHIPS these files — placement
+ * Untrack the bundle's GENERATED build outputs (`manifest.generatedPaths`) from
+ * the git index after placement. The bundle SHIPS these files — placement
  * writes them to disk — while the fleet gitignore block ignores them and
  * `generated-outputs-are-untracked` forbids TRACKING them. A member that
- * historically committed one (fleet-pack.cjs et al., before the ignore existed)
- * heals on the next refresh: the file stays on disk, but leaves the index.
- * Non-fatal by design — a non-git dest or an already-clean index is a no-op
- * (`--ignore-unmatch`).
+ * historically committed one (fleet-pack.generated.cjs et al., before the
+ * ignore existed) heals on the next refresh: the file stays on disk, but leaves
+ * the index. Non-fatal by design — a non-git dest or an already-clean index is
+ * a no-op (`--ignore-unmatch`).
  */
 function untrackGeneratedOutputs(dest, generatedPaths) {
   if (!generatedPaths || generatedPaths.length === 0) return
@@ -2195,11 +2693,17 @@ function installSegments(segmentsDir, dest, manifest) {
     const existing = existsSync(targetPath)
       ? readFileSync(targetPath, 'utf8')
       : ''
-    const updated = spliceFleetBlock({
-      commentStyle: entry.commentStyle,
-      fleetBlock,
-      target: existing,
-    })
+    const updated =
+      entry.path === '.gitignore'
+        ? composeGitignore({
+            target: existing,
+            fleetBlock,
+          })
+        : spliceFleetBlock({
+            commentStyle: entry.commentStyle,
+            fleetBlock,
+            target: existing,
+          })
     mkdirSync(path.dirname(targetPath), { recursive: true })
     writeFileSync(targetPath, updated)
   }
@@ -2262,7 +2766,7 @@ function installWorkspaceSegment(segmentsDir, dest, manifest) {
   try {
     const merged = mergeWorkspaceYaml({
       bundleFleetSections,
-      consumerYaml,
+      consumerYaml: migrateWorkspaceSettings(dest, consumerYaml),
       fleetKeys: ws.fleetKeys,
     })
     writeFileSync(targetPath, merged)
@@ -2538,6 +3042,177 @@ function formatUpdateNotice(config) {
   const top = `╭${'─'.repeat(width + 2)}╮`
   const bottom = `╰${'─'.repeat(width + 2)}╯`
   return [top, ...lines.map(l => `│ ${l.padEnd(width)} │`), bottom].join('\n')
+}
+
+//#endregion
+//#region template/base/universal/.git-hooks/_shared/repo-containment.mts
+function repositoryPathSeparators(value) {
+  return value.replaceAll('\\', '/')
+}
+function repositoryPathApi(value) {
+  return /^(?:[a-z]:[\\/]|\/\/|\\\\)/iu.test(value) ? path.win32 : path.posix
+}
+function resolveRepositoryPath(base, value) {
+  const valueApi = repositoryPathApi(value)
+  return repositoryPathSeparators(
+    (valueApi === path.win32 ? valueApi : repositoryPathApi(base)).resolve(
+      base,
+      repositoryPathSeparators(value),
+    ),
+  )
+}
+function containsRepositoryPath(root, target) {
+  const api = repositoryPathApi(root)
+  const relative = repositoryPathSeparators(api.relative(root, target))
+  return (
+    relative === '' ||
+    (relative !== '..' &&
+      !relative.startsWith('../') &&
+      !api.isAbsolute(relative))
+  )
+}
+function repositoryRealPath(value) {
+  const api = repositoryPathApi(value)
+  let candidate = api.resolve(value)
+  const missing = []
+  while (true)
+    try {
+      lstatSync(candidate)
+      return repositoryPathSeparators(
+        api.join(realpathSync(candidate), ...missing),
+      )
+    } catch (error) {
+      if (error.code !== 'ENOENT') return
+      try {
+        if (lstatSync(candidate).isSymbolicLink()) return
+      } catch (probeError) {
+        if (probeError.code !== 'ENOENT') return
+      }
+      const parent = api.dirname(candidate)
+      if (parent === candidate) return
+      missing.unshift(api.basename(candidate))
+      candidate = parent
+    }
+}
+function repositoryContainsTarget(root, target) {
+  const resolvedRoot = repositoryRealPath(root)
+  const resolvedTarget = repositoryRealPath(target)
+  if (
+    resolvedRoot === void 0 ||
+    resolvedTarget === void 0 ||
+    !containsRepositoryPath(resolvedRoot, resolvedTarget)
+  )
+    return false
+  const nestedRoot =
+    findRepositoryRoot(
+      resolveRepositoryPath(resolvedTarget, '.boundary-root'),
+    ) ?? findRepositoryRoot(resolvedTarget)
+  if (nestedRoot && nestedRoot !== resolvedRoot)
+    return repositoryNestedCheckoutIsContained(resolvedRoot, nestedRoot)
+  return true
+}
+function findRepositoryRoot(file) {
+  const api = repositoryPathApi(file)
+  let directory = api.dirname(api.resolve(file))
+  while (true) {
+    try {
+      lstatSync(api.join(directory, '.git'))
+      return repositoryPathSeparators(directory)
+    } catch (error) {
+      if (error.code !== 'ENOENT') return
+    }
+    const parent = api.dirname(directory)
+    if (parent === directory) return
+    directory = parent
+  }
+}
+function repositoryNestedCheckoutIsContained(root, nestedRoot) {
+  try {
+    const marker = path.join(nestedRoot, '.git')
+    if (!lstatSync(marker).isFile()) return true
+    const reference = readFileSync(marker, 'utf8').trim()
+    if (!reference.startsWith('gitdir: ')) return false
+    const metadata = repositoryRealPath(
+      resolveRepositoryPath(nestedRoot, reference.slice(8)),
+    )
+    return (
+      metadata !== void 0 &&
+      existsSync(metadata) &&
+      repositoryMetadataIsContained(root, metadata) &&
+      !existsSync(path.join(metadata, 'commondir'))
+    )
+  } catch {
+    return false
+  }
+}
+function repositoryMetadataIsContained(root, metadata) {
+  if (containsRepositoryPath(root, metadata)) return true
+  const marker = path.join(root, '.git')
+  if (!lstatSync(marker).isFile()) return false
+  const reference = readFileSync(marker, 'utf8').trim()
+  if (!reference.startsWith('gitdir: ')) return false
+  const gitDirectory = repositoryRealPath(
+    resolveRepositoryPath(root, reference.slice(8)),
+  )
+  if (!gitDirectory) return false
+  if (containsRepositoryPath(path.join(gitDirectory, 'modules'), metadata))
+    return true
+  const commonFile = path.join(gitDirectory, 'commondir')
+  const commonDirectory = repositoryRealPath(
+    resolveRepositoryPath(
+      gitDirectory,
+      readFileSync(commonFile, 'utf8').trim(),
+    ),
+  )
+  return (
+    commonDirectory !== void 0 &&
+    containsRepositoryPath(path.join(commonDirectory, 'modules'), metadata)
+  )
+}
+
+//#endregion
+//#region scripts/repo/gen/bootstrap/src/cascade-state.mts
+const CASCADE_RECEIPT = '.cache/fleet/socket-wheelhouse/cascade-applied.json'
+function readCascadeReceipt(dest) {
+  const filename = cascadeReceiptPath(dest)
+  if (!existsSync(filename)) return void 0
+  const value = JSON.parse(readFileSync(filename, 'utf8'))
+  if (value === null || typeof value !== 'object')
+    throw new Error(
+      `Invalid cascade receipt at ${filename}. Expected a pinned ref and template SHA. Run the validated Wheelhouse cascade again.`,
+    )
+  const pinnedRef = Reflect.get(value, 'pinnedRef')
+  const templateSha = Reflect.get(value, 'templateSha')
+  if (
+    typeof pinnedRef !== 'string' ||
+    !/^fleet-pack-[0-9a-f]{40}$/.test(pinnedRef) ||
+    typeof templateSha !== 'string' ||
+    !/^[0-9a-f]{40}$/.test(templateSha)
+  )
+    throw new Error(
+      `Invalid cascade receipt at ${filename}. Expected a pinned ref and template SHA. Run the validated Wheelhouse cascade again.`,
+    )
+  return {
+    pinnedRef,
+    templateSha,
+  }
+}
+function clearCascadeReceipt(dest) {
+  const filename = cascadeReceiptPath(dest)
+  if (existsSync(filename)) unlinkSync(filename)
+}
+function cascadeReceiptMatchesPin(dest, ref) {
+  return (
+    readBundleRef(dest) === ref && readCascadeReceipt(dest)?.pinnedRef === ref
+  )
+}
+function cascadeReceiptPath(dest) {
+  const filename = path.join(dest, CASCADE_RECEIPT)
+  if (!repositoryContainsTarget(dest, filename))
+    throw new Error(
+      `Cascade receipt path escapes ${dest}. Expected a repository-contained cache. Remove the external cache symlink.`,
+    )
+  return filename
 }
 
 //#endregion
@@ -2826,7 +3501,7 @@ async function getGhcrToken(repo, registry, httpFn = httpGet) {
   })
   let token = tokenFromBody(res.body)
   if (!token) {
-    const authorization = ghcrBasicAuthHeader(process.env)
+    const authorization = ghcrBasicAuthHeader(process$1.env)
     if (authorization)
       token = tokenFromBody(
         (
@@ -2970,7 +3645,7 @@ function ghcrBundleRepo(repo) {
  * on-disk `sourceManifest` file the gh-release path downloads separately.
  */
 function extractManifestFromTarball(tarball, destDir) {
-  run(tarExecutable(process.platform, process.env['SystemRoot']), [
+  run(tarExecutable(process$1.platform, process$1.env['SystemRoot']), [
     '-xzf',
     tarball,
     '-C',
@@ -3066,60 +3741,14 @@ function assertLockStep(config) {
   return false
 }
 const ERR_BUNDLE_BEHIND_LOCAL = 'ERR_WHEELHOUSE_BUNDLE_BEHIND_LOCAL_TEMPLATE'
-/**
- * True when a sibling wheelhouse checkout exists AND its HEAD is strictly
- * DESCENDED from the bundle's template SHA — the bundle is a frozen snapshot
- * of an older template, so unpacking it would roll the member backwards.
- *
- * `assertLockStep` only proves the bundle matches its own pin, which is a
- * self-consistency check. It cannot see that the pin itself went stale. On a
- * machine that also cascades from a local template, the two writers disagree
- * and whichever runs last wins: the cascade writes current content, then
- * `update`'s bundle pass restores the older snapshot over it. That reverted a
- * Socket catalog pin, dropped fleet rules out of CLAUDE.md, and reintroduced a
- * duplicated overrides block that broke `pnpm install` — each time reported as
- * a successful update.
- *
- * Returns false when there is no local wheelhouse (a thin member, or CI),
- * where the bundle IS the only source of truth and applying it is correct.
- * Any git failure also returns false: this guard refuses a provably stale
- * bundle, and never blocks on a question it could not answer.
- *
- * That includes an UNREACHABLE pin, which is the normal state after the fleet
- * squashes its default branch. The cascade-side twin
- * (`isPinnedBundleBehindLocalTemplate` in
- * scripts/repo/commit-cascade/fleet-pack-channel.mts) reads the same state as
- * BEHIND, and the split is deliberate: there, being wrong means delivering a
- * payload that was already current, and here it means raising
- * ERR_WHEELHOUSE_BUNDLE_BEHIND_LOCAL_TEMPLATE and failing a member's install.
- * Only one of those is safe to guess at.
- */
 function isBundleBehindLocalTemplate(config) {
-  const { dest, manifestTemplateSha } = {
-    __proto__: null,
-    ...config,
-  }
-  if (!manifestTemplateSha) return false
-  const wheelhouse = path.join(dest, '..', 'socket-wheelhouse')
-  if (!existsSync(path.join(wheelhouse, '.git'))) return false
-  try {
-    execFileSync(
-      'git',
-      ['merge-base', '--is-ancestor', manifestTemplateSha, 'HEAD'],
-      {
-        cwd: wheelhouse,
-        stdio: 'ignore',
-      },
-    )
-    return (
-      execFileSync('git', ['rev-parse', 'HEAD'], {
-        cwd: wheelhouse,
-        encoding: 'utf8',
-      }).trim() !== manifestTemplateSha
-    )
-  } catch {
-    return false
-  }
+  const { dest, manifestTemplateSha } = config
+  const receipt = readCascadeReceipt(dest)
+  return (
+    receipt !== void 0 &&
+    receipt.pinnedRef === readBundleRef(dest) &&
+    receipt.templateSha !== manifestTemplateSha
+  )
 }
 /**
  * Resolve the NEWEST pack ref from GHCR's moving `latest` tag.
@@ -3196,18 +3825,18 @@ function maybeShowUpdateNotice(config) {
   const store = readNoticeStore(dest)
   if (
     !shouldShowNotice({
-      ci: process.env['CI'] !== void 0 && process.env['CI'] !== '',
+      ci: process$1.env['CI'] !== void 0 && process$1.env['CI'] !== '',
       newestRef,
       nowMs: Date.now(),
-      optedOut: process.env['WHEELHOUSE_NO_UPDATE_NOTIFIER'] === '1',
+      optedOut: process$1.env['WHEELHOUSE_NO_UPDATE_NOTIFIER'] === '1',
       store,
       updateAvailable,
     }) ||
     newestRef === void 0
   )
     return false
-  const color = process.env['NO_COLOR'] === void 0
-  process.stderr.write(
+  const color = process$1.env['NO_COLOR'] === void 0
+  process$1.stderr.write(
     `${formatUpdateNotice({
       color,
       newestRef,
@@ -3269,6 +3898,11 @@ function statusJson(state) {
 
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/fleet.mts
+const SCRIPT_META = {
+  describe: 'Fetch, verify, and materialize the pinned fleet tooling bundle.',
+  help: 'Usage: pnpm run sync-fleet [--status | --from-template] [--if-current] [--json]',
+  json: 'native',
+}
 const logger = getDep0Logger()
 const DEFAULT_REPO = 'SocketDev/socket-wheelhouse'
 const MANIFEST_NAME = 'release-bundle-manifest.json'
@@ -3297,6 +3931,7 @@ function parseArgs(argv) {
     noHeader: false,
     quiet: false,
     refreshTracked: false,
+    preserveTracked: false,
     ref: '',
     repo: DEFAULT_REPO,
     status: false,
@@ -3317,6 +3952,7 @@ function parseArgs(argv) {
     else if (arg === '--manifest') opts.manifest = argv[++i]
     else if (arg === '--no-header') opts.noHeader = true
     else if (arg === '--quiet') opts.quiet = true
+    else if (arg === '--preserve-tracked') opts.preserveTracked = true
     else if (arg === '--refresh-tracked') opts.refreshTracked = true
     else if (arg === '--ref') opts.ref = argv[++i] ?? ''
     else if (arg === '--repo') opts.repo = argv[++i] ?? DEFAULT_REPO
@@ -3342,7 +3978,9 @@ async function runStatus(config) {
   const bundleConfig = readBundleConfig(dest)
   const ref = cfg.ref || bundleConfig.ref || ''
   if (!ref) {
-    if (!cfg.quiet)
+    if (cfg.json)
+      process$1.stdout.write(`${JSON.stringify({ status: 'unconfigured' })}\n`)
+    else if (!cfg.quiet)
       logger.log(
         'fleet:status: no bundle.ref pinned in .config/repo/socket-wheelhouse.json — not a thin consumer.',
       )
@@ -3366,9 +4004,8 @@ async function runStatus(config) {
     newestTemplateSha,
     pinnedTemplateSha,
   })
-  if (cfg.json) {
-    if (!cfg.quiet) logger.log(JSON.stringify(statusJson(state)))
-  } else if (!cfg.quiet)
+  if (cfg.json) process$1.stdout.write(`${JSON.stringify(statusJson(state))}\n`)
+  else if (!cfg.quiet)
     printStatusReport(state, { noHeader: cfg.noHeader ?? false })
   return lockStepExitCode(state, { exitCode: cfg.exitCode ?? false })
 }
@@ -3398,9 +4035,19 @@ async function installFleet(config) {
     )
     return 1
   }
-  if (cfg.ifCurrent && readAppliedRef(dest) === ref) {
-    logger.log(`install-fleet: bundle ${ref} already applied — skipping fetch.`)
-    return 0
+  if (cfg.ifCurrent && bundlePath === void 0) {
+    if (cascadeReceiptMatchesPin(dest, ref)) {
+      logger.log(
+        `install-fleet: preserving local cascade changes against pinned bundle ${ref}. Update the pin to adopt a published bundle.`,
+      )
+      return 0
+    }
+    if (readAppliedRef(dest) === ref) {
+      logger.log(
+        `install-fleet: bundle ${ref} already applied — skipping fetch.`,
+      )
+      return 0
+    }
   }
   const repo = cfg.repo ?? DEFAULT_REPO
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'fleet-install-'))
@@ -3442,11 +4089,11 @@ async function installFleet(config) {
     const extractDir = path.join(tmp, 'extracted')
     mkdirSync(extractDir, { recursive: true })
     run(
-      tarExecutable(process.platform, process.env['SystemRoot']),
+      tarExecutable(process$1.platform, process$1.env['SystemRoot']),
       tarExtractArgs({
         archive: sourceTarball,
         destination: extractDir,
-        platform: process.platform,
+        platform: process$1.platform,
       }),
     )
     const filesDir = path.join(extractDir, 'files')
@@ -3488,7 +4135,7 @@ async function installFleet(config) {
         })
       ) {
         logger.error(
-          `install-fleet: ${ERR_BUNDLE_BEHIND_LOCAL} — ${sourceRef} carries template ${manifest.templateSha}, which the sibling socket-wheelhouse checkout has already moved past. Applying it would revert this repo to an older snapshot. Nothing written.\n  Fix: cascade from the local template instead —\n    node scripts/repo/commit-cascade/run.mts --target ${dest} --fix\n  Or repin bundle.ref/cascadeSha in .config/repo/socket-wheelhouse.json to a release cut from the current template.`,
+          `install-fleet: ${ERR_BUNDLE_BEHIND_LOCAL} — ${sourceRef} carries template ${manifest.templateSha}, but the local cascade receipt records a different template. Applying this bundle would replace the cascade payload. Nothing written. Update bundle.ref and bundle.cascadeSha to the published cascade template.`,
         )
         return 1
       }
@@ -3547,6 +4194,7 @@ async function installFleet(config) {
         dest,
         manifest: ignoreManifest,
       })
+    clearCascadeReceipt(dest)
     writeAppliedRef(dest, sourceRef)
     writeAppliedFiles(dest, Object.keys(memberManifest.files))
     const prunedTotal = prunedCount + tombstonedCount
@@ -3571,7 +4219,7 @@ async function installFleet(config) {
   }
 }
 function isMainModule() {
-  const entry = process.argv[1]
+  const entry = process$1.argv[1]
   if (!entry) return false
   try {
     return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entry)
@@ -3589,14 +4237,8 @@ function isMainModule() {
  */
 function runFromTemplate(config) {
   const dest = path.resolve(config.dest ?? repoRoot)
-  const manifestPath = path.join(
-    dest,
-    'scripts',
-    'repo',
-    'commit-cascade',
-    'manifest',
-    'fleet-files.json',
-  )
+  const manifestPath =
+    sharedScriptsRepoCommitCascadeManifestFleetFilesJsonPath(dest)
   if (!existsSync(manifestPath)) {
     logger.error(
       `install-fleet: --from-template: no mirror manifest at ${manifestPath}.`,
@@ -3606,7 +4248,10 @@ function runFromTemplate(config) {
   const result = materializeFromLocalTemplate(
     dest,
     JSON.parse(readFileSync(manifestPath, 'utf8')),
-    { refreshTracked: config.refreshTracked },
+    {
+      refreshTracked: config.refreshTracked,
+      preserveTracked: config.preserveTracked,
+    },
   )
   if (result === void 0) {
     logger.error(
@@ -3620,14 +4265,17 @@ function runFromTemplate(config) {
     )
   return 0
 }
-if (isMainModule()) {
-  const parsed = parseArgs(process.argv.slice(2))
-  process.exitCode = parsed.status
-    ? await runStatus(parsed)
-    : parsed.fromTemplate
-      ? runFromTemplate(parsed)
-      : await installFleet(parsed)
+async function main() {
+  const parsed = parseArgs(process$1.argv.slice(2))
+  if (parsed.status) return runStatus(parsed)
+  const exitCode = parsed.fromTemplate
+    ? runFromTemplate(parsed)
+    : await installFleet(parsed)
+  if (parsed.json)
+    process$1.stdout.write(`${renderScriptResult({ exitCode })}\n`)
+  return exitCode
 }
+if (isMainModule()) runMainMinimal(main, SCRIPT_META)
 
 //#endregion
 export {
@@ -3659,6 +4307,7 @@ export {
   findFleetBlockSpans,
   firstHeader,
   fleetPackOwnedPaths,
+  fleetTrackedAllowlist,
   formatLockStepError,
   formatUpdateNotice,
   getGhcrToken,
@@ -3675,11 +4324,14 @@ export {
   installWorkspaceSegment,
   isBundleBehindLocalTemplate,
   isMainModule,
+  isPreservedInstallPath,
   lockStepExitCode,
+  main,
   materializeFromLocalTemplate,
   maybeShowUpdateNotice,
   mergeWorkspaceYaml,
   mergeYamlKeyBlock,
+  migrateWorkspaceSettings,
   normalizeBundlePath,
   normalizeManifestEntryPath,
   packBeginMarker,
@@ -3708,6 +4360,7 @@ export {
   resolveRepoRoot,
   resolveSettingsPath,
   run,
+  runMainMinimal,
   runStatus,
   segmentFileName,
   sha256Hex,
