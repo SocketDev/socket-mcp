@@ -65,7 +65,7 @@ catalog:
   # pinned while the fleet migrates; the 0.x entry is deleted once no member
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
-  'typebox': 1.3.23
+  'typebox': 1.3.26
   '@socketregistry/packageurl-js': 1.5.2
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -85,7 +85,7 @@ catalog:
   '@socketsecurity/sdk': 4.1.4
   '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.1.4'
   '@types/mdast': 4.0.4
-  '@types/node': 26.4.0
+  '@types/node': 26.4.1
   '@types/semver': 7.8.0
   '@types/shell-quote': 1.7.5
   'compromise': 14.16.0
@@ -131,7 +131,7 @@ catalog:
   # playwright-core — headless Chromium driver for the seeing-rendered-output
   # skill (render a page / unpacked MV3 extension popup to PNG). Fleet-canonical
   # catalog dep; source of truth is template/pnpm-workspace.fleet.yaml.
-  'playwright-core': 1.62.1
+  'playwright-core': 1.63.0
   # portless — stable HTTPS `.localhost` URLs for local page tests and rendered UI checks.
   'portless': 0.15.6
   # Direct bundler pin for repos that run rolldown as their build
@@ -152,15 +152,17 @@ catalog:
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
   # override below pins every transitive `vite` (vitest, @vitest/*,
   # plugin authors) to it.
-  'typescript': 7.0.2
+  'typescript': 7.1.0-dev.20260904.1
   'vitest': 5.0.0
   '@vitest/coverage-v8': 5.0.0
-  c8: 12.0.0
+  '@bcoe/v8-coverage': 1.0.2
+  ast-v8-to-istanbul: 1.0.5
   'chrome-devtools-mcp': 1.8.0
   # Playwright MCP server — agent-driven browsing with the fleet agent-banner
   # init script (see .config/fleet/playwright/).
-  '@playwright/mcp': 0.0.79
+  '@playwright/mcp': 0.0.80
   '@vitest/ui': 5.0.0
+  c8: 12.0.0
   # agent-ci runs a repo's GitHub Actions workflows locally in Docker so a
   # change can be validated before it's pushed (see the `agent-ci` skill).
   # The published package is a self-contained Node CLI (`dist/cli.js`) — no
@@ -226,7 +228,7 @@ overrides:
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
-  '@swc/core': '1.16.1'
+  '@swc/core': '1.15.41'
   'brace-expansion@>=4': '5.0.9'
   'chalk@>=5': '5.6.2'
   'es-define-property': 'npm:@socketregistry/es-define-property@1.0.7'
@@ -246,7 +248,7 @@ overrides:
   'mime-types@>=3': '3.0.2'
   'minimatch@>=3': '10.2.6'
   'minipass@>=4': '7.1.3'
-  'postcss@>=8': '8.5.26'
+  'postcss@>=8': '8.5.27'
   'safe-buffer': 'npm:@socketregistry/safe-buffer@1.0.9'
   'safer-buffer': 'npm:@socketregistry/safer-buffer@1.0.10'
   'semver@>=5.0.0 <7.6.0': '7.8.5'
@@ -379,152 +381,14 @@ minimumReleaseAgeExclude:
   - '@decmpfs/*'
   - '@node-smol/*'
   - sockeye
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@mdn/browser-compat-data@8.1.0'
-  # published: 2026-09-04 | removable: 2026-09-11
-  - pnpm@12.3.4
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxc-project/types@0.148.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-android-arm-eabi@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-android-arm64@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-darwin-arm64@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-darwin-x64@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-freebsd-x64@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-arm-gnueabihf@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-arm-musleabihf@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-arm64-gnu@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-arm64-musl@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-ppc64-gnu@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-riscv64-gnu@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-riscv64-musl@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-s390x-gnu@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-x64-gnu@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-linux-x64-musl@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-openharmony-arm64@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-win32-arm64-msvc@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-win32-ia32-msvc@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxfmt/binding-win32-x64-msvc@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-android-arm-eabi@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-android-arm64@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-darwin-arm64@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-darwin-x64@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-freebsd-x64@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-arm-gnueabihf@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-arm-musleabihf@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-arm64-gnu@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-arm64-musl@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-ppc64-gnu@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-riscv64-gnu@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-riscv64-musl@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-s390x-gnu@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-x64-gnu@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-linux-x64-musl@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-openharmony-arm64@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-win32-arm64-msvc@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-win32-ia32-msvc@1.81.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - '@oxlint/binding-win32-x64-msvc@1.81.0'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-android-arm-eabi@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-android-arm64@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-darwin-arm64@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-darwin-x64@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-freebsd-x64@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-arm-gnueabihf@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-arm64-gnu@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-arm64-musl@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-ppc64-gnu@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-s390x-gnu@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-x64-gnu@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-linux-x64-musl@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-openharmony-arm64@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-win32-arm64-msvc@1.2.7'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - '@rolldown/binding-win32-x64-msvc@1.2.7'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@vitest/coverage-v8@5.0.0'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@vitest/mocker@5.0.0'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@vitest/pretty-format@5.0.0'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@vitest/spy@5.0.0'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@vitest/ui@5.0.0'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - '@vitest/utils@5.0.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - oxfmt@0.66.0
-  # published: 2026-09-01 | removable: 2026-09-08
-  - oxlint@1.81.0
-  # published: 2026-09-02 | removable: 2026-09-09
-  - rolldown@1.2.7
-  # published: 2026-09-03 | removable: 2026-09-10
-  - vitest@5.0.0
+  # published: 2026-09-08 | removable: 2026-09-15
+  - pnpm@12.4.0
+  # published: 2026-09-10 | removable: 2026-09-17
+  - 'mcp-tada@0.1.0'
   - 'sfw'
   - 'socket'
   - 'sdxgen'
   - 'sockeye'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - 'oxfmt@0.66.0'
-  # published: 2026-09-01 | removable: 2026-09-08
-  - 'oxlint@1.81.0'
-  # published: 2026-09-02 | removable: 2026-09-09
-  - 'rolldown@1.2.7'
-  # published: 2026-09-03 | removable: 2026-09-10
-  - 'vitest@5.0.0'
-  # published: 2026-09-10 | removable: 2026-09-17
-  - 'mcp-tada@0.1.0'
 
 # pnpm 11's packageManager-version-check failure policy. `warn` lets the
 # install proceed with a mismatched pnpm (emitting a warning) rather than
@@ -545,13 +409,9 @@ trustPolicy: no-downgrade
 # default is `false`; declared explicitly so a future default flip
 # can't silently widen the trust boundary.
 trustPolicyExclude:
-  # Transitive dep of @vitest/coverage-v8 (catalog-pinned 4.1.6).
-  # Authored by ariperkkio, the vitest coverage maintainer
-  # (github.com/AriPerkkio/ast-v8-to-istanbul); Socket's no-downgrade
-  # gate flags 1.0.2 only because it published 2026-05-25 (inside the
-  # soak window). Legitimate first-party vitest tooling, not a takeover.
-  - 'ast-v8-to-istanbul@1.0.2'
-  - 'compromise@14.15.0'
+  - '@playwright/mcp@0.0.80'
+  - 'playwright@1.63.0-alpha-2026-08-31'
+  - 'playwright-core@1.63.0-alpha-2026-08-31'
   - 'undici-types@6.21.0'
 
 patchedDependencies:
@@ -577,6 +437,27 @@ patchedDependencies:
   # patched v10 answers that same shape.
   # On a bump, regenerate via `pnpm patch minimatch` + `pnpm patch-commit`.
   minimatch@10.2.6: patches/minimatch@10.2.6.patch
+  # dedup: public runtime helpers (managed by socket-wheelhouse sync):
+  # The bundled debug loader must read DEBUG at runtime so fleet debugNs
+  # honors namespace selection, wildcards, and exclusions.
+  # Generated terminal authorization and process accessors support setup
+  # through the shared public library API without a version change.
+  '@socketsecurity/lib@7.0.1': patches/@socketsecurity__lib@7.0.1.patch
+  # dedup: workflow variable presence (managed by socket-wheelhouse sync):
+  # Local CI must accept explicitly supplied empty workflow variables.
+  # The fleet payload client ID defaults to empty when no app is configured.
+  # Check own-property presence in run preflight and job validation;
+  # absent variables remain errors.
+  # Intercepted fetch records local HEAD in FETCH_HEAD so inline detached
+  # checkout preserves the pre-populated Local CI workspace.
+  run-local-ci@0.18.1: patches/run-local-ci@0.18.1.patch
+  # dedup: coverage matcher allocation (managed by socket-wheelhouse sync):
+  # Coverage checks exclusions before matching includes.
+  # Compile exclusions once instead of once per include pattern.
+  # This preserves membership and bounds matcher memory for fleet coverage.
+  # CPU-profiled forks use the configured teardown deadline to flush profiles.
+  # Ordinary forks retain the upstream 500 ms termination grace.
+  vitest@5.0.0: patches/vitest@5.0.0.patch
 
 # Proceed with a node_modules purge WITHOUT an interactive confirm. The fleet
 # runs pnpm non-interactively everywhere (skills, scripts, hooks, agents, CI) —
@@ -585,7 +466,6 @@ patchedDependencies:
 # pre-commit re-checks deps after a workspace/.npmrc change. Purging
 # node_modules is safe (gitignored + regenerable). Unlike CI=true this does NOT
 # force a frozen lockfile; CI keeps owning frozen-vs-update policy.
-confirmModulesPurge: false
 
 # Opt out of pnpm's packageManager-version self-check. CI installs pnpm from
 # its native bin via the shared setup workflow, not corepack, so the runner's
@@ -593,4 +473,19 @@ confirmModulesPurge: false
 # informational, not a version to enforce). Without this, pnpm hard-fails
 # ("This project is configured to use <pin> ... your current pnpm is <run>")
 # the moment the runner's pnpm differs from the pin.
-managePackageManagerVersions: false
+
+includeWorkspaceRoot: true
+pipelines:
+  fleet-prepare:
+    - build:oxlint-bundle
+tasks:
+  build:oxlint-bundle:
+    cache: false
+    dependsOn: []
+
+trustPolicyExcludePrune: true
+peerDependencyRules:
+  allowedVersions:
+    '@socketsecurity/lib>typescript': 7.1.0-dev.20260903.1
+    '@socketsecurity/registry>typescript': 7.1.0-dev.20260903.1
+    mcp-tada>typescript: 7.1.0-dev.20260903.1

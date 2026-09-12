@@ -421,8 +421,12 @@ function checkNpxDlxUsage(stagedFiles: string[]): number {
       // real `npx <pkg>` examples. Their SOURCES are scanned; the built
       // artifact is exempt (flagging it blocks every cascade that ships
       // a rebuilt bundle).
-      normalizePath(file).endsWith('/hooks/fleet/_dist/fleet-pack.cjs') ||
-      normalizePath(file).endsWith('/_shared/snapshot-fleet-pack.cjs') ||
+      normalizePath(file).endsWith(
+        '/hooks/fleet/_dist/fleet-pack.generated.cjs',
+      ) ||
+      normalizePath(file).endsWith(
+        '/_dist/fleet-pack.snapshot.generated.cjs',
+      ) ||
       // A hook README documents what that hook BLOCKS, so a guard banning a
       // command has to be able to name it. Same reasoning as the built bundle
       // above: the prose IS the ban, never an instruction to run it. The hook
@@ -725,15 +729,6 @@ function checkCanonicalForks(
   repoTopline: string,
 ): number {
   let errors = 0
-  // Fleet-canonical fork gate — the commit-time backstop for
-  // no-fleet-fork-guard. A legitimate cascade commit is made with
-  // `--no-verify` and never reaches this hook, so any staged canonical path
-  // seen here was forked outside the cascade: an Edit/Write/Bash tool call
-  // that slipped past the PreToolUse guard, a background Workflow agent()
-  // subagent (whose Bash reaches PreToolUse with the PARENT transcript, so
-  // the guard cannot attribute or fire for it), or a hand-run git command.
-  // Bypass: SOCKET_PRE_COMMIT_ALLOW_CANONICAL_FORK=1, one-shot, for a
-  // genuine emergency hotfix that can't wait for a template edit + cascade.
   debugCheck('Checking for canonical files forked outside the cascade…')
   if (!process.env['SOCKET_PRE_COMMIT_ALLOW_CANONICAL_FORK']) {
     const forkRoot = repoTopline || process.cwd()
