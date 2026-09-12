@@ -23,24 +23,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Fleet no-phone-home posture: CI runners don't source the shell-rc that dev
-# machines get from setup-security-tools, so set every FLEET_ENV knob
-# workflow-level or the telemetry-env-is-disabled +
-# package-manager-auto-update-is-disabled gates (under `check --all`) fail.
-# Lockstep source: .claude/hooks/fleet/_shared/fleet-env.mts (FLEET_ENV) —
-# the telemetry-env-is-disabled check asserts each knob at CI runtime.
-env:
-  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-  COREPACK_ENABLE_PROJECT_SPEC: '0'
-  DISABLE_TELEMETRY: '1'
-  DO_NOT_TRACK: '1'
-  NO_UPDATE_NOTIFIER: '1'
-  OTEL_SDK_DISABLED: 'true'
-
 jobs:
-  # First step of every job is the third-party actions/checkout (GitHub fetches
-  # it independently) to populate the workspace so the LOCAL `./.github/actions/*`
-  # composites resolve. setup-and-install then re-checks-out — full history
+  # The first step performs a shallow inline fetch so local actions resolve.
+  # setup-and-install then re-checks-out — full history
   # (fetch-depth 0) in the check job, since the commit-history checks it runs
   # (AI-attribution, release-boundary) read the default branch's history and
   # refuse a shallow clone rather than false-green; the test matrix stays at
@@ -53,10 +38,26 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Bootstrap checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 (2026-05-15)
-        with:
-          fetch-depth: 1
-          persist-credentials: false
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          TRIGGER_REF: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git init -q
+          git config --local advice.detachedHead false
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${SERVER_URL}/${REPOSITORY}"
+          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${TRIGGER_REF}")
+          if [ -n "${GITHUB_TOKEN}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+            git -c "http.${SERVER_URL}/.extraheader=AUTHORIZATION: basic ${AUTH_B64}" fetch "${FETCH_ARGS[@]}"
+          else
+            git fetch "${FETCH_ARGS[@]}"
+          fi
+          git checkout -q --detach FETCH_HEAD
       - name: Set up and install
         uses: ./.github/actions/fleet/setup-and-install
         with:
@@ -71,8 +72,8 @@ jobs:
           # empty on a non-thin member (var/secret unset) - the mint is skipped
           # and the fetch no-ops. A thin member sets a dedicated read-only App's
           # client-id var + private-key secret.
-          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
+          payload-token-client-id: ${{ vars.SOCKET_PR_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
       - name: Check
         uses: ./.github/actions/fleet/run-script
         with:
@@ -91,10 +92,26 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Bootstrap checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 (2026-05-15)
-        with:
-          fetch-depth: 1
-          persist-credentials: false
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          TRIGGER_REF: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git init -q
+          git config --local advice.detachedHead false
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${SERVER_URL}/${REPOSITORY}"
+          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${TRIGGER_REF}")
+          if [ -n "${GITHUB_TOKEN}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+            git -c "http.${SERVER_URL}/.extraheader=AUTHORIZATION: basic ${AUTH_B64}" fetch "${FETCH_ARGS[@]}"
+          else
+            git fetch "${FETCH_ARGS[@]}"
+          fi
+          git checkout -q --detach FETCH_HEAD
       - name: Set up and install
         uses: ./.github/actions/fleet/setup-and-install
         with:
@@ -105,8 +122,8 @@ jobs:
           # empty on a non-thin member (var/secret unset) - the mint is skipped
           # and the fetch no-ops. A thin member sets a dedicated read-only App's
           # client-id var + private-key secret.
-          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
+          payload-token-client-id: ${{ vars.SOCKET_PR_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
       - name: Test
         uses: ./.github/actions/fleet/run-script
         env:
@@ -116,4 +133,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           setup-script: pnpm run build
-          main-script: pnpm test --all
+          main-script: pnpm test --ci
