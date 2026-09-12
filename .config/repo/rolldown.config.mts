@@ -129,7 +129,7 @@ function singleEntryConfig(
 // The server bundle (dist/index.cjs) — the published bin.
 export const buildConfig: RolldownOptions = singleEntryConfig(
   'index',
-  path.join(REPO_ROOT, 'index.ts'),
+  path.join(REPO_ROOT, 'index.mts'),
   DIST_DIR,
   '"use strict";\n/* Socket MCP — bundled with rolldown */',
 )

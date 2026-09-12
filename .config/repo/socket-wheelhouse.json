@@ -64,6 +64,6 @@
     "apps": ["cursor", "socket-security", "socket-trufflehog"]
   },
   "coverage": {
-    "include": ["index.ts", "lib/**/*.ts", "hooks/**/*.mts"]
+    "include": ["index.mts", "lib/**/*.mts", "hooks/**/*.mts"]
   }
 }
