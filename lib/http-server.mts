@@ -8,11 +8,7 @@ import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createConfiguredServer } from './server.mts'
-import {
-  getRequestBaseUrl,
-  getRequestHeaderValue,
-  writeJson,
-} from './http.mts'
+import { getRequestBaseUrl, getRequestHeaderValue, writeJson } from './http.mts'
 import {
   patchAcceptHeader,
   validateOriginAndHost,

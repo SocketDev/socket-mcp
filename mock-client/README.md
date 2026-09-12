@@ -10,8 +10,8 @@ Deeper walkthrough, expected output, and error decoding:
 
 The clients split across the two MCP protocol eras so both stay covered:
 
-| Client            | Script                 | Era                                                                              |
-| ----------------- | ---------------------- | -------------------------------------------------------------------------------- |
+| Client             | Script                 | Era                                                                              |
+| ------------------ | ---------------------- | -------------------------------------------------------------------------------- |
 | `debug-client.mts` | `pnpm run debug-stdio` | Legacy 2025 - raw JSON-RPC frames, `initialize` + `notifications/initialized`    |
 | `stdio-client.mts` | `pnpm run debug-sdk`   | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over stdio           |
 | `http-client.mts`  | `pnpm run debug-http`  | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over Streamable HTTP |

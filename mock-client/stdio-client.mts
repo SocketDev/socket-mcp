@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { isMainModule } from '../scripts/fleet/process/is-main-module.mts'
-import { runMain, type ScriptMeta } from '../scripts/fleet/process/run-main.mts'
+import { runMain } from '../scripts/fleet/process/run-main.mts'
+import type { ScriptMeta } from '../scripts/fleet/process/run-main.mts'
 import process from 'node:process'
 
 import { Client } from '@modelcontextprotocol/client'
@@ -96,13 +97,11 @@ export async function main(): Promise<void> {
   }
 }
 
-
-
 const SCRIPT_META: ScriptMeta = {
- describe: 'runs the MCP stdio debug client',
- help: 'Usage: pnpm run debug-sdk',
- json: 'result',
+  describe: 'runs the MCP stdio debug client',
+  help: 'Usage: pnpm run debug-sdk',
+  json: 'result',
 }
 if (isMainModule(import.meta.url)) {
- runMain(() => main().catch(e => logger.error(e)), SCRIPT_META)
+  runMain(() => main().catch(e => logger.error(e)), SCRIPT_META)
 }

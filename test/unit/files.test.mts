@@ -71,7 +71,11 @@ describe('extractFileList', () => {
         { path: 'middle.js', type: 'file' },
       ],
     })
-    expect(files.map(f => f.path)).toEqual(['alpha.js', 'middle.js', 'zebra.js'])
+    expect(files.map(f => f.path)).toEqual([
+      'alpha.js',
+      'middle.js',
+      'zebra.js',
+    ])
   })
 
   test('empty/missing files returns empty list', () => {

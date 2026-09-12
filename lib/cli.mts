@@ -1,10 +1,10 @@
 /**
  * @file CLI startup: pick the transport, satisfy the auth preconditions, and
- *   hand off to the serving entry. Every environment read and every effect is
- *   a field on `SocketMcpCliDeps`, so `runSocketMcpCli` is a decision over
- *   values a test supplies while `createSocketMcpCliDeps` snapshots the real
- *   ones for `index.mts`. Diagnostics go through `logger` to stderr — stdio mode
- *   gives stdout to the MCP protocol.
+ *   hand off to the serving entry. Every environment read and every effect is a
+ *   field on `SocketMcpCliDeps`, so `runSocketMcpCli` is a decision over values
+ *   a test supplies while `createSocketMcpCliDeps` snapshots the real ones for
+ *   `index.mts`. Diagnostics go through `logger` to stderr — stdio mode gives
+ *   stdout to the MCP protocol.
  */
 
 import { serveStdio } from '@modelcontextprotocol/server/stdio'

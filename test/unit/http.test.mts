@@ -280,7 +280,11 @@ describe('getRequestBaseUrl forwarded-host hardening', () => {
   })
 
   test('rejects a poisoned forwarded host (path/scheme/userinfo)', () => {
-    for (const bad of ['attacker.example/path', 'https://attacker.example', 'user@attacker.example']) {
+    for (const bad of [
+      'attacker.example/path',
+      'https://attacker.example',
+      'user@attacker.example',
+    ]) {
       const req = makeRequest({
         host: 'observed.example.test:1234',
         'x-forwarded-host': bad,

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { isMainModule } from '../scripts/fleet/process/is-main-module.mts'
-import { runMain, type ScriptMeta } from '../scripts/fleet/process/run-main.mts'
+import { runMain } from '../scripts/fleet/process/run-main.mts'
+import type { ScriptMeta } from '../scripts/fleet/process/run-main.mts'
 import process from 'node:process'
 
 import {
@@ -8,7 +9,6 @@ import {
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
-
 
 const logger = getDefaultLogger()
 
@@ -90,12 +90,11 @@ export async function testHTTPMode(): Promise<void> {
   }
 }
 
-
 const SCRIPT_META: ScriptMeta = {
- describe: 'runs the MCP http debug client',
- help: 'Usage: pnpm run debug-http',
- json: 'result',
+  describe: 'runs the MCP http debug client',
+  help: 'Usage: pnpm run debug-http',
+  json: 'result',
 }
 if (isMainModule(import.meta.url)) {
- runMain(() => testHTTPMode().catch(e => logger.error(e)), SCRIPT_META)
+  runMain(() => testHTTPMode().catch(e => logger.error(e)), SCRIPT_META)
 }

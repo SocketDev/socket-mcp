@@ -9,7 +9,8 @@
  *   SDK-backed clients in this directory cover the modern era.
  */
 import { isMainModule } from '../scripts/fleet/process/is-main-module.mts'
-import { runMain, type ScriptMeta } from '../scripts/fleet/process/run-main.mts'
+import { runMain } from '../scripts/fleet/process/run-main.mts'
+import type { ScriptMeta } from '../scripts/fleet/process/run-main.mts'
 import process from 'node:process'
 import readline from 'node:readline'
 
@@ -217,13 +218,11 @@ export async function main() {
   }
 }
 
-
-
 const SCRIPT_META: ScriptMeta = {
- describe: 'runs the MCP debug debug client',
- help: 'Usage: pnpm run debug-stdio',
- json: 'result',
+  describe: 'runs the MCP debug debug client',
+  help: 'Usage: pnpm run debug-stdio',
+  json: 'result',
 }
 if (isMainModule(import.meta.url)) {
- runMain(() => main().catch(e => logger.error(e)), SCRIPT_META)
+  runMain(() => main().catch(e => logger.error(e)), SCRIPT_META)
 }
