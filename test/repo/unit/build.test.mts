@@ -1,18 +1,23 @@
-import { spawnSync } from 'node:child_process'
+import path from 'node:path'
 import process from 'node:process'
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { expect, test } from 'vitest'
-import { REPO_ROOT } from '../../../scripts/repo/paths.mts'
+import { main } from '../../../scripts/repo/build.mts'
 
-test('prints build command help', () => {
-  const result = spawnSync(
+const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..')
+
+test('prints build command help', async () => {
+  const result = await spawn(
     process.execPath,
     ['scripts/repo/build.mts', '--help'],
     {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      timeout: 10_000,
+      cwd: repoRoot,
+      localTimeout: 10_000,
+      stdio: 'pipe',
+      throws: false,
     },
   )
-  expect(result.status).toBe(0)
+  expect(main).toBeTypeOf('function')
+  expect(result.code).toBe(0)
   expect(result.stdout).toContain('Usage: pnpm run build:bundle')
 })
