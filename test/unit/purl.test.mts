@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { buildPurl } from '../../lib/purl.ts'
+import { buildPurl } from '../../lib/purl.mts'
 
 describe('buildPurl produces correct PURLs across all ecosystems', () => {
   test('npm unscoped', () => {
@@ -44,8 +44,8 @@ describe('buildPurl produces correct PURLs across all ecosystems', () => {
     expect(buildPurl('golang', 'github.com/gin-gonic/gin', '1.9.0')).toBe(
       'pkg:golang/github.com/gin-gonic/gin@1.9.0',
     )
-    expect(buildPurl('golang', 'golang.org/x/crypto', '0.10.0')).toBe(
-      'pkg:golang/golang.org/x/crypto@0.10.0',
+    expect(buildPurl('golang', 'example.org/modules/crypto', '0.10.0')).toBe(
+      'pkg:golang/example.org/modules/crypto@0.10.0',
     )
   })
 

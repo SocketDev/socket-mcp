@@ -14,8 +14,8 @@ import nock from 'nock'
 import {
   getOAuthResourceIdentifier,
   resolveOAuthConfig,
-} from '../../lib/oauth.ts'
-import type { OAuthConfig } from '../../lib/oauth.ts'
+} from '../../lib/oauth.mts'
+import type { OAuthConfig } from '../../lib/oauth.mts'
 
 export const oauthWellKnownPath = '/.well-known/oauth-authorization-server'
 export const openidConfigurationPath = '/.well-known/openid-configuration'

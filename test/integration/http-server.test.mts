@@ -18,8 +18,8 @@ import { httpRequest } from '@socketsecurity/lib-stable/http-request/request'
 import type { HttpResponse } from '@socketsecurity/lib-stable/http-request/response-types'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { routeRequest } from '../../lib/http-server.ts'
-import { createConfiguredServer } from '../../lib/server.ts'
+import { routeRequest } from '../../lib/http-server.mts'
+import { createConfiguredServer } from '../../lib/server.mts'
 
 const MODERN_PROTOCOL_VERSION = '2026-07-28'
 const LEGACY_PROTOCOL_VERSION = '2025-06-18'

@@ -5,7 +5,7 @@ import {
   buildOAuthWellKnownUrls,
   loadOAuthMetadata,
   validateOAuthMetadataFields,
-} from '../../lib/oauth-discovery.ts'
+} from '../../lib/oauth-discovery.mts'
 import {
   introspectionPath,
   issuerBaseUrl,

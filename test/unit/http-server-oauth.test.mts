@@ -29,8 +29,8 @@ describe('routeRequest with OAuth enabled', () => {
     try {
       // OAuth config is read at module init, so the enabled server needs a
       // freshly-evaluated module pair.
-      const oauth = await import('../../lib/oauth.ts')
-      const server = await import('../../lib/http-server.ts')
+      const oauth = await import('../../lib/oauth.mts')
+      const server = await import('../../lib/http-server.mts')
       expect(oauth.setOauthEnabled()).toEqual({ issuer })
 
       nock(issuer)
@@ -80,8 +80,8 @@ describe('routeRequest with OAuth enabled', () => {
     vi.resetModules()
     nock.disableNetConnect()
     try {
-      const oauth = await import('../../lib/oauth.ts')
-      const server = await import('../../lib/http-server.ts')
+      const oauth = await import('../../lib/oauth.mts')
+      const server = await import('../../lib/http-server.mts')
       expect(oauth.setOauthEnabled()).toEqual({ issuer })
       // Every discovery candidate fails, so loadOAuthMetadata rejects rather
       // than resolving undefined.
@@ -130,8 +130,8 @@ describe('routeRequest with OAuth enabled', () => {
     vi.resetModules()
     nock.disableNetConnect()
     try {
-      const oauth = await import('../../lib/oauth.ts')
-      const server = await import('../../lib/http-server.ts')
+      const oauth = await import('../../lib/oauth.mts')
+      const server = await import('../../lib/http-server.mts')
       expect(oauth.setOauthEnabled()).toEqual({ issuer })
       nock(issuer)
         .get('/.well-known/oauth-authorization-server')
@@ -186,8 +186,8 @@ describe('routeRequest with OAuth enabled', () => {
     vi.resetModules()
     nock.disableNetConnect()
     try {
-      const oauth = await import('../../lib/oauth.ts')
-      const server = await import('../../lib/http-server.ts')
+      const oauth = await import('../../lib/oauth.mts')
+      const server = await import('../../lib/http-server.mts')
       expect(oauth.setOauthEnabled()).toEqual({ issuer })
       nock(issuer)
         .get('/.well-known/oauth-authorization-server')

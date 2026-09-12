@@ -9,7 +9,7 @@ import type { Interface } from 'node:readline'
 
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { getApiKeyInteractively } from '../../lib/http-helpers.ts'
+import { getApiKeyInteractively } from '../../lib/http.mts'
 
 const { closed, prompts, scriptedAnswer } = vi.hoisted(() => ({
   closed: { count: 0 },

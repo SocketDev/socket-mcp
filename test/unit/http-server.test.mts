@@ -8,8 +8,8 @@ import {
   applyClientApiKey,
   handleMcpRequest,
   routeRequest,
-} from '../../lib/http-server.ts'
-import type { AuthenticatedRequest } from '../../lib/oauth.ts'
+} from '../../lib/http-server.mts'
+import type { AuthenticatedRequest } from '../../lib/oauth.mts'
 import {
   bodyReq,
   erroringReq,

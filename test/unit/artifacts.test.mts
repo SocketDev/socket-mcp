@@ -4,8 +4,8 @@ import {
   artifactGroupKey,
   deduplicateArtifacts,
   matchesPlatform,
-} from '../../lib/artifacts.ts'
-import type { ArtifactData } from '../../lib/artifacts.ts'
+} from '../../lib/artifacts.mts'
+import type { ArtifactData } from '../../lib/artifacts.mts'
 
 export function makeArtifact(
   overrides: Partial<ArtifactData> = {},

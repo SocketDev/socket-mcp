@@ -9,7 +9,7 @@ import { Readable } from 'node:stream'
 
 import { describe, expect, test } from 'vitest'
 
-import { PayloadTooLargeError, readPostBody } from '../../lib/http-server.ts'
+import { PayloadTooLargeError, readPostBody } from '../../lib/http-server.mts'
 
 // A Readable stream doubles as a stand-in for IncomingMessage here:
 // readPostBody async-iterates the request via `.iterator()`, which Readable

@@ -9,7 +9,7 @@ import {
   handleDepscore,
   parseNdjsonPackageBody,
   parseSinglePackageBody,
-} from '../../lib/tool-depscore.ts'
+} from '../../lib/tool-depscore.mts'
 
 const API = 'https://api.socket.dev'
 
@@ -474,7 +474,7 @@ describe('local-stack mode', () => {
         { 'content-type': 'application/json' },
       )
 
-    const local = await import('../../lib/tool-depscore.ts')
+    const local = await import('../../lib/tool-depscore.mts')
     const result = await local.handleDepscore(
       [{ depname: 'local', version: '1.0.0' }],
       undefined,

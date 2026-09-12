@@ -1,7 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { getRequestBaseUrl } from '../../lib/http-helpers.ts'
+import { getRequestBaseUrl } from '../../lib/http.mts'
 import {
   authenticateRequest,
   buildProtectedResourceMetadata,
@@ -9,7 +9,7 @@ import {
   splitScopes,
   splitTokenAudience,
   verifyAccessToken,
-} from '../../lib/oauth.ts'
+} from '../../lib/oauth.mts'
 import {
   assertOAuthError,
   issuerBaseUrl,
@@ -231,7 +231,7 @@ test('verifyAccessToken rejects a missing aud under SOCKET_OAUTH_REQUIRE_AUDIENC
   try {
     // The strict flag is read once at module init, so the strict position
     // needs a freshly-evaluated module.
-    const strict = await import('../../lib/oauth.ts')
+    const strict = await import('../../lib/oauth.mts')
     const config = strict.resolveOAuthConfig({
       issuer: issuerBaseUrl,
       introspectionClientId: 'oauth-test-client-id',
@@ -262,7 +262,7 @@ test('setOauthEnabled refuses a partial OAuth config', async () => {
   vi.stubEnv('SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET', '')
   vi.resetModules()
   try {
-    const partial = await import('../../lib/oauth.ts')
+    const partial = await import('../../lib/oauth.mts')
     expect(partial.setOauthEnabled()).toBe(undefined)
     expect(partial.isOauthEnabled()).toBe(false)
   } finally {

@@ -12,7 +12,7 @@ import {
   resolveScopedAuthToken,
   setStaticApiKey,
   toToolHandlerExtra,
-} from '../../lib/server.ts'
+} from '../../lib/server.mts'
 
 afterEach(() => {
   // Reset module-level static-key state so cases don't leak into each other.

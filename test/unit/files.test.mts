@@ -8,7 +8,7 @@ import {
   extractFileList,
   fetchFileList,
   renderTree,
-} from '../../lib/files.ts'
+} from '../../lib/files.mts'
 
 const API = 'https://api.socket.dev'
 
@@ -45,7 +45,7 @@ describe('extractFileList', () => {
 
   test('includes hashes when requested', () => {
     const files = extractFileList(
-      { files: [{ path: 'a.js', type: 'file', size: 100, hash: 'Qa' }] },
+      { files: [{ path: 'alpha.js', type: 'file', size: 100, hash: 'Qa' }] },
       { includeHashes: true },
     )
     expect(files[0]!.hash).toBe('Qa')
@@ -54,24 +54,24 @@ describe('extractFileList', () => {
   test('skips entries without path', () => {
     const files = extractFileList({
       files: [
-        { path: 'a.js', type: 'file', size: 1 },
+        { path: 'alpha.js', type: 'file', size: 1 },
         { type: 'file', size: 2 },
         { path: '', type: 'file', size: 3 },
       ],
     })
     expect(files.length).toBe(1)
-    expect(files[0]!.path).toBe('a.js')
+    expect(files[0]!.path).toBe('alpha.js')
   })
 
   test('sorts entries by path', () => {
     const files = extractFileList({
       files: [
-        { path: 'z.js', type: 'file' },
-        { path: 'a.js', type: 'file' },
-        { path: 'm.js', type: 'file' },
+        { path: 'zebra.js', type: 'file' },
+        { path: 'alpha.js', type: 'file' },
+        { path: 'middle.js', type: 'file' },
       ],
     })
-    expect(files.map(f => f.path)).toEqual(['a.js', 'm.js', 'z.js'])
+    expect(files.map(f => f.path)).toEqual(['alpha.js', 'middle.js', 'zebra.js'])
   })
 
   test('empty/missing files returns empty list', () => {
@@ -96,13 +96,13 @@ describe('renderTree', () => {
 
   test('directories sort before files at same depth', () => {
     const tree = renderTree([
-      { path: 'src/a.js', type: 'file', size: 100 },
+      { path: 'src/alpha.js', type: 'file', size: 100 },
       { path: 'index.js', type: 'file', size: 200 },
       { path: 'README.md', type: 'file', size: 50 },
     ])
     const lines = tree.split(/\r?\n/)
     expect(lines[0]).toBe('├── src/')
-    expect(lines[1]).toBe('│   └── a.js  100B')
+    expect(lines[1]).toBe('│   └── alpha.js  100B')
     expect(lines[2]).toBe('├── index.js  200B')
     expect(lines[3]).toBe('└── README.md  50B')
   })
@@ -120,17 +120,17 @@ describe('renderTree', () => {
 
   test('shows hash when showHash enabled', () => {
     const tree = renderTree(
-      [{ path: 'a.js', type: 'file', size: 100, hash: 'QabXYZ' }],
+      [{ path: 'alpha.js', type: 'file', size: 100, hash: 'QabXYZ' }],
       { showHash: true },
     )
     expect(tree).toMatch(/a\.js {2}100B {2}QabXYZ/)
   })
 
   test('omits size when showSize false', () => {
-    const tree = renderTree([{ path: 'a.js', type: 'file', size: 100 }], {
+    const tree = renderTree([{ path: 'alpha.js', type: 'file', size: 100 }], {
       showSize: false,
     })
-    expect(tree).toBe('└── a.js')
+    expect(tree).toBe('└── alpha.js')
   })
 
   test('infers nested directories from file paths alone', () => {
@@ -255,9 +255,9 @@ describe('buildTree edge cases', () => {
     // empty-named child under the root.
     const tree = buildTree([
       { path: '/', type: 'dir' },
-      { path: 'a.txt', type: 'file' },
+      { path: 'alpha.txt', type: 'file' },
     ])
-    expect([...tree.children.keys()]).toEqual(['a.txt'])
+    expect([...tree.children.keys()]).toEqual(['alpha.txt'])
   })
 })
 
@@ -276,8 +276,8 @@ describe('fetchFileList failures', () => {
       .get(filePath(purl))
       .reply(200, {
         files: [
-          { path: 'a.txt', type: 'file', size: 10 },
-          { path: 'b.txt', type: 'file' },
+          { path: 'alpha.txt', type: 'file', size: 10 },
+          { path: 'beta.txt', type: 'file' },
         ],
       })
     const result = await fetchFileList(purl, { baseUrl: API })

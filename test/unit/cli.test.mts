@@ -13,9 +13,9 @@ import {
   logStdioTransportError,
   reportSocketMcpStartupFailure,
   runSocketMcpCli,
-} from '../../lib/cli.ts'
-import type { SocketMcpCliDeps } from '../../lib/cli.ts'
-import { logger } from '../../lib/logger.ts'
+} from '../../lib/cli.mts'
+import type { SocketMcpCliDeps } from '../../lib/cli.mts'
+import { logger } from '../../lib/logger.mts'
 
 // What startup did with the deps it was handed.
 interface Recorded {

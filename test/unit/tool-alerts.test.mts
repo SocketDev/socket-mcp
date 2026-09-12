@@ -1,8 +1,8 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { defineAlertsTool } from '../../lib/tool-alerts.ts'
-import type { ToolHandlerExtra } from '../../lib/tool-types.ts'
+import { defineAlertsTool } from '../../lib/tool-alerts.mts'
+import type { ToolHandlerExtra } from '../../lib/tool-types.mts'
 
 const API = 'https://api.socket.dev'
 
