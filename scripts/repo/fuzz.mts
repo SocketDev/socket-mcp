@@ -8,12 +8,12 @@
  *   NOT pass `--config`: vitiate's supervisor re-spawns a child `vitest run`
  *   for the coverage-guided pass without forwarding `--config`, so parent and
  *   child have to agree via auto-discovery on the same root config (see the
- *   header of vitest.config.mts). The `fuzz()` targets (`test/**\/*.fuzz.ts`)
+ *   header of vitest.config.mts). The `fuzz()` targets (`test/**\/*.fuzz.mts`)
  *   are then coverage-fuzzed with mutated inputs; without `VITIATE_FUZZ` they
  *   replay the committed seed corpus as fast regression checks. Budget via
  *   `FUZZ_TIME_MS` (default 15s; CI raises it). Exits with vitest's status —
  *   vitest reports a crash/hang as a failed test, which sidesteps the vitiate
- *   CLI exit-code nuances. Extra argv is forwarded (e.g. a single `*.fuzz.ts`
+ *   CLI exit-code nuances. Extra argv is forwarded (e.g. a single `*.fuzz.mts`
  *   path).
  */
 
@@ -26,6 +26,8 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
+import { runMain } from '../fleet/process/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 import { isMainModule } from '../fleet/process/is-main-module.mts'
 
 const logger = getDefaultLogger()
@@ -132,7 +134,7 @@ export function sweepOrphanedShmSegments(): void {
   }
 }
 
-if (isMainModule(import.meta.url)) {
+export function main(): void {
   sweepOrphanedShmSegments()
 
   // Sync-required: top-level CLI runner, exits with the child's code.
@@ -153,4 +155,13 @@ if (isMainModule(import.meta.url)) {
   ) as { status?: number | null | undefined }
 
   process.exit(result.status ?? 1)
+}
+
+const SCRIPT_META: ScriptMeta = {
+  describe: 'runs coverage-guided MCP input fuzz targets',
+  help: 'Usage: pnpm run test:fuzz [target]',
+  json: 'result',
+}
+if (isMainModule(import.meta.url)) {
+  runMain(main, SCRIPT_META)
 }
