@@ -68,7 +68,7 @@ jobs:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
           # These credentials enable the optional private-release fallback.
           # An absent private key keeps fleet hydration anonymous.
-          payload-token-client-id: ${{ vars.SOCKET_PR_CLIENT_ID }}
+          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
       - name: Check
         uses: ./.github/actions/fleet/run-script
@@ -114,7 +114,7 @@ jobs:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
           # These credentials enable the optional private-release fallback.
           # An absent private key keeps fleet hydration anonymous.
-          payload-token-client-id: ${{ vars.SOCKET_PR_CLIENT_ID }}
+          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
       - name: Test
         uses: ./.github/actions/fleet/run-script
