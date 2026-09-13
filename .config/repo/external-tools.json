@@ -3,7 +3,7 @@
   "description": "External tools required to build + release this repo. The canonical schema lives at socket-wheelhouse/packages/build-infra/lib/external-tools-schema.json (generated from scripts/fleet/lib/external-tools-schema.mts); every fleet repo references it via the $schema field above so validators pick up the single source of truth. Extend the `tools` map with repo-specific entries (e.g. language toolchains for sdxgen, git credential helpers for packageurl-js).",
   "tools": {
     "gh": {
-      "description": "GitHub CLI — workflow dispatch, release downloads, PR creation in weekly-update; host for the gh-aw agentic-workflows extension.",
+      "description": "GitHub CLI \u2014 workflow dispatch, release downloads, PR creation in weekly-update; host for the gh-aw agentic-workflows extension.",
       "version": "2.94.0",
       "notes": [
         "Required: only in workflows that call `gh api` / `gh pr create` (weekly-update, provenance)",
@@ -14,20 +14,20 @@
       "origin": "system"
     },
     "gh-aw": {
-      "description": "GitHub Agentic Workflows — `gh` extension that authors agentic workflows as `.github/workflows/<name>.md` (markdown + frontmatter) and compiles them to a hardened `<name>.lock.yml`. The fleet uses `engine: claude`.",
+      "description": "GitHub Agentic Workflows \u2014 `gh` extension that authors agentic workflows as `.github/workflows/<name>.md` (markdown + frontmatter) and compiles them to a hardened `<name>.lock.yml`. The fleet uses `engine: claude`.",
       "version": "latest",
       "repository": "github:github/gh-aw",
       "notes": [
         "Required: any repo with a `.github/workflows/*.md` agentic workflow",
         "Install: `gh extension install github/gh-aw`; init a repo with `gh aw init`; compile after editing frontmatter with `gh aw compile` (commit BOTH the .md and the generated .lock.yml)",
-        "Engine secrets (set per repo, by engine): `ANTHROPIC_API_KEY` (claude), `COPILOT_GITHUB_TOKEN` (copilot — distinct from the default GITHUB_TOKEN; or use `permissions: copilot-requests: write` to bill the org via the Actions token, no PAT), `OPENAI_API_KEY` (codex), `GEMINI_API_KEY` (gemini)",
-        "`copilot-requests: write` is Copilot-engine-only — claude/codex/gemini need no GitHub permission beyond their API key",
-        "Any action a compiled .lock.yml references must be added to the repo's GitHub Actions allowlist (Settings → Actions → Allowed actions)"
+        "Engine secrets (set per repo, by engine): `ANTHROPIC_API_KEY` (claude), `COPILOT_GITHUB_TOKEN` (copilot \u2014 distinct from the default GITHUB_TOKEN; or use `permissions: copilot-requests: write` to bill the org via the Actions token, no PAT), `OPENAI_API_KEY` (codex), `GEMINI_API_KEY` (gemini)",
+        "`copilot-requests: write` is Copilot-engine-only \u2014 claude/codex/gemini need no GitHub permission beyond their API key",
+        "Any action a compiled .lock.yml references must be added to the repo's GitHub Actions allowlist (Settings \u2192 Actions \u2192 Allowed actions)"
       ],
       "origin": "system"
     },
     "git": {
-      "description": "Git CLI — checkout, submodule init, tag signing.",
+      "description": "Git CLI \u2014 checkout, submodule init, tag signing.",
       "version": "2.30+",
       "notes": [
         "Required: yes (all platforms)",
@@ -37,7 +37,7 @@
       "origin": "system"
     },
     "node": {
-      "description": "Node.js — runs the build scripts and TypeScript stripping.",
+      "description": "Node.js \u2014 runs the build scripts and TypeScript stripping.",
       "version": "24+",
       "notes": [
         "Required: yes",
@@ -53,7 +53,7 @@
         "SFW (Socket Firewall) enterprise flavor (private, SocketDev/firewall-release). Same 7-platform set as sfw-free. Enterprise downloads require GITHUB_TOKEN auth (private repo); install-tool.mjs forwards GITHUB_TOKEN automatically when set.",
         "Installed when SOCKET_API_KEY (or SOCKET_API_TOKEN) is set; otherwise the free flavor (sfw-free) is used. The two flavors share a version and install to the same `sfw` binary name."
       ],
-      "description": "Socket Firewall (enterprise tier) — package manager command wrapper",
+      "description": "Socket Firewall (enterprise tier) \u2014 package manager command wrapper",
       "version": "1.15.1",
       "repository": "github:SocketDev/firewall-release",
       "binaryName": "sfw",
@@ -94,7 +94,7 @@
         "SFW (Socket Firewall) free flavor (public, SocketDev/sfw-free). Ships a 7-platform set: linux-{x64,arm64}{,-musl}, darwin-{x64,arm64}, win-x64. Windows 11 ARM64 setup uses the verified win32-x64 asset through x64 emulation when a native asset is unavailable. SFW remains mandatory and must execute successfully before installation continues.",
         "Installed when neither SOCKET_API_KEY nor SOCKET_API_TOKEN is set; the enterprise flavor (sfw-enterprise) is selected when one of those is present. The two flavors share a version and install to the same `sfw` binary name."
       ],
-      "description": "Socket Firewall (free tier) — package manager command wrapper",
+      "description": "Socket Firewall (free tier) \u2014 package manager command wrapper",
       "version": "1.15.1",
       "repository": "github:SocketDev/sfw-free",
       "binaryName": "sfw",
@@ -130,45 +130,8 @@
       },
       "origin": "gh-asset"
     },
-    "uv": {
-      "notes": [
-        "uv (Astral) — the fleet's Python project tool. Installed in the bootstrap (release-asset, SRI-verified per platform, like janus/codedb) so a hash-locked uv install is available BEFORE the security-tools step that needs it (SkillSpector installs via a uv project + uv.lock, no pipx — the fleet 'uv for projects' rule). external-tools/update.mts re-hashes the GitHub release assets on a bump.",
-        "0.11.21 published 2026-06-11; the GitHub release is a known-publisher binary distribution (the soak targets npm freshpub typosquats), past its 7-day window now — no soakBypass needed. Pinned bare; the installer prepends no v (uv tags have no v prefix)."
-      ],
-      "description": "uv — Astral Python package/project manager (pinned, SRI-verified)",
-      "repository": "github:astral-sh/uv",
-      "version": "0.12.9",
-      "binaryName": "uv",
-      "platforms": {
-        "darwin-arm64": {
-          "asset": "uv-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-tl/z5hF4bIO9hR3b5NrEgjoOsdDTKYiCIdLpfAj1KvvSid7psCVvH64zingxdtFiGSmD9wHWjWyTtMp79HocnA=="
-        },
-        "darwin-x64": {
-          "asset": "uv-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-BWKy9k2jR3EQcPBRbTY/0ZB4C3HUlmgr5fL4OBNl6CnjKLz2RdskHT01I19hdi5qGh4HC6IpIDsdCIBADKfymw=="
-        },
-        "linux-arm64": {
-          "asset": "uv-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-BrrJYbNu+N1cAmRFzXPAFjHhyOx/4poEtgEueN6mcQZHZFC4VUZzmJGxdiEVSLXRa0qYEEzTos5smUA0htmvzA=="
-        },
-        "linux-x64": {
-          "asset": "uv-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-gf6Ot90syNl1Mvvu48hS3DDdhSwCEOq6x9xLf08Ojxs1tWWQ8PBr4oDBaY1cTP4lxZX2nxD6fKsuii1p1gS6WA=="
-        },
-        "win32-arm64": {
-          "asset": "uv-aarch64-pc-windows-msvc.zip",
-          "integrity": "sha512-53kiRH2Ngxdr1v6C6ougI+9ep+qFlSEE/C94Do5BCkVONqFcpry1XlHVGNWWEPRWNaM7wyzGFyrdLyXkRUCKVw=="
-        },
-        "win32-x64": {
-          "asset": "uv-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-ncP08GYr0ka7l0ehQB7LeN/Pg0TbM7JS+FwqSLUyVtlnwvf/rq1zbKzO24dJwrCaOXBxMQvAcY+Tt1dXDtUcSw=="
-        }
-      },
-      "origin": "gh-asset"
-    },
     "zizmor": {
-      "description": "GitHub Actions security linter — audits .github/ for workflow-injection / credential-leak patterns.",
+      "description": "GitHub Actions security linter \u2014 audits .github/ for workflow-injection / credential-leak patterns.",
       "version": "1.30.0",
       "repository": "github:zizmorcore/zizmor",
       "notes": [

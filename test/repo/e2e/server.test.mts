@@ -1,11 +1,13 @@
 import { createServer } from 'node:http'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { SERVER_SOURCE } from '../../scripts/repo/paths.mts'
+import { SERVER_SOURCE } from '../../../scripts/repo/paths.mts'
 
 const FIXTURE_RESPONSE = [
   { type: 'npm', namespace: '@babel', name: 'core', version: '7.24.0' },
@@ -55,15 +57,13 @@ describe('Socket MCP Server', () => {
       throw new TypeError('Fixture API did not bind to a TCP port')
     }
     const transport = new StdioClientTransport({
-      command: 'node',
-      args: [SERVER_SOURCE],
+      command: process.execPath,
+      args: [
+        '--import',
+        fileURLToPath(new URL('./fixture/network.mts', import.meta.url)),
+        SERVER_SOURCE,
+      ],
       env: {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
-        ...(Object.fromEntries(
-          Object.entries(process.env).filter(
-            ([, value]) => value !== undefined,
-          ),
-        ) as Record<string, string>),
         SOCKET_API_BASE_URL: `http://127.0.0.1:${address.port}/v0/purl`,
         SOCKET_API_TOKEN: 'socket_test_placeholder',
       },

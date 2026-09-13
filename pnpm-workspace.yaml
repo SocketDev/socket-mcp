@@ -44,6 +44,10 @@ autoInstallPeers: true
 blockExoticSubdeps: true
 
 catalog:
+  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/core': 2.0.0
+  '@modelcontextprotocol/node': 2.0.0
+  '@modelcontextprotocol/server': 2.0.0
   '@mdn/browser-compat-data': 8.1.0
   # run-local-ci (bin: local-ci, formerly published as @redwoodjs/agent-ci)
   # runs a repo's GitHub Actions workflows locally in Docker so a change can
