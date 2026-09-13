@@ -117,6 +117,7 @@ function singleEntryConfig(
       format: 'cjs',
       entryFileNames: '[name].cjs',
       inlineDynamicImports: true,
+      comments: { legal: true, annotation: false, jsdoc: false },
       minify: false,
       sourcemap: false,
       banner,
