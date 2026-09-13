@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { expect, onTestFinished, test } from 'vitest'
 
-const serverPath = path.join(import.meta.dirname, '..', '..', 'index.ts')
+const serverPath = path.join(import.meta.dirname, '..', '..', 'index.mts')
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
 const inheritedEnv = Object.fromEntries(
   Object.entries(process.env).filter(([, value]) => value !== undefined),

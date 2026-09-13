@@ -12,7 +12,7 @@ import {
   getSocketBypassHeaderName,
   getSocketOauthRequiredScopes,
   getTrustProxy,
-} from '../../lib/env.ts'
+} from '../../lib/env.mts'
 
 // The chain getSocketApiToken walks, canonical name first.
 // socket-api-token-env: bootstrap -- this array IS the alias chain under test.

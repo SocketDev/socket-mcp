@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   buildOrganizationsErrorMessage,
   fetchOrganizations,
-} from '../../lib/organizations.ts'
+} from '../../lib/organizations.mts'
 
 const API = 'https://api.socket.dev'
 

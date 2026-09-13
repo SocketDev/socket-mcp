@@ -10,11 +10,11 @@ Deeper walkthrough, expected output, and error decoding:
 
 The clients split across the two MCP protocol eras so both stay covered:
 
-| Client            | Script                 | Era                                                                              |
-| ----------------- | ---------------------- | -------------------------------------------------------------------------------- |
-| `debug-client.ts` | `pnpm run debug-stdio` | Legacy 2025 - raw JSON-RPC frames, `initialize` + `notifications/initialized`    |
-| `stdio-client.ts` | `pnpm run debug-sdk`   | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over stdio           |
-| `http-client.ts`  | `pnpm run debug-http`  | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over Streamable HTTP |
+| Client             | Script                 | Era                                                                              |
+| ------------------ | ---------------------- | -------------------------------------------------------------------------------- |
+| `debug-client.mts` | `pnpm run debug-stdio` | Legacy 2025 - raw JSON-RPC frames, `initialize` + `notifications/initialized`    |
+| `stdio-client.mts` | `pnpm run debug-sdk`   | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over stdio           |
+| `http-client.mts`  | `pnpm run debug-http`  | Modern - SDK client, `versionNegotiation: { mode: 'auto' }` over Streamable HTTP |
 
 `mode: 'auto'` probes the server with `server/discover` and falls back to the
 2025 `initialize` handshake when the server only speaks the legacy protocol.
@@ -77,7 +77,7 @@ MCP_URL="http://localhost:3901" pnpm run debug-http
 - **Call depscore**: score a handful of sample npm and PyPI packages
 - **Cleanup**: close the connection
 
-No build is needed. Each client spawns `index.ts` and Node 24 strips the types.
+No build is needed. Each client spawns `index.mts` and Node 24 strips the types.
 
 ## Troubleshooting
 

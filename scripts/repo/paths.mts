@@ -18,9 +18,10 @@ export * from '../fleet/paths.mts'
 export const DIST_DIR = path.join(REPO_ROOT, 'dist')
 
 /**
- * Absolute path to the bundled server entry (the `socket-mcp` bin).
+ * Absolute path to the server source entry.
  */
-export const SERVER_BUNDLE = path.join(DIST_DIR, 'index.cjs')
+
+export const SERVER_SOURCE = path.join(REPO_ROOT, 'index.mts')
 
 /**
  * Absolute path to the socket-gate hook's SOURCE directory: the hook source
@@ -37,11 +38,3 @@ export const SOCKET_GATE_SRC_DIR = path.join(REPO_ROOT, 'hooks', 'socket-gate')
  * `~/.claude/hooks/`.
  */
 export const SOCKET_GATE_DIST_DIR = path.join(DIST_DIR, 'socket-gate')
-
-/**
- * Absolute path to the bundled socket-gate hook.
- */
-export const SOCKET_GATE_BUNDLE = path.join(
-  SOCKET_GATE_DIST_DIR,
-  'socket-gate.cjs',
-)

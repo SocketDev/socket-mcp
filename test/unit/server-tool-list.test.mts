@@ -7,8 +7,8 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { buildToolSpecs, toToolListEntry } from '../../lib/server.ts'
-import type { ToolSpec } from '../../lib/tool-types.ts'
+import { buildToolSpecs, toToolListEntry } from '../../lib/server.mts'
+import type { ToolSpec } from '../../lib/tool-types.mts'
 
 function bareSpec(overrides?: Partial<ToolSpec> | undefined): ToolSpec {
   return {

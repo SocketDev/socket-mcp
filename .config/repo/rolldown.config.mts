@@ -79,7 +79,12 @@ export function createCodeStubPlugin(
     load(id) {
       for (const { code, pattern } of stubs) {
         if (pattern.test(id)) {
-          return { code, moduleType: 'js', moduleSideEffects: false }
+          return {
+            __proto__: null,
+            code,
+            moduleType: 'js',
+            moduleSideEffects: false,
+          }
         }
       }
       return undefined
@@ -112,6 +117,7 @@ function singleEntryConfig(
       format: 'cjs',
       entryFileNames: '[name].cjs',
       inlineDynamicImports: true,
+      comments: { legal: true, annotation: false, jsdoc: false },
       minify: false,
       sourcemap: false,
       banner,
@@ -124,7 +130,7 @@ function singleEntryConfig(
 // The server bundle (dist/index.cjs) — the published bin.
 export const buildConfig: RolldownOptions = singleEntryConfig(
   'index',
-  path.join(REPO_ROOT, 'index.ts'),
+  path.join(REPO_ROOT, 'index.mts'),
   DIST_DIR,
   '"use strict";\n/* Socket MCP — bundled with rolldown */',
 )

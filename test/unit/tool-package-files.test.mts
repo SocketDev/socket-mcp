@@ -1,13 +1,15 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+
 import {
   buildPurlForFiles,
   definePackageFileContentsTool,
   definePackageFileGrepTool,
   definePackageFilesTool,
-} from '../../lib/tool-package-files.ts'
-import type { ToolHandlerExtra } from '../../lib/tool-types.ts'
+} from '../../lib/tool-package-files.mts'
+import type { ToolHandlerExtra } from '../../lib/tool-types.mts'
 
 const API = 'https://api.socket.dev'
 const BLOB_HOST = 'https://socketusercontent.com'
@@ -135,11 +137,13 @@ describe('package_file_contents tool handler', () => {
       .reply(200, 'line one\nline two', { 'content-type': 'text/plain' })
 
     const result = await definePackageFileContentsTool().handler(
-      { hash, path: 'src/a.js' },
+      { hash, path: 'src/alpha.js' },
       withToken,
     )
     expect(result.isError).toBeUndefined()
-    expect(result.content[0]!.text).toMatch(/src\/a\.js \(\d+ bytes\)/)
+    expect(normalizePath(result.content[0]!.text)).toMatch(
+      /src\/alpha\.js \(\d+ bytes\)/,
+    )
     expect(result.content[0]!.text).toMatch(/line one\nline two/)
   })
 
@@ -217,7 +221,7 @@ describe('package_file_grep tool handler', () => {
       withToken,
     )
     expect(result.isError).toBeUndefined()
-    expect(result.content[0]!.text).toMatch(/no matches for \/zzz\//)
+    expect(result.content[0]!.text).toBe(`${hash}: no matches for /zzz/`)
   })
 
   test('honors contextLines and caseInsensitive', async () => {
@@ -289,7 +293,7 @@ describe('package_file_grep tool handler', () => {
       withToken,
     )
     expect(result.isError).toBeUndefined()
-    expect(result.content[0]!.text).toMatch(/no matches for \/ZZZ\/i$/)
+    expect(result.content[0]!.text).toBe(`${hash}: no matches for /ZZZ/i`)
   })
 
   test('rejects an invalid regular expression before fetching', async () => {

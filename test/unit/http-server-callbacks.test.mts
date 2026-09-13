@@ -11,8 +11,8 @@ import {
   createRouteFailureHandler,
   handleMcpAdapterError,
   handleMcpHandlerError,
-} from '../../lib/http-server.ts'
-import { logger } from '../../lib/logger.ts'
+} from '../../lib/http-server.mts'
+import { logger } from '../../lib/logger.mts'
 import { makeRes } from './http-server-fixtures.mts'
 
 describe('handleMcpHandlerError', () => {

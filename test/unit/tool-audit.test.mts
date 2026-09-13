@@ -5,7 +5,7 @@ import path from 'node:path'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 import { afterAll, afterEach, expect, test, vi } from 'vitest'
 
-import { logger } from '../../lib/logger.ts'
+import { logger } from '../../lib/logger.mts'
 import {
   auditLogPath,
   emitAuditEvent,
@@ -13,8 +13,8 @@ import {
   maskArgs,
   newRequestId,
   tokenIdentity,
-} from '../../lib/tool-audit.ts'
-import type { AuditEntry } from '../../lib/tool-audit.ts'
+} from '../../lib/tool-audit.mts'
+import type { AuditEntry } from '../../lib/tool-audit.mts'
 
 const scratchDir = mkdtempSync(path.join(os.tmpdir(), 'socket-audit-test-'))
 

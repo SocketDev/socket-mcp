@@ -6,15 +6,16 @@
   "schemaVersion": 1,
   "repoName": "socket-mcp",
   "bundle": {
-    "ref": "fleet-pack-34b047176c416cd46f1919ad0bba35a0bb7b84b3",
-    "cascadeSha": "34b047176c416cd46f1919ad0bba35a0bb7b84b3"
+    "ref": "fleet-pack-011e1c67ce8860fdf7dca52a45e1a8d6620379e6",
+    "cascadeSha": "011e1c67ce8860fdf7dca52a45e1a8d6620379e6"
   },
   "repo": {
     "type": "solo"
   },
   "build": {
     "from": "npm-registry",
-    "type": "js"
+    "type": "js",
+    "bundlesVendoredDeps": true
   },
   "hooks": {
     "enablePrePush": true,
@@ -63,6 +64,6 @@
     "apps": ["cursor", "socket-security", "socket-trufflehog"]
   },
   "coverage": {
-    "include": ["index.ts", "lib/**/*.ts", "hooks/**/*.mts"]
+    "include": ["index.mts", "lib/**/*.mts", "hooks/**/*.mts"]
   }
 }

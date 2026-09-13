@@ -12,7 +12,7 @@ import {
   resolveScopedAuthToken,
   setStaticApiKey,
   toToolHandlerExtra,
-} from '../../lib/server.ts'
+} from '../../lib/server.mts'
 
 afterEach(() => {
   // Reset module-level static-key state so cases don't leak into each other.
@@ -123,7 +123,7 @@ function symbolKeyPaths(value: unknown, path: string): string[] {
 // The text of a tool result's first content block. `content` is a union of
 // block kinds, so narrow on `type` rather than casting.
 function firstText(result: CallToolResult): string {
-  const [block] = result.content
+  const { 0: block } = result.content
   return block?.type === 'text' ? block.text : ''
 }
 
@@ -142,7 +142,7 @@ describe('createConfiguredServer', () => {
   // trip.
   test('lists tools and dispatches calls over a transport', async () => {
     const server = createConfiguredServer()
-    const [clientTransport, serverTransport] =
+    const { 0: clientTransport, 1: serverTransport } =
       InMemoryTransport.createLinkedPair()
     await server.connect(serverTransport)
     const client = new Client(

@@ -16,6 +16,8 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
 import { buildConfigs } from '../../.config/repo/rolldown.config.mts'
+import { runMain } from '../fleet/process/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 import { isMainModule } from '../fleet/process/is-main-module.mts'
 import {
   DIST_DIR,
@@ -48,7 +50,7 @@ async function buildOne(config: RolldownOptions): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   logger.log('Cleaning build outputs…')
   await safeDelete(DIST_DIR)
 
@@ -67,9 +69,18 @@ async function main(): Promise<void> {
   logger.log(`Built ${buildConfigs.length} artifact(s)`)
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe: 'builds the MCP server and Socket Gate bundles',
+  help: 'Usage: pnpm run build:bundle',
+  json: 'result',
+}
 if (isMainModule(import.meta.url)) {
-  main().catch(err => {
-    logger.fail(`build: ${errorMessage(err)}`)
-    process.exitCode = 1
-  })
+  runMain(
+    () =>
+      main().catch(err => {
+        logger.fail(`build: ${errorMessage(err)}`)
+        process.exitCode = 1
+      }),
+    SCRIPT_META,
+  )
 }

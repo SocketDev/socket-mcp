@@ -1,7 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import type { BlobResult } from '../../lib/blob.ts'
+import type { BlobResult } from '../../lib/blob.mts'
 
 const BLOB_HOST = 'https://socketusercontent.com'
 
@@ -25,7 +25,7 @@ async function freshCache(capBytes?: number | undefined) {
     vi.stubEnv('SOCKET_BLOB_CACHE_BYTES', String(capBytes))
   }
   vi.resetModules()
-  return import('../../lib/blob-cache.ts')
+  return import('../../lib/blob-cache.mts')
 }
 
 describe('blobWeight', () => {

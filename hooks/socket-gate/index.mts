@@ -31,10 +31,12 @@ import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
+import { Logger } from '@socketsecurity/lib-stable/logger/logger'
 
 const MCP_URL = 'https://mcp.socket.dev/'
 const SUPPLY_CHAIN_THRESHOLD = 20
 const REQUEST_TIMEOUT_MS = 10_000
+let hookLogger: Logger | undefined
 
 export type Ecosystem = 'npm' | 'pypi' | 'cargo' | 'gem' | 'golang' | 'nuget'
 
@@ -47,7 +49,7 @@ export interface HookInput {
 // Each pattern matches "<tool> <install-subcommand> <pkg>" and captures the
 // first non-flag argument ([^\s-] rejects a leading dash, [^\s]* takes the
 // rest) as the package spec to scan. The (?:…) groups list a tool's install
-// aliases (npm add|i|install, cargo add|install, go get|install) without
+// aliases (`npm add`|i|install, `cargo add`|install, go get|install) without
 // capturing them.
 const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
   // npm and its two install aliases, then the first non-flag token as the package name.
@@ -66,7 +68,7 @@ const INSTALL_PATTERNS: Array<{ ecosystem: Ecosystem; pattern: RegExp }> = [
   { ecosystem: 'pypi', pattern: /\bpipenv\s+install\s+([^\s-][^\s]*)/i },
   {
     ecosystem: 'cargo',
-    // cargo add or install, then the crate name.
+    // `cargo add` or install, then the crate name.
     pattern: /\bcargo\s+(?:add|install)\s+([^\s-][^\s]*)/i,
   },
   { ecosystem: 'gem', pattern: /\bgem\s+install\s+([^\s-][^\s]*)/i },
@@ -184,9 +186,11 @@ export function extractPackage(
   return undefined
 }
 
-// stdout is the Claude Code hook IPC channel — the harness parses this exact
-// JSON as the permission decision, so these must be raw writes (a logger would
-// add formatting/timestamps and break the protocol).
+export function getHookLogger(): Logger {
+  hookLogger ??= new Logger({ stdout: process.stdout, stderr: process.stderr })
+  return hookLogger
+}
+
 export function outputAllow(): void {
   const payload = JSON.stringify({
     hookSpecificOutput: {
@@ -194,9 +198,7 @@ export function outputAllow(): void {
       permissionDecision: 'allow',
     },
   })
-  // Stdout is the hook decision protocol; a raw write keeps the bundled hook
-  // free of logger indirection.
-  process.stdout.write(payload)
+  getHookLogger().stdout.write(payload)
 }
 
 export function outputDeny(reason: string): void {
@@ -207,9 +209,7 @@ export function outputDeny(reason: string): void {
       permissionDecisionReason: reason,
     },
   })
-  // Stdout is the hook decision protocol; a raw write keeps the bundled hook
-  // free of logger indirection.
-  process.stdout.write(payload)
+  getHookLogger().stdout.write(payload)
 }
 
 export function parseSupplyChainScore(text: string): number | undefined {
@@ -310,10 +310,8 @@ export async function main(fd: number, fetchImpl: typeof fetch): Promise<void> {
     // must not block legitimate installs (this hook is an advisory guardrail,
     // not a hard gate — see the file header). Surface the error on stderr so
     // the failure is observable; stdout stays the allow/deny IPC channel.
-    const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}\n`
-    // Stderr feedback for the harness; a raw write keeps the bundled hook
-    // free of logger indirection.
-    process.stderr.write(errLine)
+    const errLine = `socket-gate: check failed for ${target.ecosystem}/${target.name}, failing open: ${errorMessage(e)}`
+    getHookLogger().error(errLine)
     outputAllow()
   }
 }

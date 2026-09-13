@@ -2,79 +2,6 @@
   "$schema": "https://raw.githubusercontent.com/SocketDev/socket-wheelhouse/main/packages/build-infra/lib/external-tools-schema.json",
   "description": "External tools required to build + release this repo. The canonical schema lives at socket-wheelhouse/packages/build-infra/lib/external-tools-schema.json (generated from scripts/fleet/lib/external-tools-schema.mts); every fleet repo references it via the $schema field above so validators pick up the single source of truth. Extend the `tools` map with repo-specific entries (e.g. language toolchains for sdxgen, git credential helpers for packageurl-js).",
   "tools": {
-    "git": {
-      "description": "Git CLI — checkout, submodule init, tag signing.",
-      "version": "2.30+",
-      "notes": [
-        "Required: yes (all platforms)",
-        "Preinstalled on macOS (Xcode CLT) and most Linux distros",
-        "Windows: https://git-scm.com/download/win or via winget/scoop"
-      ],
-      "origin": "system"
-    },
-    "node": {
-      "description": "Node.js — runs the build scripts and TypeScript stripping.",
-      "version": "24+",
-      "notes": [
-        "Required: yes",
-        "Node 24+ runs .mts files with default-on native type stripping; Node 24.12+ marks it stable",
-        "Install via volta / nvm / fnm / official installer",
-        "The pinned version lives in .node-version at the repo root",
-        "Docker prebakes: node-base (docker/fleet/node-base.Dockerfile) builds node from source at the .node-version pin with V8 pointer compression (--experimental-enable-pointer-compression = lower memory), replicating the vendored platformatic/node-caged recipe rather than pulling its DockerHub image. scripts/repo/build-prebakes.mts injects NODE_VERSION (.node-version) + PNPM_VERSION (pnpm pin) as build-args; every compiler-base build COPYs node --from=node-base instead of installing it."
-      ],
-      "origin": "system"
-    },
-    "pnpm": {
-      "notes": [
-        "pnpm publishes 7 platform-native binaries: linux-{x64,arm64}{,-musl}, darwin-arm64, win-{x64,arm64}. Verified against v11.8.0 (2026-06-18).",
-        "linux-*-musl tarballs are first-class assets with distinct integrity from the glibc tarballs — the binaries are linked against different libcs and only the matching one runs on its target. Don't 'simplify' by pointing musl keys at the glibc asset.",
-        "darwin-x64 is the odd one out: upstream dropped the SEA binary in 11.0.5 because of nodejs/node#62893 (upstream LIEF/Mach-O bug that the Node team has declined to fix). Intel Mac instead installs the npm-registry JS tarball (`pnpm-<version>.tgz`) + runs it through system Node. external-tools/update.mts recognizes the `<pkg>-<version>.tgz` asset shape and fetches its integrity from the npm registry rather than the GitHub release.",
-        "v11.8.0 had all 8 platforms re-hashed (GitHub assets as sha512 SRIs + darwin-x64 from the npm registry's dist.integrity). It published 2026-06-18, inside the 7-day minimumReleaseAge soak, so the bump rode a dated `soakBypass` entry (auto-disarms at `removable`) — pnpm releases are GitHub-asset distributions from a known publisher; the soak targets npm typosquats / malicious freshpubs. external-tools/update.mts won't auto-pick a still-soaking release, so this was a hand-bump; drop the cleared soakBypass on the next routine bump."
-      ],
-      "description": "Fast, disk space efficient package manager",
-      "repository": "github:pnpm/pnpm",
-      "version": "12.3.4",
-      "platforms": {
-        "darwin-arm64": {
-          "asset": "pnpm-darwin-arm64.tar.gz",
-          "integrity": "sha512-IhEF3UhTH1ZcYujJ1zwRGglkmnZQAJuPHFKzv7qS6YvZ3lj3ZO9SFwfrS+s/gR3Gn+UxrOD0xw4Kjcgpg1eVaw=="
-        },
-        "darwin-x64": {
-          "asset": "pnpm-12.3.4.tgz",
-          "integrity": "sha512-lhqkH7B32joEpEHZ+OFevAyW2o73ELLrZ7+e58sGEOq9SPH9hfUc/+c4RnhfoPh8VqOocqHYk/hEZ0G1zORUVw=="
-        },
-        "linux-arm64": {
-          "asset": "pnpm-linux-arm64.tar.gz",
-          "integrity": "sha512-vlQJTIxU5zCNEMzD55FI+zC1Z7NmR64TAhIBOk/Jdh/+FkoxFFjT4WLJW9ZyPZrAf0siinllG5ezb//qim+NVg=="
-        },
-        "linux-arm64-musl": {
-          "asset": "pnpm-linux-arm64-musl.tar.gz",
-          "integrity": "sha512-//88xzivEW6PEySjBhAM7UG2h2d7jgBR1mSD5mWLriKKofaVay+TvCUGNocEZPy03xunVyVFCUnwAFOg5K5QiA=="
-        },
-        "linux-x64": {
-          "asset": "pnpm-linux-x64.tar.gz",
-          "integrity": "sha512-rNRTVZ3MCx44u0rHFAf5lTHmUoX9f2xC5Ts9yq+IBmizuJ8Zi9g4vB2LBl0D1E2lHxcBuBnaTCY+Lsce8zsHQA=="
-        },
-        "linux-x64-musl": {
-          "asset": "pnpm-linux-x64-musl.tar.gz",
-          "integrity": "sha512-0JKf24b2k+VZ9/u9CvCtM4IGgALHBGF2BGPOcBwSA+d0v+bmU+rV8MfvRwod6qwgz8L5mYGZKhhEfWRgd0FtaA=="
-        },
-        "win32-arm64": {
-          "asset": "pnpm-win32-arm64.zip",
-          "integrity": "sha512-9VZap+aegJdnl0HX28ZJYoyczMvPL78vZGdE1pUw3OifBEU7A71UEJPweuc36JYjz5z0Q2O1+/thMMM9lz1SYg=="
-        },
-        "win32-x64": {
-          "asset": "pnpm-win32-x64.zip",
-          "integrity": "sha512-AoRAZaWUM3HjMrhwjwcmQgh4mGDFd9AH1BA7u6T405mbizAFC6JencKyww0dEER4HUIXTIdSq+n6gG20ux1r1A=="
-        }
-      },
-      "origin": "gh-asset",
-      "soakBypass": {
-        "published": "2026-09-04",
-        "removable": "2026-09-11",
-        "version": "12.3.4"
-      }
-    },
     "gh": {
       "description": "GitHub CLI — workflow dispatch, release downloads, PR creation in weekly-update; host for the gh-aw agentic-workflows extension.",
       "version": "2.94.0",
@@ -99,116 +26,27 @@
       ],
       "origin": "system"
     },
-    "uv": {
+    "git": {
+      "description": "Git CLI — checkout, submodule init, tag signing.",
+      "version": "2.30+",
       "notes": [
-        "uv (Astral) — the fleet's Python project tool. Installed in the bootstrap (release-asset, SRI-verified per platform, like janus/codedb) so a hash-locked uv install is available BEFORE the security-tools step that needs it (SkillSpector installs via a uv project + uv.lock, no pipx — the fleet 'uv for projects' rule). external-tools/update.mts re-hashes the GitHub release assets on a bump.",
-        "0.11.21 published 2026-06-11; the GitHub release is a known-publisher binary distribution (the soak targets npm freshpub typosquats), past its 7-day window now — no soakBypass needed. Pinned bare; the installer prepends no v (uv tags have no v prefix)."
+        "Required: yes (all platforms)",
+        "Preinstalled on macOS (Xcode CLT) and most Linux distros",
+        "Windows: https://git-scm.com/download/win or via winget/scoop"
       ],
-      "description": "uv — Astral Python package/project manager (pinned, SRI-verified)",
-      "repository": "github:astral-sh/uv",
-      "version": "0.12.7",
-      "binaryName": "uv",
-      "platforms": {
-        "darwin-arm64": {
-          "asset": "uv-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-//y39pP48mmEfJ4y0arOqB/NUu7p0ByMVpUh7FdHyfUYcrKccWbNDaEZDeDfZGJo+TuO4GKrQkSoWr3m8H50wQ=="
-        },
-        "darwin-x64": {
-          "asset": "uv-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-jxI/QHy4fwyNe7yvzre8xcclVAip9a1Jvk19EdhE2pEHQAIEjYtOy5Ol6nKUhc6ypRPU8/p0hMib+dM/Wvi8Ow=="
-        },
-        "linux-arm64": {
-          "asset": "uv-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-l15YMZfGCNMNQvK/J14Ny6lHAgv2yuOzPaw+OD8pmDE35t7jENFq0HUNW89l9HCv4q8rIiB4kG8Da5VGBCz/Mw=="
-        },
-        "linux-x64": {
-          "asset": "uv-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-iypkBjnn+GvivDSc/eXxKihJJT1Q9YJhNGchKfnSvTKnpzBEnw6SdGnfagAvOTBk1bvZHDYfWIheRV88aYKiVg=="
-        },
-        "win32-x64": {
-          "asset": "uv-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-B+R5J3VoOb7hesOCJHbT2ohQbGMiPcBOCPi+FWHuAFOJVfhHLEbAXzm/uQ46jMmvAfKTcC+u4X1tws/rIreXaw=="
-        }
-      },
-      "origin": "gh-asset"
+      "origin": "system"
     },
-    "zizmor": {
-      "description": "GitHub Actions security linter — audits .github/ for workflow-injection / credential-leak patterns.",
-      "version": "1.30.0",
-      "repository": "github:zizmorcore/zizmor",
+    "node": {
+      "description": "Node.js — runs the build scripts and TypeScript stripping.",
+      "version": "24+",
       "notes": [
-        "Required: CI (blocks merges on medium+ findings)",
-        "Installed by the setup-and-install composite; SRI-verified (sha512) per platform"
+        "Required: yes",
+        "Node 24+ runs .mts files with default-on native type stripping; Node 24.12+ marks it stable",
+        "Install via volta / nvm / fnm / official installer",
+        "The pinned version lives in .node-version at the repo root",
+        "Docker prebakes: node-base (docker/fleet/node-base.Dockerfile) builds node from source at the .node-version pin with V8 pointer compression (--experimental-enable-pointer-compression = lower memory), replicating the vendored platformatic/node-caged recipe rather than pulling its DockerHub image. scripts/repo/build-prebakes.mts injects NODE_VERSION (.node-version) + PNPM_VERSION (pnpm pin) as build-args; every compiler-base build COPYs node --from=node-base instead of installing it."
       ],
-      "platforms": {
-        "darwin-arm64": {
-          "asset": "zizmor-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-kkaQ+tzBju3cQu4TMiobDw0gcdsYKLliOfdDh0LiAvm+FFXuMdYoRyqalMD1Fcpvs6hcJB2OOcrY5VbScyazpA=="
-        },
-        "darwin-x64": {
-          "asset": "zizmor-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-6DobW4UdYS1ZZuZNLRjtZGD+1t01WtUDuPN9xImViS2AZsfFK5GvC48KZOEJ4uMNi+1LIrTNJdFoKAJ+wLRwDA=="
-        },
-        "linux-arm64": {
-          "asset": "zizmor-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-nhJOFX1+nCyTjVXBNVW5sfkN+iyOnppcY0sc4aCd4qUO9tfI/ASNzYn/0/AeruOGhAk5UkyLhuiKSpQ6MdbrQA=="
-        },
-        "linux-x64": {
-          "asset": "zizmor-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-MF8BdJuZLNboRUPXRUJjicZs14PDjfflIDRM87ji8E0eNbwmyH7lZ/cdclITjhcz1iK+z3u33w16dEp7fVCIgA=="
-        },
-        "win32-x64": {
-          "asset": "zizmor-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-4dB8Yp+jq60z7omGw5W8CdA+1yLaqK0BWIMgjFXNv+k0wewldPoIcZj8LGSFgjUmxlGYXdkIvJ3RzRyKVixctQ=="
-        }
-      },
-      "origin": "gh-asset"
-    },
-    "sfw-free": {
-      "notes": [
-        "SFW (Socket Firewall) free flavor (public, SocketDev/sfw-free). Ships a 7-platform set: linux-{x64,arm64}{,-musl}, darwin-{x64,arm64}, win-x64. win-arm64 is intentionally absent — upstream does not yet build it. SFW is a required dependency of the install flow, so consumers on win-arm64 skip SFW-dependent steps until upstream support lands.",
-        "Installed when neither SOCKET_API_KEY nor SOCKET_API_TOKEN is set; the enterprise flavor (sfw-enterprise) is selected when one of those is present. The two flavors share a version and install to the same `sfw` binary name."
-      ],
-      "description": "Socket Firewall (free tier) — package manager command wrapper",
-      "version": "1.15.1",
-      "repository": "github:SocketDev/sfw-free",
-      "binaryName": "sfw",
-      "platforms": {
-        "darwin-arm64": {
-          "asset": "sfw-free-macos-arm64",
-          "integrity": "sha512-WmTGyJa3O56uX0elw06UX0al/3S/Is0xWDkxb+rdrdW1s/Ud86fQi0XIwFdh77AGdDg568mDbzTdo5bucPobfQ=="
-        },
-        "darwin-x64": {
-          "asset": "sfw-free-macos-x86_64",
-          "integrity": "sha512-EVBcuWNBwQZ0G7dRwYPMSgFNC16i/fYa40XHgDy/oOPLNFP5lkRJq4mZGe9a0gmf79ghIkZCCINRZZ3ZrkobeQ=="
-        },
-        "linux-arm64": {
-          "asset": "sfw-free-linux-arm64",
-          "integrity": "sha512-YkiVl7cpvwsqszMEqWs4EQK2iQUViu7Y7k/JNjz74GtuJycmoo+7ZXVAXeaaMUVg69cy5v1aWO5+r8tUY8wuHQ=="
-        },
-        "linux-arm64-musl": {
-          "asset": "sfw-free-musl-linux-arm64",
-          "integrity": "sha512-ZMVyhhUxTamnQkIAhwjOx1vp3syFwl6nWqDL5ydL8YAdiMHC6280K28W+KPP7yeUlXekcKueNO0Sd/N4LIkSmQ=="
-        },
-        "linux-x64": {
-          "asset": "sfw-free-linux-x86_64",
-          "integrity": "sha512-vi3s1mQ6YXoSBii8KWL/2nJ15judW6KTZKxY+nzp60VVSNR36lUAmLYfW+PH2Ta4jYu8+zHeZwXZvzWImBQFcQ=="
-        },
-        "linux-x64-musl": {
-          "asset": "sfw-free-musl-linux-x86_64",
-          "integrity": "sha512-RwsULiuR2DM6lepxNTzdMcAZvMAunMg/ccsfnccxNKBAtHIUZkriPbbAJAHUUrLG7BhgKFHr3V+P4juwrfKoEQ=="
-        },
-        "win32-x64": {
-          "asset": "sfw-free-windows-x86_64.exe",
-          "integrity": "sha512-ZRuz2N0CmEXJuyhADFyqXU3bBDPp6UmDuXBSMoxcFyzUO/q3/5QRgVCimyOU09cG1XS9TRGvPSyL5y6sFN6D2A=="
-        }
-      },
-      "origin": "gh-asset",
-      "soakBypass": {
-        "published": "2026-08-26",
-        "removable": "2026-09-02",
-        "version": "1.15.1"
-      }
+      "origin": "system"
     },
     "sfw-enterprise": {
       "notes": [
@@ -249,12 +87,117 @@
           "integrity": "sha512-vZdptPsQPYnBvRR3S+6bikfk3WdkE+0d1a0CoPmSY8QPdfOG3jC4JxdTMN0FvHUzwR5iZQhfomJWq73F/PDWgg=="
         }
       },
-      "origin": "gh-asset",
-      "soakBypass": {
-        "published": "2026-08-26",
-        "removable": "2026-09-02",
-        "version": "1.15.1"
-      }
+      "origin": "gh-asset"
+    },
+    "sfw-free": {
+      "notes": [
+        "SFW (Socket Firewall) free flavor (public, SocketDev/sfw-free). Ships a 7-platform set: linux-{x64,arm64}{,-musl}, darwin-{x64,arm64}, win-x64. Windows 11 ARM64 setup uses the verified win32-x64 asset through x64 emulation when a native asset is unavailable. SFW remains mandatory and must execute successfully before installation continues.",
+        "Installed when neither SOCKET_API_KEY nor SOCKET_API_TOKEN is set; the enterprise flavor (sfw-enterprise) is selected when one of those is present. The two flavors share a version and install to the same `sfw` binary name."
+      ],
+      "description": "Socket Firewall (free tier) — package manager command wrapper",
+      "version": "1.15.1",
+      "repository": "github:SocketDev/sfw-free",
+      "binaryName": "sfw",
+      "platforms": {
+        "darwin-arm64": {
+          "asset": "sfw-free-macos-arm64",
+          "integrity": "sha512-WmTGyJa3O56uX0elw06UX0al/3S/Is0xWDkxb+rdrdW1s/Ud86fQi0XIwFdh77AGdDg568mDbzTdo5bucPobfQ=="
+        },
+        "darwin-x64": {
+          "asset": "sfw-free-macos-x86_64",
+          "integrity": "sha512-EVBcuWNBwQZ0G7dRwYPMSgFNC16i/fYa40XHgDy/oOPLNFP5lkRJq4mZGe9a0gmf79ghIkZCCINRZZ3ZrkobeQ=="
+        },
+        "linux-arm64": {
+          "asset": "sfw-free-linux-arm64",
+          "integrity": "sha512-YkiVl7cpvwsqszMEqWs4EQK2iQUViu7Y7k/JNjz74GtuJycmoo+7ZXVAXeaaMUVg69cy5v1aWO5+r8tUY8wuHQ=="
+        },
+        "linux-arm64-musl": {
+          "asset": "sfw-free-musl-linux-arm64",
+          "integrity": "sha512-ZMVyhhUxTamnQkIAhwjOx1vp3syFwl6nWqDL5ydL8YAdiMHC6280K28W+KPP7yeUlXekcKueNO0Sd/N4LIkSmQ=="
+        },
+        "linux-x64": {
+          "asset": "sfw-free-linux-x86_64",
+          "integrity": "sha512-vi3s1mQ6YXoSBii8KWL/2nJ15judW6KTZKxY+nzp60VVSNR36lUAmLYfW+PH2Ta4jYu8+zHeZwXZvzWImBQFcQ=="
+        },
+        "linux-x64-musl": {
+          "asset": "sfw-free-musl-linux-x86_64",
+          "integrity": "sha512-RwsULiuR2DM6lepxNTzdMcAZvMAunMg/ccsfnccxNKBAtHIUZkriPbbAJAHUUrLG7BhgKFHr3V+P4juwrfKoEQ=="
+        },
+        "win32-x64": {
+          "asset": "sfw-free-windows-x86_64.exe",
+          "integrity": "sha512-ZRuz2N0CmEXJuyhADFyqXU3bBDPp6UmDuXBSMoxcFyzUO/q3/5QRgVCimyOU09cG1XS9TRGvPSyL5y6sFN6D2A=="
+        }
+      },
+      "origin": "gh-asset"
+    },
+    "uv": {
+      "notes": [
+        "uv (Astral) — the fleet's Python project tool. Installed in the bootstrap (release-asset, SRI-verified per platform, like janus/codedb) so a hash-locked uv install is available BEFORE the security-tools step that needs it (SkillSpector installs via a uv project + uv.lock, no pipx — the fleet 'uv for projects' rule). external-tools/update.mts re-hashes the GitHub release assets on a bump.",
+        "0.11.21 published 2026-06-11; the GitHub release is a known-publisher binary distribution (the soak targets npm freshpub typosquats), past its 7-day window now — no soakBypass needed. Pinned bare; the installer prepends no v (uv tags have no v prefix)."
+      ],
+      "description": "uv — Astral Python package/project manager (pinned, SRI-verified)",
+      "repository": "github:astral-sh/uv",
+      "version": "0.12.9",
+      "binaryName": "uv",
+      "platforms": {
+        "darwin-arm64": {
+          "asset": "uv-aarch64-apple-darwin.tar.gz",
+          "integrity": "sha512-tl/z5hF4bIO9hR3b5NrEgjoOsdDTKYiCIdLpfAj1KvvSid7psCVvH64zingxdtFiGSmD9wHWjWyTtMp79HocnA=="
+        },
+        "darwin-x64": {
+          "asset": "uv-x86_64-apple-darwin.tar.gz",
+          "integrity": "sha512-BWKy9k2jR3EQcPBRbTY/0ZB4C3HUlmgr5fL4OBNl6CnjKLz2RdskHT01I19hdi5qGh4HC6IpIDsdCIBADKfymw=="
+        },
+        "linux-arm64": {
+          "asset": "uv-aarch64-unknown-linux-gnu.tar.gz",
+          "integrity": "sha512-BrrJYbNu+N1cAmRFzXPAFjHhyOx/4poEtgEueN6mcQZHZFC4VUZzmJGxdiEVSLXRa0qYEEzTos5smUA0htmvzA=="
+        },
+        "linux-x64": {
+          "asset": "uv-x86_64-unknown-linux-gnu.tar.gz",
+          "integrity": "sha512-gf6Ot90syNl1Mvvu48hS3DDdhSwCEOq6x9xLf08Ojxs1tWWQ8PBr4oDBaY1cTP4lxZX2nxD6fKsuii1p1gS6WA=="
+        },
+        "win32-arm64": {
+          "asset": "uv-aarch64-pc-windows-msvc.zip",
+          "integrity": "sha512-53kiRH2Ngxdr1v6C6ougI+9ep+qFlSEE/C94Do5BCkVONqFcpry1XlHVGNWWEPRWNaM7wyzGFyrdLyXkRUCKVw=="
+        },
+        "win32-x64": {
+          "asset": "uv-x86_64-pc-windows-msvc.zip",
+          "integrity": "sha512-ncP08GYr0ka7l0ehQB7LeN/Pg0TbM7JS+FwqSLUyVtlnwvf/rq1zbKzO24dJwrCaOXBxMQvAcY+Tt1dXDtUcSw=="
+        }
+      },
+      "origin": "gh-asset"
+    },
+    "zizmor": {
+      "description": "GitHub Actions security linter — audits .github/ for workflow-injection / credential-leak patterns.",
+      "version": "1.30.0",
+      "repository": "github:zizmorcore/zizmor",
+      "notes": [
+        "Required: CI (blocks merges on medium+ findings)",
+        "Installed by the setup-and-install composite; SRI-verified (sha512) per platform"
+      ],
+      "platforms": {
+        "darwin-arm64": {
+          "asset": "zizmor-aarch64-apple-darwin.tar.gz",
+          "integrity": "sha512-kkaQ+tzBju3cQu4TMiobDw0gcdsYKLliOfdDh0LiAvm+FFXuMdYoRyqalMD1Fcpvs6hcJB2OOcrY5VbScyazpA=="
+        },
+        "darwin-x64": {
+          "asset": "zizmor-x86_64-apple-darwin.tar.gz",
+          "integrity": "sha512-6DobW4UdYS1ZZuZNLRjtZGD+1t01WtUDuPN9xImViS2AZsfFK5GvC48KZOEJ4uMNi+1LIrTNJdFoKAJ+wLRwDA=="
+        },
+        "linux-arm64": {
+          "asset": "zizmor-aarch64-unknown-linux-gnu.tar.gz",
+          "integrity": "sha512-nhJOFX1+nCyTjVXBNVW5sfkN+iyOnppcY0sc4aCd4qUO9tfI/ASNzYn/0/AeruOGhAk5UkyLhuiKSpQ6MdbrQA=="
+        },
+        "linux-x64": {
+          "asset": "zizmor-x86_64-unknown-linux-gnu.tar.gz",
+          "integrity": "sha512-MF8BdJuZLNboRUPXRUJjicZs14PDjfflIDRM87ji8E0eNbwmyH7lZ/cdclITjhcz1iK+z3u33w16dEp7fVCIgA=="
+        },
+        "win32-x64": {
+          "asset": "zizmor-x86_64-pc-windows-msvc.zip",
+          "integrity": "sha512-4dB8Yp+jq60z7omGw5W8CdA+1yLaqK0BWIMgjFXNv+k0wewldPoIcZj8LGSFgjUmxlGYXdkIvJ3RzRyKVixctQ=="
+        }
+      },
+      "origin": "gh-asset"
     }
   }
 }

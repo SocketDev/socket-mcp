@@ -12,7 +12,7 @@ import type { Server } from 'node:http'
 import { httpRequest } from '@socketsecurity/lib-stable/http-request/request'
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { startHttpServer } from '../../lib/http-server.ts'
+import { startHttpServer } from '../../lib/http-server.mts'
 
 const { createdServers } = vi.hoisted(() => ({
   createdServers: [] as Server[],

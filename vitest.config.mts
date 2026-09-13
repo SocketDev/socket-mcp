@@ -17,9 +17,9 @@
  *   to vitest defaults and dies with either "No test files found" or "coverage
  *   map not initialized". Run via `pnpm run test:fuzz` (scripts/repo/fuzz.mts),
  *   never `vitest` directly. In fuzzing mode (VITIATE_FUZZ=1, set by the
- *   runner) each `fuzz()` target (`test/**\/*.fuzz.ts`) is fed mutated Buffers;
- *   without it the targets replay the committed seed corpus as fast regression
- *   checks.
+ *   runner) each `fuzz()` target (`test/**\/*.fuzz.mts`) is fed mutated
+ *   Buffers; without it the targets replay the committed seed corpus as fast
+ *   regression checks.
  */
 
 import { defineConfig } from 'vitest/config'
@@ -36,7 +36,7 @@ export default defineConfig({
       // Instrument this repo's OWN source — the fuzz targets import `lib/`
       // directly (there is no `src/` here); `packages` is only for
       // node_modules dependency instrumentation.
-      instrument: { include: ['lib/**/*.ts'] },
+      instrument: { include: ['lib/**/*.mts'] },
       fuzz: {
         fuzzTimeMs: FUZZ_TIME_MS,
         stopOnCrash: true,

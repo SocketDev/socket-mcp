@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { resolvePackageVersion, VERSION } from '../../lib/version.ts'
+import { resolvePackageVersion, VERSION } from '../../lib/version.mts'
 
 describe('resolvePackageVersion', () => {
   test('reads the version out of the manifest', () => {

@@ -25,8 +25,8 @@ test.each(['revoked', 'expired'] as const)(
     vi.resetModules()
     nock.disableNetConnect()
     try {
-      const oauth = await import('../../lib/oauth.ts')
-      const server = await import('../../lib/http-server.ts')
+      const oauth = await import('../../lib/oauth.mts')
+      const server = await import('../../lib/http-server.mts')
       expect(oauth.setOauthEnabled()).toEqual({ issuer })
       const discovery = nock(issuer)
         .get('/.well-known/oauth-authorization-server')
