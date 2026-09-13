@@ -111,6 +111,11 @@ Thumbs.db
 # lock-step with GENERATED_GLOBS (scripts/fleet/constants/
 # generated-globs.mts) by generated-globs-are-consistent.mts.
 **/build/
+# `build` is also the fleet script namespace for build infrastructure. Keep
+# that source and its path-aligned tests visible while ignoring build outputs.
+!**/scripts/fleet/build/
+!**/test/fleet/*/build/
+!**/test/repo/*/build/
 **/dist/
 **/tmp/
 /template/generated/
