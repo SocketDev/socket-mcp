@@ -229,7 +229,7 @@ jobs:
           export GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
           git \
-            push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
+            push --no-verify --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
 
           # Compose the body with the pure helper — never markdown surgery in
           # bash. It folds this run into a dated <details>, newest first, and

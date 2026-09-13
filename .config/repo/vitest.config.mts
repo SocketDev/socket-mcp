@@ -19,6 +19,7 @@ import { isCI } from '@socketsecurity/lib-stable/env/ci'
 import { defineConfig } from 'vitest/config'
 
 import { GENERATED_GLOBS } from '../../scripts/fleet/constants/generated-globs.mts'
+import { resolveGeneratedTestExcludes } from '../../scripts/fleet/test-runner/discovery.mts'
 import { resolveCoverageConfig } from '../../.config/fleet/vitest.coverage.fleet.config.mts'
 import {
   discoverSharedTestFiles,
@@ -279,12 +280,7 @@ const repoResolveConditions = resolveVitestConditions()
 // Lane resolution. The runner sets FLEET_LANE (bare `pnpm test` → 'fast'); the
 // filter also applies under coverage. An unset lane traverses every lane.
 const vitestLanes = readVitestLanes()
-const fastLaneGlobs = vitestLanes.fast
-const slowLaneGlobs = vitestLanes.slow ?? []
-const midLaneGlobs = vitestLanes.mid ?? []
 const activeLane = process.env['FLEET_LANE']
-const laneFilterActive =
-  activeLane === 'fast' || activeLane === 'mid' || activeLane === 'slow'
 // A lane's dir globs → test-file include patterns (`--lane mid|slow` runs ONLY
 // that lane; a trailing `/**` becomes `/**/*.test.{…}`).
 export function laneToTestGlobs(globs: string[]): string[] {
@@ -294,6 +290,43 @@ export function laneToTestGlobs(globs: string[]): string[] {
       : `${g.replace(/\/\*+$/, '')}/**/*.test.{js,ts,mjs,mts,cjs}`,
   )
 }
+const ALL_TEST_GLOBS = ['**/test/**/*.test.{js,ts,mjs,mts,cjs}']
+
+/**
+ * Resolve one speed lane without dropping unclassified tests.
+ *
+ * A repository with explicit fast membership also gets explicit mid
+ * membership. Slow owns the remainder, so a newly added test starts in the
+ * conservative lane until measurement moves it. Repositories without an
+ * explicit fast lane keep the original fast-complement behavior.
+ */
+export function resolveLaneSelection(
+  lanes: ReturnType<typeof readVitestLanes>,
+  lane: string | undefined,
+): { exclude: string[]; include: string[] } {
+  const fast = lanes.fast ?? []
+  const mid = lanes.mid ?? []
+  const slow = lanes.slow ?? []
+  if (lane === 'fast') {
+    return fast.length
+      ? { exclude: [], include: laneToTestGlobs(fast) }
+      : { exclude: [...mid, ...slow], include: [...ALL_TEST_GLOBS] }
+  }
+  if (lane === 'mid') {
+    return {
+      exclude: fast.length ? [...fast] : [],
+      include: laneToTestGlobs(mid),
+    }
+  }
+  if (lane === 'slow') {
+    return fast.length
+      ? { exclude: [...fast, ...mid], include: [...ALL_TEST_GLOBS] }
+      : { exclude: [], include: laneToTestGlobs(slow) }
+  }
+  return { exclude: [], include: [...ALL_TEST_GLOBS] }
+}
+
+const laneSelection = resolveLaneSelection(vitestLanes, activeLane)
 // The conformance tier's dir globs, and whether THIS run is the explicit
 // conformance run. Set by scripts/repo/test-conformance.mts, never by hand.
 const conformanceGlobs = readConformanceExcludeGlobs()
@@ -307,6 +340,7 @@ const conformanceTier = process.env['FLEET_TEST_CONFORMANCE'] === '1'
 export const FUZZ_GLOBS: readonly string[] = [
   '**/test/**/*.fuzz.test.{js,ts,mjs,mts,cjs}',
 ]
+export const ORDINARY_TEST_EXCLUDES: readonly string[] = ['**/test/e2e/**']
 // Whether THIS run is the explicit fuzz tier. Set by the weekly fuzz workflow,
 // never by hand.
 //
@@ -362,7 +396,7 @@ const config = defineConfig({
       'test/fleet/scripts/setup.mts',
       'test/repo/scripts/setup.mts',
     ].filter(p => existsSync(p)),
-    // Explicit fast membership makes mid the complement of fast and slow.
+    // Explicit fast and mid membership leaves every unclassified test in slow.
     // Legacy configs retain implicit fast membership and explicit mid globs.
     // `**/`-anchored so a
     // monorepo's nested `packages/<name>/test/**` trees are discovered from this
@@ -374,13 +408,7 @@ const config = defineConfig({
       ? [...FUZZ_GLOBS]
       : conformanceTier
         ? laneToTestGlobs(conformanceGlobs)
-        : laneFilterActive && activeLane === 'fast' && fastLaneGlobs
-          ? laneToTestGlobs(fastLaneGlobs)
-          : laneFilterActive && activeLane === 'mid' && !fastLaneGlobs
-            ? laneToTestGlobs(midLaneGlobs)
-            : laneFilterActive && activeLane === 'slow'
-              ? laneToTestGlobs(slowLaneGlobs)
-              : ['**/test/**/*.test.{js,ts,mjs,mts,cjs}'],
+        : laneSelection.include,
     // Vitest treats `test/**` as `**/test/**`, so without an explicit
     // exclude it picks up every nested `test/` directory in the repo
     // — including the `.git-hooks/test/`, the oxlint plugin's per-rule
@@ -392,6 +420,7 @@ const config = defineConfig({
     // (their own `node --test` runners pick them up separately).
     exclude: [
       '**/node_modules/**',
+      ...ORDINARY_TEST_EXCLUDES,
       // The conformance tier is opt-in via `pnpm run test:conformance`. Every
       // other lane drops it: these wrappers each spawn a FULL external corpus
       // (Test262 is ~92k scenarios per implementation), which is minutes to
@@ -437,13 +466,7 @@ const config = defineConfig({
       // settings file's `vitest.nodeTestExclude`. The same key feeds
       // prefer-vitest-guard's allowlist so the two never drift.
       ...repoNodeTestExcludeGlobs(),
-      // With explicit fast membership, mid owns every test outside fast and
-      // slow. Legacy configs keep fast as the complement of mid and slow.
-      ...(laneFilterActive && activeLane === 'fast'
-        ? [...midLaneGlobs, ...slowLaneGlobs]
-        : laneFilterActive && activeLane === 'mid' && fastLaneGlobs
-          ? [...fastLaneGlobs, ...slowLaneGlobs]
-          : []),
+      ...laneSelection.exclude,
     ],
     // Some repos in the fleet (scaffolding-only, hook-only, etc.) ship
     // this config but don't yet have a `test/` directory — vitest's
@@ -521,6 +544,14 @@ const config = defineConfig({
     },
   },
 })
+
+if (config.test) {
+  config.test.exclude = resolveGeneratedTestExcludes({
+    repoRoot: process.cwd(),
+    include: config.test.include ?? [],
+    exclude: config.test.exclude ?? [],
+  })
+}
 
 // Construct complete project options explicitly: Vite's extends merge concatenates
 // include arrays, which otherwise makes the shared project rerun isolated files.
