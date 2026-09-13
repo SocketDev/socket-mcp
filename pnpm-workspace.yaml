@@ -65,7 +65,7 @@ catalog:
   # pinned while the fleet migrates; the 0.x entry is deleted once no member
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
-  'typebox': 1.3.25
+  'typebox': 1.3.27
   '@socketregistry/packageurl-js': 1.5.2
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -131,7 +131,7 @@ catalog:
   # playwright-core — headless Chromium driver for the seeing-rendered-output
   # skill (render a page / unpacked MV3 extension popup to PNG). Fleet-canonical
   # catalog dep; source of truth is template/pnpm-workspace.fleet.yaml.
-  'playwright-core': 1.62.1
+  'playwright-core': 1.63.0
   # portless — stable HTTPS `.localhost` URLs for local page tests and rendered UI checks.
   'portless': 0.15.6
   # Direct bundler pin for repos that run rolldown as their build
@@ -152,7 +152,7 @@ catalog:
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
   # override below pins every transitive `vite` (vitest, @vitest/*,
   # plugin authors) to it.
-  'typescript': 7.1.0-dev.20260903.1
+  'typescript': 7.1.0-dev.20260905.1
   'vitest': 5.0.0
   '@vitest/coverage-v8': 5.0.0
   '@bcoe/v8-coverage': 1.0.2
@@ -223,6 +223,7 @@ enablePrePostScripts: true
 #    pinned npm version instead of a sibling working tree.
 overrides:
   # Fleet-canonical overrides (managed by socket-wheelhouse sync; do not edit).
+  '@polka/url': '1.0.0-next.29'
   '@sinclair/typebox': 'catalog:'
   '@socketregistry/packageurl-js': 'catalog:'
   '@socketsecurity/lib': 'catalog:'
@@ -277,10 +278,6 @@ overrides:
   # scripts. Declining is the safe default; running native build scripts from a
   # transitive dep is unnecessary attack surface here.
   '@hono/node-server': '1.19.14'
-  # Dedup compat shim: @polka/url 0.5 (polka, via dtu-github-actions) vs
-  # 1.0.0-next (sirv). See the patchedDependencies comment for the API break
-  # + the shim that restores it.
-  '@polka/url': '1.0.0-next.29'
   # Dedup: @types/unist is types-only (no runtime), pulled transitively by the
   # markdown tooling at both v2 and v3. Collapse v2→v3 — a types-only major is
   # not type-checked transitively (skipLibCheck), so the redirect is safe and
@@ -414,66 +411,6 @@ trustPolicyExclude:
   - 'playwright-core@1.63.0-alpha-2026-08-31'
   - 'undici-types@6.21.0'
 
-patchedDependencies:
-  # default-export interop (managed by socket-wheelhouse sync; do not edit):
-  # 5.0.7 dropped the default export from BOTH builds. The CJS half breaks
-  # minimatch@9's compiled `__importDefault`, which reads `.default` and
-  # skips the namespace fallback once `__esModule` is set. The ESM half
-  # breaks any `import x from 'brace-expansion'`, the shape the fleet CI
-  # cache action resolves through, so an unpatched member throws "does not
-  # provide an export named default" and dies at setup before a test runs.
-  # The patch restores `expand` as the default on each build separately;
-  # patching one build leaves the other broken.
-  # On a bump, regenerate via `pnpm patch brace-expansion` + `pnpm patch-commit`.
-  brace-expansion@5.0.9: patches/brace-expansion@5.0.9.patch
-  # default-export interop (managed by socket-wheelhouse sync; do not edit):
-  # v10's ESM build ships named exports only, so `import minimatch from
-  # 'minimatch'` throws "does not provide an export named default". That is
-  # the shape `@actions/cache` resolves through, so an unpatched member dies
-  # in the CI cache step at setup, before a single check runs. The patch adds
-  # the default to BOTH builds; patching one leaves the other broken.
-  # It also makes the `minimatch@>=3` hoist safe: a v3 consumer
-  # (`@actions/glob@0.6.1` pulls 3.1.5) default-imports a callable, and the
-  # patched v10 answers that same shape.
-  # On a bump, regenerate via `pnpm patch minimatch` + `pnpm patch-commit`.
-  minimatch@10.2.6: patches/minimatch@10.2.6.patch
-  # dedup: public runtime helpers (managed by socket-wheelhouse sync):
-  # The bundled debug loader must read DEBUG at runtime so fleet debugNs
-  # honors namespace selection, wildcards, and exclusions.
-  # Generated terminal authorization and process accessors support setup
-  # through the shared public library API without a version change.
-  '@socketsecurity/lib@7.0.1': patches/@socketsecurity__lib@7.0.1.patch
-  # dedup: workflow variable presence (managed by socket-wheelhouse sync):
-  # Local CI must accept explicitly supplied empty workflow variables.
-  # The fleet payload client ID defaults to empty when no app is configured.
-  # Check own-property presence in run preflight and job validation;
-  # absent variables remain errors.
-  # Intercepted fetch records local HEAD in FETCH_HEAD so inline detached
-  # checkout preserves the pre-populated Local CI workspace.
-  run-local-ci@0.18.1: patches/run-local-ci@0.18.1.patch
-  # dedup: coverage matcher allocation (managed by socket-wheelhouse sync):
-  # Coverage checks exclusions before matching includes.
-  # Compile exclusions once instead of once per include pattern.
-  # This preserves membership and bounds matcher memory for fleet coverage.
-  # CPU-profiled forks use the configured teardown deadline to flush profiles.
-  # Ordinary forks retain the upstream 500 ms termination grace.
-  vitest@5.0.0: patches/vitest@5.0.0.patch
-
-# Proceed with a node_modules purge WITHOUT an interactive confirm. The fleet
-# runs pnpm non-interactively everywhere (skills, scripts, hooks, agents, CI) —
-# no TTY. pnpm's default ABORTS a purge for lack of a TTY
-# (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), wedging any commit whose
-# pre-commit re-checks deps after a workspace/.npmrc change. Purging
-# node_modules is safe (gitignored + regenerable). Unlike CI=true this does NOT
-# force a frozen lockfile; CI keeps owning frozen-vs-update policy.
-
-# Opt out of pnpm's packageManager-version self-check. CI installs pnpm from
-# its native bin via the shared setup workflow, not corepack, so the runner's
-# pnpm legitimately differs from the `packageManager` pin (which is
-# informational, not a version to enforce). Without this, pnpm hard-fails
-# ("This project is configured to use <pin> ... your current pnpm is <run>")
-# the moment the runner's pnpm differs from the pin.
-
 includeWorkspaceRoot: true
 pipelines:
   fleet-prepare:
@@ -489,3 +426,57 @@ peerDependencyRules:
     '@socketsecurity/lib>typescript': 7.1.0-dev.20260903.1
     '@socketsecurity/registry>typescript': 7.1.0-dev.20260903.1
     mcp-tada>typescript: 7.1.0-dev.20260903.1
+
+patchedDependencies:
+  # dedup compat shim: @polka/url@1 replaced the @polka/url@0.5 default-callable
+  # export (`require('@polka/url')` itself was the parse function, returning
+  # `{query: <raw string>, search, href, path, pathname, _raw}`) with a named
+  # `parse` export returning `{pathname, search, query: <parsed object>, hash, raw}`.
+  # polka@0.5.2 (pulled by run-local-ci -> dtu-github-actions) needs the old
+  # default-callable shape; the patch ports it verbatim as the default export
+  # while leaving the modern named `parse` export (used by sirv) untouched —
+  # letting the override collapse @polka/url to one version.
+  '@polka/url@1.0.0-next.29': patches/fleet/@polka__url@1.0.0-next.29.patch
+  # default-export interop (managed by socket-wheelhouse sync; do not edit):
+  # v10's ESM build ships named exports only, so `import minimatch from
+  # 'minimatch'` throws "does not provide an export named default". That is
+  # the shape `@actions/cache` resolves through, so an unpatched member dies
+  # in the CI cache step at setup, before a single check runs. The patch adds
+  # the default to BOTH builds; patching one leaves the other broken.
+  # It also makes the `minimatch@>=3` hoist safe: a v3 consumer
+  # (`@actions/glob@0.6.1` pulls 3.1.5) default-imports a callable, and the
+  # patched v10 answers that same shape.
+  # On a bump, regenerate via `pnpm patch minimatch` + `pnpm patch-commit`.
+  minimatch@10.2.6: patches/fleet/minimatch@10.2.6.patch
+  # default-export interop (managed by socket-wheelhouse sync; do not edit):
+  # 5.0.7 dropped the default export from BOTH builds. The CJS half breaks
+  # minimatch@9's compiled `__importDefault`, which reads `.default` and
+  # skips the namespace fallback once `__esModule` is set. The ESM half
+  # breaks any `import x from 'brace-expansion'`, the shape the fleet CI
+  # cache action resolves through, so an unpatched member throws "does not
+  # provide an export named default" and dies at setup before a test runs.
+  # The patch restores `expand` as the default on each build separately;
+  # patching one build leaves the other broken.
+  # On a bump, regenerate via `pnpm patch brace-expansion` + `pnpm patch-commit`.
+  brace-expansion@5.0.9: patches/fleet/brace-expansion@5.0.9.patch
+  # dedup: workflow variable presence (managed by socket-wheelhouse sync):
+  # Local CI must accept explicitly supplied empty workflow variables.
+  # The fleet payload client ID defaults to empty when no app is configured.
+  # Check own-property presence in run preflight and job validation;
+  # absent variables remain errors.
+  # Intercepted fetch records local HEAD in FETCH_HEAD so inline detached
+  # checkout preserves the pre-populated Local CI workspace.
+  run-local-ci@0.18.1: patches/fleet/run-local-ci@0.18.1.patch
+  # dedup: coverage matcher allocation (managed by socket-wheelhouse sync):
+  # Coverage checks exclusions before matching includes.
+  # Compile exclusions once instead of once per include pattern.
+  # This preserves membership and bounds matcher memory for fleet coverage.
+  # CPU-profiled forks use the configured teardown deadline to flush profiles.
+  # Ordinary forks retain the upstream 500 ms termination grace.
+  vitest@5.0.0: patches/fleet/vitest@5.0.0.patch
+  # dedup: public runtime helpers (managed by socket-wheelhouse sync):
+  # The bundled debug loader must read DEBUG at runtime so fleet debugNs
+  # honors namespace selection, wildcards, and exclusions.
+  # Generated terminal authorization and process accessors support setup
+  # through the shared public library API without a version change.
+  '@socketsecurity/lib@7.0.1': patches/fleet/@socketsecurity__lib@7.0.1.patch

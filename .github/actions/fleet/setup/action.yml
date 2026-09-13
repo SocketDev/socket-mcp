@@ -626,6 +626,9 @@ runs:
               if [ -x "$CARGO_PROXY" ]; then REAL="$CARGO_PROXY"; break; fi
             done
           fi
+          if $IS_WINDOWS && [[ "$REAL" != *.exe && -f "${REAL}.exe" ]]; then
+            REAL="${REAL}.exe"
+          fi
           if [ -n "$REAL" ]; then
             REAL="$(msys_to_win_path "$REAL")"
             # SFW_UNKNOWN_HOST_ACTION=ignore: only sfw-enterprise PARSES
@@ -756,6 +759,13 @@ runs:
           echo 'SFW_CUSTOM_REGISTRIES<<EOF'
           # Strip comments + blank lines so the env var holds only real entries.
           grep -vE '^\s*(#|$)' "$BYPASS_FILE"
+          if [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+            OIDC_HOST="${ACTIONS_ID_TOKEN_REQUEST_URL#*://}"
+            OIDC_HOST="${OIDC_HOST%%/*}"
+            case "$OIDC_HOST" in
+              *.actions.githubusercontent.com) printf 'bypass:%s\n' "$OIDC_HOST" ;;
+            esac
+          fi
           echo 'EOF'
         } >> "${GITHUB_ENV:-/dev/null}"
         # Opt out of gh CLI telemetry (on-by-default as of late 2025).
