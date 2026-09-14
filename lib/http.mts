@@ -5,7 +5,7 @@ import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { getTrustProxy } from './env.mts'
 import { logger } from './logger.mts'
-import { VERSION } from './version.mts'
+import { buildMcpUserAgent } from './user-agent.mts'
 
 // Trust forwarded headers only when an operator has explicitly opted in by
 // setting TRUST_PROXY=true. Without this gate, any client could spoof
@@ -90,9 +90,10 @@ export function buildJsonApiHeaders(config: {
 // instead of buffering a full JSON document.
 export function buildSocketHeaders(
   accessToken?: string | undefined,
+  userAgent = buildMcpUserAgent(),
 ): Record<string, string> {
   return {
-    'user-agent': `socket-mcp/${VERSION}`,
+    'user-agent': userAgent,
     accept: 'application/x-ndjson',
     'content-type': 'application/json',
     ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),

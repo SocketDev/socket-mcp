@@ -11,7 +11,7 @@ import {
 } from './server.mts'
 import { fetchThreatFeed } from './threat-feed.mts'
 import type { ToolSpec } from './tool-types.mts'
-import { VERSION } from './version.mts'
+import { resolveMcpUserAgent } from './user-agent.mts'
 
 export interface ThreatFeedArgs {
   org_slug: string
@@ -127,7 +127,7 @@ export function defineThreatFeedTool(): ToolSpec {
         const data = await fetchThreatFeed({
           baseUrl: SOCKET_API_BASE_URL,
           orgSlug: args.org_slug,
-          userAgent: `socket-mcp/${VERSION}`,
+          userAgent: resolveMcpUserAgent(extra.userAgent),
           authToken: accessToken,
           filters: {
             ...(args.filter ? { filter: args.filter } : {}),

@@ -65,6 +65,7 @@ export interface ToolAnnotations {
  */
 export interface ToolHandlerExtra {
   authInfo?: { token?: string | undefined } | undefined
+  userAgent?: string | undefined
   [key: string]: unknown
 }
 

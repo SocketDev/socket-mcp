@@ -14,6 +14,7 @@ import {
   SOCKET_API_BASE_URL,
 } from './server.mts'
 import type { ToolSpec } from './tool-types.mts'
+import { prependMcpUserAgent } from './user-agent.mts'
 
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
 
@@ -329,7 +330,7 @@ export function definePackageFilesTool(): ToolSpec {
         const result = await fetchFileList(purlWithQualifiers, {
           baseUrl: SOCKET_API_BASE_URL,
           includeHashes: true,
-          userAgent: INTERNAL_USER_AGENT,
+          userAgent: prependMcpUserAgent(INTERNAL_USER_AGENT, extra.userAgent),
           authToken: accessToken,
           onRequest: url => debug({ url }, 'file list request'),
         })

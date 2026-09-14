@@ -11,7 +11,7 @@ import {
   SOCKET_API_BASE_URL,
 } from './server.mts'
 import type { ToolSpec } from './tool-types.mts'
-import { VERSION } from './version.mts'
+import { resolveMcpUserAgent } from './user-agent.mts'
 
 export interface AlertsArgs {
   org_slug: string
@@ -115,7 +115,7 @@ export function defineAlertsTool(): ToolSpec {
         const data = await fetchAlerts({
           baseUrl: SOCKET_API_BASE_URL,
           orgSlug: args.org_slug,
-          userAgent: `socket-mcp/${VERSION}`,
+          userAgent: resolveMcpUserAgent(extra.userAgent),
           authToken: accessToken,
           filters: {
             ...(args.severity ? { severity: args.severity } : {}),

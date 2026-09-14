@@ -11,7 +11,7 @@ import {
   SOCKET_API_BASE_URL,
 } from './server.mts'
 import type { ToolSpec } from './tool-types.mts'
-import { VERSION } from './version.mts'
+import { resolveMcpUserAgent } from './user-agent.mts'
 
 export function defineOrganizationsTool(): ToolSpec {
   return {
@@ -31,7 +31,7 @@ export function defineOrganizationsTool(): ToolSpec {
       try {
         const data = await fetchOrganizations({
           baseUrl: SOCKET_API_BASE_URL,
-          userAgent: `socket-mcp/${VERSION}`,
+          userAgent: resolveMcpUserAgent(extra.userAgent),
           authToken: accessToken,
         })
         return {

@@ -21,6 +21,12 @@ export interface DepscorePackageInput {
   version?: string | undefined
 }
 
+export interface DepscoreRequestOptions {
+  accessTokenFromAuth?: string | undefined
+  platform?: string | undefined
+  userAgent?: string | undefined
+}
+
 // Default Socket API URL. SOCKET_DEBUG=true points at localhost for local
 // stack development; the default targets production. Both env vars resolved
 // via fleet-canonical helpers.
@@ -96,7 +102,11 @@ export function defineDepscoreTool(): ToolSpec {
       const packages = args['packages'] as DepscorePackageInput[]
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const platform = args['platform'] as string | undefined
-      return handleDepscore(packages, platform, extra.authInfo?.token)
+      return handleDepscoreRequest(packages, {
+        platform,
+        accessTokenFromAuth: extra.authInfo?.token,
+        userAgent: extra.userAgent,
+      })
     },
   }
 }
@@ -151,6 +161,15 @@ export async function handleDepscore(
   platform: string | undefined,
   accessTokenFromAuth: string | undefined,
 ): Promise<ToolOkResult | ToolErrorResult> {
+  return handleDepscoreRequest(packages, { platform, accessTokenFromAuth })
+}
+
+export async function handleDepscoreRequest(
+  packages: DepscorePackageInput[],
+  config: DepscoreRequestOptions,
+): Promise<ToolOkResult | ToolErrorResult> {
+  config = { __proto__: null, ...config } as DepscoreRequestOptions
+  const { accessTokenFromAuth, platform, userAgent } = config
   logger.info(`Received request for ${packages.length} packages`)
   const accessToken = resolveAuthToken(accessTokenFromAuth)
   if (!accessToken) {
@@ -164,7 +183,7 @@ export async function handleDepscore(
   try {
     response = await httpRequest(SOCKET_API_URL, {
       method: 'POST',
-      headers: buildSocketHeaders(accessToken),
+      headers: buildSocketHeaders(accessToken, userAgent),
       body: JSON.stringify({ components }),
     })
   } catch (e) {

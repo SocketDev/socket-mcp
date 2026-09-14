@@ -7,6 +7,7 @@
  */
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
+import process from 'node:process'
 
 import {
   Client,
@@ -16,10 +17,12 @@ import { toNodeHandler } from '@modelcontextprotocol/node'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import { httpRequest } from '@socketsecurity/lib-stable/http-request/request'
 import type { HttpResponse } from '@socketsecurity/lib-stable/http-request/response-types'
+import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import { routeRequest } from '../../lib/http-server.mts'
 import { createConfiguredServer } from '../../lib/server.mts'
+import { VERSION } from '../../lib/version.mts'
 
 const MODERN_PROTOCOL_VERSION = '2026-07-28'
 const LEGACY_PROTOCOL_VERSION = '2025-06-18'
@@ -103,6 +106,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  nock.cleanAll()
   httpServer.closeAllConnections()
   await new Promise<void>(resolve => {
     httpServer.close(() => resolve())
@@ -110,6 +114,35 @@ afterEach(async () => {
 })
 
 describe('stateless serving', () => {
+  test('forwards the MCP client user agent to the Socket API', async () => {
+    const clientUserAgent = 'mcp-client/1.2.3'
+    const expectedUserAgent = `socket-mcp/${VERSION} node/${process.version} ${process.platform}/${process.arch} ${clientUserAgent}`
+    const socketApi = nock('https://api.socket.dev')
+      .get('/v0/organizations')
+      .matchHeader('user-agent', value => value.endsWith(expectedUserAgent))
+      .reply(200, { organizations: {} })
+
+    const res = await postModern(
+      'tools/call',
+      { name: 'organizations', arguments: {} },
+      {
+        authorization: 'Bearer tok',
+        'mcp-name': 'organizations',
+        'user-agent': clientUserAgent,
+      },
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.json()).toMatchObject({
+      id: 1,
+      jsonrpc: '2.0',
+      result: {
+        content: [{ type: 'text' }],
+      },
+    })
+    expect(socketApi.isDone()).toBe(true)
+  })
+
   test('answers tools/call with no prior initialize and no session id', async () => {
     const res = await postModern(
       'tools/call',

@@ -1,5 +1,8 @@
 import { Server } from '@modelcontextprotocol/server'
-import type { ServerContext } from '@modelcontextprotocol/server'
+import type {
+  McpRequestContext,
+  ServerContext,
+} from '@modelcontextprotocol/server'
 
 import { getSocketApiUrl } from './env.mts'
 import { defineAlertsTool } from './tool-alerts.mts'
@@ -19,6 +22,7 @@ import type {
   ToolInputSchema,
   ToolSpec,
 } from './tool-types.mts'
+import { buildMcpUserAgent } from './user-agent.mts'
 import { VERSION } from './version.mts'
 
 // One entry in the `tools/list` payload — the wire shape clients read.
@@ -102,8 +106,11 @@ export function buildToolSpecs(): ToolSpec[] {
  * results are not re-parsed on the way out. So every tool's input schema flows
  * through the SDK to clients verbatim; no zod, no extra validation layer here.
  */
-export function createConfiguredServer(): Server {
+export function createConfiguredServer(
+  requestContext?: McpRequestContext | undefined,
+): Server {
   const specs = buildToolSpecs()
+  const userAgent = getMcpRequestUserAgent(requestContext)
   const handlers = new Map<string, ToolHandler>(
     specs.map(spec => [
       spec.name,
@@ -145,7 +152,7 @@ export function createConfiguredServer(): Server {
     // `request.params.arguments` is optional in the SDK shape; tools that
     // declare empty inputSchemas (e.g. organizations) get undefined here.
     const args = request.params.arguments ?? {}
-    return handler(args, toToolHandlerExtra(ctx))
+    return handler(args, toToolHandlerExtra(ctx, userAgent))
   })
 
   return server
@@ -157,6 +164,18 @@ export function errorResult(text: string): ToolErrorResult {
     content: [{ type: 'text', text }],
     isError: true,
   }
+}
+
+// Adapt the SDK's per-request handler context to the local `ToolHandlerExtra`
+// shape the tool modules read. `ctx.http` is only populated on an HTTP
+// transport, so stdio callers get the MCP user agent without auth info and
+// fall back to the boot-time static key inside the tool body.
+export function getMcpRequestUserAgent(
+  ctx?: McpRequestContext | undefined,
+): string {
+  return buildMcpUserAgent(
+    ctx?.requestInfo?.headers.get('user-agent') ?? undefined,
+  )
 }
 
 export function getStaticApiKey(): string {
@@ -232,13 +251,12 @@ export function toPlainSchemaSpec(spec: ToolSpec): ToolSpec {
   return { ...spec, inputSchema }
 }
 
-// Adapt the SDK's per-request handler context to the local `ToolHandlerExtra`
-// shape the tool modules read. `ctx.http` is only populated on an HTTP
-// transport, so stdio callers get an empty extra and fall back to the
-// boot-time static key inside the tool body.
-export function toToolHandlerExtra(ctx: ServerContext): ToolHandlerExtra {
+export function toToolHandlerExtra(
+  ctx: ServerContext,
+  userAgent = buildMcpUserAgent(),
+): ToolHandlerExtra {
   const authInfo = ctx.http?.authInfo
-  return authInfo ? { authInfo } : {}
+  return { ...(authInfo ? { authInfo } : {}), userAgent }
 }
 
 /**

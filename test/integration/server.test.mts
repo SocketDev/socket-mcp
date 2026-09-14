@@ -7,6 +7,7 @@ import {
   buildToolSpecs,
   createConfiguredServer,
   errorResult,
+  getMcpRequestUserAgent,
   getStaticApiKey,
   resolveAuthToken,
   resolveScopedAuthToken,
@@ -189,12 +190,28 @@ describe('toToolHandlerExtra', () => {
     const ctx = { http: { authInfo } } as unknown as Parameters<
       typeof toToolHandlerExtra
     >[0]
-    expect(toToolHandlerExtra(ctx).authInfo).toBe(authInfo)
+    expect(toToolHandlerExtra(ctx, 'socket-mcp/test')).toEqual({
+      authInfo,
+      userAgent: 'socket-mcp/test',
+    })
   })
 
-  test('hands stdio callers an empty extra so they fall back to the static key', () => {
+  test('hands stdio callers the MCP user agent without auth info', () => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
     const ctx = {} as unknown as Parameters<typeof toToolHandlerExtra>[0]
-    expect(toToolHandlerExtra(ctx)).toEqual({})
+    expect(toToolHandlerExtra(ctx)).toMatchObject({
+      userAgent: expect.stringMatching(/^socket-mcp\//u),
+    })
+  })
+})
+
+describe('getMcpRequestUserAgent', () => {
+  test('reads and sanitizes the HTTP request user-agent header', () => {
+    const requestInfo = new Request('https://mcp.example.test', {
+      headers: { 'user-agent': 'mcp-client/1\tproxy/2' },
+    })
+    expect(getMcpRequestUserAgent({ era: 'modern', requestInfo })).toMatch(
+      / mcp-client\/1 proxy\/2$/u,
+    )
   })
 })
