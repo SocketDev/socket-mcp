@@ -10,5 +10,5 @@ test('MCP tool schemas match the reviewed contract', async () => {
     throws: false,
     localTimeout: 15_000,
   })
-  expect(result.code, result.stdout).toBe(0)
+  expect(result.code, `${result.stdout}\n${result.stderr}`).toBe(0)
 })
