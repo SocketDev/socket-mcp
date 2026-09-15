@@ -60,12 +60,9 @@ function hasPathSegment(file, segment) {
 function sourcePaths(gitPaths) {
   const sources = []
   for (const file of gitPaths) {
-    const normalizedPath = normalizePath(file)
-    if (
-      normalizedPath !== '.' &&
-      !hasPathSegment(normalizedPath, EXCLUDED_PATH_SEGMENT)
-    ) {
-      sources.push(normalizedPath)
+    const fileName = normalizePath(file)
+    if (fileName !== '.' && !hasPathSegment(fileName, EXCLUDED_PATH_SEGMENT)) {
+      sources.push(fileName)
     }
   }
   return sources
