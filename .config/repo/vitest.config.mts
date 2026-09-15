@@ -420,7 +420,7 @@ const config = defineConfig({
     // (their own `node --test` runners pick them up separately).
     exclude: [
       '**/node_modules/**',
-      ...ORDINARY_TEST_EXCLUDES,
+      ...(conformanceTier ? [] : ORDINARY_TEST_EXCLUDES),
       // The conformance tier is opt-in via `pnpm run test:conformance`. Every
       // other lane drops it: these wrappers each spawn a FULL external corpus
       // (Test262 is ~92k scenarios per implementation), which is minutes to
@@ -440,14 +440,10 @@ const config = defineConfig({
       // set from the staged pre-commit run.
       ...GENERATED_GLOBS,
       '**/.{idea,git,cache,output,temp}/**',
+      '**/.claude/**',
       '.git-hooks/**',
       '.config/fleet/oxlint-plugin/**',
       'scripts/**/test/**',
-      '.claude/hooks/**/test/**',
-      // Ephemeral git worktrees (sub-agent / companion sessions) carry a full
-      // checkout — their test copies would pollute the primary's discovery and
-      // fail against code the primary has already moved past.
-      '**/.claude/worktrees/**',
       // `template/**` holds CANONICAL non-test sources (the cascaded LIVE
       // copies are what the suite runs); live test/repo is the sole test
       // authoring home, so template is excluded unconditionally.

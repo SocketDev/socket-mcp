@@ -14,6 +14,8 @@
 import { existsSync, globSync, lstatSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+
 export interface VitestRepoConfig {
   // Module resolve aliases for the test transform, e.g.
   // `{ "@socketsecurity/sdk": "./dist/index.browser.js" }`. A key is a LITERAL
@@ -79,26 +81,27 @@ export function discoverSharedTestFiles(
   const exactFiles = new Set<string>()
   const globExcludes: string[] = []
   for (const pattern of options.exclude) {
+    const normalizedPattern = normalizePath(pattern)
     // Positive literal grammar: no escape, extglob, brace or bracket syntax;
     // segments cannot be dot/dotdot. Unrecognized forms use native glob.
     const literal =
       /^(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\.test\.(?:js|ts|mjs|mts|cjs)$/u.test(
-        pattern,
+        normalizedPattern,
       )
     let regularFile = false
     if (literal) {
       try {
         regularFile = lstatSync(
-          path.resolve(options.cwd ?? '.', pattern),
+          path.resolve(options.cwd ?? '.', normalizedPattern),
         ).isFile()
       } catch {
         // Missing or unreadable candidates retain native exclusion behavior.
       }
     }
     if (regularFile) {
-      exactFiles.add(pattern)
+      exactFiles.add(normalizedPattern)
     } else {
-      globExcludes.push(pattern)
+      globExcludes.push(normalizedPattern)
     }
   }
   return [

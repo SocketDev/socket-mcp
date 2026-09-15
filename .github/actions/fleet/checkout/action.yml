@@ -185,7 +185,7 @@ runs:
       # Materialize the release bundle right after checkout, before ANY
       # reader — see "Detect thin fleet payload" above. The GHCR pull inside
       # fleet.mjs is anonymous: the fleet-pack OCI artifact is published
-      # PUBLIC (github-release.yml's "Push fleet-pack to GHCR" step — "so
+      # PUBLIC (release-github.yml's "Push fleet-pack to GHCR" step — "so
       # members pull the bundle anonymously"), so the common case needs no
       # token at all. The token minted above only backs the
       # `gh release download` fallback fleet.mjs takes if GHCR itself is

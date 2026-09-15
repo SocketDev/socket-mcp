@@ -1,5 +1,5 @@
-name: 🔁 Weekly odai cache
-run-name: Weekly odai cache
+name: 'cron: weekly odai cache'
+run-name: 'cron: weekly odai cache'
 
 # Fleet-canonical on-device model cache. The fleet's keyless-AI lane (the
 # weekly-update decision leg, every odai-driven assist) needs the on-device
@@ -87,7 +87,7 @@ jobs:
           # Reuse the PR App for a contents:read token scoped to wheelhouse.
           # Both credentials enable the private release fallback. Without the
           # key, hydration still pulls public GHCR anonymously.
-          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID }}
+          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID || vars.SOCKET_PR_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
 
       - name: Verify model CPU capacity
@@ -236,7 +236,7 @@ jobs:
           # Reuse the PR App for a contents:read token scoped to wheelhouse.
           # Both credentials enable the private release fallback. Without the
           # key, hydration still pulls public GHCR anonymously.
-          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID }}
+          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID || vars.SOCKET_PR_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
 
       - name: Verify model CPU capacity

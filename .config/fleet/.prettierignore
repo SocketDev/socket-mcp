@@ -98,6 +98,7 @@
 # this file covers every entry).
 **/dist/**
 **/out/**
+**/target/**
 
 # Vendored / upstream trees — kept byte-identical with their source of truth. Per
 # CLAUDE.md "untracked-by-default for vendored / build-copied trees": someone

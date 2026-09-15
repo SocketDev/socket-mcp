@@ -1,5 +1,5 @@
-name: 📦 Publish npm
-run-name: Publish npm
+name: 'publish: npm'
+run-name: 'publish: npm'
 
 # Cascade-owned — every npm-publishing repo carries the byte-identical copy
 # (adopt by copying the template once; the sync then keeps it in lock-step;
@@ -111,7 +111,7 @@ jobs:
           git remote add origin "${SERVER_URL}/${REPOSITORY}"
           # Backfill's content ref wins; otherwise the dispatched ref.
           FETCH_REF="${CHECKOUT_REF:-${TRIGGER_REF}}"
-          FETCH_ARGS=(--prune --depth 1 origin "${FETCH_REF}")
+          FETCH_ARGS=(--prune origin "${FETCH_REF}")
           # --tags stays on the fetch line itself so the
           # version-derivation-jobs-have-tags gate can see it.
           if [ -n "${GITHUB_TOKEN}" ]; then
@@ -177,14 +177,14 @@ jobs:
           # Reuse the PR App for a contents:read token scoped to wheelhouse.
           # Both credentials enable the private release fallback. Without the
           # key, hydration still pulls public GHCR anonymously.
-          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID }}
+          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID || vars.SOCKET_PR_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
       - name: 'Mint release token'
         if: ${{ inputs.backfill-version == '' }}
         id: release-app
         uses: ./.github/actions/fleet/github-release-app-token
         with:
-          client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID }}
+          client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
           repositories: ${{ github.event.repository.name }}
       - name: Build
