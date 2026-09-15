@@ -65,5 +65,15 @@
   },
   "coverage": {
     "include": ["index.mts", "lib/**/*.mts", "hooks/**/*.mts"]
+  },
+  "vitest": {
+    "lanes": {
+      "mid": [
+        "test/fleet/integration/**/*.test.mts",
+        "test/integration/**/*.test.mts",
+        "test/mock-client/**/*.test.mts"
+      ],
+      "slow": ["test/fleet/e2e/**/*.test.mts"]
+    }
   }
 }
