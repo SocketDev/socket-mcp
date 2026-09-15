@@ -70,8 +70,12 @@
     "lanes": {
       "mid": [
         "test/fleet/integration/**/*.test.mts",
+        "test/fleet/registry-infra/**/*.test.mts",
+        "test/fleet/unit/**/*.test.mts",
+        "test/fleet/*.test.mts",
         "test/integration/**/*.test.mts",
-        "test/mock-client/**/*.test.mts"
+        "test/mock-client/**/*.test.mts",
+        "test/repo/**/*.test.mts"
       ],
       "slow": ["test/fleet/e2e/**/*.test.mts"]
     }
