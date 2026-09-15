@@ -1,5 +1,5 @@
-name: '🟢 CI fix'
-run-name: 'CI fix'
+name: 'fix: ci'
+run-name: 'fix: ci'
 
 on:
   workflow_dispatch:
