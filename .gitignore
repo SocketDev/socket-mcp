@@ -117,6 +117,7 @@ Thumbs.db
 !**/test/fleet/*/build/
 !**/test/repo/*/build/
 **/dist/
+**/target/
 **/tmp/
 /template/generated/
 **/out/
@@ -231,6 +232,7 @@ opencode.json
 .claude/hooks/fleet/_shared/claims.mts
 .claude/hooks/fleet/_shared/code-format-parser.mts
 .claude/hooks/fleet/_shared/commit-command.mts
+.claude/hooks/fleet/_shared/commit-mode.mts
 .claude/hooks/fleet/_shared/content/edit.mts
 .claude/hooks/fleet/_shared/copyleft-upstreams.mts
 .claude/hooks/fleet/_shared/dated-citation.mts
@@ -3676,6 +3678,7 @@ scripts/fleet/lockstep/verification/accept.mts
 scripts/fleet/lockstep/verification/inputs.mts
 scripts/fleet/lockstep/verification/schema.mts
 scripts/fleet/mcp/1password/run.mts
+scripts/fleet/mcp/browser-args.mts
 scripts/fleet/mcp/chrome-devtools/run.mts
 scripts/fleet/mcp/claude-registration.mts
 scripts/fleet/mcp/config.mts

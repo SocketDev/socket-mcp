@@ -229,4 +229,4 @@ jobs:
         # CHECKOUT_REF forwards on its own so a checkout-ref dispatch WITHOUT
         # backfill-version is refused by the script instead of silently
         # bump-publishing historical content.
-        run: node scripts/fleet/npm-publish.mts --tag "$DIST_TAG" ${BACKFILL_VERSION:+--backfill "$BACKFILL_VERSION"} ${CHECKOUT_REF:+--checkout-ref "$CHECKOUT_REF"} ${{ inputs.publish != true && '--dry-run' || '' }}
+        run: node scripts/fleet/npm-publish.mts --tag "$DIST_TAG" ${BACKFILL_VERSION:+--backfill "$BACKFILL_VERSION"} ${CHECKOUT_REF:+--checkout-ref "$CHECKOUT_REF"} ${{ inputs.resume-reserved == true && '--resume-reserved' || '' }} ${{ inputs.publish != true && '--dry-run' || '' }}
