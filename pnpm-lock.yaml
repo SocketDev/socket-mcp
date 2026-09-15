@@ -3571,6 +3571,10 @@ importers:
         version: 26.4.1
 
   .claude/hooks/fleet/upstream-is-read-only-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@7.0.1(patch_hash=a07ae34e75e4e6547a1c68678e556ca4396d02abebb1efe42224f92ed132c8c3)(typescript@7.1.0-dev.20260905.1)'
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -3713,6 +3717,16 @@ importers:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@7.0.1(patch_hash=a07ae34e75e4e6547a1c68678e556ca4396d02abebb1efe42224f92ed132c8c3)(typescript@7.1.0-dev.20260905.1)'
+
+  .claude/hooks/fleet/worktree-create-defers-to-script-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@7.0.1(patch_hash=a07ae34e75e4e6547a1c68678e556ca4396d02abebb1efe42224f92ed132c8c3)(typescript@7.1.0-dev.20260905.1)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.4.1
 
   .claude/hooks/fleet/worktree-remove-relink-nudge:
     dependencies:
