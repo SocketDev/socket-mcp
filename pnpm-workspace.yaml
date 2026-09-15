@@ -69,7 +69,7 @@ catalog:
   # pinned while the fleet migrates; the 0.x entry is deleted once no member
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
-  'typebox': 1.3.27
+  'typebox': 1.3.28
   '@socketregistry/packageurl-js': 1.5.2
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -89,7 +89,7 @@ catalog:
   '@socketsecurity/sdk': 4.1.4
   '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.1.4'
   '@types/mdast': 4.0.4
-  '@types/node': 26.4.1
+  '@types/node': 26.5.0
   '@types/semver': 7.8.0
   '@types/shell-quote': 1.7.5
   'compromise': 14.16.0
@@ -123,8 +123,8 @@ catalog:
   # candidates before simulating what a port actually cuts. Published
   # 2026-06-08, past the 7-day soak.
   'npm-high-impact': 1.13.0
-  'oxfmt': 0.66.0
-  'oxlint': 1.81.0
+  'oxfmt': 0.67.0
+  'oxlint': 1.82.0
   'oxlint-tsgolint': 7.0.2001
   # parse5 — the HTML parser half of the markdown story. mdast hands raw HTML
   # back as an opaque `html` node (README `<picture>`/`<img>` blocks), so
@@ -156,11 +156,11 @@ catalog:
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
   # override below pins every transitive `vite` (vitest, @vitest/*,
   # plugin authors) to it.
-  'typescript': 7.1.0-dev.20260905.1
+  'typescript': 7.1.0-dev.20260907.1
   'vitest': 5.0.0
   '@vitest/coverage-v8': 5.0.0
   '@bcoe/v8-coverage': 1.0.2
-  ast-v8-to-istanbul: 1.0.5
+  ast-v8-to-istanbul: 1.0.6
   'chrome-devtools-mcp': 1.8.0
   # Playwright MCP server — agent-driven browsing with the fleet agent-banner
   # init script (see .config/fleet/playwright/).
@@ -234,7 +234,7 @@ overrides:
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
-  '@swc/core': '1.15.41'
+  '@swc/core': '1.16.1'
   'brace-expansion@>=4': '5.0.9'
   'chalk@>=5': '5.6.2'
   'es-define-property': 'npm:@socketregistry/es-define-property@1.0.7'
@@ -254,14 +254,14 @@ overrides:
   'mime-types@>=3': '3.0.2'
   'minimatch@>=3': '10.2.6'
   'minipass@>=4': '7.1.3'
-  'postcss@>=8': '8.5.27'
+  'postcss@>=8': '8.5.28'
   'safe-buffer': 'npm:@socketregistry/safe-buffer@1.0.9'
   'safer-buffer': 'npm:@socketregistry/safer-buffer@1.0.10'
   'semver@>=5.0.0 <7.6.0': '7.8.5'
   'side-channel': 'npm:@socketregistry/side-channel@1.0.10'
   'ssri@>=12': '13.0.1'
   'string-width@>=5': '8.2.2'
-  'tinyexec': '1.3.0'
+  'tinyexec': '1.3.1'
   'typebox': 'catalog:'
   'undici@<6': '6.28.0'
   'update-notifier@>=4.0.0': '7.3.1'
@@ -364,10 +364,6 @@ overrides:
   'zod': '3.25.76'
   'zod-to-json-schema': '3.25.2'
 
-# Soak time for external-tools updates: minutes a release must have
-# existed before scripts/fleet/external-tools/update.mts will consider it
-# (mirrors pnpm's `minimumReleaseAge` for npm catalog entries). 10080
-# minutes = 7 days. Same value fleet repos use.
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@socketoverride/*'
@@ -428,9 +424,9 @@ tasks:
 trustPolicyExcludePrune: true
 peerDependencyRules:
   allowedVersions:
-    '@socketsecurity/lib>typescript': 7.1.0-dev.20260905.1
-    '@socketsecurity/registry>typescript': 7.1.0-dev.20260905.1
-    mcp-tada>typescript: 7.1.0-dev.20260905.1
+    '@socketsecurity/lib>typescript': 7.1.0-dev.20260907.1
+    '@socketsecurity/registry>typescript': 7.1.0-dev.20260907.1
+    mcp-tada>typescript: 7.1.0-dev.20260907.1
 
 patchedDependencies:
   # dedup compat shim: @polka/url@1 replaced the @polka/url@0.5 default-callable

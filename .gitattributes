@@ -13,6 +13,7 @@
 .claude/workflows linguist-generated=true
 .config/fleet/.markdownlint-cli2.jsonc linguist-generated=true
 .config/fleet/.prettierignore linguist-generated=true
+.config/fleet/command-groups.generated.json linguist-generated=true
 .config/fleet/external-tools.json linguist-generated=true
 .config/fleet/fetch-allowlist.json linguist-generated=true
 .config/fleet/git-authors.json linguist-generated=true
@@ -63,6 +64,7 @@
 .github/actions/fleet/github-pr-app-token linguist-generated=true
 .github/actions/fleet/github-release linguist-generated=true
 .github/actions/fleet/github-release-app-token linguist-generated=true
+.github/actions/fleet/github-release-assets linguist-generated=true
 .github/actions/fleet/github-status-check linguist-generated=true
 .github/actions/fleet/install linguist-generated=true
 .github/actions/fleet/run-offline linguist-generated=true
@@ -78,13 +80,11 @@
 .github/dependabot.yml linguist-generated=true
 .github/local-ci.Dockerfile linguist-generated=true
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
-.github/workflows/fleet-pack-current.yml linguist-generated=true
-.github/workflows/get-green.yml linguist-generated=true
+.github/workflows/cron-weekly-fuzz.yml linguist-generated=true
+.github/workflows/cron-weekly-odai-cache.yml linguist-generated=true
+.github/workflows/cron-weekly-update.yml linguist-generated=true
 .github/workflows/publish-npm.yml linguist-generated=true
 .github/workflows/sweep-jobs.yml linguist-generated=true
-.github/workflows/weekly-fuzz.yml linguist-generated=true
-.github/workflows/weekly-odai-cache.yml linguist-generated=true
-.github/workflows/weekly-update.yml linguist-generated=true
 .github/zizmor.yml linguist-generated=true
 .mcp.json linguist-generated=true
 .npmrc linguist-generated=true
@@ -121,7 +121,11 @@ test/fleet/nock-loopback-passthrough.test.mts linguist-generated=true
 test/fleet/registry-infra/cargo/placeholder.test.mts linguist-generated=true
 test/fleet/registry-infra/npm/placeholder.test.mts linguist-generated=true
 test/fleet/scripts/setup.mts linguist-generated=true
+test/fleet/unit/ci/gates/run.test.mts linguist-generated=true
 test/fleet/unit/comment-voice.test.mts linguist-generated=true
+test/fleet/unit/fix/plan.test.mts linguist-generated=true
+test/fleet/unit/fix/run.test.mts linguist-generated=true
+test/fleet/unit/lockstep/emit-mirror-globs.test.mts linguist-generated=true
 *.patch whitespace=-blank-at-eol,-space-before-tab
 # </fleet>
 # <repo>

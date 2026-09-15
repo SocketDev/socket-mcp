@@ -53,11 +53,16 @@ on:
         default: ''
       checkout-ref:
         description: >-
-          Backfill only — the branch/tag/SHA whose CONTENT is republished.
-          The workflow definition always comes from the dispatched ref,
-          main, so historical content stays reachable.
+          Backfill or reserved-release resume — the tag, branch, or SHA whose
+          content is published while the workflow definition stays on main.
         type: string
         default: ''
+      resume-reserved:
+        description: >-
+          Resume an unpublished release from its existing vVERSION tag.
+          Requires checkout-ref to name that exact tag.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -187,6 +192,24 @@ jobs:
           client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
           repositories: ${{ github.event.repository.name }}
+      - name: Validate reserved release resume
+        if: ${{ inputs.resume-reserved == true }}
+        env:
+          BACKFILL_VERSION: ${{ inputs.backfill-version }}
+          CHECKOUT_REF: ${{ inputs.checkout-ref }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p 'require("./package.json").version')"
+          if [ -n "$BACKFILL_VERSION" ] || [ "$CHECKOUT_REF" != "v$VERSION" ]; then
+            echo "::error::Reserved release resume requires checkout-ref v$VERSION without backfill-version." >&2
+            exit 1
+          fi
+          HEAD_SHA="$(git rev-parse HEAD)"
+          TAG_SHA="$(git rev-parse "$CHECKOUT_REF^{commit}")"
+          if [ "$HEAD_SHA" != "$TAG_SHA" ]; then
+            echo "::error::Reserved release resume checked out $HEAD_SHA, but $CHECKOUT_REF resolves to $TAG_SHA." >&2
+            exit 1
+          fi
       - name: Build
         run: pnpm run build
       - name: Run full coverage
@@ -199,7 +222,7 @@ jobs:
       - name: Publish
         env:
           BACKFILL_VERSION: ${{ inputs.backfill-version }}
-          CHECKOUT_REF: ${{ inputs.checkout-ref }}
+          CHECKOUT_REF: ${{ inputs.resume-reserved != true && inputs.checkout-ref || '' }}
           DIST_TAG: ${{ inputs.dist-tag }}
           RELEASE_APP_TOKEN: ${{ steps.release-app.outputs.token }}
           GH_TOKEN: ${{ steps.release-app.outputs.token }}
