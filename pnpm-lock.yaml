@@ -231,8 +231,8 @@ catalogs:
       specifier: 1.0.6
       version: 1.0.6
     ata-validator:
-      specifier: 1.25.0
-      version: 1.25.0
+      specifier: 1.27.0
+      version: 1.27.0
     c8:
       specifier: 12.0.0
       version: 12.0.0
@@ -489,7 +489,7 @@ importers:
         version: 1.0.6
       ata-validator:
         specifier: 'catalog:'
-        version: 1.25.0(yaml@2.9.0)
+        version: 1.27.0(yaml@2.9.0)
       c8:
         specifier: 'catalog:'
         version: 12.0.0
@@ -4054,42 +4054,42 @@ packages:
     resolution: {integrity: sha512-UQFQ6SgyJ6LX42W8rHCs8KVc0JS0tzVL9ct4XYedJukskYVWTo49tNiMEK9C2HTyarbNiT/RVIRSY82vH+6sTg==}
     engines: {node: '>=4'}
 
-  '@ata-validator/native-darwin-arm64@1.25.0':
-    resolution: {integrity: sha512-THbIXilSYAE+DWljmOE4dJ8BK7w7P6nupA/C4XoLrWoiZL1TE2jo9MZfbiWC1CNu1vqnUJ/WxoYooGBubXrXrQ==}
+  '@ata-validator/native-darwin-arm64@1.27.0':
+    resolution: {integrity: sha512-1tEo0DTpe2nnlfK9m0dJ3Ot3Grg8oI8ZBkcXdFy6Of7j+XdzMTHQf9VcIq63WVTlQ7bYXMOI7XD2R3tEvBUXig==}
     cpu: [arm64]
     os: [darwin]
 
-  '@ata-validator/native-darwin-x64@1.25.0':
-    resolution: {integrity: sha512-8DL+38xr6gx7e48bq+WwYryed+kz/Y/nsC/kbOtcweXuDa1lIIrptqNEfh+etWRvXaS0loauyoO3d/4Hv/7Dcg==}
+  '@ata-validator/native-darwin-x64@1.27.0':
+    resolution: {integrity: sha512-f2A1Ns8diinmR90d/LM2D2s/WuqnGNDCsfEr6z/txDiuqQDSHbWFgs7NVnwV6xHa8H/l2LbY1w7SCaWqqJw3hg==}
     cpu: [x64]
     os: [darwin]
 
-  '@ata-validator/native-linux-arm64-gnu@1.25.0':
-    resolution: {integrity: sha512-VU5rSvrH16IL+YET9dF4L+JYZ1MkSkpUmiA1XFcrwrU1n3PWwDLvpUBSthywY6I+EFGnRSV7Y45JDDG1HIftYg==}
+  '@ata-validator/native-linux-arm64-gnu@1.27.0':
+    resolution: {integrity: sha512-AEg9qZe0Cmok4/40vu0MTuRwHheHBaLMAhVmPguxcj60Z9cjfGdrZ3ILBf1sBUTMhtmlxMr2IIlt4dLOwBh5kw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@ata-validator/native-linux-arm64-musl@1.25.0':
-    resolution: {integrity: sha512-//dxFJMRelmmOKVqpRU+4uTJbAbMb2RZAeb41tYuzJ0eEQNm5uTW9WK7fgdHXTmAiNt7aEL8Vc1C+9/IjKSYFg==}
+  '@ata-validator/native-linux-arm64-musl@1.27.0':
+    resolution: {integrity: sha512-fXGjYQ7X/KFuSjvs9Sm/KW0vmKEqPgPFuO1L6OCpD1DkSd9HAH0gcHCTC0Bn4Ayb7Ae7a8hjwta3z7o0EZefnQ==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@ata-validator/native-linux-x64-gnu@1.25.0':
-    resolution: {integrity: sha512-/iooJ4+2UzjkDBGcumbCiTiQzxJBicgAA99RB5g2pWc1L5H3N0HEMfWul7fsEXLNPPxJmVreOnSOGu5wET53qw==}
+  '@ata-validator/native-linux-x64-gnu@1.27.0':
+    resolution: {integrity: sha512-hFjIesW0YRhG1PQrp11F68kOXAq10pw71/3CXBQMBq8paP3SwKOA6++QHLTyQ5GiUj3cUjsLYvQA12rxvDW0gQ==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@ata-validator/native-linux-x64-musl@1.25.0':
-    resolution: {integrity: sha512-+rmhxxG4ICpvOG0efP/GvtlOJBH+KGW+WWNQvhJT9bZxK26oVhPfYf5RHAQuCjXFPQlOsODQlJ/aSaFJpY6GGA==}
+  '@ata-validator/native-linux-x64-musl@1.27.0':
+    resolution: {integrity: sha512-Jn3+gJeTfbZSwT47GM0m+Am3AvDMifnIeGuQsFP+R0cFnwsEO2MpHn+NUmJEcWmRGI4HSTAmOKIMF13d2hlpGw==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@ata-validator/native-win32-x64@1.25.0':
-    resolution: {integrity: sha512-tZQ5RU/cbD5XD64u6fQkJe0FCMVSsPJftH9D7uR6ksPBMB7Va3hn0Q6a+ga3md7JeQvl+rml7ILjCQWTwMIarQ==}
+  '@ata-validator/native-win32-x64@1.27.0':
+    resolution: {integrity: sha512-z1lEWXLpcmhP32p1l4hHoTT+deWZlyulZy4/sNX/MkxSdBmiScqzr503FQUi4ElL4t6FxwARLhgbIqrU6cmqog==}
     cpu: [x64]
     os: [win32]
 
@@ -5105,8 +5105,8 @@ packages:
   ast-v8-to-istanbul@1.0.6:
     resolution: {integrity: sha512-fvpl29helSO2w/z7utIbrkNXILdrLwDwAMH2I/zPKlGf5244+gf+B4cyS1sANcrPY2h+hWCGSgC8N61s/+AF9A==}
 
-  ata-validator@1.25.0:
-    resolution: {integrity: sha512-bF0M7K8/R7sBpduQ5cf4CnMNNZFghp/pSE2Bi9aSE5LO/YPbS4Ktm1YZ8/gss4QffpCm3nlG42WUDmj7EYGzNw==}
+  ata-validator@1.27.0:
+    resolution: {integrity: sha512-0KHKhh1UPlbLfdjdSjLEHpyGNnE6kdncELHatf9OMNbG/nqr3W5ERPy5EtITsddUjhZr4xdgj+JC1Y8q0hoLVw==}
     engines: {node: '>=20.0.0'}
     hasBin: true
     peerDependencies:
@@ -5981,8 +5981,8 @@ packages:
   nan@2.28.0:
     resolution: {integrity: sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ==}
 
-  nanoid@3.3.18:
-    resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
+  nanoid@3.3.19:
+    resolution: {integrity: sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -6699,25 +6699,25 @@ snapshots:
 
   '@arr/every@1.0.1': {}
 
-  '@ata-validator/native-darwin-arm64@1.25.0':
+  '@ata-validator/native-darwin-arm64@1.27.0':
     optional: true
 
-  '@ata-validator/native-darwin-x64@1.25.0':
+  '@ata-validator/native-darwin-x64@1.27.0':
     optional: true
 
-  '@ata-validator/native-linux-arm64-gnu@1.25.0':
+  '@ata-validator/native-linux-arm64-gnu@1.27.0':
     optional: true
 
-  '@ata-validator/native-linux-arm64-musl@1.25.0':
+  '@ata-validator/native-linux-arm64-musl@1.27.0':
     optional: true
 
-  '@ata-validator/native-linux-x64-gnu@1.25.0':
+  '@ata-validator/native-linux-x64-gnu@1.27.0':
     optional: true
 
-  '@ata-validator/native-linux-x64-musl@1.25.0':
+  '@ata-validator/native-linux-x64-musl@1.27.0':
     optional: true
 
-  '@ata-validator/native-win32-x64@1.25.0':
+  '@ata-validator/native-win32-x64@1.27.0':
     optional: true
 
   '@babel/helper-string-parser@7.29.7': {}
@@ -7469,15 +7469,15 @@ snapshots:
       estree-walker: 3.0.3
       js-tokens: 10.0.0
 
-  ata-validator@1.25.0(yaml@2.9.0):
+  ata-validator@1.27.0(yaml@2.9.0):
     optionalDependencies:
-      '@ata-validator/native-darwin-arm64': 1.25.0
-      '@ata-validator/native-darwin-x64': 1.25.0
-      '@ata-validator/native-linux-arm64-gnu': 1.25.0
-      '@ata-validator/native-linux-arm64-musl': 1.25.0
-      '@ata-validator/native-linux-x64-gnu': 1.25.0
-      '@ata-validator/native-linux-x64-musl': 1.25.0
-      '@ata-validator/native-win32-x64': 1.25.0
+      '@ata-validator/native-darwin-arm64': 1.27.0
+      '@ata-validator/native-darwin-x64': 1.27.0
+      '@ata-validator/native-linux-arm64-gnu': 1.27.0
+      '@ata-validator/native-linux-arm64-musl': 1.27.0
+      '@ata-validator/native-linux-x64-gnu': 1.27.0
+      '@ata-validator/native-linux-x64-musl': 1.27.0
+      '@ata-validator/native-win32-x64': 1.27.0
       yaml: 2.9.0
 
   atomically@2.1.1:
@@ -8472,7 +8472,7 @@ snapshots:
   nan@2.28.0:
     optional: true
 
-  nanoid@3.3.18: {}
+  nanoid@3.3.19: {}
 
   neosanitize@0.3.0(parse5@8.0.1):
     optionalDependencies:
@@ -8643,7 +8643,7 @@ snapshots:
 
   postcss@8.5.28:
     dependencies:
-      nanoid: 3.3.18
+      nanoid: 3.3.19
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
