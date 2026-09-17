@@ -1,6 +1,6 @@
 {
   "name": "@socketsecurity/mcp",
-  "version": "0.2.1-prerelease",
+  "version": "0.2.1",
   "description": "Socket MCP server for scanning dependencies",
   "keywords": [],
   "homepage": "https://github.com/SocketDev/socket-mcp#readme",
