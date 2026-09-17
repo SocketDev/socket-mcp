@@ -60,6 +60,9 @@
 .github/actions/fleet/debug linguist-generated=true
 .github/actions/fleet/download-artifact linguist-generated=true
 .github/actions/fleet/expose-actions-runtime linguist-generated=true
+.github/actions/fleet/github-ci-fix-app-token linguist-generated=true
+.github/actions/fleet/github-issue-app-token linguist-generated=true
+.github/actions/fleet/github-maintenance-app-token linguist-generated=true
 .github/actions/fleet/github-payload-app-token linguist-generated=true
 .github/actions/fleet/github-pr-app-token linguist-generated=true
 .github/actions/fleet/github-release linguist-generated=true
@@ -107,6 +110,7 @@ docs/fleet/workflows linguist-generated=true
 docs/references/fleet/sfw-local-install.md linguist-generated=true
 patches/fleet/@polka__url@1.0.0-next.29.patch linguist-generated=true
 patches/fleet/@socketsecurity__lib@7.0.1.patch linguist-generated=true
+patches/fleet/ata-validator@1.25.0.patch linguist-generated=true
 patches/fleet/brace-expansion@5.0.9.patch linguist-generated=true
 patches/fleet/minimatch@10.2.6.patch linguist-generated=true
 patches/fleet/run-local-ci@0.18.1.patch linguist-generated=true

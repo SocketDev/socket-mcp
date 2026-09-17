@@ -55,6 +55,7 @@ catalog:
   # actions is its GitHub-Actions parser, pinned explicitly (not left
   # transitive) so its version is uniform fleet-wide.
   '@ultrathink/acorn.rs.wasm': 0.1.1
+  'ata-validator': 1.25.0
   'brace-expansion': 5.0.9
   'dtu-github-actions': 0.18.1
   # shadscan — shadcn UI audit CLI for the design skills (missing UI
@@ -63,13 +64,13 @@ catalog:
   '@shadscan/cli': 0.17.0
   '@sinclair/typebox': 0.34.52
   'ecc-agentshield': 1.4.0
-  'mcp-tada': 0.1.0
+  'mcp-tada': 0.4.0
   'run-local-ci': 0.18.1
   # typebox 1.x — the unscoped rewrite of @sinclair/typebox. Both names are
   # pinned while the fleet migrates; the 0.x entry is deleted once no member
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
-  'typebox': 1.3.28
+  'typebox': 1.3.30
   '@socketregistry/packageurl-js': 1.5.2
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -89,7 +90,7 @@ catalog:
   '@socketsecurity/sdk': 4.1.4
   '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.1.4'
   '@types/mdast': 4.0.4
-  '@types/node': 26.5.0
+  '@types/node': 26.5.1
   '@types/semver': 7.8.0
   '@types/shell-quote': 1.7.5
   'compromise': 14.16.0
@@ -147,7 +148,7 @@ catalog:
   # @rolldown/binding-* + @oxc-project/types stay as soak-excluded
   # transitives (consumers depend on `rolldown` only).
   'regjsparser': 0.13.2
-  'rolldown': 1.2.7
+  'rolldown': 1.2.8
   'semver': 7.8.5
   'shell-quote': 1.10.0
   'taze': 21.1.0
@@ -156,12 +157,12 @@ catalog:
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
   # override below pins every transitive `vite` (vitest, @vitest/*,
   # plugin authors) to it.
-  'typescript': 7.1.0-dev.20260907.1
+  'typescript': 7.1.0-dev.20260909.1
   'vitest': 5.0.0
   '@vitest/coverage-v8': 5.0.0
   '@bcoe/v8-coverage': 1.0.2
   ast-v8-to-istanbul: 1.0.6
-  'chrome-devtools-mcp': 1.8.0
+  'chrome-devtools-mcp': 1.9.0
   # Playwright MCP server — agent-driven browsing with the fleet agent-banner
   # init script (see .config/fleet/playwright/).
   '@playwright/mcp': 0.0.80
@@ -379,14 +380,28 @@ minimumReleaseAgeExclude:
   - '@decmpfs/*'
   - '@node-smol/*'
   - sockeye
-  # published: 2026-09-08 | removable: 2026-09-15
-  - pnpm@12.4.0
-  # published: 2026-09-10 | removable: 2026-09-17
-  - 'mcp-tada@0.1.0'
   - 'sfw'
   - 'socket'
   - 'sdxgen'
   - 'sockeye'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-darwin-arm64@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-darwin-x64@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-linux-arm64-gnu@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-linux-arm64-musl@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-linux-x64-gnu@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-linux-x64-musl@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@ata-validator/native-win32-x64@1.25.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - 'ata-validator@1.25.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - 'mcp-tada@0.4.0'
 
 # pnpm 11's packageManager-version-check failure policy. `warn` lets the
 # install proceed with a mismatched pnpm (emitting a warning) rather than
@@ -424,9 +439,9 @@ tasks:
 trustPolicyExcludePrune: true
 peerDependencyRules:
   allowedVersions:
-    '@socketsecurity/lib>typescript': 7.1.0-dev.20260907.1
-    '@socketsecurity/registry>typescript': 7.1.0-dev.20260907.1
-    mcp-tada>typescript: 7.1.0-dev.20260907.1
+    '@socketsecurity/lib>typescript': 7.1.0-dev.20260909.1
+    '@socketsecurity/registry>typescript': 7.1.0-dev.20260909.1
+    mcp-tada>typescript: 7.1.0-dev.20260909.1
 
 patchedDependencies:
   # dedup compat shim: @polka/url@1 replaced the @polka/url@0.5 default-callable

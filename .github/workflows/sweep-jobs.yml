@@ -89,11 +89,11 @@ jobs:
           # Every sibling workflow supplies it either here or as job env — this
           # one did neither, so its install ran the firewall unauthenticated.
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          # Reuse the PR App for a contents:read token scoped to wheelhouse.
+          # Reuse the Release App for a contents:read token scoped to wheelhouse.
           # Both credentials enable the private release fallback. Without the
           # key, hydration still pulls public GHCR anonymously.
-          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID || vars.SOCKET_PR_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
+          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
       - name: Prune workflow runs
         env:
           GH_TOKEN: ${{ github.token }}

@@ -73,11 +73,12 @@ concurrency:
 
 jobs:
   npm-publish:
+    cache-mode: read
     name: Publish npm
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ODAI_RUNNER || 'ubuntu-latest' }}
     # npm's trusted-publisher config pins this GitHub environment name; the
     # OIDC token exchange 404s if the job runs outside it.
-    environment: npm-publish
+    environment: publish-npm
     permissions:
       contents: read
       # npm provenance / trusted publishing mints its OIDC token here.
@@ -179,11 +180,11 @@ jobs:
           # version. Empty forwards as unset, so normal dispatches keep the
           # dispatched-ref re-checkout.
           checkout-ref: ${{ inputs.checkout-ref }}
-          # Reuse the PR App for a contents:read token scoped to wheelhouse.
+          # Reuse the Release App for a contents:read token scoped to wheelhouse.
           # Both credentials enable the private release fallback. Without the
           # key, hydration still pulls public GHCR anonymously.
-          payload-token-client-id: ${{ secrets.SOCKET_PR_CLIENT_ID || vars.SOCKET_PR_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
+          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
       - name: 'Mint release token'
         if: ${{ inputs.backfill-version == '' }}
         id: release-app
@@ -217,6 +218,12 @@ jobs:
         # content checks replace current-branch qualification.
         if: ${{ inputs.backfill-version == '' }}
         run: pnpm run cover
+      - name: Set up odai
+        if: ${{ inputs.backfill-version == '' && inputs.resume-reserved != true }}
+        uses: ./.github/actions/fleet/setup-odai
+        with:
+          allow-fill: 'true'
+          require-ready: 'true'
       # The version resolver consumes a prerelease hint, uses configured odai
       # for patch/minor, or defaults to minor. Backfills keep their version.
       - name: Publish

@@ -59,6 +59,7 @@
 **/.claude/hooks/fleet/_shared/dispatch-table.generated.mts
 **/.claude/hooks/fleet/_dist/fleet-pack.excluded.generated.cjs
 **/.claude/hooks/fleet/_shared/validators.generated.mts
+**/scripts/fleet/lib/ata-validators.generated.cjs
 **/.claude/hooks/fleet/_shared/node.path
 **/.claude/hooks/fleet/_shared/snapshot-blob.path
 **/.claude/hooks/fleet/_dist/fleet-pack.snapshot.generated.cjs
