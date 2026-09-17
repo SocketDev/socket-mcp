@@ -6,9 +6,9 @@
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
 [![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
 
-A Model Context Protocol (MCP) server for Socket integration - lets AI assistants query dependency vulnerability scores and security metadata.
-
-Socket MCP exposes Socket.dev's package-scoring API through the Model Context Protocol, so any MCP-aware AI assistant (Claude, VS Code Copilot, Cursor, Windsurf) can score a package, audit a `package.json`, or flag risky dependencies as part of a conversation. It ships as both a hosted public server (`https://mcp.socket.dev/`, no setup) and a self-hostable npm package, so you can choose between zero-friction and full data isolation.
+Socket MCP lets AI assistants query Socket's dependency security scores and metadata through the Model Context Protocol (MCP).
+Use it to score a package, audit a `package.json`, or identify risky dependencies in a conversation.
+Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or run the npm package yourself.
 
 ## ✨ Features
 
@@ -25,10 +25,10 @@ Socket MCP exposes Socket.dev's package-scoring API through the Model Context Pr
 
 ### Option 1: Use the public Socket MCP server (recommended)
 
-The easiest way to get started. The public server uses OAuth - your MCP client opens a browser to sign in to Socket on first connect; no API key to copy or manage. Click a button below to install in your favorite AI assistant.
+The public server uses OAuth. Your MCP client opens a browser to sign in to Socket on first connection. You do not need an API key.
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Socket_MCP-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config={"url":"https://mcp.socket.dev/","type":"http"})
-[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D)
+- [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.socket.dev%2F%22%2C%22type%22%3A%22http%22%7D).
+- [Install in Cursor](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D).
 
 <details><summary><b>Manual install - Claude Desktop / Claude Code</b></summary>
 
@@ -680,15 +680,6 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 ## License
 
 MIT
-
-<br/>
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/logo-white.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/logo-black.png">
-    <img width="324" height="108" alt="Socket Logo" src="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/logo-black.png">
-  </picture>
-</div>
 
 <div align="center">
   <picture>
