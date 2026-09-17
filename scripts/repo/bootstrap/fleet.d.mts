@@ -631,6 +631,8 @@ export declare function fetchBundleSource(config: {
  * Returns the count of paths acted on (renamed or cleaned up).
  */
 export declare function applyMovedPaths(dest: string, manifest: FleetFileManifest, options?: {
+  allowChangedPaths?: ((paths: readonly string[]) => boolean) | undefined;
+  changedPaths?: Set<string> | undefined;
   preservedPaths?: ReadonlySet<string> | undefined;
 } | undefined): number;
 /**

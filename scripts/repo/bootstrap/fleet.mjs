@@ -989,6 +989,11 @@ function publishesCrates(raw) {
   return publishesRegistry(raw, 'crates-registry')
 }
 function publishesNpm(raw) {
+  const release = raw['release']
+  if (isPlainObject(release)) {
+    const packages = release['publishedPackages']
+    if (Array.isArray(packages) && packages.length === 0) return false
+  }
   return publishesRegistry(raw, 'npm-registry')
 }
 function publishesRegistry(raw, registry) {
@@ -1304,6 +1309,7 @@ const ALWAYS_TRACKED_GITHUB_PREFIXES = [
   '.github/actions/fleet/expose-actions-runtime/',
   '.github/actions/fleet/github-ci-fix-app-token/',
   '.github/actions/fleet/github-payload-app-token/',
+  '.github/actions/fleet/github-pr-branch-app-token/',
   '.github/actions/fleet/github-status-check/',
   '.github/actions/fleet/install/',
   '.github/actions/fleet/setup-and-install/',
@@ -1341,12 +1347,14 @@ const ALWAYS_TRACKED_PREFIXES = [
   'assets/fleet/socket-combomark-dark.svg',
   'assets/fleet/socket-combomark-light.svg',
   'patches/fleet/@polka__url@1.0.0-next.29.patch',
-  'patches/fleet/@socketsecurity__lib@7.0.1.patch',
-  'patches/fleet/ata-validator@1.25.0.patch',
   'patches/fleet/brace-expansion@5.0.9.patch',
   'patches/fleet/minimatch@10.2.6.patch',
   'patches/fleet/run-local-ci@0.18.1.patch',
   'patches/fleet/vitest@5.0.0.patch',
+  'scripts/fleet/npm/scan-ci.mts',
+  'scripts/fleet/npm/scan-receipt.mts',
+  'scripts/fleet/registry-infra/npm/scan-ndjson.mts',
+  'scripts/fleet/registry-infra/npm/scan.mts',
   'scripts/repo/bootstrap/',
 ]
 /**
@@ -2915,6 +2923,15 @@ function applyMovedPaths(dest, manifest, options) {
   const movedWorkflowDestinations = new Set(
     plans.filter(plan => plan.workflow).map(plan => plan.to),
   )
+  const plannedChangedPaths = /* @__PURE__ */ new Set()
+  for (const plan of plans) {
+    plannedChangedPaths.add(normalizeBundlePath(path.relative(dest, plan.from)))
+    if (!plan.exists)
+      plannedChangedPaths.add(normalizeBundlePath(path.relative(dest, plan.to)))
+  }
+  for (const filename of updates.keys())
+    plannedChangedPaths.add(normalizeBundlePath(path.relative(dest, filename)))
+  if (options?.allowChangedPaths?.([...plannedChangedPaths]) === false) return 0
   for (const plan of plans)
     if (existsSync(plan.to)) rm(plan.from, dest)
     else {
@@ -2932,6 +2949,8 @@ function applyMovedPaths(dest, manifest, options) {
         chmodSync(filename, mode)
     }
   }
+  for (const changedPath of plannedChangedPaths)
+    options?.changedPaths?.add(changedPath)
   return plans.length
 }
 /**

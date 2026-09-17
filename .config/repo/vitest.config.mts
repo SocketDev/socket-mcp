@@ -295,33 +295,29 @@ const ALL_TEST_GLOBS = ['**/test/**/*.test.{js,ts,mjs,mts,cjs}']
 /**
  * Resolve one speed lane without dropping unclassified tests.
  *
- * A repository with explicit fast membership also gets explicit mid
- * membership. Slow owns the remainder, so a newly added test starts in the
- * conservative lane until measurement moves it. Repositories without an
- * explicit fast lane keep the original fast-complement behavior.
+ * Slow takes precedence over mid. Fast owns every test outside mid and slow,
+ * so a new test stays in the development loop until measurement moves it.
  */
 export function resolveLaneSelection(
   lanes: ReturnType<typeof readVitestLanes>,
   lane: string | undefined,
 ): { exclude: string[]; include: string[] } {
-  const fast = lanes.fast ?? []
   const mid = lanes.mid ?? []
   const slow = lanes.slow ?? []
   if (lane === 'fast') {
-    return fast.length
-      ? { exclude: [], include: laneToTestGlobs(fast) }
-      : { exclude: [...mid, ...slow], include: [...ALL_TEST_GLOBS] }
+    return { exclude: [...mid, ...slow], include: [...ALL_TEST_GLOBS] }
   }
   if (lane === 'mid') {
     return {
-      exclude: fast.length ? [...fast] : [],
+      exclude: [...slow],
       include: laneToTestGlobs(mid),
     }
   }
   if (lane === 'slow') {
-    return fast.length
-      ? { exclude: [...fast, ...mid], include: [...ALL_TEST_GLOBS] }
-      : { exclude: [], include: laneToTestGlobs(slow) }
+    return {
+      exclude: [],
+      include: laneToTestGlobs(slow),
+    }
   }
   return { exclude: [], include: [...ALL_TEST_GLOBS] }
 }
@@ -396,8 +392,7 @@ const config = defineConfig({
       'test/fleet/scripts/setup.mts',
       'test/repo/scripts/setup.mts',
     ].filter(p => existsSync(p)),
-    // Explicit fast and mid membership leaves every unclassified test in slow.
-    // Legacy configs retain implicit fast membership and explicit mid globs.
+    // Slow takes precedence over mid; fast owns every remaining test.
     // `**/`-anchored so a
     // monorepo's nested `packages/<name>/test/**` trees are discovered from this
     // one root config — a bare `test/**/*.test...` only anchors at the repo

@@ -11,7 +11,7 @@ description: >-
 
 inputs:
   client-id:
-    description: 'Release App Client ID - pass secrets.SOCKET_RELEASE_CLIENT_ID.'
+    description: 'Release App client ID. Resolve secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID in the caller.'
     required: true
   private-key:
     description: 'Release App private key — pass secrets.SOCKET_RELEASE_APP_PRIVATE_KEY.'

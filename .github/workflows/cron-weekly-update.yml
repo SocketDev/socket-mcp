@@ -131,6 +131,14 @@ jobs:
           require-ready: 'true'
         id: odai
 
+      - name: 'Mint PR branch token'
+        id: pr-branch-app
+        uses: ./.github/actions/fleet/github-pr-branch-app-token
+        with:
+          client-id: ${{ secrets.SOCKET_PR_CLIENT_ID || vars.SOCKET_PR_CLIENT_ID }}
+          private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+
       - name: Run the weekly update
         shell: bash
         env:
@@ -139,6 +147,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GITHUB_TOKEN: ${{ github.token }}
           ODAI_READY: ${{ steps.odai.outputs.ready }}
+          PR_APP_SLUG: ${{ steps.pr-branch-app.outputs.slug }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
@@ -155,17 +164,19 @@ jobs:
             if [ "${FETCH_STATUS}" != 2 ]; then exit "${FETCH_STATUS}"; fi
           fi
           git checkout -B weekly-update "origin/${DEFAULT_BRANCH}"
-          git config --local user.name 'socket-release-app[bot]'
-          git config --local user.email 'socket-release-app[bot]@users.noreply.github.com'
+          git config --local user.name "${PR_APP_SLUG}[bot]"
+          git config --local user.email "${PR_APP_SLUG}[bot]@users.noreply.github.com"
           node scripts/fleet/weekly-update.mts
 
-      - name: 'Mint maintenance token'
-        id: maintenance-app
-        uses: ./.github/actions/fleet/github-maintenance-app-token
-        with:
-          client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-          repositories: ${{ github.event.repository.name }}
+      - name: Validate PR branch delivery
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          node scripts/fleet/weekly-update.mts --validate-delivery \
+            --branch weekly-update \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --base-ref "origin/${DEFAULT_BRANCH}"
 
       - name: 'Mint PR token'
         id: pr-app
@@ -178,15 +189,11 @@ jobs:
       - name: Commit update fixes
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.maintenance-app.outputs.token }}
+          GH_TOKEN: ${{ steps.pr-branch-app.outputs.token }}
           BASE: ${{ github.event.repository.default_branch }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [ "$(git branch --show-current)" != weekly-update ]; then
-            echo "Refusing to commit outside the weekly-update branch." >&2
-            exit 1
-          fi
           git add --all
           node scripts/fleet/github/commit.mts \
             --parent "origin/${BASE}" --branch weekly-update --repo "${REPOSITORY}" \
@@ -213,7 +220,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ steps.pr-app.outputs.token }}
-          RELEASE_TOKEN: ${{ steps.maintenance-app.outputs.token }}
+          BRANCH_TOKEN: ${{ steps.pr-branch-app.outputs.token }}
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
           BASE: ${{ github.event.repository.default_branch }}
@@ -229,11 +236,13 @@ jobs:
             echo "no diff against ${BASE} — nothing to update."
             gh pr close "${BRANCH}" --repo "${REPOSITORY}" 2>/dev/null \
               && echo "closed the now-empty PR." || true
-            REMOTE_BRANCH_COUNT="$(GH_TOKEN="${RELEASE_TOKEN}" gh api \
+            REMOTE_BRANCH_COUNT="$(GH_TOKEN="${BRANCH_TOKEN}" gh api \
               "repos/${REPOSITORY}/git/matching-refs/heads/${BRANCH}" \
               --jq 'map(select(.ref == "refs/heads/weekly-update")) | length')"
             if [ "${REMOTE_BRANCH_COUNT}" -gt 0 ]; then
-              GH_TOKEN="${RELEASE_TOKEN}" gh api --method DELETE \
+              node scripts/fleet/weekly-update.mts --validate-branch-delete \
+                --branch "${BRANCH}" --default-branch "${BASE}" --owned
+              GH_TOKEN="${BRANCH_TOKEN}" gh api --method DELETE \
                 "repos/${REPOSITORY}/git/refs/heads/${BRANCH}"
             fi
             exit 0
@@ -242,7 +251,7 @@ jobs:
           # Force-with-lease: the branch is ours and is rebuilt from base each
           # run, so a non-fast-forward push is EXPECTED. --force-with-lease
           # still refuses if someone else pushed to it since our fetch.
-          AUTH_B64="$(printf 'x-access-token:%s' "${RELEASE_TOKEN}" | base64 | tr -d '\n')"
+          AUTH_B64="$(printf 'x-access-token:%s' "${BRANCH_TOKEN}" | base64 | tr -d '\n')"
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
@@ -317,7 +326,9 @@ jobs:
                   --comment "Superseded by #${NUMBER}, the rolling dependency PR. Updates now land on one long-lived \`${BRANCH}\` branch, rebuilt from \`${BASE}\` each run, with every run recorded as a dated fold in that PR body." \
                 echo "closed superseded PR #${OLD}."
                 if [ "${SAME_REPOSITORY_HEAD}" = true ]; then
-                  GH_TOKEN="${RELEASE_TOKEN}" gh api --method DELETE \
+                  node scripts/fleet/weekly-update.mts --validate-branch-delete \
+                    --branch "${OLD_HEAD}" --default-branch "${BASE}" --owned
+                  GH_TOKEN="${BRANCH_TOKEN}" gh api --method DELETE \
                     "repos/${REPOSITORY}/git/refs/heads/${OLD_HEAD}"
                 fi
               done
