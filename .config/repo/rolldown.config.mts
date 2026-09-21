@@ -110,6 +110,7 @@ function singleEntryConfig(
   banner: string,
 ): RolldownOptions {
   return {
+    experimental: { attachDebugInfo: 'none' },
     external: externals,
     input: { [name]: inputPath },
     output: {
