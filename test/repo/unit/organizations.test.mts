@@ -1,0 +1,84 @@
+import nock from 'nock'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+
+import {
+  buildOrganizationsErrorMessage,
+  fetchOrganizations,
+} from '../../../lib/organizations.mts'
+
+const API = 'https://api.socket.dev'
+
+beforeEach(() => {
+  nock.disableNetConnect()
+})
+
+afterEach(() => {
+  nock.cleanAll()
+  nock.enableNetConnect()
+})
+
+describe('fetchOrganizations', () => {
+  test('GETs /v0/organizations with Basic auth + returns the body', async () => {
+    // The Socket SDK authenticates with HTTP Basic (token as the username,
+    // empty password) — base64('tok:') === 'dG9rOg=='.
+    nock(API)
+      .matchHeader('authorization', 'Basic dG9rOg==')
+      .get('/v0/organizations')
+      .reply(200, { organizations: { o1: { name: 'Acme' } } })
+
+    const data = await fetchOrganizations({ baseUrl: API, authToken: 'tok' })
+    expect(data).toEqual({ organizations: { o1: { name: 'Acme' } } })
+  })
+
+  test('strips trailing slash from baseUrl', async () => {
+    const scope = nock(API).get('/v0/organizations').reply(200, {})
+    await fetchOrganizations({ baseUrl: `${API}/`, authToken: 'tok' })
+    expect(scope.isDone()).toBe(true)
+  })
+
+  test('throws with status + body on non-2xx', async () => {
+    nock(API).get('/v0/organizations').reply(401, { error: 'unauthorized' })
+    await expect(
+      fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
+    ).rejects.toThrow(/organizations endpoint 401/)
+  })
+})
+
+describe('fetchOrganizations auth and error shape', () => {
+  test('refuses to build an SDK client with no token', async () => {
+    // `authToken ?? ''` hands the SDK an empty credential, and the SDK
+    // refuses it up front rather than sending an unauthenticated request.
+    await expect(fetchOrganizations({ baseUrl: API })).rejects.toThrow(
+      '"apiToken" cannot be empty or whitespace-only',
+    )
+    expect(nock.pendingMocks()).toEqual([])
+  })
+})
+
+describe('buildOrganizationsErrorMessage', () => {
+  test('appends the SDK cause in parentheses when it is reported', () => {
+    expect(
+      buildOrganizationsErrorMessage({
+        cause: 'token expired',
+        error: 'Unauthorized',
+        status: 401,
+      }),
+    ).toBe('organizations endpoint 401: Unauthorized (token expired)')
+  })
+
+  test('omits the parenthetical when the SDK reports no cause', () => {
+    expect(
+      buildOrganizationsErrorMessage({ error: 'Server Error', status: 500 }),
+    ).toBe('organizations endpoint 500: Server Error')
+  })
+
+  test('omits the parenthetical for an empty cause', () => {
+    expect(
+      buildOrganizationsErrorMessage({
+        cause: '',
+        error: 'Server Error',
+        status: 500,
+      }),
+    ).toBe('organizations endpoint 500: Server Error')
+  })
+})

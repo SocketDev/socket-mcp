@@ -206,7 +206,6 @@ catalog:
   #    pinned npm version instead of a sibling working tree.
   '@anthropic-ai/mcpb': 1.2.0
   '@typescript/native-preview': 7.0.0-dev.20260510.1
-  'npm-run-all2': 9.0.2
   'untracked': 1.6.5
   'yaml': 2.9.0
 enablePrePostScripts: true
@@ -349,8 +348,8 @@ overrides:
   # logo generator's sharp to 0.35.3 so it stays on a no-build-script line — its
   # prebuilt @img/sharp-* binaries cover the rasterize + animated-GIF encode.
   'sharp': '0.35.3'
-  # GHSA-w7jw-789q-3m8p quote() does not escape newlines in object .op values
-  # (transitive via npm-run-all2); fixed in 1.8.4
+  # GHSA-w7jw-789q-3m8p quote() does not escape newlines in object .op values;
+  # fixed in 1.8.4.
   'shell-quote': '1.10.0'
   'string-width': '8.2.2'
   # Dedup compat shim: strip-ansi 6 (CJS yargs@17 cluster) vs 7 (ESM,
