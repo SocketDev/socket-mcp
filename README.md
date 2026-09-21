@@ -626,17 +626,17 @@ pnpm run server-http
 
 Both scripts read `SOCKET_API_TOKEN` (falling back to `SOCKET_API_KEY`) from your environment. Append `:debug` to either one (`pnpm run server-http:debug`) to set `SOCKET_DEBUG=1` and get per-request tracing on stderr.
 
-| Task                      | Command                             |
-| ------------------------- | ----------------------------------- |
-| Test                      | `pnpm test`                         |
-| Test one file             | `pnpm test test/unit/purl.test.mts` |
-| Live-API end-to-end tests | `pnpm run test:e2e`                 |
-| Type check                | `pnpm run type`                     |
-| Lint and format           | `pnpm run fix --all`                |
-| Full check suite          | `pnpm run check --all`              |
-| Bundle to `dist/`         | `pnpm run build`                    |
+| Task                      | Command                                  |
+| ------------------------- | ---------------------------------------- |
+| Test                      | `pnpm test`                              |
+| Test one file             | `pnpm test test/repo/unit/purl.test.mts` |
+| Live-API end-to-end tests | `pnpm run test:e2e`                      |
+| Type check                | `pnpm run type`                          |
+| Lint and format           | `pnpm run fix --all`                     |
+| Full check suite          | `pnpm run check --all`                   |
+| Bundle to `dist/`         | `pnpm run build`                         |
 
-Never put `--` before a test path; that widens the run to the whole suite. Write `pnpm test test/unit/purl.test.mts`.
+Never put `--` before a test path; that widens the run to the whole suite. Write `pnpm test test/repo/unit/purl.test.mts`.
 
 To drive a running server by hand, see [mock-client debugging](docs/mock-client-debugging.md).
 
