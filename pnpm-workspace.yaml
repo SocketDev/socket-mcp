@@ -490,9 +490,3 @@ patchedDependencies:
   # CPU-profiled forks use the configured teardown deadline to flush profiles.
   # Ordinary forks retain the upstream 500 ms termination grace.
   vitest@5.0.0: patches/fleet/vitest@5.0.0.patch
-  # dedup: public runtime helpers (managed by socket-wheelhouse sync):
-  # The bundled debug loader must read DEBUG at runtime so fleet debugNs
-  # honors namespace selection, wildcards, and exclusions.
-  # Generated terminal authorization and process accessors support setup
-  # through the shared public library API without a version change.
-  '@socketsecurity/lib@7.0.1': patches/fleet/@socketsecurity__lib@7.0.1.patch
