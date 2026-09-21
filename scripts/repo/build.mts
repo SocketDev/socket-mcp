@@ -31,7 +31,13 @@ const logger = getDefaultLogger()
 
 async function buildOne(config: RolldownOptions): Promise<void> {
   const { output, ...inputOptions } = config
-  const bundle = await rolldown(inputOptions)
+  const bundle = await rolldown({
+    ...inputOptions,
+    experimental: {
+      ...inputOptions.experimental,
+      attachDebugInfo: 'none',
+    },
+  })
   try {
     const outputs = Array.isArray(output) ? output : [output!]
     for (const outputOptions of outputs) {

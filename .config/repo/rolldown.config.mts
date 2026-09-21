@@ -129,7 +129,7 @@ function singleEntryConfig(
 }
 
 // The server bundle (dist/index.cjs) — the published bin.
-export const buildConfig: RolldownOptions = singleEntryConfig(
+export const buildConfig = singleEntryConfig(
   'index',
   path.join(REPO_ROOT, 'index.mts'),
   DIST_DIR,
@@ -142,7 +142,7 @@ export const buildConfig: RolldownOptions = singleEntryConfig(
 // hook has no package.json/node_modules — its @socketsecurity/lib-stable
 // import must be inlined. The shebang lets `node` / direct execution find the
 // interpreter.
-export const socketGateConfig: RolldownOptions = singleEntryConfig(
+export const socketGateConfig = singleEntryConfig(
   'socket-gate',
   path.join(SOCKET_GATE_SRC_DIR, 'index.mts'),
   SOCKET_GATE_DIST_DIR,
@@ -150,4 +150,4 @@ export const socketGateConfig: RolldownOptions = singleEntryConfig(
 )
 
 // Every artifact build.mts should emit, in order.
-export const buildConfigs: RolldownOptions[] = [buildConfig, socketGateConfig]
+export const buildConfigs = [buildConfig, socketGateConfig]
