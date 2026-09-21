@@ -6,8 +6,8 @@
   "schemaVersion": 1,
   "repoName": "socket-mcp",
   "bundle": {
-    "ref": "fleet-pack-765f1d4e74f6ebf418984daa19696ce15b1bd9d4",
-    "cascadeSha": "765f1d4e74f6ebf418984daa19696ce15b1bd9d4"
+    "ref": "fleet-pack-77f0979b989e87f69539ca0b154fbabdcef0b313",
+    "cascadeSha": "77f0979b989e87f69539ca0b154fbabdcef0b313"
   },
   "repo": {
     "type": "solo"
