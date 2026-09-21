@@ -155,7 +155,6 @@
 - A `github-action` member ships committed `dist/` at a tag. (`scripts/fleet/check/github-action-aliases-are-not-frozen.mts`) [`github-action-release-contract`](docs/fleet/agents.md/github-action-release-contract.md)
 - 🚨 GitHub CLI tokens: keychain only; `workflow` scope off by default; 8-hour age cap. [`gh-token-hygiene`](docs/fleet/agents.md/gh-token-hygiene.md)
 - Release App writes default-branch and release content. PR App writes repair branches, issues, and PRs. Both are organization-wide. [`token-hygiene`](docs/fleet/agents.md/token-hygiene.md)
-- 🚨 Commits on `main`/`master` must be signed. [`commit-signing`](docs/fleet/agents.md/commit-signing.md) [`git-config-write-guard`](docs/fleet/agents.md/git-config-write-guard.md)
 - Keep AI logic canonical; generate client aliases during setup, never commit them. [`release-vs-cascade`](docs/fleet/agents.md/release-vs-cascade.md)
 - Skills, commands, and agent instructions are thin wrappers. [`agents-and-skills`](docs/fleet/agents.md/agents-and-skills.md)
 - Fleet/repo segmentation on every surface; a `-guard` BLOCKS, a `-nudge` NUDGES. [`hook-registry`](docs/fleet/agents.md/hook-registry.md)

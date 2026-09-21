@@ -46,9 +46,10 @@ export interface VitestRepoConfig {
  * (.config/repo/socket-wheelhouse.json; see paths.mts's resolver order for the
  * fallbacks). `slow` = heavy suites (subprocess-per-case, e.g. hook integration
  * specs); `mid` = isolated in-process suites (env-mutating / vi.mock /
- * fs-heavy); `fast` = pure in-process. When `fast` is declared, `fast` and
- * `mid` use their explicit membership and `slow` owns every unclassified test.
- * Without it, `fast` remains the complement of `mid` and `slow`. The runner's
+ * fs-heavy); `fast` = pure in-process. `slow` selects its declared patterns.
+ * `mid` selects its declared patterns except tests selected by `slow`.
+ * `fast` selects every remaining test, regardless of its declared patterns.
+ * The runner's
  * `--lane <fast|mid|slow>` flag (scripts/fleet/test.mts) selects one, and bare
  * `pnpm test` defaults to `fast` for a quick local loop. The lane filter is
  * active under coverage too. An unset FLEET_LANE traverses every lane; the

@@ -124,8 +124,8 @@ catalog:
   # candidates before simulating what a port actually cuts. Published
   # 2026-06-08, past the 7-day soak.
   'npm-high-impact': 1.13.0
-  'oxfmt': 0.67.0
-  'oxlint': 1.82.0
+  'oxfmt': 0.68.0
+  'oxlint': 1.83.0
   'oxlint-tsgolint': 7.0.2001
   # parse5 — the HTML parser half of the markdown story. mdast hands raw HTML
   # back as an opaque `html` node (README `<picture>`/`<img>` blocks), so
@@ -148,7 +148,7 @@ catalog:
   # @rolldown/binding-* + @oxc-project/types stay as soak-excluded
   # transitives (consumers depend on `rolldown` only).
   'regjsparser': 0.13.2
-  'rolldown': 1.2.8
+  'rolldown': 1.2.9
   'semver': 7.8.5
   'shell-quote': 1.10.0
   'taze': 21.1.0
@@ -401,6 +401,120 @@ minimumReleaseAgeExclude:
   - '@ata-validator/native-win32-x64@1.27.0'
   # published: 2026-09-17 | removable: 2026-09-24
   - 'ata-validator@1.27.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxc-project/types@0.150.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-android-arm-eabi@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-android-arm64@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-darwin-arm64@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-darwin-x64@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-freebsd-x64@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-arm-gnueabihf@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-arm-musleabihf@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-arm64-gnu@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-arm64-musl@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-ppc64-gnu@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-riscv64-gnu@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-riscv64-musl@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-s390x-gnu@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-x64-gnu@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-linux-x64-musl@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-openharmony-arm64@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-win32-arm64-msvc@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-win32-ia32-msvc@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxfmt/binding-win32-x64-msvc@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-android-arm-eabi@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-android-arm64@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-darwin-arm64@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-darwin-x64@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-freebsd-x64@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-arm-gnueabihf@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-arm-musleabihf@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-arm64-gnu@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-arm64-musl@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-ppc64-gnu@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-riscv64-gnu@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-riscv64-musl@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-s390x-gnu@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-x64-gnu@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-linux-x64-musl@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-openharmony-arm64@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-win32-arm64-msvc@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-win32-ia32-msvc@1.83.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - '@oxlint/binding-win32-x64-msvc@1.83.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-android-arm-eabi@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-android-arm64@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-darwin-arm64@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-darwin-x64@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-freebsd-x64@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-arm-gnueabihf@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-arm64-gnu@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-arm64-musl@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-ppc64-gnu@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-s390x-gnu@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-x64-gnu@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-linux-x64-musl@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-openharmony-arm64@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-win32-arm64-msvc@1.2.9'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - '@rolldown/binding-win32-x64-msvc@1.2.9'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - 'oxfmt@0.68.0'
+  # published: 2026-09-14 | removable: 2026-09-21
+  - 'oxlint@1.83.0'
+  # published: 2026-09-16 | removable: 2026-09-23
+  - 'rolldown@1.2.9'
 
 # pnpm 11's packageManager-version-check failure policy. `warn` lets the
 # install proceed with a mismatched pnpm (emitting a warning) rather than
