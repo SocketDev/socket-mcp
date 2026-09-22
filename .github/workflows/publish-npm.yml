@@ -71,6 +71,10 @@ on:
           Requires checkout-ref to name that exact tag.
         type: boolean
         default: false
+      coverage-tooling-ref:
+        description: 'Immutable fleet-pack SHA reference for reserved release coverage tooling.'
+        type: string
+        default: ''
       scan-package:
         description: 'Package name for a CI-only staged-byte Socket scan.'
         type: string
@@ -104,22 +108,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  coverage-shards:
+  coverage-plan:
     if: ${{ inputs.scan-stage-id == '' && inputs.backfill-version == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     outputs:
-      shard-count: ${{ strategy.job-total }}
-    name: Coverage collection
-    runs-on: ubuntu-latest
+      runner: ${{ steps.coverage_plan.outputs.runner }}
+    name: Coverage plan
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     steps:
       - name: Bootstrap checkout
-        id: source_checkout
         shell: bash
-        env:
+        env: &coverage-bootstrap-env
           CHECKOUT_REF: ${{ inputs.checkout-ref || github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RESUME_RESERVED: ${{ inputs.resume-reserved }}
@@ -146,7 +145,6 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
-          printf 'source-sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [ "$RESUME_RESERVED" = "true" ] && [ "$TRIGGER_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
             if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
               git fetch --no-tags --depth=32 origin "$FETCH_REF"
@@ -171,14 +169,121 @@ jobs:
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
           checkout-ref: ${{ inputs.checkout-ref || github.sha }}
-      - name: Build
-        run: pnpm run build
+      - name: Select coverage runner
+        id: coverage_plan
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { resolveRunPlan } from './scripts/fleet/cover-run.mts';
+          const plan = resolveRunPlan(process.cwd());
+          if (plan.configErrors.length) throw new Error(plan.configErrors.join('\n'));
+          if (!['bun', 'vitest'].includes(plan.runner)) throw new Error('Unsupported coverage runner. Fix the repository coverage settings.');
+          appendFileSync(process.env.GITHUB_OUTPUT, `runner=${plan.runner}\n`);
+          NODE
+
+  coverage-shards:
+    needs: [coverage-plan]
+    if: ${{ inputs.scan-stage-id == '' && inputs.backfill-version == '' && needs.coverage-plan.result == 'success' && needs.coverage-plan.outputs.runner == 'vitest' }}
+    outputs:
+      shard-count: ${{ strategy.job-total }}
+    name: Coverage collection
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    steps:
+      - name: Bootstrap checkout
+        shell: bash
+        env: *coverage-bootstrap-env
+        run: |
+          set -euo pipefail
+          git init -q
+          git config --local advice.detachedHead false
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${SERVER_URL}/${REPOSITORY}"
+          FETCH_REF="${CHECKOUT_REF:-${TRIGGER_REF}}"
+          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${FETCH_REF}")
+          if [ -n "${GITHUB_TOKEN}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+            export GIT_CONFIG_COUNT=1
+            export GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader"
+            export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
+            git fetch "${FETCH_ARGS[@]}"
+          else
+            git fetch "${FETCH_ARGS[@]}"
+          fi
+          git checkout -q --detach FETCH_HEAD
+          if [ "$RESUME_RESERVED" = "true" ] && [ "$TRIGGER_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+              git fetch --no-tags --depth=32 origin "$FETCH_REF"
+            fi
+            git fetch --no-tags origin "$WORKFLOW_SHA"
+            BOOTSTRAP_DIR="$(mktemp -d "$GITHUB_WORKSPACE/.release-bootstrap.XXXXXX")"
+            trap 'rm -rf "$BOOTSTRAP_DIR"' EXIT
+            BOOTSTRAP="$BOOTSTRAP_DIR/fleet.mjs"
+            git show "$WORKFLOW_SHA:scripts/repo/bootstrap/fleet.mjs" > "$BOOTSTRAP"
+            node --input-type=module -e '
+              const { pathToFileURL } = await import("node:url");
+              const { migrateRuleFile } = await import(pathToFileURL(process.argv[2]).href);
+              migrateRuleFile(process.argv[3]);
+            ' release-rule-recovery "$BOOTSTRAP" "$GITHUB_WORKSPACE"
+            rm -rf "$BOOTSTRAP_DIR"
+            trap - EXIT
+          fi
+      - name: 'Set up and install'
+        uses: ./.github/actions/fleet/setup-and-install
+        with:
+          socket-api-token: ${{ inputs.checkout-ref == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
+          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
+          checkout-ref: ${{ inputs.checkout-ref || github.sha }}
+      - name: Restore reserved coverage tooling
+        if: ${{ inputs.resume-reserved == true }}
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+          COVERAGE_PACK_REF: ${{ inputs.coverage-tooling-ref }}
+        run: &restore-reserved-coverage-tooling |
+          set -euo pipefail
+          TOOLING_DIR="$(mktemp -d "$GITHUB_WORKSPACE/.release-bootstrap.XXXXXX")"
+          trap 'rm -rf "$TOOLING_DIR"' EXIT
+          git show "$WORKFLOW_SHA:scripts/repo/bootstrap/fleet.mjs" > "$TOOLING_DIR/fleet.mjs"
+          node --input-type=module - "$TOOLING_DIR" "$COVERAGE_PACK_REF" <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { lstatSync, mkdirSync, realpathSync, renameSync } from 'node:fs';
+          import path from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          const [temporary, ref] = process.argv.slice(2);
+          if (!/^fleet-pack-[a-f\d]{40}$/.test(ref)) throw new Error('Invalid immutable coverage tooling reference.');
+          const root = process.cwd();
+          const files = ['scripts/fleet/cover/shard-run.mts', 'scripts/fleet/cover/shard-revision.mts'];
+          const tracked = execFileSync('git', ['ls-files', '--', ...files], { encoding: 'utf8' });
+          if (tracked.trim()) throw new Error('Coverage tooling must be an untracked fleet payload.');
+          const targets = files.map((relative, index) => {
+            const target = path.join(root, relative);
+            const entry = lstatSync(target, { throwIfNoEntry: false });
+            if ((entry ? !entry.isFile() : index === 0) || realpathSync(path.dirname(target)) !== path.dirname(target)) throw new Error('Coverage tooling must be a regular local file.');
+            return target;
+          });
+          const { installFleet } = await import(pathToFileURL(path.join(temporary, 'fleet.mjs')).href);
+          const extracted = path.join(realpathSync(temporary), 'verified');
+          mkdirSync(extracted);
+          execFileSync('git', ['init', '-q', extracted]);
+          if (await installFleet({ ref, dest: extracted, preserveTracked: true }) !== 0) throw new Error('Coverage tooling pack verification failed.');
+          const sources = files.map(relative => path.join(extracted, relative));
+          for (const source of sources) {
+            if (!lstatSync(source).isFile() || realpathSync(source) !== source) throw new Error('Verified coverage tooling is incomplete.');
+          }
+          for (let index = 0; index < sources.length; index++) renameSync(sources[index], targets[index]);
+          NODE
       - name: 'Run coverage'
         id: coverage_collection
         uses: ./.github/actions/fleet/run-script
         env:
           GH_TOKEN: ${{ github.token }}
-          FLEET_COVERAGE_SOURCE_SHA: ${{ steps.source_checkout.outputs.source-sha }}
           COVERAGE_SHARD: ${{ matrix.shard }}
           COVERAGE_SHARD_COUNT: ${{ strategy.job-total }}
         with:
@@ -199,23 +304,31 @@ jobs:
           if-no-files-found: ignore
 
   coverage:
-    needs: [coverage-shards]
+    needs: [coverage-plan, coverage-shards]
     if: ${{ !cancelled() && inputs.scan-stage-id == '' && inputs.backfill-version == '' }}
     name: Coverage gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
     steps:
-      - name: Require successful coverage collection
+      - name: Require successful coverage prerequisites
         shell: bash
         env:
+          PLAN_RESULT: ${{ needs.coverage-plan.result }}
+          COVERAGE_RUNNER: ${{ needs.coverage-plan.outputs.runner }}
           COLLECTION_RESULT: ${{ needs.coverage-shards.result }}
         run: |
-          if [ "$COLLECTION_RESULT" != success ]; then
-            echo "Coverage collection failed. Fix the failed collection jobs before publishing."
+          if [ "$PLAN_RESULT" != success ]; then
+            echo "Coverage planning failed. Fix the coverage plan before publishing."
             exit 1
           fi
+          case "$COVERAGE_RUNNER:$COLLECTION_RESULT" in
+            vitest:success|bun:skipped) ;;
+            *)
+              echo "Coverage prerequisites failed. Fix the coverage runner or collection jobs before publishing."
+              exit 1
+              ;;
+          esac
       - name: Bootstrap checkout
-        id: source_checkout
         shell: bash
         env:
           CHECKOUT_REF: ${{ inputs.checkout-ref || github.sha }}
@@ -244,7 +357,6 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
-          printf 'source-sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [ "$RESUME_RESERVED" = "true" ] && [ "$TRIGGER_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
             if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
               git fetch --no-tags --depth=32 origin "$FETCH_REF"
@@ -269,13 +381,27 @@ jobs:
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
           checkout-ref: ${{ inputs.checkout-ref || github.sha }}
-      - name: Build
-        run: pnpm run build
+      - name: Setup Bun coverage runtime
+        if: ${{ needs.coverage-plan.outputs.runner == 'bun' }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import path from 'node:path'
+          import { ensureTool } from './scripts/fleet/external-tools/manager.mts'
+          const result = await ensureTool('bun')
+          if (!result.available || !result.binPath) {
+            throw new Error(`Bun coverage runtime installation failed. Where: npm coverage setup. Saw: ${result.error ?? 'no executable returned'}. Wanted: the configured Bun executable. Fix: check the member tool configuration and retry.`)
+          }
+          fs.appendFileSync(process.env.GITHUB_PATH, `${path.dirname(result.binPath)}\n`)
+          NODE
       - name: 'Download coverage artifacts'
+        if: ${{ needs.coverage-plan.outputs.runner == 'vitest' }}
         uses: ./.github/actions/fleet/download-artifact
         with:
           path: .cache/fleet/npm-publish-coverage
       - name: Arrange coverage artifacts
+        if: ${{ needs.coverage-plan.outputs.runner == 'vitest' }}
         shell: bash
         env:
           COVERAGE_SHARD_COUNT: ${{ needs.coverage-shards.outputs.shard-count }}
@@ -291,21 +417,31 @@ jobs:
             mkdir -p "$target"
             cp -R "$source/." "$target/"
           done
+      - name: Restore reserved coverage tooling
+        if: ${{ inputs.resume-reserved == true }}
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+          COVERAGE_PACK_REF: ${{ inputs.coverage-tooling-ref }}
+        run: *restore-reserved-coverage-tooling
       - name: Install cargo-llvm-cov
         if: ${{ hashFiles('**/Cargo.toml') != '' }}
         run: pnpm run setup:rust-coverage
       - name: Aggregate coverage
+        if: ${{ needs.coverage-plan.outputs.runner == 'vitest' }}
         env:
-          FLEET_COVERAGE_SOURCE_SHA: ${{ steps.source_checkout.outputs.source-sha }}
           COVERAGE_SHARD_COUNT: ${{ needs.coverage-shards.outputs.shard-count }}
         run: pnpm run cover:aggregate --shards="$COVERAGE_SHARD_COUNT"
+      - name: Run Bun coverage
+        if: ${{ needs.coverage-plan.outputs.runner == 'bun' }}
+        run: pnpm run cover
 
   npm-publish:
     needs: [coverage]
     if: ${{ always() && inputs.scan-stage-id == '' && (inputs.backfill-version != '' || needs.coverage.result == 'success') }}
     cache-mode: read
     name: Publish npm
-    runs-on: ${{ vars.NPM_PUBLISH_RUNNER || vars.ODAI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.NPM_PUBLISH_RUNNER || vars.ODAI_RUNNER || 'ubuntu-26.04' }}
     # npm's trusted-publisher config pins this GitHub environment name; the
     # OIDC token exchange 404s if the job runs outside it.
     environment: publish-npm
@@ -455,6 +591,7 @@ jobs:
           SOCKET_API_KEY: ${{ steps.content-trust.outputs.trusted == 'true' && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
         with:
           cache: 'false'
+          checkout-fetch-depth: '0'
           socket-api-token: ${{ steps.content-trust.outputs.trusted == 'true' && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
           # Forward the backfill content ref — setup-and-install re-checks-out
           # internally (fleet checkout falls back to the TRIGGERING ref when
@@ -546,8 +683,8 @@ jobs:
   scan-staged-package:
     if: ${{ inputs.scan-stage-id != '' }}
     name: Scan staged npm package
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
     permissions:
       actions: read
       contents: read
@@ -623,6 +760,31 @@ jobs:
             echo "::error::Required secret SOCKET_API_TOKEN_FOR_CLI_AND_SFW is unavailable." >&2
             exit 1
           fi
+      - name: Recover verified scan source rules
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SERVER_URL: ${{ github.server_url }}
+          SOURCE_SHA: ${{ inputs.scan-source-sha }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
+          git fetch --no-tags --depth=32 origin "$SOURCE_SHA"
+          git checkout -q --detach "$SOURCE_SHA"
+          git fetch --no-tags origin "$WORKFLOW_SHA"
+          BOOTSTRAP_DIR="$(mktemp -d "$GITHUB_WORKSPACE/.release-bootstrap.XXXXXX")"
+          trap 'rm -rf "$BOOTSTRAP_DIR"' EXIT
+          BOOTSTRAP="$BOOTSTRAP_DIR/fleet.mjs"
+          git show "$WORKFLOW_SHA:scripts/repo/bootstrap/fleet.mjs" > "$BOOTSTRAP"
+          node --input-type=module -e '
+            const { pathToFileURL } = await import("node:url");
+            const { migrateRuleFile } = await import(pathToFileURL(process.argv[2]).href);
+            migrateRuleFile(process.argv[3]);
+          ' scan-rule-recovery "$BOOTSTRAP" "$GITHUB_WORKSPACE"
       - name: Set up and install
         uses: ./.github/actions/fleet/setup-and-install
         with:

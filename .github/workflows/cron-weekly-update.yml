@@ -25,7 +25,7 @@ cache-mode: none
 jobs:
   check-updates:
     name: Check for updates
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       actionable: ${{ steps.gate.outputs.actionable }}
@@ -85,7 +85,7 @@ jobs:
     name: Update dependencies
     needs: check-updates
     if: ${{ needs.check-updates.outputs.actionable == 'true' }}
-    runs-on: ${{ vars.ODAI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ODAI_RUNNER || 'ubuntu-26.04' }}
     timeout-minutes: 45
     permissions:
       contents: read

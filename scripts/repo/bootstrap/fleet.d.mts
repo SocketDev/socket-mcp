@@ -1,4 +1,6 @@
-export declare function migrateRuleFile(dest: string): boolean;
+export declare function migrateRuleFile(dest: string, options?: {
+  preservedPaths?: ReadonlySet<string> | undefined;
+} | undefined): boolean;
 export declare function migrateWorkspaceSettings(dest: string, yaml: string): string;
 /**
  * A script's self-description, answered without running its side effect.
@@ -353,6 +355,7 @@ export interface InstallConfig {
   readonly json?: boolean | undefined;
   readonly manifest?: string | undefined;
   readonly quiet?: boolean | undefined;
+  readonly refresh?: boolean | undefined;
   readonly refreshTracked?: boolean | undefined;
   readonly ref: string;
   readonly repo?: string | undefined;
@@ -713,7 +716,9 @@ export declare function untrackGeneratedOutputs(dest: string, generatedPaths: re
  * consumer's existing file (or start with an empty string), splice the block
  * in, and write back.
  */
-export declare function installSegments(segmentsDir: string, dest: string, manifest: BundleManifest): void;
+export declare function installSegments(segmentsDir: string, dest: string, manifest: BundleManifest, options?: {
+  preservedPaths?: ReadonlySet<string> | undefined;
+} | undefined): void;
 /**
  * Merge the release's canonical Claude settings section into the consumer's
  * hybrid file. Fleet keys are replaced; repo-owned top-level settings and
@@ -850,5 +855,7 @@ export declare function ensureCurrentFleet(config: InstallConfig, dependencies?:
  */
 export declare function installFleet(config: InstallConfig): Promise<number>;
 export declare function isMainModule(): boolean;
-export declare function main(): Promise<number>;
+export declare function main(dependencies?: {
+  readonly ensureCurrent?: typeof ensureCurrentFleet | undefined;
+} | undefined): Promise<number>;
 export { OCI_MANIFEST_ACCEPT as MANIFEST_ACCEPT, type ScriptMeta };

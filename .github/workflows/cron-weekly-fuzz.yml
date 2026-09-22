@@ -78,7 +78,7 @@ jobs:
   discover:
     cache-mode: none
     name: Discover fuzz targets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       rustTargets: ${{ steps.rust.outputs.targets }}
       hasRust: ${{ steps.markers.outputs.hasRust }}
@@ -155,7 +155,7 @@ jobs:
     name: 'Fuzz Rust (${{ matrix.target }})'
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.discover.outputs.hasRust == 'true'
     needs: discover
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -310,7 +310,7 @@ jobs:
     name: Fuzz JavaScript
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.discover.outputs.hasJs == 'true'
     needs: discover
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       DO_NOT_TRACK: '1'
     steps:
@@ -424,7 +424,7 @@ jobs:
     name: Fuzz Go
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.discover.outputs.hasGo == 'true'
     needs: discover
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Bootstrap checkout
         shell: bash
@@ -488,7 +488,7 @@ jobs:
     name: Fuzz C++
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.discover.outputs.hasCpp == 'true'
     needs: discover
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Bootstrap checkout
         shell: bash
@@ -550,7 +550,7 @@ jobs:
     # install — the same split every other fleet workflow uses.
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Bootstrap checkout
         shell: bash

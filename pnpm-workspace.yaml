@@ -56,7 +56,7 @@ catalog:
   # transitive) so its version is uniform fleet-wide.
   '@ultrathink/acorn.rs.wasm': 0.1.1
   'ata-validator': 1.27.0
-  'brace-expansion': 5.0.9
+  'brace-expansion': 5.0.12
   'dtu-github-actions': 0.18.1
   # shadscan — shadcn UI audit CLI for the design skills (missing UI
   # fundamentals report). Exact-pinned; the whole package is younger than
@@ -72,7 +72,7 @@ catalog:
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
   'typebox': 1.3.30
-  '@socketregistry/packageurl-js': 1.5.2
+  '@socketregistry/packageurl-js': 1.5.3
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
   # self-reference and resolves through the local exports map, not
@@ -83,13 +83,13 @@ catalog:
   # version regardless of where the importing file lives. src/ +
   # test/ code uses the canonical name because vitest aliases that
   # to local src/.
-  '@socketregistry/packageurl-js-stable': 'npm:@socketregistry/packageurl-js@1.5.2'
+  '@socketregistry/packageurl-js-stable': 'npm:@socketregistry/packageurl-js@1.5.3'
   '@socketsecurity/lib': 7.0.3
   '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@7.0.3'
   '@socketsecurity/registry': 2.0.5
   '@socketsecurity/registry-stable': 'npm:@socketsecurity/registry@2.0.5'
-  '@socketsecurity/sdk': 4.1.4
-  '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.1.4'
+  '@socketsecurity/sdk': 4.1.5
+  '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.1.5'
   '@types/mdast': 4.0.4
   '@types/node': 26.5.1
   '@types/semver': 7.8.0
@@ -166,7 +166,7 @@ catalog:
   'chrome-devtools-mcp': 1.9.0
   # Playwright MCP server — agent-driven browsing with the fleet agent-banner
   # init script (see .config/fleet/playwright/).
-  '@playwright/mcp': 0.0.80
+  '@playwright/mcp': 0.0.81
   '@vitest/ui': 5.0.0
   'sharp': 0.35.4
   c8: 12.0.0
@@ -236,7 +236,7 @@ overrides:
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
   '@swc/core': '1.16.1'
-  'brace-expansion@>=4': '5.0.9'
+  'brace-expansion@>=4': '5.0.12'
   'chalk@>=5': '5.6.2'
   'es-define-property': 'npm:@socketregistry/es-define-property@1.0.7'
   'es-set-tostringtag': 'npm:@socketregistry/es-set-tostringtag@1.0.10'
@@ -384,8 +384,6 @@ minimumReleaseAgeExclude:
   - 'socket'
   - 'sdxgen'
   - 'sockeye'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - 'mcp-tada@0.4.0'
   # published: 2026-09-17 | removable: 2026-09-24
   - '@ata-validator/native-darwin-arm64@1.27.0'
   # published: 2026-09-17 | removable: 2026-09-24
@@ -402,84 +400,6 @@ minimumReleaseAgeExclude:
   - '@ata-validator/native-win32-x64@1.27.0'
   # published: 2026-09-17 | removable: 2026-09-24
   - 'ata-validator@1.27.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxc-project/types@0.150.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-android-arm-eabi@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-android-arm64@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-darwin-arm64@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-darwin-x64@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-freebsd-x64@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-arm-gnueabihf@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-arm-musleabihf@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-arm64-gnu@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-arm64-musl@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-ppc64-gnu@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-riscv64-gnu@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-riscv64-musl@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-s390x-gnu@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-x64-gnu@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-linux-x64-musl@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-openharmony-arm64@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-win32-arm64-msvc@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-win32-ia32-msvc@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxfmt/binding-win32-x64-msvc@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-android-arm-eabi@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-android-arm64@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-darwin-arm64@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-darwin-x64@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-freebsd-x64@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-arm-gnueabihf@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-arm-musleabihf@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-arm64-gnu@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-arm64-musl@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-ppc64-gnu@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-riscv64-gnu@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-riscv64-musl@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-s390x-gnu@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-x64-gnu@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-linux-x64-musl@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-openharmony-arm64@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-win32-arm64-msvc@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-win32-ia32-msvc@1.83.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - '@oxlint/binding-win32-x64-msvc@1.83.0'
   # published: 2026-09-16 | removable: 2026-09-23
   - '@rolldown/binding-android-arm-eabi@1.2.9'
   # published: 2026-09-16 | removable: 2026-09-23
@@ -510,10 +430,6 @@ minimumReleaseAgeExclude:
   - '@rolldown/binding-win32-arm64-msvc@1.2.9'
   # published: 2026-09-16 | removable: 2026-09-23
   - '@rolldown/binding-win32-x64-msvc@1.2.9'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - 'oxfmt@0.68.0'
-  # published: 2026-09-14 | removable: 2026-09-21
-  - 'oxlint@1.83.0'
   # published: 2026-09-16 | removable: 2026-09-23
   - 'rolldown@1.2.9'
   # published: 2026-09-17 | removable: 2026-09-24
@@ -556,9 +472,6 @@ trustPolicy: no-downgrade
 # default is `false`; declared explicitly so a future default flip
 # can't silently widen the trust boundary.
 trustPolicyExclude:
-  - '@playwright/mcp@0.0.80'
-  - 'playwright@1.63.0-alpha-2026-08-31'
-  - 'playwright-core@1.63.0-alpha-2026-08-31'
   - 'undici-types@6.21.0'
 
 includeWorkspaceRoot: true
@@ -598,17 +511,6 @@ patchedDependencies:
   # patched v10 answers that same shape.
   # On a bump, regenerate via `pnpm patch minimatch` + `pnpm patch-commit`.
   minimatch@10.2.6: patches/fleet/minimatch@10.2.6.patch
-  # default-export interop (managed by socket-wheelhouse sync; do not edit):
-  # 5.0.7 dropped the default export from BOTH builds. The CJS half breaks
-  # minimatch@9's compiled `__importDefault`, which reads `.default` and
-  # skips the namespace fallback once `__esModule` is set. The ESM half
-  # breaks any `import x from 'brace-expansion'`, the shape the fleet CI
-  # cache action resolves through, so an unpatched member throws "does not
-  # provide an export named default" and dies at setup before a test runs.
-  # The patch restores `expand` as the default on each build separately;
-  # patching one build leaves the other broken.
-  # On a bump, regenerate via `pnpm patch brace-expansion` + `pnpm patch-commit`.
-  brace-expansion@5.0.9: patches/fleet/brace-expansion@5.0.9.patch
   # dedup: workflow variable presence (managed by socket-wheelhouse sync):
   # Local CI must accept explicitly supplied empty workflow variables.
   # The fleet payload client ID defaults to empty when no app is configured.
@@ -624,3 +526,14 @@ patchedDependencies:
   # CPU-profiled forks use the configured teardown deadline to flush profiles.
   # Ordinary forks retain the upstream 500 ms termination grace.
   vitest@5.0.0: patches/fleet/vitest@5.0.0.patch
+  # default-export interop (managed by socket-wheelhouse sync; do not edit):
+  # 5.0.7 dropped the default export from BOTH builds. The CJS half breaks
+  # minimatch@9's compiled `__importDefault`, which reads `.default` and
+  # skips the namespace fallback once `__esModule` is set. The ESM half
+  # breaks any `import x from 'brace-expansion'`, the shape the fleet CI
+  # cache action resolves through, so an unpatched member throws "does not
+  # provide an export named default" and dies at setup before a test runs.
+  # The patch restores `expand` as the default on each build separately;
+  # patching one build leaves the other broken.
+  # On a bump, regenerate via `pnpm patch brace-expansion` + `pnpm patch-commit`.
+  brace-expansion@5.0.12: patches/fleet/brace-expansion@5.0.12.patch
