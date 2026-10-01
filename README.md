@@ -25,7 +25,7 @@ Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or ru
 
 ### Option 1: Use the public Socket MCP server (recommended)
 
-The public server uses OAuth. Your MCP client opens a browser to sign in to Socket on first connection. You do not need an API key.
+The public server supports anonymous package scoring. Organization tools require Socket sign-in through OAuth; some MCP clients need an explicit sign-in step. You do not need an API key.
 
 - [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.socket.dev%2F%22%2C%22type%22%3A%22http%22%7D).
 - [Install in Cursor](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D).
@@ -39,11 +39,41 @@ Add the hosted server through Claude's [custom connector settings](https://suppo
 3. Select **Connect** and complete the Socket authorization flow when prompted.
 4. Enable the connector for your conversation, then ask Claude "Check the security score for express version 4.18.2".
 
-For Claude Code, one command does all of it:
+For Claude Code, add the server:
 
 ```sh
 claude mcp add --transport http socket-mcp https://mcp.socket.dev/
 ```
+
+Then run `/mcp`, select `socket-mcp`, choose **Authenticate** (or **Re-authenticate**, if shown), and approve access in your browser. An "authenticated" status before sign-in does not mean organization tools are ready.
+
+</details>
+
+<details><summary><b>Manual install - Codex CLI</b></summary>
+
+Add the server:
+
+```sh
+codex mcp add socket-mcp --url https://mcp.socket.dev/
+```
+
+Codex starts sign-in during this command. You may see an `invalid_scope` page before Codex automatically retries with the three MCP read permissions. Complete the browser authorization on the retry.
+
+To avoid that initial error page, you can instead add the server directly to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.socket-mcp]
+url = "https://mcp.socket.dev/"
+scopes = ["packages:list", "alerts:list", "threat-feed:list"]
+```
+
+Then run:
+
+```sh
+codex mcp login socket-mcp
+```
+
+Keep the `scopes` setting for later sign-ins. Running `codex mcp add` again replaces this server entry and removes the setting. With dynamic client registration, each sign-in creates a new OAuth client with Socket.
 
 </details>
 
