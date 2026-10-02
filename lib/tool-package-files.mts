@@ -147,7 +147,11 @@ export function definePackageFileContentsTool(): ToolSpec {
     description:
       'Read a single file from a package using the `package_file_contents` tool from Socket. Pass the `hash` printed next to each entry in `package_files` output. Returns up to 1 MB of UTF-8 text; binary files return metadata only.',
     inputSchema: packageFileContentsInputSchema,
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
     async handler(rawArgs) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFileContentsArgs
@@ -200,7 +204,11 @@ export function definePackageFileGrepTool(): ToolSpec {
     description:
       'Search a single file from a package for lines matching a JavaScript regular expression. Pass the `hash` printed next to each entry in `package_files` output. The file is fetched from Socket once per session and cached, so repeated greps on the same hash skip the network. Returns matching lines with line numbers (grep -n style); binary files are refused. Useful for locating a specific symbol, import, or string inside a dependency without dumping the whole file.',
     inputSchema: packageFileGrepInputSchema,
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
     async handler(rawArgs) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFileGrepArgs
@@ -297,7 +305,11 @@ export function definePackageFilesTool(): ToolSpec {
     description:
       "List the files published in a package using the `package_files` tool from Socket. Returns a tree of file paths, each with its size and blob hash, for any package on a supported ecosystem (npm, pypi, gem, cargo, maven, golang, nuget, chrome, openvsx). Useful for inspecting what a dependency ships before installing it. After calling this, pass a file's `hash` to `package_file_contents` to read that file, or to `package_file_grep` to search it for a pattern.",
     inputSchema: packageFilesInputSchema,
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
     async handler(rawArgs, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as PackageFilesArgs

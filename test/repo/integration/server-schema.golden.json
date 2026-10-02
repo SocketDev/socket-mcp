@@ -59,7 +59,9 @@
         "required": ["org_slug"]
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
       }
     },
     "depscore": {
@@ -98,7 +100,9 @@
         "required": ["packages"]
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "organizations": {
@@ -107,7 +111,9 @@
         "properties": {}
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
       }
     },
     "package_file_contents": {
@@ -126,7 +132,9 @@
         "required": ["hash"]
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "package_file_grep": {
@@ -165,7 +173,9 @@
         "required": ["hash", "pattern"]
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "package_files": {
@@ -197,7 +207,9 @@
         "required": ["depname", "version"]
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "threat_feed": {
@@ -280,7 +292,9 @@
         "required": ["org_slug"]
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
       }
     }
   }

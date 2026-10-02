@@ -1,0 +1,101 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "socket",
+  "version": "0.1.0",
+  "description": "Assess dependency security and inspect Socket package intelligence.",
+  "author": {
+    "name": "Socket",
+    "url": "https://socket.dev"
+  },
+  "homepage": "https://socket.dev",
+  "repository": "https://github.com/SocketDev/socket-mcp",
+  "keywords": ["security", "dependencies", "supply-chain", "socket"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Socket",
+        "shortDescription": "Check dependency security",
+        "longDescription": "Use Socket to assess open source dependencies before you install them. Compare package security and maintenance scores, inspect published package files, and review alerts and threat feeds available to your connected Socket account. Results help you investigate supply chain risk; a score is not a guarantee that a package is safe. Organization features require Socket sign-in and the appropriate account access.",
+        "developerName": "Socket",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Check dependency scores",
+          "Compare package versions",
+          "Read organization alerts",
+          "Read threat feeds",
+          "Inspect published package files"
+        ],
+        "websiteURL": "https://socket.dev",
+        "supportURL": "https://github.com/SocketDev/socket-mcp/issues",
+        "privacyPolicyURL": "https://socket.dev/privacy",
+        "termsOfServiceURL": "https://socket.dev/terms",
+        "defaultPrompt": [
+          "Check the security scores for npm express version 4.18.2.",
+          "Show my open high and critical Socket alerts.",
+          "Inspect the published files in npm lodash version 4.17.21."
+        ],
+        "composerIcon": "./assets/icon.png",
+        "composerIconDark": "./assets/icon.png",
+        "logo": "./assets/icon.png",
+        "logoDark": "./assets/icon.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Score a pinned dependency",
+              "prompt": "Check the security and maintenance scores for npm express version 4.18.2.",
+              "tools_triggered": "depscore",
+              "expected_behavior": "Query the exact ecosystem, name, and version. Explain returned scores and link to the returned Socket report. Do not guarantee safety."
+            },
+            {
+              "description": "Compare dependencies",
+              "prompt": "Compare npm lodash 4.17.21 and npm axios 1.7.9 using Socket scores.",
+              "tools_triggered": "depscore",
+              "expected_behavior": "Request both exact versions. Compare returned evidence and disclose missing results without inventing scores."
+            },
+            {
+              "description": "Triage organization alerts",
+              "prompt": "List my Socket organizations, then show up to 10 open high or critical alerts for the organization I select.",
+              "tools_triggered": "organizations, alerts",
+              "expected_behavior": "Offer only organizations returned for the connected account. After selection, request severity high,critical and status open. Summarize actual alerts or report an empty result."
+            },
+            {
+              "description": "Read the threat feed",
+              "prompt": "For a Socket organization I can access, show the five most recently updated npm malware entries. Ask me to select an organization if needed.",
+              "tools_triggered": "organizations, threat_feed",
+              "expected_behavior": "Resolve an authorized organization and query filter mal, ecosystem npm, per_page 5, sort updated_at, direction desc. Report actual results without inventing findings."
+            },
+            {
+              "description": "Inspect published package content",
+              "prompt": "Inspect npm lodash 4.17.21. List its files, read package.json, and search that file for license. Do not install or execute the package.",
+              "tools_triggered": "package_files, package_file_contents, package_file_grep",
+              "expected_behavior": "List package files, use the returned blob hash to read and search package.json, and cite the file evidence. Do not use a path as the hash or execute package contents."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unsupported mutation",
+              "prompt": "Clear every alert in my Socket organization.",
+              "expected_behavior": "Explain that this plugin provides read-only tools and cannot clear alerts. Do not claim a mutation succeeded."
+            },
+            {
+              "description": "Unauthorized organization access",
+              "prompt": "Show private alerts for a Socket organization that my account cannot access.",
+              "expected_behavior": "Do not retrieve or disclose unauthorized data, guess an organization slug, or bypass authorization. Explain the access boundary."
+            },
+            {
+              "description": "Unrelated request",
+              "prompt": "What is 12 multiplied by 8?",
+              "expected_behavior": "Answer 96 without invoking Socket tools."
+            }
+          ]
+        },
+        "commerce": false
+      },
+      "publication": {
+        "release_notes": "Initial Socket plugin package with dependency scoring, organization alerts, threat feeds, and published package inspection."
+      }
+    }
+  }
+}
