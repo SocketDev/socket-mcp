@@ -13,9 +13,9 @@ Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or ru
 ## ✨ Features
 
 - 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, cargo, Maven, NuGet, RubyGems, Go Modules, and more ([supported ecosystems](https://docs.socket.dev/docs/language-support))
-- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; sign in once via OAuth, no self-hosting
+- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; package scoring is anonymous and organization tools use OAuth
 - 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
-- 🤖 **AI Assistant Integration** - Works seamlessly with Claude, VS Code Copilot, Cursor, and other MCP clients
+- 🤖 **AI Assistant Integration** - Connect from MCP-compatible clients; OAuth behavior varies by client
 - 📊 **Batch Processing** - Check multiple dependencies in a single request
 - 🔒 **OAuth Sign-In** - Public server authenticates through your MCP client's OAuth flow; no API key to copy or manage
 
@@ -145,6 +145,20 @@ To self-host with an API key instead, see Option 2 below and register the stdio 
 Alternatively, type `/mcp` within the Factory droid to manage MCP servers from an interactive UI. Learn more in the [Factory MCP documentation](https://docs.factory.ai/cli/configuration/mcp).
 
 </details>
+
+### Tested client compatibility
+
+Snapshot dated October 2, 2026; tests ran September 29–October 1. Each result applies to the listed client version and setup.
+
+| Client and tested setup | Hosted OAuth result | Verified tools and continuity | Important limit or workaround |
+| --- | --- | --- | --- |
+| Claude Code 2.1.285, hosted HTTP | First `organizations` call failed with a sign-in request; explicit OAuth then completed. | The 2.1.285 run verified the initial failure and successful login. `organizations` and `depscore` passed after login in a separate 2.1.284 run. | The pre-login “authenticated” label was misleading; see [upstream issue #98942](https://github.com/anthropics/claude-code/issues/98942). |
+| Codex CLI 0.159.2, hosted HTTP | Works after explicit login. | `organizations` and `depscore` passed after login, including a new conversation and idle checks. | A broad scope request showed `invalid_scope` before Codex retried with the three MCP read permissions; see [upstream issue #15643](https://github.com/openai/codex/issues/15643). |
+| Cursor 3.22.12, hosted HTTP OAuth | Fails in tested conditions: `organizations` remained Unauthorized; the Authenticate card did not establish access. | `organizations` only; no successful hosted OAuth call verified. | Cursor 3.20 recurrence was manually reported; no fix version is known. |
+| Cursor, local stdio with API token (version not recorded) | Not applicable; this setup bypasses hosted OAuth. | `depscore` passed; restart continuity was reported manually. | This does not verify hosted OAuth, `organizations`, or other tools. |
+| Zed Agent 1.22.0, hosted HTTP | Works after explicit OAuth. | `organizations` and `depscore` passed after login, restart, and a six-minute idle check. | Intermittent timeouts after idle, cause under investigation; four client timeouts matched fast server HTTP 400 responses. |
+
+Only `organizations` and `depscore` were tested. Token refresh, server-side revocation, and all-tool coverage were not tested. Claude Desktop, VS Code, Windsurf, and Factory were not tested in this matrix.
 
 ### Clients that need a local bridge
 
@@ -551,7 +565,7 @@ Always check dependency scores with the depscore tool when you add a new depende
 
 ## Claude Code Hook (Optional)
 
-The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up; the public server signs in via OAuth on first use.
+The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up. The hook does not configure or initiate OAuth.
 
 Supported ecosystems and package managers:
 
