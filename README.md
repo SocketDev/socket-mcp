@@ -73,7 +73,7 @@ Then run:
 codex mcp login socket-mcp
 ```
 
-Keep the `scopes` setting for later sign-ins. Running `codex mcp add` again replaces this server entry and removes the setting. With dynamic client registration, each sign-in creates a new OAuth client with Socket.
+With dynamic client registration, each sign-in creates a new OAuth client with Socket.
 
 </details>
 
