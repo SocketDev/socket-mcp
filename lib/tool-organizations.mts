@@ -20,7 +20,11 @@ export function defineOrganizationsTool(): ToolSpec {
     description:
       'List the Socket organizations the authenticated user belongs to with the `organizations` tool. Use this to discover the `org_slug` values needed by other org-scoped tools (e.g. `alerts`, `threat_feed`), or when the user asks which organizations they have access to.',
     inputSchema: Type.Object({}),
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     async handler(_args, extra) {
       logger.info({ tool: 'organizations' }, 'tool invoked')
       const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
