@@ -1,53 +1,69 @@
-import { SocketSdk } from '@socketsecurity/sdk'
+import { httpRequest } from '@socketsecurity/lib/http-request/request'
+import { HttpResponseError } from '@socketsecurity/lib/http-request/response-types'
+
+const MAX_RESPONSE_SIZE = 10 * 1024 * 1024
 
 export interface FetchOrganizationsConfig {
   baseUrl: string
   userAgent?: string | undefined
-  // Socket access token. The SDK sends it as HTTP Basic auth (token as the
-  // username, empty password).
+  // Socket access token. HTTP Basic uses it as the username.
   authToken?: string | undefined
 }
 
-// The failure fields the SDK reports on a non-2xx `listOrganizations()`.
-export interface OrganizationsFailure {
-  cause?: string | undefined
-  error: string
-  status: number
-}
-
-// Render an SDK failure into the message `fetchOrganizations` throws. The SDK
-// reports `cause` only for some failures, so it is appended in parentheses
-// when present and omitted otherwise.
-export function buildOrganizationsErrorMessage(
-  failure: OrganizationsFailure,
-): string {
-  return `organizations endpoint ${failure.status}: ${failure.error}${
-    failure.cause ? ` (${failure.cause})` : ''
-  }`
-}
-
 /**
- * Fetch the organizations the authenticated user belongs to via the Socket
- * SDK's `listOrganizations()` (`GET /v0/organizations`). Returns the parsed
- * JSON body untouched — downstream callers decide how to render it. Throws with
- * the SDK-reported status + error on a non-2xx response.
- *
- * The SDK's `baseUrl` already carries the `/v0/` path segment, so the caller's
- * `baseUrl` (the bare API origin) gets `/v0/` appended.
+ * Fetch the organizations the authenticated user belongs to from
+ * `GET /v0/organizations`. Returns the parsed JSON body untouched.
  */
 export async function fetchOrganizations(
   config: FetchOrganizationsConfig,
 ): Promise<unknown> {
   config = { __proto__: null, ...config } as typeof config
-  const baseUrl = `${config.baseUrl.replace(/\/$/u, '')}/v0/`
-  const sdk = new SocketSdk(config.authToken ?? '', {
-    baseUrl,
-    ...(config.userAgent ? { userAgent: config.userAgent } : {}),
-  })
-
-  const result = await sdk.listOrganizations()
-  if (!result.success) {
-    throw new Error(buildOrganizationsErrorMessage(result))
+  const token = config.authToken?.trim()
+  if (!token) {
+    throw new Error('Socket API token is required for organizations')
   }
-  return result.data
+  const url = `${config.baseUrl.replace(/\/$/u, '')}/v0/organizations`
+  try {
+    const res = await httpRequest(url, {
+      headers: {
+        accept: 'application/json',
+        authorization: `Basic ${Buffer.from(`${token}:`).toString('base64')}`,
+        ...(config.userAgent ? { 'user-agent': config.userAgent } : {}),
+      },
+      maxResponseSize: MAX_RESPONSE_SIZE,
+      onRetry: (_attempt, error, delay) => retryDelay(error, delay),
+      retries: 3,
+      throwOnError: true,
+    })
+    const body = res.text()
+    return body === '' ? {} : JSON.parse(body)
+  } catch (error) {
+    if (error instanceof HttpResponseError) {
+      throw new Error(
+        `organizations endpoint ${error.response.status}: ${error.response.text()}`,
+      )
+    }
+    throw error
+  }
+}
+
+export function retryDelay(error: unknown, delay: number): boolean | number {
+  if (!(error instanceof HttpResponseError)) {
+    return delay
+  }
+  const { status, headers } = error.response
+  if (status >= 400 && status < 500 && status !== 429) {
+    return false
+  }
+  const retryAfter = headers['retry-after']
+  if (status !== 429 || !retryAfter) {
+    return delay
+  }
+  const value = Array.isArray(retryAfter) ? retryAfter[0] : retryAfter
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1000
+  }
+  const dateDelay = Date.parse(value) - Date.now()
+  return dateDelay > 0 ? dateDelay : delay
 }

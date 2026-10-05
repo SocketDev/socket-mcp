@@ -168,6 +168,17 @@ describe('stateless serving', () => {
     expect(message.result.tools.map(t => t.name)).toContain('depscore')
   })
 
+  test('serves a modern request carrying a stale session id', async () => {
+    const res = await postModern('tools/list', undefined, {
+      'mcp-session-id': 'stale-session',
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers['mcp-session-id']).toBeUndefined()
+    expect(
+      res.json<WireToolsListMessage>().result.tools.map(t => t.name),
+    ).toContain('depscore')
+  })
+
   test('stamps the configured cache metadata onto a 2026-era tools/list', async () => {
     const message = (
       await postModern('tools/list')
@@ -237,6 +248,28 @@ describe('2025-era compatibility', () => {
         protocolVersion: LEGACY_PROTOCOL_VERSION,
         serverInfo: { name: 'socket' },
       },
+    })
+  })
+
+  test('serves a legacy initialize carrying a stale session id', async () => {
+    const res = await postJson(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'initialize',
+        params: {
+          protocolVersion: LEGACY_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: 'legacy', version: '0.0.0' },
+        },
+      },
+      { 'mcp-session-id': 'stale-session' },
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers['mcp-session-id']).toBeUndefined()
+    expect(parseSseData(res.text())).toMatchObject({
+      id: 3,
+      result: { protocolVersion: LEGACY_PROTOCOL_VERSION },
     })
   })
 

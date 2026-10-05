@@ -1,10 +1,7 @@
 import nock from 'nock'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import {
-  buildOrganizationsErrorMessage,
-  fetchOrganizations,
-} from '../../../lib/organizations.mts'
+import { fetchOrganizations } from '../../../lib/organizations.mts'
 
 const API = 'https://api.socket.dev'
 
@@ -19,8 +16,7 @@ afterEach(() => {
 
 describe('fetchOrganizations', () => {
   test('GETs /v0/organizations with Basic auth + returns the body', async () => {
-    // The Socket SDK authenticates with HTTP Basic (token as the username,
-    // empty password) — base64('tok:') === 'dG9rOg=='.
+    // HTTP Basic uses the token as the username and an empty password.
     nock(API)
       .matchHeader('authorization', 'Basic dG9rOg==')
       .get('/v0/organizations')
@@ -42,43 +38,50 @@ describe('fetchOrganizations', () => {
       fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
     ).rejects.toThrow(/organizations endpoint 401/)
   })
+
+  test('retries a transient response and respects Retry-After', async () => {
+    const scope = nock(API)
+      .get('/v0/organizations')
+      .reply(429, { error: 'rate limited' }, { 'retry-after': '0' })
+      .get('/v0/organizations')
+      .reply(200, { organizations: {} })
+    await expect(
+      fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
+    ).resolves.toEqual({ organizations: {} })
+    expect(scope.isDone()).toBe(true)
+  })
+
+  test('does not retry a non-rate-limit client error', async () => {
+    const scope = nock(API).get('/v0/organizations').reply(403, 'forbidden')
+    await expect(
+      fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
+    ).rejects.toThrow('organizations endpoint 403: forbidden')
+    expect(scope.isDone()).toBe(true)
+  })
+
+  test('treats an empty successful body as an empty object', async () => {
+    nock(API).get('/v0/organizations').reply(200)
+    await expect(
+      fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
+    ).resolves.toEqual({})
+  })
+
+  test('limits the response body to 10 MiB', async () => {
+    nock(API)
+      .get('/v0/organizations')
+      .times(4)
+      .reply(200, 'x'.repeat(10 * 1024 * 1024 + 1))
+    await expect(
+      fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
+    ).rejects.toThrow(/maxResponseSize|response size|exceeds/iu)
+  })
 })
 
 describe('fetchOrganizations auth and error shape', () => {
-  test('refuses to build an SDK client with no token', async () => {
-    // `authToken ?? ''` hands the SDK an empty credential, and the SDK
-    // refuses it up front rather than sending an unauthenticated request.
+  test('refuses to send a request with no token', async () => {
     await expect(fetchOrganizations({ baseUrl: API })).rejects.toThrow(
-      '"apiToken" cannot be empty or whitespace-only',
+      'Socket API token is required for organizations',
     )
     expect(nock.pendingMocks()).toEqual([])
-  })
-})
-
-describe('buildOrganizationsErrorMessage', () => {
-  test('appends the SDK cause in parentheses when it is reported', () => {
-    expect(
-      buildOrganizationsErrorMessage({
-        cause: 'token expired',
-        error: 'Unauthorized',
-        status: 401,
-      }),
-    ).toBe('organizations endpoint 401: Unauthorized (token expired)')
-  })
-
-  test('omits the parenthetical when the SDK reports no cause', () => {
-    expect(
-      buildOrganizationsErrorMessage({ error: 'Server Error', status: 500 }),
-    ).toBe('organizations endpoint 500: Server Error')
-  })
-
-  test('omits the parenthetical for an empty cause', () => {
-    expect(
-      buildOrganizationsErrorMessage({
-        cause: '',
-        error: 'Server Error',
-        status: 500,
-      }),
-    ).toBe('organizations endpoint 500: Server Error')
   })
 })
