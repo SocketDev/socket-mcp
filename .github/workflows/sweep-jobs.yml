@@ -10,15 +10,14 @@ run-name: 'sweep: jobs'
 #   - purges every run of workflows whose source is gone from the default
 #     branch.
 #
-# Cache (scripts/fleet/prune-actions-caches.mts): keeps the newest generations
+# Cache (scripts/fleet/workflow/caches/prune.mts): keeps the newest generations
 # per cache-key group and holds the total under an 8 GB budget. This one is not
 # cosmetic — GitHub caps a repo at 10 GB and silently LRU-evicts past it, so an
 # over-budget repo quietly loses the entries it restores most and every job
 # rebuilds cold.
 #
-# Byte-identical across the fleet (cascaded); edit
-# template/base/universal/.github/workflows/sweep-jobs.yml and re-cascade via
-# `pnpm run sync`.
+# Byte-identical across the fleet (cascaded); edit this template and run
+# `pnpm run dogfood fleet-code --dogfood` to update this checkout.
 
 on:
   schedule:
@@ -94,39 +93,36 @@ jobs:
           # key, hydration still pulls public GHCR anonymously.
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      - name: Prune workflow runs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DAYS: ${{ inputs.days || '' }}
-          DRY_RUN: ${{ inputs.dry-run }}
-        run: |
-          # No --days by default: the script's own policy applies (keep the
-          # newest 20 runs per present workflow, purge dependabot/gh-audit
-          # run groups and absent workflows).
-          ARGS=()
-          if [ -n "$DAYS" ]; then
-            ARGS+=(--days "$DAYS")
-          fi
-          if [ "$DRY_RUN" = "true" ]; then
-            ARGS+=(--dry-run)
-          fi
-          node scripts/fleet/workflow/runs/prune.mts "${ARGS[@]}"
-      # Same job, not a second one: every job starts on a bare runner and would
-      # need its own copy of the inline bootstrap above, and that bootstrap is
-      # deliberately tri-plicated and lock-step checked. `always()` keeps the
-      # cache sweep independent of the run sweep's result, which is the only
-      # thing a separate job would have bought.
-      - name: Prune Actions caches
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DRY_RUN: ${{ inputs.dry-run }}
-        run: |
-          # No flags by default: the script's own policy applies (keep the
-          # newest 2 generations per key group, hold the total under 8 GB, and
-          # never evict an entry accessed in the last 7 days).
-          ARGS=()
-          if [ "$DRY_RUN" = "true" ]; then
-            ARGS+=(--dry-run)
-          fi
-          node scripts/fleet/prune-actions-caches.mts "${ARGS[@]}"
+      - parallel:
+          - name: Prune workflow runs
+            env:
+              GH_TOKEN: ${{ github.token }}
+              DAYS: ${{ inputs.days || '' }}
+              DRY_RUN: ${{ inputs.dry-run }}
+            run: |
+              # No --days by default: the script's own policy applies (keep the
+              # newest 20 runs per present workflow, purge dependabot/gh-audit
+              # run groups and absent workflows).
+              ARGS=()
+              if [ -n "$DAYS" ]; then
+                ARGS+=(--days "$DAYS")
+              fi
+              if [ "$DRY_RUN" = "true" ]; then
+                ARGS+=(--dry-run)
+              fi
+              node scripts/fleet/workflow/runs/prune.mts "${ARGS[@]}"
+
+          - name: Prune Actions caches
+            if: always()
+            env:
+              GH_TOKEN: ${{ github.token }}
+              DRY_RUN: ${{ inputs.dry-run }}
+            run: |
+              # No flags by default: the script's own policy applies (keep the
+              # newest 2 generations per key group, hold the total under 8 GB, and
+              # never evict an entry accessed in the last 7 days).
+              ARGS=()
+              if [ "$DRY_RUN" = "true" ]; then
+                ARGS+=(--dry-run)
+              fi
+              node scripts/fleet/workflow/caches/prune.mts "${ARGS[@]}"

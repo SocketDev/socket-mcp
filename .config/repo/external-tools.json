@@ -54,45 +54,45 @@
         "Installed when SOCKET_API_KEY (or SOCKET_API_TOKEN) is set; otherwise the free flavor (sfw-free) is used. The two flavors share a version and install to the same `sfw` binary name."
       ],
       "description": "Socket Firewall (enterprise tier) — package manager command wrapper",
-      "version": "1.15.2",
+      "version": "1.15.4",
       "repository": "github:SocketDev/firewall-release",
-      "tag": "v1.15.2",
+      "tag": "v1.15.4",
       "binaryName": "sfw",
       "platforms": {
         "darwin-arm64": {
           "asset": "sfw-macos-arm64",
-          "integrity": "sha512-dkETkXxmdVqA/NhV2Pp+754e8t65WHx2x+LE+D4dbX11QhNRAV4pfH2NxKCV3J9YXgzg8MwdLTB9pu6gxfX/7g=="
+          "integrity": "sha512-rhW6U8/3w7eciriH9mLCE3krMAQuS1xl0CXayw26Xn1kWLh6PwIbpRDjF4QvKFNSpYQKdfEhh9dsBabUxza6sw=="
         },
         "darwin-x64": {
           "asset": "sfw-macos-x86_64",
-          "integrity": "sha512-SCDBU28Eq/1plsmUBhzdf1GLtaYlwHvgMe3ytawP0TkZNi1TcaiUQvZR8mOypej6Q10b/yjeUSAyCUUujrK/fg=="
+          "integrity": "sha512-J+xy3DdHah837x0bIlByCQ2pABtPPu5zkKdthIDpsdwNxLWmeFbPyaZQCwrWV4bzkFQz6p0aqGK0SdvqYXR8lw=="
         },
         "linux-arm64": {
           "asset": "sfw-linux-arm64",
-          "integrity": "sha512-voSGk2iyayKn5MtfjJzipZSj2EBIQNaHRj2GyShpTbPtNYb4KCfXU9Xjk3h7ySN8buUNdGWkwbbF6bewuOr+vg=="
+          "integrity": "sha512-+cOHb1eZOGSEnHMNUsrGOk7hUSEMqTNSBQBEX9zOk9bapFe6bFAz41286L5Od3VxOrlPk6+szHP4d+J7XM604A=="
         },
         "linux-arm64-musl": {
           "asset": "sfw-musl-linux-arm64",
-          "integrity": "sha512-XwqBwq3VFRLASFWu6gVHZTnI23uPAig9bFVCS7rXQe5ykog8a0aLnQG834P+owIR7T8YgSsTTFZh4d6joyWZJg=="
+          "integrity": "sha512-wtPmCCSxNIhcTdyIb6eiUN1rK2fCxrH39QAuYgcyxwtPSAS1dEHYb7yHPNJlOQfZm+WnQ3j7VQL4sCrswSIzbQ=="
         },
         "linux-x64": {
           "asset": "sfw-linux-x86_64",
-          "integrity": "sha512-p+hVx3A51RdMjkUsNlE6Hor6fnwBBEczorwL2ee6xGWfu0Q7Ok8POIIhX+kFPGnSDmytpNaTYkioLVFP+Hn9Og=="
+          "integrity": "sha512-Kxuztnz5CkV/Jt5hMZnyjkwrUwlnzjnxt9oBQMAnUdfoPebDJ64s6PSa/WF3xxM9mIIt0k462+oC+ykzMTdzag=="
         },
         "linux-x64-musl": {
           "asset": "sfw-musl-linux-x86_64",
-          "integrity": "sha512-6Ylukj7jrw6zGxpiqMJRH8Q9n6RDjd84DCXArd9ZahaPoSVvWnJ56nZOzPM3G8uwG5Htn/0s+hj1J6K3FKKNQg=="
+          "integrity": "sha512-pz7rsn/WAAwEXzhFEcULpB8jfFANGN6g8AQNuTrl9ildDKrb/JTS9MbXylzCIc3GUWL1mE1olekPnBAkb8/A+w=="
         },
         "win32-x64": {
           "asset": "sfw-windows-x86_64.exe",
-          "integrity": "sha512-xXhch+OLtqYjatxThlqOv+HY2ooSoyA0B/hujjjSLyQ7xz8LLcJtc+Db0iBB/2mOKYc4KqQT4ukeTtxz3g0+xQ=="
+          "integrity": "sha512-zi2isECucghnSVLVDjTaABKr/2nsmiUHVGEELcj1/7DRLbFIYLq+m3zpcfRJTLstElWbht2PjIJQuHWtnrzLrw=="
         }
       },
       "origin": "gh-asset",
       "soakBypass": {
-        "published": "2026-09-15",
-        "removable": "2026-09-22",
-        "version": "1.15.2"
+        "published": "2026-10-01",
+        "removable": "2026-10-08",
+        "version": "1.15.4"
       }
     },
     "sfw-free": {
@@ -101,45 +101,45 @@
         "Installed when neither SOCKET_API_KEY nor SOCKET_API_TOKEN is set; the enterprise flavor (sfw-enterprise) is selected when one of those is present. The two flavors share a version and install to the same `sfw` binary name."
       ],
       "description": "Socket Firewall (free tier) — package manager command wrapper",
-      "version": "1.15.2",
+      "version": "1.15.4",
       "repository": "github:SocketDev/sfw-free",
-      "tag": "v1.15.2",
+      "tag": "v1.15.4",
       "binaryName": "sfw",
       "platforms": {
         "darwin-arm64": {
           "asset": "sfw-free-macos-arm64",
-          "integrity": "sha512-pimnuYldUXHrc4j6ZO501ibgo8oIyEsgHDHeQhih8huJEttEB29HPCO7Lk/+2MAF7Sv37mOkiQjYI3OU91Db6Q=="
+          "integrity": "sha512-r+J3NSFkpqzlXVCPohISrPoDU33y0eTWcSNmvPQRyQTV2D05eF6H/LzJRS4b7ONuKQIpu/t5KgXyoPkyGiAEgg=="
         },
         "darwin-x64": {
           "asset": "sfw-free-macos-x86_64",
-          "integrity": "sha512-EjBRxWgrdITmVg5ZLvjjnZ5vDCKSBNqTLPOuDjYeHdjXf+BkYs+SGfH/z6lsMUumiDqj/kTtvbRMXoKDMY4x+w=="
+          "integrity": "sha512-Owc7IfGNh+ZQfDKhuUa7TtBWpnPQJWYbTzALDFsss+s3d8g9rISTcsdx4rhjM18e3TLG6QM3bHLYw2G3bYJTng=="
         },
         "linux-arm64": {
           "asset": "sfw-free-linux-arm64",
-          "integrity": "sha512-PttVwERdz6OGIhBKbpKklnZC8/cdfpeFxrcDETS1G38+taDqpWYV8Hg12Gh9LDdHsJfrksrdjnPa/tfHaTE5lw=="
+          "integrity": "sha512-6jIeFfwMO3RRM0t8Fdpj2BBAREgSWwdaj1dAjTE+9rAYP1PyWDT+ZxJWoDHKCqePYrhvGANVs9GlQdLptLN3OQ=="
         },
         "linux-arm64-musl": {
           "asset": "sfw-free-musl-linux-arm64",
-          "integrity": "sha512-motTFDIZGBRcTomoeIbpcFsy2DFknnzZxTaHDZrRQcF42UoUjeXiJieH1mALF7H/zCsc0hFajohmLlvxsUO1sQ=="
+          "integrity": "sha512-kMO5ZgMG9Xq+dbnwTueQ/kO/sx6+CGdGd+Lo0zTMoyvUtbeeO4xk5UKg9N3k7lG7KoBtcf5f4yQV4w1tNlSNxA=="
         },
         "linux-x64": {
           "asset": "sfw-free-linux-x86_64",
-          "integrity": "sha512-oHiRTl9O8kdHINEGWjqocj/gz70fPVzVVeS35PwraK7lzHSO4I3++CtUni0NsRvLhIxSZqD3A/xmKzvkgYXDJQ=="
+          "integrity": "sha512-mOxJNA9c3jsOzxXE2grwWYGv/3BN8cj4t9Kfiu7z6Q0Z4p2UcEuR5ldHoZkMReD08F3hV13+c/YuHFtR9K5Bfw=="
         },
         "linux-x64-musl": {
           "asset": "sfw-free-musl-linux-x86_64",
-          "integrity": "sha512-CLmE1J6q1BCHu1QKge+zJda3iXkKuFE8+3ITW7++iUJxVTbcMRCxdB2EqYnUpLQG1MM4pbQxgQ7Dq7OozBQjAw=="
+          "integrity": "sha512-Z1kyV0D0WP6P2N9FCmpITviITiGSE7vcdvBBJXUGNghtfZRVhhanwGf5FkS0UNDAXHziqE+rISs4Ve++sZj8tg=="
         },
         "win32-x64": {
           "asset": "sfw-free-windows-x86_64.exe",
-          "integrity": "sha512-vPOL88R3H75j0rHg6lRv53rwtRxFxDo7rzjXU0rWWPDY1U1e3hQzAmvsloS19uo6noWeCXIBJ8ZAbZxQf7EFxA=="
+          "integrity": "sha512-kh7yWn5TzLGI+rpujGwzX+HIaVa1/BHTVpJ58cBAYnwPSuYRhgUciX0vqKKoK3P3nYYMGrN7IvhZ4L91krsYLw=="
         }
       },
       "origin": "gh-asset",
       "soakBypass": {
-        "published": "2026-09-15",
-        "removable": "2026-09-22",
-        "version": "1.15.2"
+        "published": "2026-10-01",
+        "removable": "2026-10-08",
+        "version": "1.15.4"
       }
     },
     "zizmor": {

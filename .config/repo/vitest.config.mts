@@ -536,7 +536,10 @@ const config = defineConfig({
   },
 })
 
-if (config.test) {
+// The fast lane excludes every build-test home through its mid/slow lane
+// filters. Avoid the repository-wide authored-build scan during the ten-second
+// fast loop; mid, slow, and full runs retain the complete exception handling.
+if (config.test && activeLane !== 'fast') {
   config.test.exclude = resolveGeneratedTestExcludes({
     repoRoot: process.cwd(),
     include: config.test.include ?? [],
