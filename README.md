@@ -13,9 +13,9 @@ Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or ru
 ## ✨ Features
 
 - 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, cargo, Maven, NuGet, RubyGems, Go Modules, and more ([supported ecosystems](https://docs.socket.dev/docs/language-support))
-- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; sign in once via OAuth, no self-hosting
+- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; package scoring is anonymous and organization tools use OAuth
 - 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
-- 🤖 **AI Assistant Integration** - Works seamlessly with Claude, VS Code Copilot, Cursor, and other MCP clients
+- 🤖 **AI Assistant Integration** - Connect from MCP-compatible clients; OAuth behavior varies by client
 - 📊 **Batch Processing** - Check multiple dependencies in a single request
 - 🔒 **OAuth Sign-In** - Public server authenticates through your MCP client's OAuth flow; no API key to copy or manage
 
@@ -25,7 +25,7 @@ Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or ru
 
 ### Option 1: Use the public Socket MCP server (recommended)
 
-The public server uses OAuth. Your MCP client opens a browser to sign in to Socket on first connection. You do not need an API key.
+The public server supports anonymous package scoring. Organization tools require Socket sign-in through OAuth; some MCP clients need an explicit sign-in step. You do not need an API key.
 
 - [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.socket.dev%2F%22%2C%22type%22%3A%22http%22%7D).
 - [Install in Cursor](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D).
@@ -39,11 +39,41 @@ Add the hosted server through Claude's [custom connector settings](https://suppo
 3. Select **Connect** and complete the Socket authorization flow when prompted.
 4. Enable the connector for your conversation, then ask Claude "Check the security score for express version 4.18.2".
 
-For Claude Code, one command does all of it:
+For Claude Code, add the server:
 
 ```sh
 claude mcp add --transport http socket-mcp https://mcp.socket.dev/
 ```
+
+Then run `/mcp`, select `socket-mcp`, choose **Authenticate** (or **Re-authenticate**, if shown), and approve access in your browser. An "authenticated" status before sign-in does not mean organization tools are ready.
+
+</details>
+
+<details><summary><b>Manual install - Codex CLI</b></summary>
+
+Add the server:
+
+```sh
+codex mcp add socket-mcp --url https://mcp.socket.dev/
+```
+
+Codex starts sign-in during this command. You may see an `invalid_scope` page before Codex automatically retries with the three MCP read permissions. Complete the browser authorization on the retry.
+
+To avoid that initial error page, you can instead add the server directly to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.socket-mcp]
+url = "https://mcp.socket.dev/"
+scopes = ["packages:list", "alerts:list", "threat-feed:list"]
+```
+
+Then run:
+
+```sh
+codex mcp login socket-mcp
+```
+
+With dynamic client registration, each sign-in creates a new OAuth client with Socket.
 
 </details>
 
@@ -521,7 +551,7 @@ Always check dependency scores with the depscore tool when you add a new depende
 
 ## Claude Code Hook (Optional)
 
-The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up; the public server signs in via OAuth on first use.
+The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up. The hook does not configure or initiate OAuth.
 
 Supported ecosystems and package managers:
 
@@ -676,6 +706,22 @@ Suitable for Kubernetes liveness/readiness probes, Docker health checks, load ba
 - 💬 [Community Support](https://github.com/SocketDev/socket-mcp/discussions)
 
 </details>
+
+## Compatibility
+
+MCP is still evolving, and client implementations differ in how they handle parts of the protocol. We proactively track compatibility gaps and work to offer the best possible experience with Claude Code, Codex, Cursor, and Zed. The table below summarizes the latest tests and known gaps.
+
+Snapshot dated October 2, 2026; tests ran September 29–October 1. Each result applies to the listed client version and setup.
+
+| Client and tested setup | Hosted OAuth result | Verified tools and continuity | Important limit or workaround |
+| --- | --- | --- | --- |
+| Claude Code 2.1.285, hosted HTTP | First `organizations` call failed with a sign-in request; explicit OAuth then completed. | The 2.1.285 run verified the initial failure and successful login. `organizations` and `depscore` passed after login in a separate 2.1.284 run. | The pre-login “authenticated” label was misleading; see [upstream issue #98942](https://github.com/anthropics/claude-code/issues/98942). |
+| Codex CLI 0.159.2, hosted HTTP | Works after explicit login. | `organizations` and `depscore` passed after login, including a new conversation and idle checks. | A broad scope request showed `invalid_scope` before Codex retried with the three MCP read permissions; see [upstream issue #15643](https://github.com/openai/codex/issues/15643). |
+| Cursor 3.22.12, hosted HTTP OAuth | Fails in tested conditions: `organizations` remained Unauthorized; the Authenticate card did not establish access. | `organizations` only; no successful hosted OAuth call verified. | Cursor 3.20 recurrence was manually reported; no fix version is known. [A related forum reply](https://forum.cursor.com/t/plugin-mcp-oauth-never-reaches-needsauth-authenticate-button-missing-browser-never-opens/170058/8) describes an unsuccessful workaround attempt but identifies a separate Cursor 3.18.9 marketplace-import blocker. |
+| Cursor, local stdio with API token (version not recorded) | Not applicable; this setup bypasses hosted OAuth. | `depscore` passed; restart continuity was reported manually. | This does not verify hosted OAuth, `organizations`, or other tools. |
+| Zed Agent 1.22.0, hosted HTTP | Works after explicit OAuth. | `organizations` and `depscore` passed after login, restart, and a six-minute idle check. | Intermittent timeouts after idle, cause under investigation; four client timeouts matched fast server HTTP 400 responses. |
+
+Only `organizations` and `depscore` were tested. Token refresh, server-side revocation, and all-tool coverage were not tested. Claude Desktop, VS Code, Windsurf, and Factory were not tested in this matrix.
 
 ## License
 
