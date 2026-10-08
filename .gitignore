@@ -2709,6 +2709,7 @@ docs/fleet/agents.md/history-rewrites.md
 docs/fleet/agents.md/hook-bundle.md
 docs/fleet/agents.md/hook-registry.md
 docs/fleet/agents.md/human-gates.md
+docs/fleet/agents.md/hybrid-ownership.md
 docs/fleet/agents.md/immutable-references.md
 docs/fleet/agents.md/immutable-releases.md
 docs/fleet/agents.md/inclusive-language.md
@@ -4079,6 +4080,7 @@ scripts/fleet/fs/cascaded-mirrors.mts
 scripts/fleet/fs/file-ownership.mts
 scripts/fleet/fs/fleet-canonical-splice.mts
 scripts/fleet/fs/force.mts
+scripts/fleet/fs/hybrid-cutouts.mts
 scripts/fleet/fs/mirror-lock.mts
 scripts/fleet/fs/mirror/registry.mts
 scripts/fleet/fs/never-walked-entries.mts
@@ -4389,6 +4391,7 @@ scripts/fleet/npm/native-artifacts.mts
 scripts/fleet/npm/publish-npm.mts
 scripts/fleet/npm/publish/coordinator.mts
 scripts/fleet/npm/publish/journal.mts
+scripts/fleet/npm/publish/release-reservation.mts
 scripts/fleet/npm/publish/run-cli.mts
 scripts/fleet/npm/publish/run.mts
 scripts/fleet/npm/scan.mts

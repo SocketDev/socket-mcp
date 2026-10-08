@@ -5,10 +5,6 @@
   "$schema": "./socket-wheelhouse-schema.json",
   "schemaVersion": 1,
   "repoName": "socket-mcp",
-  "bundle": {
-    "ref": "fleet-pack-77f0979b989e87f69539ca0b154fbabdcef0b313",
-    "cascadeSha": "77f0979b989e87f69539ca0b154fbabdcef0b313"
-  },
   "repo": {
     "type": "solo"
   },
