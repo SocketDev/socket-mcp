@@ -9,8 +9,8 @@
  *   SDK-backed clients in this directory cover the modern era.
  */
 import { isMainModule } from '../scripts/fleet/process/is-main-module.mts'
-import { runMain } from '../scripts/fleet/process/run-main.mts'
-import type { ScriptMeta } from '../scripts/fleet/process/run-main.mts'
+import { runMain } from '../scripts/fleet/process/main/run.mts'
+import type { ScriptMeta } from '../scripts/fleet/process/main/run.mts'
 import process from 'node:process'
 import readline from 'node:readline'
 
