@@ -1,6 +1,3 @@
-* text=auto eol=lf
-
-# <fleet>
 # Cascaded from socket-wheelhouse/template/base/universal/. Don't edit locally —
 # edit upstream and re-cascade via commit-cascade. Marked
 # linguist-generated so GitHub PR diffs collapse them by default.
@@ -148,6 +145,6 @@ test/fleet/unit/registry/cargo/placeholder.test.mts linguist-generated=true
 test/fleet/unit/registry/npm/placeholder.test.mts linguist-generated=true
 test/fleet/unit/setup/lib/pnpm-path.test.mts linguist-generated=true
 *.patch whitespace=-blank-at-eol,-space-before-tab
-# </fleet>
 # <repo>
+* text=auto eol=lf
 # </repo>
