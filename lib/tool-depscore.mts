@@ -94,9 +94,13 @@ export function defineDepscoreTool(): ToolSpec {
     name: 'depscore',
     title: 'Dependency Score Tool',
     description:
-      "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
+      "Look up Socket scores for packages the user asks about, or for dependencies being added or reviewed. Each package returns 0-100 scores for supply chain, quality, maintenance, vulnerability, and license, plus a link to its Socket report. A lower score means more risk. Pass 'unknown' when the version is not known; Socket then scores a version it resolves, which can differ from the installed one. Range prefixes (^, ~) are stripped. 'No score found' means Socket has no analysis for that package, not that it is safe. Scores summarize Socket's analysis at query time and do not list individual alerts.",
     inputSchema: depscoreInputSchema,
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
     handler(args, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const packages = args['packages'] as DepscorePackageInput[]

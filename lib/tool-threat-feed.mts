@@ -101,7 +101,11 @@ export function defineThreatFeedTool(): ToolSpec {
     description:
       "Look up items in the Socket organization threat feed with the `threat_feed` tool. Requires `org_slug` — call the `organizations` tool first if you don't have it. Returns recently flagged packages (malware, typosquats, obfuscated code, etc.) along with a `nextPageCursor` for pagination. Use `filter` to narrow the threat category (default `mal` for malware), `ecosystem` to scope to a registry, or `name`/`version` to look up a specific package. Pass the previous response's cursor as `cursor` to fetch the next page.",
     inputSchema: threatFeedInputSchema,
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     async handler(rawArgs, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as ThreatFeedArgs

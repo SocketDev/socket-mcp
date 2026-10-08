@@ -48,8 +48,20 @@ describe('toToolListEntry', () => {
 })
 
 describe('the shipped tool set', () => {
-  test('every tool renders with its annotations intact', () => {
+  test('every tool declares read-only, non-destructive, and its world scope', () => {
     const entries = buildToolSpecs().map(toToolListEntry)
+    const openWorldByName = Object.fromEntries(
+      entries.map(entry => [entry.name, entry.annotations?.openWorldHint]),
+    )
+    expect(openWorldByName).toEqual({
+      depscore: true,
+      organizations: false,
+      alerts: false,
+      threat_feed: false,
+      package_files: true,
+      package_file_contents: true,
+      package_file_grep: true,
+    })
     expect(entries.map(entry => entry.name)).toEqual([
       'depscore',
       'organizations',
@@ -61,7 +73,11 @@ describe('the shipped tool set', () => {
     ])
     for (let i = 0, { length } = entries; i < length; i += 1) {
       const entry = entries[i]!
-      expect(entry.annotations).toEqual({ readOnlyHint: true })
+      expect(entry.annotations).toEqual({
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: openWorldByName[entry.name],
+      })
     }
   })
 })
