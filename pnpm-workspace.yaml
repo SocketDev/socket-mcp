@@ -64,7 +64,7 @@ catalog:
   '@shadscan/cli': 0.17.0
   '@sinclair/typebox': 0.34.52
   'ecc-agentshield': 1.6.0
-  'fallow': 3.27.0
+  'fallow': 3.31.0
   'mcp-tada': 0.4.0
   'run-local-ci': 0.18.1
   # typebox 1.x — the unscoped rewrite of @sinclair/typebox. Both names are
@@ -152,13 +152,13 @@ catalog:
   'rolldown': 1.2.12
   'semver': 7.8.5
   'shell-quote': 1.11.0
-  'taze': 21.2.0
+  'taze': 21.3.0
   # vite 8.0.16 swaps esbuild → rolldown natively (bundles rolldown
   # 1.0.2) and patches the <=8.0.15 advisories (GHSA-fx2h-pf6j-xcff
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
   # override below pins every transitive `vite` (vitest, @vitest/*,
   # plugin authors) to it.
-  'typescript': 7.1.0-dev.20260929.1
+  'typescript': 7.1.0-dev.20260930.4
   'vitest': 5.0.3
   '@vitest/coverage-v8': 5.0.3
   '@bcoe/v8-coverage': 1.0.2
@@ -504,48 +504,6 @@ minimumReleaseAgeExclude:
   - '@pnpm/exe.win32-arm64@12.10.1'
   # published: 2026-10-06 | removable: 2026-10-13
   - '@pnpm/exe.win32-x64@12.10.1'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-android-arm-eabi@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-android-arm64@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-darwin-arm64@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-darwin-x64@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-freebsd-x64@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-arm-gnueabihf@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-arm64-gnu@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-arm64-musl@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-ppc64-gnu@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-s390x-gnu@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-x64-gnu@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-linux-x64-musl@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-openharmony-arm64@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-win32-arm64-msvc@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@rolldown/binding-win32-x64-msvc@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@vitest/coverage-v8@5.0.3'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@vitest/mocker@5.0.3'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@vitest/pretty-format@5.0.3'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@vitest/spy@5.0.3'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@vitest/ui@5.0.3'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - '@vitest/utils@5.0.3'
   # published: 2026-10-06 | removable: 2026-10-13
   - 'ata-validator@1.46.0'
   # published: 2026-10-05 | removable: 2026-10-12
@@ -554,10 +512,6 @@ minimumReleaseAgeExclude:
   - 'oxlint@1.87.0'
   # published: 2026-10-06 | removable: 2026-10-13
   - 'pnpm@12.10.1'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - 'rolldown@1.2.12'
-  # published: 2026-09-30 | removable: 2026-10-07
-  - 'vitest@5.0.3'
 
 # pnpm 11's packageManager-version-check failure policy. `warn` lets the
 # install proceed with a mismatched pnpm (emitting a warning) rather than
