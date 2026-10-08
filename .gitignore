@@ -3874,6 +3874,7 @@ scripts/fleet/gh-heartbeat.mts
 scripts/fleet/git-partial-submodule.mts
 scripts/fleet/git-partial-submodule/commands.mts
 scripts/fleet/git-partial-submodule/internal.mts
+scripts/fleet/git/commit/named-paths.mts
 scripts/fleet/git/exec.mts
 scripts/fleet/git/fast-forward.mts
 scripts/fleet/git/lock-retry.mts
