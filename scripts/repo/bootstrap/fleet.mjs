@@ -15434,7 +15434,11 @@ function gitignoreOwner(stack, defaultOwner) {
   if (name === 'repo') return 'repo'
   return name === 'fleet' ? 'fleet' : defaultOwner
 }
-function parseGitignoreSections(source, unmarkedOwner) {
+function parseGitignoreSections(source, options) {
+  const config = {
+    __proto__: null,
+    ...options,
+  }
   const sections = {
     __proto__: null,
     fleet: [],
@@ -15452,7 +15456,8 @@ function parseGitignoreSections(source, unmarkedOwner) {
     /^# <\/?repo(?:-canonical)?>$/.test(line),
   )
   const defaultOwner =
-    unmarkedOwner ?? (hasFleetRegion || !hasRepoRegion ? 'repo' : 'fleet')
+    config.unmarkedOwner ??
+    (hasFleetRegion || !hasRepoRegion ? 'repo' : 'fleet')
   for (let index = 0, { length } = lines; index < length; index += 1) {
     const line = lines[index]
     const marker =
@@ -15539,11 +15544,11 @@ function composeGitignore(config) {
   const fleetBlockSections =
     options.fleetBlock === void 0
       ? void 0
-      : parseGitignoreSections(options.fleetBlock, 'fleet')
+      : parseGitignoreSections(options.fleetBlock, { unmarkedOwner: 'fleet' })
   const repoBlockSections =
     options.repoBlock === void 0
       ? void 0
-      : parseGitignoreSections(options.repoBlock, 'repo')
+      : parseGitignoreSections(options.repoBlock, { unmarkedOwner: 'repo' })
   const fleet =
     fleetBlockSections === void 0 ? current.fleet : fleetBlockSections.fleet
   const allowed =
