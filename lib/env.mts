@@ -13,6 +13,8 @@
  *      mcp-specific group.
  */
 
+import os from 'node:os'
+import path from 'node:path'
 import process from 'node:process'
 
 import { getSocketApiBaseUrl } from '@socketsecurity/lib/env/socket'
@@ -110,6 +112,13 @@ export function getSocketBypassHeaderValue(): string {
 // Internal UA for authenticated calls to socket.dev's file-list endpoint.
 export function getSocketInternalUserAgent(): string {
   return envString('SOCKET_INTERNAL_USER_AGENT') || 'socket-internal-tool/1.0'
+}
+
+export function getSocketMcpAuditLogPath(): string {
+  return (
+    envString('SOCKET_MCP_AUDIT_LOG') ||
+    path.join(os.homedir(), '.socket', 'mcp-audit.jsonl')
+  )
 }
 
 // OAuth getters — not yet in the canonical lib surface. These read
