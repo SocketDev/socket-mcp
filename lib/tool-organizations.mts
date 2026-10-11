@@ -10,16 +10,21 @@ import {
   resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
 } from './server.mts'
-import type { ToolSpec } from './tool-types.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
 import { resolveMcpUserAgent } from './user-agent.mts'
+import { defineToolSchema } from './tool-validation.mts'
 
-export function defineOrganizationsTool(): ToolSpec {
+const organizationsSchema = defineToolSchema(
+  Type.Object({}, { additionalProperties: false }),
+)
+
+export function defineOrganizationsTool(): ValidatedToolSpec {
   return {
     name: 'organizations',
     title: 'List Organizations Tool',
     description:
       'List the Socket organizations the authenticated user belongs to with the `organizations` tool. Use this to discover the `org_slug` values needed by other org-scoped tools (e.g. `alerts`, `threat_feed`), or when the user asks which organizations they have access to.',
-    inputSchema: Type.Object({}),
+    ...organizationsSchema,
     annotations: { readOnlyHint: true },
     async handler(_args, extra) {
       logger.info({ tool: 'organizations' }, 'tool invoked')

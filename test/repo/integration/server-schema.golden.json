@@ -56,7 +56,8 @@
             "type": "string"
           }
         },
-        "required": ["org_slug"]
+        "required": ["org_slug"],
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true
@@ -70,6 +71,7 @@
             "description": "Array of packages to check",
             "type": "array",
             "items": {
+              "additionalProperties": false,
               "type": "object",
               "required": ["depname"],
               "properties": {
@@ -95,7 +97,8 @@
             "type": "string"
           }
         },
-        "required": ["packages"]
+        "required": ["packages"],
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true
@@ -104,7 +107,8 @@
     "organizations": {
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true
@@ -123,7 +127,8 @@
             "type": "string"
           }
         },
-        "required": ["hash"]
+        "required": ["hash"],
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true
@@ -162,7 +167,8 @@
             "type": "string"
           }
         },
-        "required": ["hash", "pattern"]
+        "required": ["hash", "pattern"],
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true
@@ -194,7 +200,8 @@
             "type": "string"
           }
         },
-        "required": ["depname", "version"]
+        "required": ["depname", "version"],
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true
@@ -277,7 +284,8 @@
             "type": "string"
           }
         },
-        "required": ["org_slug"]
+        "required": ["org_slug"],
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true

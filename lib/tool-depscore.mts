@@ -13,7 +13,8 @@ import { buildPurl } from './purl.mts'
 import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.mts'
 import type { ToolErrorResult, ToolOkResult } from './server.mts'
 import { buildSocketReportUrl } from './socket-url.mts'
-import type { ToolSpec } from './tool-types.mts'
+import { defineToolSchema } from './tool-validation.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
 
 export interface DepscorePackageInput {
   ecosystem?: string | undefined
@@ -39,34 +40,42 @@ const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
 // Single shared JSON Schema (via TypeBox) reused by both stdio and HTTP
 // modes. TypeBox `Type.Object` returns native JSON Schema — the SDK ships
 // it verbatim to clients as `Tool.inputSchema`.
-const depscoreInputSchema = Type.Object({
-  packages: Type.Array(
-    Type.Object({
-      ecosystem: Type.Optional(
+const depscoreSchema = defineToolSchema(
+  Type.Object(
+    {
+      packages: Type.Array(
+        Type.Object(
+          {
+            ecosystem: Type.Optional(
+              Type.String({
+                description:
+                  'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP; "packagist" also accepted). See https://docs.socket.dev/docs/language-support',
+                default: 'npm',
+              }),
+            ),
+            depname: Type.String({ description: 'The name of the dependency' }),
+            version: Type.Optional(
+              Type.String({
+                description:
+                  "The version of the dependency, use 'unknown' if not known",
+                default: 'unknown',
+              }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        { description: 'Array of packages to check' },
+      ),
+      platform: Type.Optional(
         Type.String({
           description:
-            'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP; "packagist" also accepted). See https://docs.socket.dev/docs/language-support',
-          default: 'npm',
+            "Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds.",
         }),
       ),
-      depname: Type.String({ description: 'The name of the dependency' }),
-      version: Type.Optional(
-        Type.String({
-          description:
-            "The version of the dependency, use 'unknown' if not known",
-          default: 'unknown',
-        }),
-      ),
-    }),
-    { description: 'Array of packages to check' },
+    },
+    { additionalProperties: false },
   ),
-  platform: Type.Optional(
-    Type.String({
-      description:
-        "Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds.",
-    }),
-  ),
-})
+)
 
 // Convert the depscore input list into PURLs ready for the components payload,
 // stripping semver range prefixes from versions.
@@ -89,13 +98,13 @@ export function buildPackageComponents(
   })
 }
 
-export function defineDepscoreTool(): ToolSpec {
+export function defineDepscoreTool(): ValidatedToolSpec {
   return {
     name: 'depscore',
     title: 'Dependency Score Tool',
     description:
       "Get the dependency score of packages with the `depscore` tool from Socket. Use 'unknown' for version if not known. Use this tool to scan dependencies for their quality and security on existing code or when code is generated. Stop generating code and ask the user how to proceed when any of the scores are low. When checking dependencies, make sure to also check the imports in the code, not just the manifest files (pyproject.toml, package.json, etc).",
-    inputSchema: depscoreInputSchema,
+    ...depscoreSchema,
     annotations: { readOnlyHint: true },
     handler(args, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.

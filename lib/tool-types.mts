@@ -2,12 +2,12 @@
  * @file Internal types shared by every Socket tool module. The low-level
  *   `Server` lets each tool declare its input schema as raw JSON Schema, and
  *   TypeBox's `Type.*` constructors return JSON Schema directly, so a tool's
- *   `inputSchema` reaches clients verbatim — no zod, no conversion, no per-call
- *   validation layer. Every type here is structural, with no MCP SDK import, so
- *   the interface is portable across SDK majors and extractable into a shared
- *   package. Every `tool-*.ts` module exports a `define*Tool(): ToolSpec`. The
- *   server consumes the array via `server.mts` and dispatches `tools/list` +
- *   `tools/call` requests by name.
+ *   schema reaches clients as plain JSON Schema while its original TypeBox
+ *   schema validates each call. Every type here is structural, with no MCP SDK
+ *   import, so the interface is portable across SDK majors. Every `tool-*.ts`
+ *   module exports a `define*Tool(): ToolSpec`. The server consumes the array
+ *   via `server.mts` and dispatches `tools/list` + `tools/call` requests by
+ *   name.
  */
 
 /**
@@ -82,6 +82,20 @@ export interface ToolCallResult {
   [key: string]: unknown
 }
 
+export interface ToolValidationIssue {
+  readonly path: string
+  readonly reason: string
+}
+
+export type ToolValidationResult =
+  | { readonly valid: true }
+  | {
+      readonly valid: false
+      readonly issues: readonly ToolValidationIssue[]
+    }
+
+export type ToolInputValidator = (value: unknown) => ToolValidationResult
+
 /**
  * One tool's full specification. `define*Tool()` returns one of these; the
  * server collects them into a name → spec map and dispatches `tools/call` by
@@ -97,4 +111,8 @@ export interface ToolSpec {
     args: Record<string, unknown>,
     extra: ToolHandlerExtra,
   ) => Promise<ToolCallResult> | ToolCallResult
+}
+
+export interface ValidatedToolSpec extends ToolSpec {
+  readonly validateInput: ToolInputValidator
 }

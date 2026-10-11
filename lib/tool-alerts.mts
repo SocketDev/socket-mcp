@@ -10,8 +10,9 @@ import {
   resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
 } from './server.mts'
-import type { ToolSpec } from './tool-types.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
 import { resolveMcpUserAgent } from './user-agent.mts'
+import { defineToolSchema } from './tool-validation.mts'
 
 export interface AlertsArgs {
   org_slug: string
@@ -26,68 +27,73 @@ export interface AlertsArgs {
   cursor?: string | undefined
 }
 
-const alertsInputSchema = Type.Object({
-  org_slug: Type.String({
-    description:
-      'Organization slug, e.g. "my-org" (use the `organizations` tool to discover this)',
-  }),
-  severity: Type.Optional(
-    Type.String({
-      description:
-        'Comma-separated severities to include: subset of low,medium,high,critical',
-    }),
+const alertsSchema = defineToolSchema(
+  Type.Object(
+    {
+      org_slug: Type.String({
+        description:
+          'Organization slug, e.g. "my-org" (use the `organizations` tool to discover this)',
+      }),
+      severity: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated severities to include: subset of low,medium,high,critical',
+        }),
+      ),
+      status: Type.Optional(
+        Type.Union([Type.Literal('open'), Type.Literal('cleared')], {
+          description: 'Filter to open or cleared alerts',
+        }),
+      ),
+      category: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated categories: subset of supplyChainRisk,maintenance,quality,license,vulnerability',
+        }),
+      ),
+      artifact_type: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated ecosystems: subset of npm,pypi,gem,maven,golang,nuget,cargo,chrome,openvsx',
+        }),
+      ),
+      artifact_name: Type.Optional(
+        Type.String({ description: 'Filter to a specific package name' }),
+      ),
+      alert_type: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated Socket alert types (e.g. "usesEval,unmaintained")',
+        }),
+      ),
+      repo_slug: Type.Optional(
+        Type.String({ description: 'Comma-separated repo slugs' }),
+      ),
+      per_page: Type.Optional(
+        Type.Integer({
+          minimum: 1,
+          maximum: 5000,
+          description: 'Results per page (default 100, max 5000)',
+        }),
+      ),
+      cursor: Type.Optional(
+        Type.String({
+          description:
+            "Pagination cursor — the `endCursor` from a previous response's metadata",
+        }),
+      ),
+    },
+    { additionalProperties: false },
   ),
-  status: Type.Optional(
-    Type.Union([Type.Literal('open'), Type.Literal('cleared')], {
-      description: 'Filter to open or cleared alerts',
-    }),
-  ),
-  category: Type.Optional(
-    Type.String({
-      description:
-        'Comma-separated categories: subset of supplyChainRisk,maintenance,quality,license,vulnerability',
-    }),
-  ),
-  artifact_type: Type.Optional(
-    Type.String({
-      description:
-        'Comma-separated ecosystems: subset of npm,pypi,gem,maven,golang,nuget,cargo,chrome,openvsx',
-    }),
-  ),
-  artifact_name: Type.Optional(
-    Type.String({ description: 'Filter to a specific package name' }),
-  ),
-  alert_type: Type.Optional(
-    Type.String({
-      description:
-        'Comma-separated Socket alert types (e.g. "usesEval,unmaintained")',
-    }),
-  ),
-  repo_slug: Type.Optional(
-    Type.String({ description: 'Comma-separated repo slugs' }),
-  ),
-  per_page: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      maximum: 5000,
-      description: 'Results per page (default 100, max 5000)',
-    }),
-  ),
-  cursor: Type.Optional(
-    Type.String({
-      description:
-        "Pagination cursor — the `endCursor` from a previous response's metadata",
-    }),
-  ),
-})
+)
 
-export function defineAlertsTool(): ToolSpec {
+export function defineAlertsTool(): ValidatedToolSpec {
   return {
     name: 'alerts',
     title: 'List Alerts Tool',
     description:
       "List the latest security alerts for a Socket organization with the `alerts` tool. Requires `org_slug` — call the `organizations` tool first if you don't have it. Supports filtering by severity, category, status, artifact type/name, alert type, and repo. Use this to surface supply-chain, vulnerability, quality, license, and maintenance issues across the org's monitored packages. Results are paginated — pass the previous response's `endCursor` as `cursor` to fetch the next page.",
-    inputSchema: alertsInputSchema,
+    ...alertsSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.

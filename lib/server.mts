@@ -16,11 +16,13 @@ import { defineOrganizationsTool } from './tool-organizations.mts'
 import { defineThreatFeedTool } from './tool-threat-feed.mts'
 import { withToolLogging } from './tool-logging.mts'
 import type { ToolHandler } from './tool-logging.mts'
+import { formatToolValidationFailure } from './tool-validation.mts'
 import type {
   ToolAnnotations,
   ToolHandlerExtra,
   ToolInputSchema,
   ToolSpec,
+  ValidatedToolSpec,
 } from './tool-types.mts'
 import { buildMcpUserAgent } from './user-agent.mts'
 import { VERSION } from './version.mts'
@@ -81,7 +83,7 @@ export function authRequiredResult(): ToolErrorResult {
  * just collects them and hands each schema through `toPlainSchemaSpec`. Order
  * here is the order clients see in `tools/list`.
  */
-export function buildToolSpecs(): ToolSpec[] {
+export function buildToolSpecs(): ValidatedToolSpec[] {
   return [
     defineDepscoreTool(),
     defineOrganizationsTool(),
@@ -103,13 +105,14 @@ export function buildToolSpecs(): ToolSpec[] {
  *
  * The low-level `Server` accepts raw JSON Schema in `Tool.inputSchema`, which
  * is exactly what TypeBox's `Type.Object({...})` produces, and `tools/list`
- * results are not re-parsed on the way out. So every tool's input schema flows
- * through the SDK to clients verbatim; no zod, no extra validation layer here.
+ * results are not re-parsed on the way out. Calls are checked against each
+ * original TypeBox schema before its handler runs.
  */
 export function createConfiguredServer(
   requestContext?: McpRequestContext | undefined,
 ): Server {
   const specs = buildToolSpecs()
+  const specsByName = new Map(specs.map(spec => [spec.name, spec]))
   const userAgent = getMcpRequestUserAgent(requestContext)
   const handlers = new Map<string, ToolHandler>(
     specs.map(spec => [
@@ -138,8 +141,9 @@ export function createConfiguredServer(
 
   server.setRequestHandler('tools/call', async (request, ctx) => {
     const { name } = request.params
+    const spec = specsByName.get(name)
     const handler = handlers.get(name)
-    if (!handler) {
+    if (!spec || !handler) {
       // The CallTool spec returns an error result (not an exception) for an
       // unknown name — clients render it the same way as any other tool error.
       const message = `Unknown tool: ${name}`
@@ -152,6 +156,10 @@ export function createConfiguredServer(
     // `request.params.arguments` is optional in the SDK shape; tools that
     // declare empty inputSchemas (e.g. organizations) get undefined here.
     const args = request.params.arguments ?? {}
+    const validation = spec.validateInput(args)
+    if (!validation.valid) {
+      return errorResult(formatToolValidationFailure(validation))
+    }
     return handler(args, toToolHandlerExtra(ctx, userAgent))
   })
 
@@ -241,7 +249,7 @@ export function setStaticApiKey(
  * `Date`/`Map`/`Set` — so the result is byte-identical to what a serializing
  * transport already writes.
  */
-export function toPlainSchemaSpec(spec: ToolSpec): ToolSpec {
+export function toPlainSchemaSpec(spec: ValidatedToolSpec): ValidatedToolSpec {
   // JSON.parse widens to any; the value round-trips through the same
   // encoding every shipping transport applies to it.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- round trip

@@ -10,8 +10,9 @@ import {
   SOCKET_API_BASE_URL,
 } from './server.mts'
 import { fetchThreatFeed } from './threat-feed.mts'
-import type { ToolSpec } from './tool-types.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
 import { resolveMcpUserAgent } from './user-agent.mts'
+import { defineToolSchema } from './tool-validation.mts'
 
 export interface ThreatFeedArgs {
   org_slug: string
@@ -28,79 +29,86 @@ export interface ThreatFeedArgs {
   cursor?: string | undefined
 }
 
-const threatFeedInputSchema = Type.Object({
-  org_slug: Type.String({
-    description:
-      'Organization slug, e.g. "my-org" (use the `organizations` tool to discover this)',
-  }),
-  filter: Type.Optional(
-    Type.String({
-      description:
-        'Threat category filter (default `mal`). Common values: `mal` (malware), `vuln`, `typ` (typosquat), `obf` (obfuscated), `mjo`, `kes`, `spy`, `ano`, `ucf`, `ptp`, `ual`',
-    }),
+const threatFeedSchema = defineToolSchema(
+  Type.Object(
+    {
+      org_slug: Type.String({
+        description:
+          'Organization slug, e.g. "my-org" (use the `organizations` tool to discover this)',
+      }),
+      filter: Type.Optional(
+        Type.String({
+          description:
+            'Threat category filter (default `mal`). Common values: `mal` (malware), `vuln`, `typ` (typosquat), `obf` (obfuscated), `mjo`, `kes`, `spy`, `ano`, `ucf`, `ptp`, `ual`',
+        }),
+      ),
+      ecosystem: Type.Optional(
+        Type.String({
+          description:
+            'Ecosystem filter, e.g. npm, pypi, gem, maven, golang, nuget, cargo, chrome, openvsx, vscode, huggingface',
+        }),
+      ),
+      name: Type.Optional(
+        Type.String({ description: 'Filter by package name' }),
+      ),
+      version: Type.Optional(
+        Type.String({ description: 'Filter by package version' }),
+      ),
+      is_human_reviewed: Type.Optional(
+        Type.Boolean({
+          description: 'Only return human-reviewed items (default false)',
+        }),
+      ),
+      sort: Type.Optional(
+        Type.Union(
+          [
+            Type.Literal('id'),
+            Type.Literal('created_at'),
+            Type.Literal('updated_at'),
+          ],
+          { description: 'Sort field (default `updated_at`)' },
+        ),
+      ),
+      direction: Type.Optional(
+        Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
+          description: 'Sort direction (default `desc`)',
+        }),
+      ),
+      updated_after: Type.Optional(
+        Type.String({
+          description: 'ISO timestamp; only return items updated after this',
+        }),
+      ),
+      created_after: Type.Optional(
+        Type.String({
+          description: 'ISO timestamp; only return items created after this',
+        }),
+      ),
+      per_page: Type.Optional(
+        Type.Integer({
+          minimum: 1,
+          maximum: 100,
+          description: 'Results per page (default 30, max 100)',
+        }),
+      ),
+      cursor: Type.Optional(
+        Type.String({
+          description:
+            'Pagination cursor — the `nextPageCursor` from a previous response',
+        }),
+      ),
+    },
+    { additionalProperties: false },
   ),
-  ecosystem: Type.Optional(
-    Type.String({
-      description:
-        'Ecosystem filter, e.g. npm, pypi, gem, maven, golang, nuget, cargo, chrome, openvsx, vscode, huggingface',
-    }),
-  ),
-  name: Type.Optional(Type.String({ description: 'Filter by package name' })),
-  version: Type.Optional(
-    Type.String({ description: 'Filter by package version' }),
-  ),
-  is_human_reviewed: Type.Optional(
-    Type.Boolean({
-      description: 'Only return human-reviewed items (default false)',
-    }),
-  ),
-  sort: Type.Optional(
-    Type.Union(
-      [
-        Type.Literal('id'),
-        Type.Literal('created_at'),
-        Type.Literal('updated_at'),
-      ],
-      { description: 'Sort field (default `updated_at`)' },
-    ),
-  ),
-  direction: Type.Optional(
-    Type.Union([Type.Literal('asc'), Type.Literal('desc')], {
-      description: 'Sort direction (default `desc`)',
-    }),
-  ),
-  updated_after: Type.Optional(
-    Type.String({
-      description: 'ISO timestamp; only return items updated after this',
-    }),
-  ),
-  created_after: Type.Optional(
-    Type.String({
-      description: 'ISO timestamp; only return items created after this',
-    }),
-  ),
-  per_page: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      maximum: 100,
-      description: 'Results per page (default 30, max 100)',
-    }),
-  ),
-  cursor: Type.Optional(
-    Type.String({
-      description:
-        'Pagination cursor — the `nextPageCursor` from a previous response',
-    }),
-  ),
-})
+)
 
-export function defineThreatFeedTool(): ToolSpec {
+export function defineThreatFeedTool(): ValidatedToolSpec {
   return {
     name: 'threat_feed',
     title: 'Threat Feed Tool',
     description:
       "Look up items in the Socket organization threat feed with the `threat_feed` tool. Requires `org_slug` — call the `organizations` tool first if you don't have it. Returns recently flagged packages (malware, typosquats, obfuscated code, etc.) along with a `nextPageCursor` for pagination. Use `filter` to narrow the threat category (default `mal` for malware), `ecosystem` to scope to a registry, or `name`/`version` to look up a specific package. Pass the previous response's cursor as `cursor` to fetch the next page.",
-    inputSchema: threatFeedInputSchema,
+    ...threatFeedSchema,
     annotations: { readOnlyHint: true },
     async handler(rawArgs, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
