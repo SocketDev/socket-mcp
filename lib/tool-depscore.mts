@@ -10,6 +10,7 @@ import { getSocketApiUrl } from './env.mts'
 import { buildSocketHeaders } from './http.mts'
 import { logger } from './logger.mts'
 import { buildPurl } from './purl.mts'
+import { markToolOutcome } from './tool-outcome.mts'
 import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.mts'
 import type { ToolErrorResult, ToolOkResult } from './server.mts'
 import { buildSocketReportUrl } from './socket-url.mts'
@@ -183,7 +184,7 @@ export async function handleDepscoreRequest(
   const accessToken = resolveAuthToken(accessTokenFromAuth)
   if (!accessToken) {
     logger.error(AUTH_REQUIRED_MSG)
-    return errorResult(AUTH_REQUIRED_MSG)
+    return markToolOutcome(errorResult(AUTH_REQUIRED_MSG), 'denied')
   }
 
   const components = buildPackageComponents(packages)
@@ -205,13 +206,13 @@ export async function handleDepscoreRequest(
   if (response.status === 401) {
     const errorMsg = `Socket authentication failed [401]. Re-authenticate and retry. ${responseText}`
     logger.error(errorMsg)
-    return errorResult(errorMsg)
+    return markToolOutcome(errorResult(errorMsg), 'denied')
   }
 
   if (response.status === 403) {
     const errorMsg = `Socket denied access [403]. Re-authenticate with the correct organization or repository permissions and retry. ${responseText}`
     logger.error(errorMsg)
-    return errorResult(errorMsg)
+    return markToolOutcome(errorResult(errorMsg), 'denied')
   }
 
   if (response.status !== 200) {

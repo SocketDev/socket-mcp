@@ -16,6 +16,7 @@ import { defineOrganizationsTool } from './tool-organizations.mts'
 import { defineThreatFeedTool } from './tool-threat-feed.mts'
 import { withToolLogging } from './tool-logging.mts'
 import type { ToolHandler } from './tool-logging.mts'
+import { markToolOutcome } from './tool-outcome.mts'
 import { formatToolValidationFailure } from './tool-validation.mts'
 import type {
   ToolAnnotations,
@@ -74,7 +75,7 @@ const TOOLS_LIST_CACHE_TTL_MS = 60 * 60 * 1000
 // Shared "auth missing" tool result — every tool returns the same shape so
 // clients get a consistent error.
 export function authRequiredResult(): ToolErrorResult {
-  return errorResult(AUTH_REQUIRED_MSG)
+  return markToolOutcome(errorResult(AUTH_REQUIRED_MSG), 'denied')
 }
 
 /**
