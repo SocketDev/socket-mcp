@@ -1,6 +1,7 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
 import { buildJsonApiHeaders } from './http.mts'
+import { UpstreamHttpError } from './tool-outcome.mts'
 
 export interface AlertsFilters {
   // Comma-separated subset of: low,medium,high,critical
@@ -86,7 +87,10 @@ export async function fetchAlerts(config: FetchAlertsConfig): Promise<unknown> {
 
   const res = await httpRequest(url, { headers: buildJsonApiHeaders(config) })
   if (!res.ok) {
-    throw new Error(`alerts endpoint ${res.status}: ${res.text()}`)
+    throw new UpstreamHttpError(
+      res.status,
+      `alerts endpoint ${res.status}: ${res.text()}`,
+    )
   }
   return res.json()
 }

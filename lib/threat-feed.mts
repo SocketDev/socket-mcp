@@ -1,6 +1,7 @@
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
 import { buildJsonApiHeaders } from './http.mts'
+import { UpstreamHttpError } from './tool-outcome.mts'
 
 export interface ThreatFeedFilters {
   // 1..100. API caps at 100 and defaults to 30.
@@ -101,7 +102,10 @@ export async function fetchThreatFeed(
 
   const res = await httpRequest(url, { headers: buildJsonApiHeaders(config) })
   if (!res.ok) {
-    throw new Error(`threat-feed endpoint ${res.status}: ${res.text()}`)
+    throw new UpstreamHttpError(
+      res.status,
+      `threat-feed endpoint ${res.status}: ${res.text()}`,
+    )
   }
   return res.json()
 }

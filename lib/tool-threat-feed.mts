@@ -13,6 +13,7 @@ import { fetchThreatFeed } from './threat-feed.mts'
 import type { ValidatedToolSpec } from './tool-types.mts'
 import { resolveMcpUserAgent } from './user-agent.mts'
 import { defineToolSchema } from './tool-validation.mts'
+import { markUpstreamHttpOutcome } from './tool-outcome.mts'
 
 export interface ThreatFeedArgs {
   org_slug: string
@@ -162,11 +163,14 @@ export function defineThreatFeedTool(): ValidatedToolSpec {
       } catch (e) {
         const errorMsg = `Error fetching threat feed for ${args.org_slug}: ${errorMessage(e)}`
         logger.error(errorMsg)
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
       }
     },
   }

@@ -13,6 +13,7 @@ import {
 import type { ValidatedToolSpec } from './tool-types.mts'
 import { resolveMcpUserAgent } from './user-agent.mts'
 import { defineToolSchema } from './tool-validation.mts'
+import { markUpstreamHttpOutcome } from './tool-outcome.mts'
 
 const organizationsSchema = defineToolSchema(
   Type.Object({}, { additionalProperties: false }),
@@ -46,11 +47,14 @@ export function defineOrganizationsTool(): ValidatedToolSpec {
       } catch (e) {
         const errorMsg = `Error fetching organizations: ${errorMessage(e)}`
         logger.error(errorMsg)
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
       }
     },
   }

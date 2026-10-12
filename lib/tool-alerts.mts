@@ -13,6 +13,7 @@ import {
 import type { ValidatedToolSpec } from './tool-types.mts'
 import { resolveMcpUserAgent } from './user-agent.mts'
 import { defineToolSchema } from './tool-validation.mts'
+import { markUpstreamHttpOutcome } from './tool-outcome.mts'
 
 export interface AlertsArgs {
   org_slug: string
@@ -142,11 +143,14 @@ export function defineAlertsTool(): ValidatedToolSpec {
       } catch (e) {
         const errorMsg = `Error fetching alerts for ${args.org_slug}: ${errorMessage(e)}`
         logger.error(errorMsg)
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
       }
     },
   }

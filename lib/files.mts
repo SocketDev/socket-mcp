@@ -3,6 +3,7 @@ import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import { normalizePath } from '@socketsecurity/lib/paths/normalize'
 
 import { buildJsonApiHeaders } from './http.mts'
+import { UpstreamHttpError } from './tool-outcome.mts'
 
 export function buildTree(entries: FileListEntry[]): TreeNode {
   const root: TreeNode = { name: '', isFile: false, children: new Map() }
@@ -138,7 +139,8 @@ export async function fetchFileList(
     throw new Error(`file-list request to ${url} failed: ${errorMessage(e)}`)
   }
   if (!res.ok) {
-    throw new Error(
+    throw new UpstreamHttpError(
+      res.status,
       `file-list endpoint ${res.status} for ${url}: ${res.text()}`,
     )
   }

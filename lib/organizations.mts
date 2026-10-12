@@ -1,5 +1,7 @@
 import { SocketSdk } from '@socketsecurity/sdk'
 
+import { UpstreamHttpError } from './tool-outcome.mts'
+
 export interface FetchOrganizationsConfig {
   baseUrl: string
   userAgent?: string | undefined
@@ -47,7 +49,10 @@ export async function fetchOrganizations(
 
   const result = await sdk.listOrganizations()
   if (!result.success) {
-    throw new Error(buildOrganizationsErrorMessage(result))
+    throw new UpstreamHttpError(
+      result.status,
+      buildOrganizationsErrorMessage(result),
+    )
   }
   return result.data
 }

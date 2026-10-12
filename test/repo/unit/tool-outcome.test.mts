@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  classifyUpstreamHttpError,
   classifyToolOutcome,
   markToolOutcome,
+  markUpstreamHttpOutcome,
+  UpstreamHttpError,
 } from '../../../lib/tool-outcome.mts'
 
 describe('tool result outcomes', () => {
@@ -45,5 +48,40 @@ describe('tool result outcomes', () => {
         isError: true,
       }),
     ).toBe('failure')
+  })
+
+  test('classifies only typed upstream 401 and 403 statuses as denied', () => {
+    expect(
+      classifyUpstreamHttpError(new UpstreamHttpError(401, 'anything')),
+    ).toBe('denied')
+    expect(
+      classifyUpstreamHttpError(new UpstreamHttpError(403, 'anything')),
+    ).toBe('denied')
+    expect(
+      classifyUpstreamHttpError(new UpstreamHttpError(400, 'unauthorized')),
+    ).toBe('failure')
+    expect(
+      classifyUpstreamHttpError(new UpstreamHttpError(500, 'forbidden')),
+    ).toBe('failure')
+    expect(
+      classifyUpstreamHttpError(new Error('upstream 401 unauthorized')),
+    ).toBe('failure')
+    expect(
+      classifyUpstreamHttpError({ status: 403, message: 'access denied' }),
+    ).toBe('failure')
+  })
+
+  test('marks an upstream denial without changing wire fields', () => {
+    const result = {
+      content: [{ type: 'text', text: 'original upstream detail' }],
+      isError: true,
+    }
+    expect(
+      markUpstreamHttpOutcome(result, new UpstreamHttpError(403, 'raw')),
+    ).toBe(result)
+    expect(classifyToolOutcome(result)).toBe('denied')
+    expect(JSON.stringify(result)).toBe(
+      '{"content":[{"type":"text","text":"original upstream detail"}],"isError":true}',
+    )
   })
 })

@@ -16,6 +16,7 @@ import {
 import type { ValidatedToolSpec } from './tool-types.mts'
 import { prependMcpUserAgent } from './user-agent.mts'
 import { defineToolSchema } from './tool-validation.mts'
+import { markUpstreamHttpOutcome } from './tool-outcome.mts'
 
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
 
@@ -367,11 +368,14 @@ export function definePackageFilesTool(): ValidatedToolSpec {
       } catch (e) {
         const errorMsg = `Error fetching file list for ${purlWithQualifiers}: ${errorMessage(e)}`
         logger.error(errorMsg)
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
       }
     },
   }
