@@ -34,7 +34,7 @@ jobs:
   # non-matrix check job, skips it in the test matrix).
   check:
     name: Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Bootstrap checkout
@@ -83,7 +83,7 @@ jobs:
       matrix:
         # JS/TS tests only need a fast Linux run; cross-platform behavior is
         # covered by unit tests, not the CI matrix.
-        os: [ubuntu-latest]
+        os: [ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
