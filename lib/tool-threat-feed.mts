@@ -4,7 +4,6 @@ import { errorMessage } from '@socketsecurity/lib/errors/message'
 
 import { logger } from './logger.mts'
 import {
-  AUTH_REQUIRED_MSG,
   authRequiredResult,
   resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
@@ -114,22 +113,10 @@ export function defineThreatFeedTool(): ValidatedToolSpec {
     async handler(rawArgs, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as ThreatFeedArgs
-      logger.info(
-        {
-          tool: 'threat_feed',
-          org_slug: args.org_slug,
-          filters: {
-            filter: args.filter,
-            ecosystem: args.ecosystem,
-            name: args.name,
-            version: args.version,
-          },
-        },
-        'tool invoked',
-      )
+      logger.info({ tool: 'threat_feed' }, 'tool invoked')
       const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
-        logger.error('threat_feed: ' + AUTH_REQUIRED_MSG)
+        logger.error({ tool: 'threat_feed' }, 'authentication required')
         return authRequiredResult()
       }
       try {
@@ -162,7 +149,7 @@ export function defineThreatFeedTool(): ValidatedToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error fetching threat feed for ${args.org_slug}: ${errorMessage(e)}`
-        logger.error(errorMsg)
+        logger.error({ tool: 'threat_feed' }, 'upstream request failed')
         return markUpstreamHttpOutcome(
           {
             __proto__: null,

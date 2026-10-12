@@ -8,15 +8,14 @@ import { fetchFileList } from './files.mts'
 import { debug, logger } from './logger.mts'
 import { buildPurl } from './purl.mts'
 import {
-  AUTH_REQUIRED_MSG,
   authRequiredResult,
   resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
 } from './server.mts'
 import type { ValidatedToolSpec } from './tool-types.mts'
 import { prependMcpUserAgent } from './user-agent.mts'
+import { markToolOutcome, markUpstreamHttpOutcome } from './tool-outcome.mts'
 import { defineToolSchema } from './tool-validation.mts'
-import { markUpstreamHttpOutcome } from './tool-outcome.mts'
 
 const INTERNAL_USER_AGENT = getSocketInternalUserAgent()
 
@@ -170,7 +169,7 @@ export function definePackageFileContentsTool(): ValidatedToolSpec {
       const args = rawArgs as unknown as PackageFileContentsArgs
       const { hash, path } = args
       const label = path ?? hash
-      logger.info({ tool: 'package_file_contents', hash, path }, 'tool invoked')
+      logger.info({ tool: 'package_file_contents' }, 'tool invoked')
       try {
         const blob = await getOrFetchBlob(hash)
         if (blob.binary) {
@@ -199,12 +198,15 @@ export function definePackageFileContentsTool(): ValidatedToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error fetching blob ${hash}: ${errorMessage(e)}`
-        logger.error(errorMsg)
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        logger.error({ tool: 'package_file_contents' }, 'tool failed')
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
       }
     },
   }
@@ -226,28 +228,20 @@ export function definePackageFileGrepTool(): ValidatedToolSpec {
       const label = path ?? hash
       const cap = maxMatches ?? 100
       const ctx = contextLines ?? 0
-      logger.info(
-        {
-          tool: 'package_file_grep',
-          hash,
-          path,
-          pattern,
-          caseInsensitive,
-          contextLines: ctx,
-          maxMatches: cap,
-        },
-        'tool invoked',
-      )
+      logger.info({ tool: 'package_file_grep' }, 'tool invoked')
       let re: RegExp
       try {
         re = new RegExp(pattern, caseInsensitive ? 'i' : '')
       } catch (e) {
         const errorMsg = `Invalid regular expression: ${errorMessage(e)}`
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        return markToolOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          'invalid',
+        )
       }
       try {
         const blob = await getOrFetchBlob(hash)
@@ -296,12 +290,15 @@ export function definePackageFileGrepTool(): ValidatedToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error grepping blob ${hash}: ${errorMessage(e)}`
-        logger.error(errorMsg)
-        return {
-          __proto__: null,
-          content: [{ type: 'text', text: errorMsg }],
-          isError: true,
-        }
+        logger.error({ tool: 'package_file_grep' }, 'tool failed')
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
       }
     },
   }
@@ -326,21 +323,10 @@ export function definePackageFilesTool(): ValidatedToolSpec {
         artifactId,
         platform,
       )
-      logger.info(
-        {
-          tool: 'package_files',
-          ecosystem,
-          depname,
-          version,
-          artifactId,
-          platform,
-          purl: purlWithQualifiers,
-        },
-        'tool invoked',
-      )
+      logger.info({ tool: 'package_files' }, 'tool invoked')
       const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
-        logger.error('package_files: ' + AUTH_REQUIRED_MSG)
+        logger.error({ tool: 'package_files' }, 'authentication required')
         return authRequiredResult()
       }
       try {
@@ -349,7 +335,7 @@ export function definePackageFilesTool(): ValidatedToolSpec {
           includeHashes: true,
           userAgent: prependMcpUserAgent(INTERNAL_USER_AGENT, extra.userAgent),
           authToken: accessToken,
-          onRequest: url => debug({ url }, 'file list request'),
+          onRequest: () => debug({ tool: 'package_files' }, 'request'),
         })
         if (result.fileCount === 0) {
           return {
@@ -367,7 +353,7 @@ export function definePackageFilesTool(): ValidatedToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error fetching file list for ${purlWithQualifiers}: ${errorMessage(e)}`
-        logger.error(errorMsg)
+        logger.error({ tool: 'package_files' }, 'tool failed')
         return markUpstreamHttpOutcome(
           {
             __proto__: null,

@@ -5,7 +5,6 @@ import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { logger } from './logger.mts'
 import { fetchOrganizations } from './organizations.mts'
 import {
-  AUTH_REQUIRED_MSG,
   authRequiredResult,
   resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
@@ -31,7 +30,7 @@ export function defineOrganizationsTool(): ValidatedToolSpec {
       logger.info({ tool: 'organizations' }, 'tool invoked')
       const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
-        logger.error('organizations: ' + AUTH_REQUIRED_MSG)
+        logger.error({ tool: 'organizations' }, 'authentication required')
         return authRequiredResult()
       }
       try {
@@ -46,7 +45,7 @@ export function defineOrganizationsTool(): ValidatedToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error fetching organizations: ${errorMessage(e)}`
-        logger.error(errorMsg)
+        logger.error({ tool: 'organizations' }, 'upstream request failed')
         return markUpstreamHttpOutcome(
           {
             __proto__: null,

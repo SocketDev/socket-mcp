@@ -5,7 +5,6 @@ import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { fetchAlerts } from './alerts.mts'
 import { logger } from './logger.mts'
 import {
-  AUTH_REQUIRED_MSG,
   authRequiredResult,
   resolveScopedAuthToken,
   SOCKET_API_BASE_URL,
@@ -99,23 +98,10 @@ export function defineAlertsTool(): ValidatedToolSpec {
     async handler(rawArgs, extra) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
       const args = rawArgs as unknown as AlertsArgs
-      logger.info(
-        {
-          tool: 'alerts',
-          org_slug: args.org_slug,
-          filters: {
-            severity: args.severity,
-            status: args.status,
-            category: args.category,
-            artifact_type: args.artifact_type,
-            alert_type: args.alert_type,
-          },
-        },
-        'tool invoked',
-      )
+      logger.info({ tool: 'alerts' }, 'tool invoked')
       const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
       if (!accessToken) {
-        logger.error('alerts: ' + AUTH_REQUIRED_MSG)
+        logger.error({ tool: 'alerts' }, 'authentication required')
         return authRequiredResult()
       }
       try {
@@ -142,7 +128,7 @@ export function defineAlertsTool(): ValidatedToolSpec {
         }
       } catch (e) {
         const errorMsg = `Error fetching alerts for ${args.org_slug}: ${errorMessage(e)}`
-        logger.error(errorMsg)
+        logger.error({ tool: 'alerts' }, 'upstream request failed')
         return markUpstreamHttpOutcome(
           {
             __proto__: null,

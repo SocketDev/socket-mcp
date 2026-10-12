@@ -47,10 +47,7 @@ export function evict(): void {
     const target = cache.get(oldest)!
     cache.delete(oldest)
     cacheBytes = Math.max(0, cacheBytes - blobWeight(target))
-    debug(
-      { hash: oldest, cacheBytes, cacheSize: cache.size },
-      'blob cache evict',
-    )
+    debug('blob cache evict')
   }
 }
 
@@ -73,7 +70,7 @@ export async function getOrFetchBlob(hash: string): Promise<BlobResult> {
         baseUrl: SOCKET_BLOB_URL,
         userAgent: BROWSER_USER_AGENT,
         extraHeaders: BYPASS_HEADERS,
-        onRequest: url => debug({ url }, 'blob request'),
+        onRequest: () => debug('blob request'),
       })
       const weight = blobWeight(blob)
       // Only cache blobs that fit under the cap; a single blob larger than the

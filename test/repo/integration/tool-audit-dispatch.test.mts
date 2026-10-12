@@ -111,6 +111,33 @@ async function withLinkedClient(
 }
 
 describe('MCP dispatch audit over linked SDK transport', () => {
+  test('classifies an invalid regex without fetching a blob', async () => {
+    await withLinkedClient(
+      () => createConfiguredServer(undefined, 'stdio'),
+      async client => {
+        const result = await client.callTool({
+          name: 'package_file_grep',
+          arguments: {
+            hash: 'synthetic_blob_hash',
+            pattern: '[synthetic_invalid_regex',
+          },
+        })
+        expect(result.isError).toBe(true)
+        const { 0: block } = result.content
+        expect(block?.type === 'text' ? block.text : '').toContain(
+          'Invalid regular expression',
+        )
+        expect(readEvents()).toHaveLength(1)
+        expect(readEvents()[0]).toMatchObject({
+          tool: 'package_file_grep',
+          outcome: 'invalid',
+          identity: { kind: 'operator' },
+          resources: [],
+        })
+      },
+    )
+  })
+
   test('audits only admitted calls, including denied, invalid, and unknown', async () => {
     await withLinkedClient(
       () => createConfiguredServer(undefined, 'stdio'),

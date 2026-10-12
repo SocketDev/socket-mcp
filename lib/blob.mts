@@ -1,6 +1,8 @@
 import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
+import { UpstreamHttpError } from './tool-outcome.mts'
+
 export interface BlobResult {
   bytes: number
   contentType: string | undefined
@@ -205,7 +207,10 @@ export async function fetchRawBytes(
     throw new Error(`blob request to ${url} failed: ${errorMessage(e)}`)
   }
   if (!res.ok) {
-    throw new Error(`blob fetch ${res.status} for ${url}: ${res.text()}`)
+    throw new UpstreamHttpError(
+      res.status,
+      `blob fetch ${res.status} for ${url}: ${res.text()}`,
+    )
   }
 
   const contentTypeHeader = res.headers['content-type']

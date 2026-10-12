@@ -1,7 +1,6 @@
 import { Type } from '@sinclair/typebox'
 
 import { getSocketDebug } from '@socketsecurity/lib/env/socket'
-import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
@@ -93,7 +92,7 @@ export function buildPackageComponents(
       cleanedVersion !== 'unknown' &&
       cleanedVersion
     ) {
-      logger.info(`Using version ${cleanedVersion} for ${pkg.depname}`)
+      logger.info({ tool: 'depscore' }, 'using explicit package version')
     }
     return { __proto__: null, purl }
   })
@@ -180,10 +179,13 @@ export async function handleDepscoreRequest(
 ): Promise<ToolOkResult | ToolErrorResult> {
   config = { __proto__: null, ...config } as DepscoreRequestOptions
   const { accessTokenFromAuth, platform, userAgent } = config
-  logger.info(`Received request for ${packages.length} packages`)
+  logger.info(
+    { tool: 'depscore', packageCount: Math.min(packages.length, 10_000) },
+    'request received',
+  )
   const accessToken = resolveAuthToken(accessTokenFromAuth)
   if (!accessToken) {
-    logger.error(AUTH_REQUIRED_MSG)
+    logger.error({ tool: 'depscore' }, 'authentication required')
     return markToolOutcome(errorResult(AUTH_REQUIRED_MSG), 'denied')
   }
 
@@ -196,8 +198,8 @@ export async function handleDepscoreRequest(
       headers: buildSocketHeaders(accessToken, userAgent),
       body: JSON.stringify({ components }),
     })
-  } catch (e) {
-    logger.error(`Error processing packages: ${errorMessage(e)}`)
+  } catch {
+    logger.error({ tool: 'depscore' }, 'upstream request failed')
     return errorResult('Error connecting to Socket API')
   }
 
@@ -205,25 +207,28 @@ export async function handleDepscoreRequest(
 
   if (response.status === 401) {
     const errorMsg = `Socket authentication failed [401]. Re-authenticate and retry. ${responseText}`
-    logger.error(errorMsg)
+    logger.error({ tool: 'depscore', status: 401 }, 'upstream request denied')
     return markToolOutcome(errorResult(errorMsg), 'denied')
   }
 
   if (response.status === 403) {
     const errorMsg = `Socket denied access [403]. Re-authenticate with the correct organization or repository permissions and retry. ${responseText}`
-    logger.error(errorMsg)
+    logger.error({ tool: 'depscore', status: 403 }, 'upstream request denied')
     return markToolOutcome(errorResult(errorMsg), 'denied')
   }
 
   if (response.status !== 200) {
     const errorMsg = `Error processing packages: [${response.status}] ${responseText}`
-    logger.error(errorMsg)
+    logger.error(
+      { tool: 'depscore', status: response.status },
+      'upstream request failed',
+    )
     return errorResult(errorMsg)
   }
 
   if (!responseText.trim()) {
     const errorMsg = 'No packages were found.'
-    logger.error(errorMsg)
+    logger.error({ tool: 'depscore' }, 'empty upstream response')
     return errorResult(errorMsg)
   }
 
@@ -250,9 +255,8 @@ export async function handleDepscoreRequest(
         },
       ],
     }
-  } catch (e) {
-    const errorMsg = `JSON parsing error: ${errorMessage(e)} -- Response: ${responseText}`
-    logger.error(errorMsg)
+  } catch {
+    logger.error({ tool: 'depscore' }, 'response parse failed')
     return errorResult('Error parsing response from Socket API')
   }
 }
@@ -278,10 +282,8 @@ export function parseNdjsonPackageBody(
     try {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
       obj = JSON.parse(line) as Record<string, unknown>
-    } catch (e) {
-      logger.error(
-        `Skipping malformed NDJSON line ${i + 1}: ${errorMessage(e)}`,
-      )
+    } catch {
+      logger.error({ tool: 'depscore' }, 'skipping malformed NDJSON line')
       continue
     }
     if (!obj['_type']) {
