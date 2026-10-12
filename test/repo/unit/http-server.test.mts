@@ -46,7 +46,8 @@ test('applyClientApiKey ignores a missing Authorization header', () => {
 })
 
 test('applyClientApiKey ignores a non-bearer scheme', () => {
-  const req = reqWith('Basic dXNlcjpwYXNz')
+  const exampleCredentials = Buffer.from('example:example').toString('base64')
+  const req = reqWith(`Basic ${exampleCredentials}`)
   applyClientApiKey(req)
   expect(req.auth).toBeUndefined()
 })

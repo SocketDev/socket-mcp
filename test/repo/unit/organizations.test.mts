@@ -7,6 +7,7 @@ import {
 } from '../../../lib/organizations.mts'
 
 const API = 'https://api.socket.dev'
+const exampleToken = 'example-socket-api-token'
 
 beforeEach(() => {
   nock.disableNetConnect()
@@ -19,27 +20,31 @@ afterEach(() => {
 
 describe('fetchOrganizations', () => {
   test('GETs /v0/organizations with Basic auth + returns the body', async () => {
-    // The Socket SDK authenticates with HTTP Basic (token as the username,
-    // empty password) — base64('tok:') === 'dG9rOg=='.
     nock(API)
-      .matchHeader('authorization', 'Basic dG9rOg==')
+      .matchHeader(
+        'authorization',
+        `Basic ${Buffer.from(`${exampleToken}:`).toString('base64')}`,
+      )
       .get('/v0/organizations')
       .reply(200, { organizations: { o1: { name: 'Acme' } } })
 
-    const data = await fetchOrganizations({ baseUrl: API, authToken: 'tok' })
+    const data = await fetchOrganizations({
+      baseUrl: API,
+      authToken: exampleToken,
+    })
     expect(data).toEqual({ organizations: { o1: { name: 'Acme' } } })
   })
 
   test('strips trailing slash from baseUrl', async () => {
     const scope = nock(API).get('/v0/organizations').reply(200, {})
-    await fetchOrganizations({ baseUrl: `${API}/`, authToken: 'tok' })
+    await fetchOrganizations({ baseUrl: `${API}/`, authToken: exampleToken })
     expect(scope.isDone()).toBe(true)
   })
 
   test('throws with status + body on non-2xx', async () => {
     nock(API).get('/v0/organizations').reply(401, { error: 'unauthorized' })
     await expect(
-      fetchOrganizations({ baseUrl: API, authToken: 'tok' }),
+      fetchOrganizations({ baseUrl: API, authToken: exampleToken }),
     ).rejects.toThrow(/organizations endpoint 401/)
   })
 })
