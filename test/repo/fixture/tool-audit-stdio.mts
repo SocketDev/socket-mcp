@@ -1,15 +1,15 @@
 import { createServer } from 'node:http'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 
 import { SERVER_SOURCE } from '../../../scripts/repo/paths.mts'
 
-const FIXTURE_NETWORK_GUARD = fileURLToPath(
-  new URL('../e2e/fixture/network.mts', import.meta.url),
-)
+const FIXTURE_NETWORK_GUARD = new URL(
+  '../e2e/fixture/network.mts',
+  import.meta.url,
+).href
 const MAX_CAPTURED_STDERR_BYTES = 64 * 1024
 const STDERR_WAIT_TIMEOUT_MS = 5_000
 const TOKEN_CANARY = 'synthetic_stdio_token_canary'

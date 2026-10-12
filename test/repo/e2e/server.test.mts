@@ -1,6 +1,5 @@
 import { createServer } from 'node:http'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { Client } from '@modelcontextprotocol/client'
@@ -60,7 +59,7 @@ describe('Socket MCP Server', () => {
       command: process.execPath,
       args: [
         '--import',
-        fileURLToPath(new URL('./fixture/network.mts', import.meta.url)),
+        new URL('./fixture/network.mts', import.meta.url).href,
         SERVER_SOURCE,
       ],
       env: {
