@@ -4743,7 +4743,6 @@ scripts/fleet/registry/npm/staged-browser-parse.mts
 scripts/fleet/registry/npm/staged-browser-read.mts
 scripts/fleet/registry/npm/staged-cross-check.mts
 scripts/fleet/registry/npm/staged-workspace.mts
-scripts/fleet/registry/npm/staged.mts
 scripts/fleet/registry/npm/threat-scan.mts
 scripts/fleet/registry/npm/versions-browser-read.mts
 scripts/fleet/registry/npm/versions-context-schema.mts
@@ -5439,6 +5438,7 @@ coverage
 /scripts/fleet/registry/npm/scan/*
 !/scripts/fleet/registry/npm/scan/ndjson.mts
 !/scripts/fleet/registry/npm/scan/run.mts
+!/scripts/fleet/registry/npm/staged.mts
 !/scripts/fleet/setup/
 /scripts/fleet/setup/*
 !/scripts/fleet/setup/bootstrap/

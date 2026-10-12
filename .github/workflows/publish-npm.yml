@@ -13,17 +13,11 @@ run-name: 'publish: npm (${{ inputs.coordinator-id || inputs.task-name }})'
 #
 # CI writes the changelog and version, commits the source, and reserves the tag
 # before staging so packed README links and badges resolve. The coordinator
-# scans the exact staged bytes, approves only a zero-alert scan with npm's
+# scans the exact staged bytes, approves a passing malware policy with npm's
 # attended proof-of-presence, then verifies the public tarball against the
-# recorded stage digests before creating the GitHub release.
-#
-# BACKFILL: to republish prior content as a skipped GAP version — 1.4.3
-# between a live 1.4.2 and 1.4.4 — dispatch from MAIN, where this file always
-# exists, with `backfill-version` + `checkout-ref`. The checkout-ref supplies
-# the CONTENT while the workflow definition stays main's. The bump/changelog
-# gate is bypassed; hard gap-fill-only guards replace it (never-published
-# version, lower than latest, non-latest dist-tag, content declares its own
-# version) — see scripts/fleet/registry/npm/backfill.mts.
+# recorded stage digests before creating the GitHub release. Resume a transient
+# failure only with this source and these staged bytes; changed bytes need a new
+# version reservation.
 #
 # NAPI ADDON PATH: not here. A member that declares a `napi` block in
 # .config/repo/socket-wheelhouse.json receives a SEPARATE, conditionally
@@ -58,24 +52,10 @@ on:
         description: 'Planned X.Y.Z-nightly.YYYYMMDD.N target; requires dist-tag nightly.'
         type: string
         default: ''
-      backfill-version:
-        description: >-
-          Backfill a never-published GAP version below registry latest with
-          the content at checkout-ref. Bypasses the bump/changelog gate
-          behind hard gap-fill-only guards; requires checkout-ref and a
-          non-latest dist-tag.
-        type: string
-        default: ''
-      checkout-ref:
-        description: >-
-          Backfill or reserved-release resume — the tag, branch, or SHA whose
-          content is published while the workflow definition stays on main.
-        type: string
-        default: ''
       resume-publish:
         description: >-
           Resume publishing after squash-merging the release PR. Keep its title
-          unchanged and dispatch from the default branch with checkout-ref empty.
+          unchanged and dispatch from the default branch.
         type: boolean
         default: false
       coverage-tooling-ref:
@@ -116,7 +96,7 @@ concurrency:
 
 jobs:
   coverage-plan:
-    if: ${{ inputs.scan-stage-id == '' && inputs.backfill-version == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    if: ${{ inputs.scan-stage-id == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     outputs:
       runner: ${{ steps.coverage_plan.outputs.runner }}
       shared-build: ${{ steps.coverage_plan.outputs.shared-build }}
@@ -127,7 +107,7 @@ jobs:
       - name: Bootstrap checkout
         shell: bash
         env: &coverage-bootstrap-env
-          CHECKOUT_REF: ${{ inputs.checkout-ref || github.sha }}
+          CHECKOUT_REF: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RESUME_PUBLISH: ${{ inputs.resume-publish }}
           WORKFLOW_SHA: ${{ github.sha }}
@@ -141,7 +121,7 @@ jobs:
           git config --local advice.detachedHead false
           git remote remove origin 2>/dev/null || true
           git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          FETCH_REF="${CHECKOUT_REF:-${TRIGGER_REF}}"
+          FETCH_REF="${CHECKOUT_REF}"
           FETCH_ARGS=(--no-tags --prune --depth 1 origin "${FETCH_REF}")
           if [ -n "${GITHUB_TOKEN}" ]; then
             AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
@@ -173,17 +153,17 @@ jobs:
       - name: 'Set up and install'
         uses: ./.github/actions/fleet/setup-and-install
         with:
-          socket-api-token: ${{ inputs.checkout-ref == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
+          socket-api-token: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-          checkout-ref: ${{ inputs.checkout-ref || github.sha }}
+          checkout-ref: ${{ github.sha }}
       - name: Select coverage runner
         id: coverage_plan
         shell: bash
         run: |
           node --input-type=module <<'NODE'
           import { appendFileSync } from 'node:fs';
-          import { resolveRunPlan } from './scripts/fleet/cover-run.mts';
+          import { resolveRunPlan } from './scripts/fleet/cover/execution.mts';
           const plan = resolveRunPlan(process.cwd());
           if (plan.configErrors.length) throw new Error(plan.configErrors.join('\n'));
           if (!['bun', 'vitest'].includes(plan.runner)) throw new Error('Unsupported coverage runner. Fix the repository coverage settings.');
@@ -194,7 +174,7 @@ jobs:
 
   coverage-build:
     needs: [coverage-plan]
-    if: ${{ inputs.scan-stage-id == '' && inputs.backfill-version == '' && needs.coverage-plan.result == 'success' && needs.coverage-plan.outputs.shared-build == 'true' }}
+    if: ${{ inputs.scan-stage-id == '' && needs.coverage-plan.result == 'success' && needs.coverage-plan.outputs.shared-build == 'true' }}
     name: Coverage source-map build
     runs-on: ubuntu-26.04
     timeout-minutes: 120
@@ -209,15 +189,15 @@ jobs:
           git remote add origin "${SERVER_URL}/${REPOSITORY}"
           AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader" GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
-          git fetch --no-tags --depth 1 origin "${CHECKOUT_REF:-${TRIGGER_REF}}"
+          git fetch --no-tags --depth 1 origin "${CHECKOUT_REF}"
           git checkout -q --detach FETCH_HEAD
       - name: Set up and install
         uses: ./.github/actions/fleet/setup-and-install
         with:
-          socket-api-token: ${{ inputs.checkout-ref == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
+          socket-api-token: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-          checkout-ref: ${{ inputs.checkout-ref || github.sha }}
+          checkout-ref: ${{ github.sha }}
       - name: Build coverage prerequisites
         env:
           FLEET_COVERAGE_PREREQUISITE_BUILD: 'true'
@@ -227,7 +207,7 @@ jobs:
           COVERAGE: 'true'
         run: pnpm run build
       - name: Package verified coverage build
-        run: node scripts/fleet/cover-build-artifact.mts create .cache/fleet/coverage-build
+        run: node scripts/fleet/cover/artifact/cli.mts create .cache/fleet/coverage-build
       - name: Upload coverage build
         uses: ./.github/actions/fleet/upload-artifact
         with:
@@ -236,7 +216,7 @@ jobs:
 
   coverage-shards:
     needs: [coverage-plan, coverage-build]
-    if: ${{ !cancelled() && inputs.scan-stage-id == '' && inputs.backfill-version == '' && needs.coverage-plan.result == 'success' && (needs.coverage-build.result == 'success' || needs.coverage-build.result == 'skipped') && needs.coverage-plan.outputs.runner == 'vitest' }}
+    if: ${{ !cancelled() && inputs.scan-stage-id == '' && needs.coverage-plan.result == 'success' && (needs.coverage-build.result == 'success' || needs.coverage-build.result == 'skipped') && needs.coverage-plan.outputs.runner == 'vitest' }}
     outputs:
       shard-count: ${{ strategy.job-total }}
     name: Coverage collection
@@ -256,7 +236,7 @@ jobs:
           git config --local advice.detachedHead false
           git remote remove origin 2>/dev/null || true
           git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          FETCH_REF="${CHECKOUT_REF:-${TRIGGER_REF}}"
+          FETCH_REF="${CHECKOUT_REF}"
           FETCH_ARGS=(--no-tags --prune --depth 1 origin "${FETCH_REF}")
           if [ -n "${GITHUB_TOKEN}" ]; then
             AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
@@ -294,10 +274,10 @@ jobs:
       - name: 'Set up and install'
         uses: ./.github/actions/fleet/setup-and-install
         with:
-          socket-api-token: ${{ inputs.checkout-ref == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
+          socket-api-token: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-          checkout-ref: ${{ inputs.checkout-ref || github.sha }}
+          checkout-ref: ${{ github.sha }}
       - name: Restore reserved coverage tooling
         if: ${{ inputs.resume-publish == true }}
         shell: bash
@@ -317,7 +297,7 @@ jobs:
           const [temporary, ref] = process.argv.slice(2);
           if (!/^fleet-pack-[a-f\d]{40}$/.test(ref)) throw new Error('Invalid immutable coverage tooling reference.');
           const root = process.cwd();
-          const files = ['scripts/fleet/cover/shard-run.mts', 'scripts/fleet/cover/shard-revision.mts'];
+          const files = ['scripts/fleet/cover/shard/run.mts', 'scripts/fleet/cover/shard/revision.mts'];
           const tracked = execFileSync('git', ['ls-files', '--', ...files], { encoding: 'utf8' });
           if (tracked.trim()) throw new Error('Coverage tooling must be an untracked fleet payload.');
           const targets = files.map((relative, index) => {
@@ -370,7 +350,7 @@ jobs:
 
   coverage:
     needs: [coverage-plan, coverage-build, coverage-shards]
-    if: ${{ !cancelled() && inputs.scan-stage-id == '' && inputs.backfill-version == '' }}
+    if: ${{ !cancelled() && inputs.scan-stage-id == '' }}
     name: Coverage gate
     runs-on: ubuntu-26.04
     timeout-minutes: 60
@@ -396,7 +376,7 @@ jobs:
       - name: Bootstrap checkout
         shell: bash
         env:
-          CHECKOUT_REF: ${{ inputs.checkout-ref || github.sha }}
+          CHECKOUT_REF: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RESUME_PUBLISH: ${{ inputs.resume-publish }}
           WORKFLOW_SHA: ${{ github.sha }}
@@ -410,7 +390,7 @@ jobs:
           git config --local advice.detachedHead false
           git remote remove origin 2>/dev/null || true
           git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          FETCH_REF="${CHECKOUT_REF:-${TRIGGER_REF}}"
+          FETCH_REF="${CHECKOUT_REF}"
           FETCH_ARGS=(--no-tags --prune --depth 1 origin "${FETCH_REF}")
           if [ -n "${GITHUB_TOKEN}" ]; then
             AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
@@ -442,10 +422,10 @@ jobs:
       - name: 'Set up and install'
         uses: ./.github/actions/fleet/setup-and-install
         with:
-          socket-api-token: ${{ inputs.checkout-ref == '' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
+          socket-api-token: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-          checkout-ref: ${{ inputs.checkout-ref || github.sha }}
+          checkout-ref: ${{ github.sha }}
       - name: Download shared coverage build
         if: ${{ needs.coverage-plan.outputs.shared-build == 'true' }}
         uses: ./.github/actions/fleet/download-artifact
@@ -516,10 +496,10 @@ jobs:
 
   npm-publish:
     needs: [coverage]
-    if: ${{ always() && inputs.scan-stage-id == '' && (inputs.backfill-version != '' || needs.coverage.result == 'success') }}
+    if: ${{ always() && inputs.scan-stage-id == '' && needs.coverage.result == 'success' }}
     cache-mode: read
     name: Publish npm
-    runs-on: ${{ vars.NPM_PUBLISH_RUNNER || vars.ODAI_RUNNER || 'ubuntu-26.04' }}
+    runs-on: ${{ vars.NPM_PUBLISH_RUNNER || vars.ODAI_RUNNER || 'depot-ubuntu-24.04-4' }}
     # npm's trusted-publisher config pins this GitHub environment name; the
     # OIDC token exchange 404s if the job runs outside it.
     environment: publish-npm
@@ -532,9 +512,7 @@ jobs:
       # First step can't call the local ./.github/actions/fleet/checkout
       # composite (nothing checked out yet); bootstrap the workspace with the
       # inline git-fetch shape so setup-and-install can re-check-out at its own
-      # deeper default. Two npm-publish specifics: a backfill fetches the
-      # checkout-ref content ref (empty = the dispatched ref), and the fetch
-      # carries --tags — the bump derivation anchors on registry-latest + the
+      # deeper default. The fetch carries --tags — the bump derivation anchors on registry-latest + the
       # last v-tag, and on a first-publish repo the registry has nothing, so
       # the tags are the only anchor; a tagless shallow fetch makes the engine
       # derive from zero (0.1.0) and trip the half-applied-bump gate on
@@ -545,7 +523,7 @@ jobs:
           # Route context through env (no ${{ }} in the shell body —
           # zizmor expression-injection). Token authorizes the fetch inline and
           # is never persisted to .git/config.
-          CHECKOUT_REF: ${{ inputs.checkout-ref || github.sha }}
+          CHECKOUT_REF: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RESUME_PUBLISH: ${{ inputs.resume-publish }}
           WORKFLOW_SHA: ${{ github.sha }}
@@ -559,8 +537,7 @@ jobs:
           git config --local advice.detachedHead false
           git remote remove origin 2>/dev/null || true
           git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          # Backfill's content ref wins; otherwise the dispatched ref.
-          FETCH_REF="${CHECKOUT_REF:-${TRIGGER_REF}}"
+          FETCH_REF="${CHECKOUT_REF}"
           FETCH_ARGS=(--prune origin "${FETCH_REF}")
           # --tags stays on the fetch line itself so the
           # version-derivation-jobs-have-tags gate can see it.
@@ -596,9 +573,8 @@ jobs:
         id: content-trust
         shell: bash
         env:
-          BACKFILL_VERSION: ${{ inputs.backfill-version }}
-          CHECKOUT_REF: ${{ inputs.checkout-ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH_SHA: ${{ github.sha }}
           DISPATCH_REF: ${{ github.ref }}
           RESUME_PUBLISH: ${{ inputs.resume-publish }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -609,24 +585,15 @@ jobs:
             echo "trusted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ -z "$CHECKOUT_REF" ]; then
+          if [ "$RESUME_PUBLISH" != "true" ]; then
             echo "trusted=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "$RESUME_PUBLISH" != "true" ] || [ -n "$BACKFILL_VERSION" ] || [[ ! "$CHECKOUT_REF" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?|[a-f0-9]{40})$ ]]; then
-            echo "trusted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           AUTH_B64="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader" GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
           git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
-          if [[ "$CHECKOUT_REF" =~ ^[a-f0-9]{40}$ ]]; then
-            SOURCE_SHA="$CHECKOUT_REF"
-          else
-            SOURCE_SHA="$(git rev-parse "refs/tags/$CHECKOUT_REF^{commit}")"
-          fi
           HEAD_SHA="$(git rev-parse HEAD)"
-          if [ "$SOURCE_SHA" != "$HEAD_SHA" ] || ! git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+          if [ "$HEAD_SHA" != "$DISPATCH_SHA" ] || ! git merge-base --is-ancestor "$HEAD_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
             echo "trusted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -679,13 +646,7 @@ jobs:
           cache: 'false'
           checkout-fetch-depth: '0'
           socket-api-token: ${{ steps.content-trust.outputs.trusted == 'true' && secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW || '' }}
-          # Forward the backfill content ref — setup-and-install re-checks-out
-          # internally (fleet checkout falls back to the TRIGGERING ref when
-          # unset), which would silently swap the backfill content back to
-          # main's tree; the backfill gate then refuses against main's
-          # version. Empty forwards as unset, so normal dispatches keep the
-          # dispatched-ref re-checkout.
-          checkout-ref: ${{ inputs.checkout-ref || github.sha }}
+          checkout-ref: ${{ github.sha }}
           # Reuse the Release App for a contents:read token scoped to wheelhouse.
           # Both credentials enable the private release fallback. Without the
           # key, hydration still pulls public GHCR anonymously.
@@ -698,21 +659,11 @@ jobs:
       - name: Validate reserved release resume
         if: ${{ inputs.resume-publish == true }}
         env:
-          BACKFILL_VERSION: ${{ inputs.backfill-version }}
-          CHECKOUT_REF: ${{ inputs.checkout-ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           VERSION="$(node --input-type=module -e 'import { readPackageJson } from "./scripts/fleet/registry/npm/shared.mts"; process.stdout.write(readPackageJson().version)')"
-          if [ -n "$BACKFILL_VERSION" ]; then
-            echo "::error::Reserved release resume cannot use backfill-version." >&2
-            exit 1
-          fi
-          if [ -n "$CHECKOUT_REF" ]; then
-            echo "::error::Reserved release resume must use the merged default-branch source; checkout-ref must be empty." >&2
-            exit 1
-          fi
           if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
             echo "::error::Reserved release resume must run from the default branch." >&2
             exit 1
@@ -752,13 +703,10 @@ jobs:
       - name: Validate repository publish contract
         run: pnpm run --if-present prepublish:check
       - name: Set up odai
-        if: ${{ inputs.backfill-version == '' && inputs.resume-publish != true }}
+        if: ${{ inputs.resume-publish != true }}
         uses: ./.github/actions/fleet/setup-odai
-        with:
-          allow-fill: 'true'
-          require-ready: 'true'
       - name: 'Mint PR branch token'
-        if: ${{ inputs.backfill-version == '' && steps.content-trust.outputs.trusted == 'true' }}
+        if: ${{ steps.content-trust.outputs.trusted == 'true' }}
         id: pr-branch-app
         uses: ./.github/actions/fleet/github-pr-branch-app-token
         with:
@@ -766,7 +714,7 @@ jobs:
           private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
           repositories: ${{ github.event.repository.name }}
       - name: 'Mint release token'
-        if: ${{ inputs.backfill-version == '' && steps.content-trust.outputs.trusted == 'true' }}
+        if: ${{ steps.content-trust.outputs.trusted == 'true' }}
         id: release-app
         uses: ./.github/actions/fleet/github-release-app-token
         with:
@@ -774,11 +722,13 @@ jobs:
           private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
           repositories: ${{ github.event.repository.name }}
       # The version resolver consumes a prerelease hint, uses configured odai
-      # for patch/minor, or defaults to minor. Backfills keep their version.
+      # for patch/minor, or defaults to minor.
       - name: Publish
+        id: publish
         env:
-          BACKFILL_VERSION: ${{ inputs.backfill-version }}
-          CHECKOUT_REF: ${{ inputs.resume-publish != true && inputs.checkout-ref || '' }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || vars.APPLE_TEAM_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PUBLISH_TASK_NAME: ${{ inputs.task-name }}
           DIST_TAG: ${{ inputs.dist-tag }}
           NIGHTLY_VERSION: ${{ inputs.nightly-version }}
           PR_APP_TOKEN: ${{ steps.pr-branch-app.outputs.token }}
@@ -786,17 +736,20 @@ jobs:
           RESUME_PUBLISH: ${{ inputs.resume-publish }}
           RELEASE_APP_TOKEN: ${{ steps.release-app.outputs.token }}
           GH_TOKEN: ${{ steps.release-app.outputs.token }}
-        # CHECKOUT_REF forwards on its own so a checkout-ref dispatch WITHOUT
-        # backfill-version is refused by the script instead of silently
-        # bump-publishing historical content.
         run: |
           args=(--tag "$DIST_TAG")
-          if [ -n "$BACKFILL_VERSION" ]; then args+=(--backfill "$BACKFILL_VERSION"); fi
-          if [ -n "$CHECKOUT_REF" ]; then args+=(--checkout-ref "$CHECKOUT_REF"); fi
           if [ -n "$RELEASE_AS" ]; then args+=(--release-as "$RELEASE_AS"); fi
           if [ -n "$NIGHTLY_VERSION" ]; then args+=(--nightly-version "$NIGHTLY_VERSION"); fi
           if [ "$RESUME_PUBLISH" = true ]; then args+=(--resume-publish); fi
           node scripts/fleet/npm/publish/run-cli.mts "${args[@]}"
+
+      - name: Retain exact staged upload evidence
+        if: ${{ always() }}
+        uses: ./.github/actions/fleet/upload-artifact
+        with:
+          name: npm-stage-followup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .cache/fleet/npm-publish/stage-followup.json
+          if-no-files-found: ignore
 
   scan-staged-package:
     if: ${{ inputs.scan-stage-id != '' }}
@@ -836,6 +789,7 @@ jobs:
           install -m 0600 scripts/fleet/npm/scan/receipt.mts "$RUNNER_TEMP/npm-scan-receipt.mts"
           install -m 0600 scripts/fleet/registry/npm/scan/ndjson.mts "$RUNNER_TEMP/npm-registry-scan-ndjson.mts"
           install -m 0600 scripts/fleet/registry/npm/scan/run.mts "$RUNNER_TEMP/npm-registry-scan.mts"
+          install -m 0600 scripts/fleet/registry/npm/staged.mts "$RUNNER_TEMP/npm-registry-staged.mts"
       - name: Verify release source before setup
         shell: bash
         env:
@@ -927,6 +881,7 @@ jobs:
           install -m 0600 "$RUNNER_TEMP/npm-scan-receipt.mts" scripts/fleet/npm/scan/receipt.mts
           install -m 0600 "$RUNNER_TEMP/npm-registry-scan-ndjson.mts" scripts/fleet/registry/npm/scan/ndjson.mts
           install -m 0600 "$RUNNER_TEMP/npm-registry-scan.mts" scripts/fleet/registry/npm/scan/run.mts
+          install -m 0600 "$RUNNER_TEMP/npm-registry-staged.mts" scripts/fleet/registry/npm/staged.mts
       - name: Validate publish task name
         env:
           PUBLISH_TASK_NAME: ${{ inputs.task-name }}
@@ -938,6 +893,7 @@ jobs:
       - name: Scan exact staged bytes
         id: scan
         env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || vars.APPLE_TEAM_ID }}
           GITHUB_TOKEN: ${{ github.token }}
           SCAN_PACKAGE: ${{ inputs.scan-package }}
           SCAN_PUBLISH_RUN_ID: ${{ inputs.scan-publish-run-id }}
