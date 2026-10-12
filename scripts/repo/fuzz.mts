@@ -100,15 +100,9 @@ export function sweepOrphanedShmSegments(): void {
   if (process.platform !== 'darwin') {
     return
   }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-proto options-bag idiom plus a narrowed result view of trusted ipcs output.
   const listing = spawnSync('ipcs', ['-ma'], {
-    __proto__: null,
-    stdio: ['ignore', 'pipe', 'ignore'],
-    stdioString: true,
-  } as unknown as SpawnSyncOptions) as {
-    status?: number | null | undefined
-    stdout?: string | undefined
-  }
+    stdio: ['ignore', 'pipe', 'ignore'] satisfies SpawnSyncOptions['stdio'],
+  })
   if (listing.status !== 0 || typeof listing.stdout !== 'string') {
     return
   }
@@ -118,11 +112,9 @@ export function sweepOrphanedShmSegments(): void {
     if (row.owner !== me || row.nattch !== 0 || pidIsAlive(row.cpid)) {
       continue
     }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-proto options-bag idiom: the double cast is required to pass a prototype-free literal as SpawnSyncOptions.
     const rm = spawnSync('ipcrm', ['-m', String(row.shmid)], {
-      __proto__: null,
       stdio: 'ignore',
-    } as unknown as SpawnSyncOptions) as { status?: number | null | undefined }
+    })
     if (rm.status === 0) {
       swept += 1
     }
@@ -139,20 +131,22 @@ export function main(): void {
 
   // Sync-required: top-level CLI runner, exits with the child's code.
   // oxlint-disable-next-line socket/prefer-async-spawn -- sync CLI runner
+  const environment: NodeJS.ProcessEnv = { ...process.env, VITIATE_FUZZ: '1' }
+  Object.setPrototypeOf(environment, null)
+  const spawnOptions: SpawnSyncOptions = {
+    cwd: repoRoot,
+    env: environment,
+    stdio: 'inherit',
+  }
+  Object.setPrototypeOf(spawnOptions, null)
   const result = spawnSync(
     VITEST_BIN,
     // No `--config`: vitest auto-discovers the repo-root vitest.config.mts, which
     // is the only config both this parent run and vitiate's re-spawned child agree
     // on (the child never receives --config). See vitest.config.mts header.
     ['run', ...process.argv.slice(2)],
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-proto options-bag idiom: `__proto__: null` keeps the options prototype-free but changes the literal's inferred type, so the double cast is required to pass it as SpawnSyncOptions.
-    {
-      __proto__: null,
-      cwd: repoRoot,
-      env: { __proto__: null, ...process.env, VITIATE_FUZZ: '1' },
-      stdio: 'inherit',
-    } as unknown as SpawnSyncOptions,
-  ) as { status?: number | null | undefined }
+    spawnOptions,
+  )
 
   process.exit(result.status ?? 1)
 }

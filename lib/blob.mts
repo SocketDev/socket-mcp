@@ -27,11 +27,9 @@ export interface FetchBlobConfig {
 const DEFAULT_MAX_BYTES = 1024 * 1024 // 1 MB
 
 export interface ChunkedManifest {
-  _version?: string | undefined
-  size?: number | undefined
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+  _version?: unknown | undefined
+  size?: unknown | undefined
   chunks?: unknown | undefined
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
   offset?: unknown | undefined
 }
 
@@ -114,17 +112,17 @@ export async function fetchChunkedBytes(
   const manifestHash = `Q${sHash.slice(1)}`
   const manifestRaw = await fetchRawBytes(manifestHash, config)
 
-  let manifest: ChunkedManifest
+  let manifest: unknown
   try {
-    // Every ChunkedManifest field is optional `unknown`, so any decoded JSON
-    // object satisfies it; the shape checks below validate what's used.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above: all-optional-unknown target type, field-checked before use.
-    manifest = JSON.parse(
-      new TextDecoder('utf-8').decode(manifestRaw.bytes),
-    ) as ChunkedManifest
+    manifest = JSON.parse(new TextDecoder('utf-8').decode(manifestRaw.bytes))
   } catch (e) {
     throw new Error(
       `chunked blob manifest at ${manifestHash} is not valid JSON: ${errorMessage(e)}`,
+    )
+  }
+  if (!isChunkedManifest(manifest)) {
+    throw new Error(
+      `chunked blob manifest at ${manifestHash} is not a JSON object`,
     )
   }
   const rawChunks = manifest.chunks
@@ -222,6 +220,10 @@ export async function fetchRawBytes(
 }
 
 // Type guard so manifest `chunks` narrows without an unsafe cast.
+export function isChunkedManifest(value: unknown): value is ChunkedManifest {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(v => typeof v === 'string')
 }

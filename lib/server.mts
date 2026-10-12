@@ -6,6 +6,7 @@ import type {
   McpRequestContext,
   ServerContext,
 } from '@modelcontextprotocol/server'
+import { isPlainObject } from '@socketsecurity/lib-stable/objects/predicates'
 
 import { getSocketApiUrl } from './env.mts'
 import { buildToolAuditEvent } from './tool-audit-event.mts'
@@ -30,6 +31,7 @@ import { emitToolAuditEvent } from './tool-audit-sink.mts'
 import { classifyToolOutcome, markToolOutcome } from './tool-outcome.mts'
 import { formatToolValidationFailure } from './tool-validation.mts'
 import type {
+  JsonValue,
   ToolAnnotations,
   ToolHandlerExtra,
   ToolInputSchema,
@@ -300,6 +302,49 @@ export function getStaticApiKey(): string {
   return staticApiKey
 }
 
+export function isJsonObject(
+  value: unknown,
+): value is Record<string, JsonValue> {
+  return isPlainObject(value) && Object.values(value).every(isJsonValue)
+}
+
+export function isJsonValue(value: unknown): value is JsonValue {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    (typeof value === 'number' && Number.isFinite(value)) ||
+    typeof value === 'boolean'
+  ) {
+    return true
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue)
+  }
+  return isJsonObject(value)
+}
+
+export function isToolInputSchema(value: unknown): value is ToolInputSchema {
+  if (!isPlainObject(value) || value['type'] !== 'object') {
+    return false
+  }
+  if (
+    'properties' in value &&
+    value['properties'] !== undefined &&
+    !isJsonObject(value['properties'])
+  ) {
+    return false
+  }
+  if (
+    'required' in value &&
+    value['required'] !== undefined &&
+    (!Array.isArray(value['required']) ||
+      !value['required'].every(item => typeof item === 'string'))
+  ) {
+    return false
+  }
+  return true
+}
+
 // Resolve the access token a PUBLIC-data tool (depscore) should use: the
 // per-request token takes precedence, then the boot-time static key. Falling
 // back to a shared deploy key is fine here because package scores are not
@@ -381,12 +426,10 @@ export function setStaticApiKey(
  * transport already writes.
  */
 export function toPlainSchemaSpec(spec: ValidatedToolSpec): ValidatedToolSpec {
-  // JSON.parse widens to any; the value round-trips through the same
-  // encoding every shipping transport applies to it.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- round trip
-  const inputSchema = JSON.parse(
-    JSON.stringify(spec.inputSchema),
-  ) as ToolInputSchema
+  const inputSchema: unknown = JSON.parse(JSON.stringify(spec.inputSchema))
+  if (!isToolInputSchema(inputSchema)) {
+    throw new Error('Tool input schema did not serialize as an object schema')
+  }
   return { ...spec, inputSchema }
 }
 

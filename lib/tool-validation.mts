@@ -17,8 +17,8 @@ export interface ToolSchemaDefinition {
   readonly validateInput: ToolInputValidator
 }
 
-export function defineToolSchema<T extends TSchema & { type: 'object' }>(
-  schema: T,
+export function defineToolSchema(
+  schema: TSchema & { type: 'object' },
 ): ToolSchemaDefinition {
   const validator = TypeCompiler.Compile(schema)
   return Object.setPrototypeOf(
