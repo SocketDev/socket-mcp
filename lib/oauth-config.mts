@@ -12,7 +12,6 @@ import {
   getSocketOauthIntrospectionClientId,
   getSocketOauthIntrospectionClientSecret,
   getSocketOauthIssuer,
-  getSocketOauthRequireAudience,
   getSocketOauthRequiredScopes,
 } from './env.mts'
 
@@ -20,12 +19,6 @@ import {
 // on localhost over plain http; otherwise loopback/private hosts are refused
 // as SSRF targets and a public host must be https.
 export const ALLOW_LOCAL_OAUTH: boolean = envAsBoolean(getSocketDebug())
-
-// Strict RFC 8707 audience enforcement: reject a token whose introspection
-// response carries no `aud` at all. Off by default, because an authorization
-// server that does not emit `aud` would otherwise fail every request. A
-// PRESENT `aud` naming another resource is rejected either way.
-export const REQUIRE_OAUTH_AUDIENCE: boolean = getSocketOauthRequireAudience()
 
 // RFC 6749 §3.3 reserves no meaning for `offline_access`. It is an OIDC
 // refresh-token request scope, not something a resource server requires of an

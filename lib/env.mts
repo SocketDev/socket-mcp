@@ -146,14 +146,6 @@ export function getSocketOauthIssuer(): string | undefined {
   return envString('SOCKET_OAUTH_ISSUER')
 }
 
-// Turns on strict RFC 8707 audience enforcement: an introspection response
-// with no `aud` claim is rejected. Off by default, because an authorization
-// server that omits `aud` would otherwise fail every request. An `aud` that
-// IS present and names a different resource is always rejected, flag or not.
-export function getSocketOauthRequireAudience(): boolean {
-  return envBool('SOCKET_OAUTH_REQUIRE_AUDIENCE')
-}
-
 export function getSocketOauthRequiredScopes(): string[] {
   const raw = envString('SOCKET_OAUTH_REQUIRED_SCOPES')
   if (raw === undefined) {

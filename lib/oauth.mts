@@ -28,7 +28,6 @@ import {
   buildOAuthScopeParameter,
   buildResourceScopes,
   defaultOAuthConfig,
-  REQUIRE_OAUTH_AUDIENCE,
   splitScopes,
 } from './oauth-config.mts'
 import type { OAuthConfig } from './oauth-config.mts'
@@ -278,25 +277,13 @@ export async function verifyAccessToken(
     return undefined
   }
 
-  // RFC 8707 §2 / MCP: a token that names an audience is only usable here if
-  // that audience is this resource. A PRESENT `aud` naming something else is
-  // always rejected. That is the substitution attack, and no flag opens it.
-  // An ABSENT `aud` is accepted unless SOCKET_OAUTH_REQUIRE_AUDIENCE is on,
-  // because an authorization server that never emits the claim would
-  // otherwise fail every request.
-  // The flip below is a spec MUST held open only by an upstream dependency:
-  // once Socket's authorization server reports `aud` at introspection (#201),
-  // SOCKET_OAUTH_REQUIRE_AUDIENCE defaults to on and the accept-when-absent
-  // branch below goes away. Flipping it before then rejects every live OAuth
-  // request.
+  // RFC 8707 §2 / MCP: an active token must name this resource as an audience.
   const audiences = splitTokenAudience(introspection['aud'])
   if (audiences.length === 0) {
-    if (REQUIRE_OAUTH_AUDIENCE) {
-      logger.warn(
-        `Rejected an active token carrying no "aud" claim. Where: introspection of a request for ${resourceIdentifier.href}. Saw no audience, wanted one naming this resource. Fix: have the authorization server return "aud" on introspection, or unset SOCKET_OAUTH_REQUIRE_AUDIENCE to accept audience-less tokens.`,
-      )
-      return undefined
-    }
+    logger.warn(
+      `Rejected an active token carrying no usable "aud" claim. Where: introspection of a request for ${resourceIdentifier.href}. Saw no audience, wanted one naming this resource. Fix: authorize again with resource=${resourceIdentifier.href}.`,
+    )
+    return undefined
   } else if (
     !audiences.some(audience =>
       isOAuthAudienceAllowed(audience, resourceIdentifier),
@@ -332,10 +319,7 @@ export async function verifyAccessToken(
         : 'unknown',
     scopes: splitScopes(introspection['scope']),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
-    // Bound only when the token actually named an audience that matched.
-    // Synthesizing one for an audience-less token would claim a binding the
-    // authorization server never asserted.
-    ...(audiences.length > 0 ? { resource: resourceIdentifier } : {}),
+    resource: resourceIdentifier,
     extra: introspection,
   }
 }

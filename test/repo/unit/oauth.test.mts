@@ -212,7 +212,7 @@ test('verifyAccessToken rejects an opaque non-URL aud', async () => {
   expect(authInfo).toBe(undefined)
 })
 
-test('verifyAccessToken accepts a missing aud by default and leaves resource unbound', async () => {
+test('verifyAccessToken rejects a missing aud', async () => {
   mockDiscovery()
   mockIntrospection()
   const authInfo = await verifyAccessToken(
@@ -220,38 +220,7 @@ test('verifyAccessToken accepts a missing aud by default and leaves resource unb
     resourceIdentifier,
     makeConfig(),
   )
-  expect(authInfo?.clientId).toBe('oauth-test-client')
-  // No audience was asserted, so none is synthesized onto the AuthInfo.
-  expect(authInfo?.resource).toBe(undefined)
-})
-
-test('verifyAccessToken rejects a missing aud under SOCKET_OAUTH_REQUIRE_AUDIENCE', async () => {
-  vi.stubEnv('SOCKET_OAUTH_REQUIRE_AUDIENCE', 'true')
-  vi.resetModules()
-  try {
-    // The strict flag is read once at module init, so the strict position
-    // needs a freshly-evaluated module.
-    const strict = await import('../../../lib/oauth.mts')
-    const config = strict.resolveOAuthConfig({
-      issuer: issuerBaseUrl,
-      introspectionClientId: 'oauth-test-client-id',
-      introspectionClientSecret: 'oauth-test-client-secret',
-      requiredScopes: ['packages:list'],
-    })
-    config.enabled = true
-    mockDiscovery()
-    mockIntrospection()
-    expect(
-      await strict.verifyAccessToken(
-        'token-without-aud',
-        resourceIdentifier,
-        config,
-      ),
-    ).toBe(undefined)
-  } finally {
-    vi.unstubAllEnvs()
-    vi.resetModules()
-  }
+  expect(authInfo).toBe(undefined)
 })
 
 test('setOauthEnabled refuses a partial OAuth config', async () => {

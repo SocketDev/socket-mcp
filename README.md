@@ -212,7 +212,6 @@ Environment variables for HTTP mode:
 | `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                       | None    | Client ID used for RFC 7662 token introspection.                                                                                           |
 | `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                       | None    | Client secret used for RFC 7662 token introspection.                                                                                       |
 | `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                               | None    | Scopes required on incoming access tokens, separated by spaces or commas. When unset, any active token passes.                             |
-| `SOCKET_OAUTH_REQUIRE_AUDIENCE`            | No                               | `false` | When `true`, reject an access token whose introspection response carries no `aud` claim. Read the audience note below first.               |
 | `SOCKET_API_BASE_URL`                      | No                               | None    | Override the upstream Socket API endpoint. Falls back to `https://api.socket.dev` when unset.                                              |
 | `SOCKET_DEBUG`                             | No                               | `false` | Turns on verbose request and cache tracing on stderr, points `depscore` at `http://localhost:8866`, and permits a local OAuth issuer.      |
 | `TRUST_PROXY`                              | No                               | `false` | Trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a reverse proxy that rewrites them. |
@@ -274,7 +273,7 @@ WWW-Authenticate: Bearer error="invalid_token", error_description="Invalid or ex
 ```
 
 > [!IMPORTANT]
-> **Audience validation.** When an introspection response includes an `aud` claim, the server requires it to name this resource and rejects the token otherwise. That check is always on and has no opt-out. When the response includes no `aud` at all, the token is accepted by default, because an authorization server that never emits the claim would otherwise fail every request. Audience validation therefore protects you exactly as far as your authorization server populates `aud`; if it does not, no audience is being checked. Set `SOCKET_OAUTH_REQUIRE_AUDIENCE=true` to additionally require the claim's presence, but only once you have confirmed your authorization server returns `aud` on introspection. Enabling it against a server that omits the claim rejects all traffic.
+> **Audience validation.** Every OAuth access token must include an `aud` claim naming this MCP resource. Tokens with a missing or different audience receive `401`. Authorize again with the resource URL from `GET /.well-known/oauth-protected-resource`; refreshing an older unbound grant will not add its audience. Custom authorization servers must include the resource in `aud` on introspection.
 
 Add `TRUST_PROXY=true` only when the server is deployed behind a trusted reverse proxy or load balancer that normalizes the forwarded host and protocol headers.
 
