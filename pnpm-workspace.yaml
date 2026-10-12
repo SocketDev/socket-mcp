@@ -236,6 +236,7 @@ overrides:
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
   '@swc/core': '1.16.1'
+  '@vitiate/core@0.3.1>@swc/core': '1.15.41'
   'brace-expansion@>=4': '5.0.12'
   'chalk@>=5': '5.6.2'
   'es-define-property': 'npm:@socketregistry/es-define-property@1.0.7'
