@@ -6,12 +6,14 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import type { SpawnSyncReturns } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
-import { afterAll, describe, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import {
   buildToolAuditEvent,
@@ -21,6 +23,19 @@ import type { ToolAuditEventV1 } from '../../../lib/tool-audit-event.mts'
 import { emitToolAuditEvent } from '../../../lib/tool-audit-sink.mts'
 
 const scratchDir = mkdtempSync(path.join(os.tmpdir(), 'socket-audit-sink-'))
+const ORIGINAL_AUDIT_SINK = process.env['SOCKET_MCP_AUDIT_SINK']
+
+beforeEach(() => {
+  process.env['SOCKET_MCP_AUDIT_SINK'] = 'jsonl'
+})
+
+afterEach(() => {
+  if (ORIGINAL_AUDIT_SINK === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_SINK']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_SINK'] = ORIGINAL_AUDIT_SINK
+  }
+})
 
 function buildSampleEvent(eventId: string): ToolAuditEventV1 {
   return buildToolAuditEvent(
@@ -52,6 +67,48 @@ function buildEventOfByteLength(byteLength: number): ToolAuditEventV1 {
   return { ...event, args: 'x'.repeat(byteLength - baseByteLength) }
 }
 
+const SOURCE_EMITTER = `
+import { buildToolAuditEvent } from './lib/tool-audit-event.mts'
+import { emitToolAuditEvent } from './lib/tool-audit-sink.mts'
+
+emitToolAuditEvent(
+  buildToolAuditEvent(
+    'source-child-event',
+    '2026-10-11T00:00:00.000Z',
+    { kind: 'anonymous' },
+    'depscore',
+    'success',
+    {},
+  ),
+)
+`
+
+function runSourceEmitter(
+  sink: string | undefined,
+  filePath: string,
+): SpawnSyncReturns<string> {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    SOCKET_MCP_AUDIT_LOG: filePath,
+  }
+  if (sink === undefined) {
+    delete env['SOCKET_MCP_AUDIT_SINK']
+  } else {
+    env['SOCKET_MCP_AUDIT_SINK'] = sink
+  }
+  return spawnSync(
+    process.execPath,
+    ['--input-type=module', '--eval', SOURCE_EMITTER],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env,
+      maxBuffer: 64 * 1024,
+      timeout: 10_000,
+    },
+  )
+}
+
 afterAll(async () => {
   await safeDelete(scratchDir)
 })
@@ -79,6 +136,46 @@ describe('tool audit file sink', () => {
     expect(contents).not.toContain('sink-token-canary')
     expect(contents).not.toContain('sink-password-canary')
     expect(contents).not.toContain('sink-private-key-canary')
+  })
+
+  test('writes one compact JSON event to stderr without touching the file', () => {
+    const filePath = path.join(scratchDir, 'stderr-mode.jsonl')
+    const child = runSourceEmitter('stderr', filePath)
+    const event = buildToolAuditEvent(
+      'source-child-event',
+      '2026-10-11T00:00:00.000Z',
+      { kind: 'anonymous' },
+      'depscore',
+      'success',
+      {},
+    )
+
+    expect(child.status).toBe(0)
+    expect(child.stdout).toBe('')
+    expect(child.stderr).toBe(`${JSON.stringify(event)}\n`)
+    expect(existsSync(filePath)).toBe(false)
+  })
+
+  test('defaults to JSONL and falls back to JSONL for an unknown sink setting', () => {
+    const defaultPath = path.join(scratchDir, 'default-mode.jsonl')
+    const defaultChild = runSourceEmitter(undefined, defaultPath)
+    expect(defaultChild.status).toBe(0)
+    expect(defaultChild.stdout).toBe('')
+    expect(defaultChild.stderr).toBe('')
+    expect(readFileSync(defaultPath, 'utf8')).toContain('source-child-event')
+
+    const fallbackPath = path.join(scratchDir, 'fallback-mode.jsonl')
+    const fallbackChild = runSourceEmitter(
+      'private_invalid_sink_canary',
+      fallbackPath,
+    )
+    expect(fallbackChild.status).toBe(0)
+    expect(fallbackChild.stdout).toBe('')
+    expect(fallbackChild.stderr).toBe(
+      'mcp audit sink setting invalid; using jsonl\n',
+    )
+    expect(fallbackChild.stderr).not.toContain('private_invalid_sink_canary')
+    expect(readFileSync(fallbackPath, 'utf8')).toContain('source-child-event')
   })
 
   test('writes an event at the byte limit and rejects an oversized event', () => {

@@ -25,6 +25,7 @@ const MODERN_META = {
 }
 const SECRET_CANARY = 'nested_synthetic_secret_canary'
 const ORIGINAL_AUDIT_PATH = process.env['SOCKET_MCP_AUDIT_LOG']
+const ORIGINAL_AUDIT_SINK = process.env['SOCKET_MCP_AUDIT_SINK']
 
 let tempDirectory = ''
 let auditPath = ''
@@ -35,6 +36,7 @@ beforeEach(() => {
   tempDirectory = mkdtempSync(path.join(tmpdir(), 'mcp-audit-dispatch-'))
   auditPath = path.join(tempDirectory, 'audit.jsonl')
   process.env['SOCKET_MCP_AUDIT_LOG'] = auditPath
+  process.env['SOCKET_MCP_AUDIT_SINK'] = 'jsonl'
   setStaticApiKey('')
 })
 
@@ -50,6 +52,11 @@ afterEach(async () => {
     delete process.env['SOCKET_MCP_AUDIT_LOG']
   } else {
     process.env['SOCKET_MCP_AUDIT_LOG'] = ORIGINAL_AUDIT_PATH
+  }
+  if (ORIGINAL_AUDIT_SINK === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_SINK']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_SINK'] = ORIGINAL_AUDIT_SINK
   }
   if (tempDirectory) {
     rmSync(tempDirectory, { recursive: true, force: true })

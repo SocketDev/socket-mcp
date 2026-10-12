@@ -626,6 +626,10 @@ pnpm run server-http
 
 Both scripts read `SOCKET_API_TOKEN` (falling back to `SOCKET_API_KEY`) from your environment. Append `:debug` to either one (`pnpm run server-http:debug`) to set `SOCKET_DEBUG=1` and get per-request tracing on stderr.
 
+### Audit events
+
+The server appends bounded, versioned tool-call events to `~/.socket/mcp-audit.jsonl` by default. Set `SOCKET_MCP_AUDIT_LOG` to choose another JSONL path. Set `SOCKET_MCP_AUDIT_SINK=stderr` to write the structured JSONL records to stderr instead; stdout remains reserved for stdio MCP messages. The default `jsonl` mode is used when the setting is unset or empty. Unknown values emit a static diagnostic and fall back to JSONL. Existing JSONL files may contain older unversioned records before version 1 events; the server leaves existing records unchanged.
+
 | Task                      | Command                                  |
 | ------------------------- | ---------------------------------------- |
 | Test                      | `pnpm test`                              |

@@ -121,6 +121,14 @@ export function getSocketMcpAuditLogPath(): string {
   )
 }
 
+export function getSocketMcpAuditSink(): 'jsonl' | 'stderr' | 'unknown' {
+  const sink = envString('SOCKET_MCP_AUDIT_SINK')
+  if (!sink || sink === 'jsonl') {
+    return 'jsonl'
+  }
+  return sink === 'stderr' ? 'stderr' : 'unknown'
+}
+
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with
