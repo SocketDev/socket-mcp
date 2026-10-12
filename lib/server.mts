@@ -1,3 +1,6 @@
+import crypto from 'node:crypto'
+import { writeSync } from 'node:fs'
+
 import { Server } from '@modelcontextprotocol/server'
 import type {
   McpRequestContext,
@@ -5,6 +8,13 @@ import type {
 } from '@modelcontextprotocol/server'
 
 import { getSocketApiUrl } from './env.mts'
+import { buildToolAuditEvent } from './tool-audit-event.mts'
+import type {
+  ToolAuditEventV1,
+  ToolAuditIdentity,
+  ToolAuditOutcome,
+} from './tool-audit-event.mts'
+import { tokenIdentity } from './tool-audit.mts'
 import { defineAlertsTool } from './tool-alerts.mts'
 import { defineDepscoreTool } from './tool-depscore.mts'
 import {
@@ -16,7 +26,8 @@ import { defineOrganizationsTool } from './tool-organizations.mts'
 import { defineThreatFeedTool } from './tool-threat-feed.mts'
 import { withToolLogging } from './tool-logging.mts'
 import type { ToolHandler } from './tool-logging.mts'
-import { markToolOutcome } from './tool-outcome.mts'
+import { emitToolAuditEvent } from './tool-audit-sink.mts'
+import { classifyToolOutcome, markToolOutcome } from './tool-outcome.mts'
 import { formatToolValidationFailure } from './tool-validation.mts'
 import type {
   ToolAnnotations,
@@ -72,6 +83,8 @@ let staticApiKeyShared = false
 // caller, so a one-hour shared-cache lifetime is safe.
 const TOOLS_LIST_CACHE_TTL_MS = 60 * 60 * 1000
 
+export type ToolAuditTransport = 'stdio' | 'http' | 'anonymous'
+
 // Shared "auth missing" tool result — every tool returns the same shape so
 // clients get a consistent error.
 export function authRequiredResult(): ToolErrorResult {
@@ -111,7 +124,36 @@ export function buildToolSpecs(): ValidatedToolSpec[] {
  */
 export function createConfiguredServer(
   requestContext?: McpRequestContext | undefined,
+  transport: ToolAuditTransport = 'anonymous',
 ): Server {
+  const buildAuditSnapshot = (
+    eventId: string,
+    identity: ToolAuditIdentity,
+    tool: string,
+    outcome: ToolAuditOutcome,
+    args: unknown,
+    options?:
+      | {
+          readonly inputValidated?: boolean | undefined
+          readonly requestId?: string | number | undefined
+        }
+      | undefined,
+  ): ToolAuditEventV1 | undefined => {
+    try {
+      return buildToolAuditEvent(
+        eventId,
+        '1970-01-01T00:00:00.000Z',
+        identity,
+        tool,
+        outcome,
+        args,
+        options,
+      )
+    } catch {
+      reportToolAuditFailure('mcp audit event construction failed\n')
+      return undefined
+    }
+  }
   const specs = buildToolSpecs()
   const specsByName = new Map(specs.map(spec => [spec.name, spec]))
   const userAgent = getMcpRequestUserAgent(requestContext)
@@ -142,26 +184,93 @@ export function createConfiguredServer(
 
   server.setRequestHandler('tools/call', async (request, ctx) => {
     const { name } = request.params
-    const spec = specsByName.get(name)
-    const handler = handlers.get(name)
-    if (!spec || !handler) {
-      // The CallTool spec returns an error result (not an exception) for an
-      // unknown name — clients render it the same way as any other tool error.
-      const message = `Unknown tool: ${name}`
-      return {
-        __proto__: null,
-        content: [{ type: 'text', text: message }],
-        isError: true,
+    const eventId = crypto.randomUUID()
+    const requestId = ctx.mcpReq.id
+    const identity = resolveToolAuditIdentity(
+      transport,
+      ctx.http?.authInfo?.token,
+    )
+    let outcome: ToolAuditOutcome = 'failure'
+    let inputValidated = false
+    let auditSnapshot: ToolAuditEventV1 | undefined
+    try {
+      const spec = specsByName.get(name)
+      const handler = handlers.get(name)
+      const args = request.params.arguments ?? {}
+      if (!spec || !handler) {
+        outcome = 'unknown'
+        auditSnapshot = buildAuditSnapshot(
+          eventId,
+          identity,
+          name,
+          outcome,
+          args,
+          { requestId },
+        )
+        return errorResult(`Unknown tool: ${name}`)
+      }
+      const validation = spec.validateInput(args)
+      if (!validation.valid) {
+        outcome = 'invalid'
+        auditSnapshot = buildAuditSnapshot(
+          eventId,
+          identity,
+          name,
+          outcome,
+          args,
+          { requestId },
+        )
+        return errorResult(formatToolValidationFailure(validation))
+      }
+      inputValidated = true
+      auditSnapshot = buildAuditSnapshot(
+        eventId,
+        identity,
+        name,
+        'failure',
+        args,
+        { inputValidated, requestId },
+      )
+      const result = await handler(args, toToolHandlerExtra(ctx, userAgent))
+      outcome = classifyToolOutcome(result)
+      return result
+    } finally {
+      try {
+        const snapshot =
+          auditSnapshot ??
+          buildAuditSnapshot(
+            eventId,
+            identity,
+            name,
+            outcome,
+            {},
+            { requestId },
+          )
+        if (snapshot === undefined) {
+          reportToolAuditFailure('mcp audit event construction failed\n')
+        } else {
+          const timestamp = new Date().toISOString()
+          const completedEvent: ToolAuditEventV1 =
+            outcome === 'invalid' || outcome === 'unknown'
+              ? {
+                  ...snapshot,
+                  outcome,
+                  timestamp,
+                  resources: [],
+                  truncated: {
+                    ...snapshot.truncated,
+                    resources:
+                      snapshot.truncated.resources ||
+                      snapshot.resources.length > 0,
+                  },
+                }
+              : { ...snapshot, outcome, timestamp }
+          emitToolAuditEvent(completedEvent)
+        }
+      } catch {
+        reportToolAuditFailure('mcp audit event construction failed\n')
       }
     }
-    // `request.params.arguments` is optional in the SDK shape; tools that
-    // declare empty inputSchemas (e.g. organizations) get undefined here.
-    const args = request.params.arguments ?? {}
-    const validation = spec.validateInput(args)
-    if (!validation.valid) {
-      return errorResult(formatToolValidationFailure(validation))
-    }
-    return handler(args, toToolHandlerExtra(ctx, userAgent))
   })
 
   return server
@@ -195,6 +304,14 @@ export function getStaticApiKey(): string {
 // per-request token takes precedence, then the boot-time static key. Falling
 // back to a shared deploy key is fine here because package scores are not
 // tenant-scoped. Returns undefined when neither is available.
+export function reportToolAuditFailure(message: string): void {
+  try {
+    writeSync(2, message)
+  } catch {
+    return
+  }
+}
+
 export function resolveAuthToken(
   authInfoToken: string | undefined,
 ): string | undefined {
@@ -218,6 +335,19 @@ export function resolveScopedAuthToken(
     return staticApiKey
   }
   return undefined
+}
+
+export function resolveToolAuditIdentity(
+  transport: ToolAuditTransport,
+  authInfoToken: string | undefined,
+): ToolAuditIdentity {
+  if (transport === 'stdio') {
+    return { kind: 'operator' }
+  }
+  if (transport === 'http' && authInfoToken) {
+    return { kind: 'bearer', tokenHash: tokenIdentity(authInfoToken) }
+  }
+  return { kind: 'anonymous' }
 }
 
 // Set the static API key. Called once during boot from index.mts. `shared`

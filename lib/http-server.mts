@@ -338,9 +338,12 @@ export function startHttpServer(port: number): void {
   // its default stateless serving, so 2025-era clients are served alongside
   // 2026-era ones.
   const mcpHandler = toNodeHandler(
-    createMcpHandler(createConfiguredServer, {
-      onerror: handleMcpHandlerError,
-    }),
+    createMcpHandler(
+      requestContext => createConfiguredServer(requestContext, 'http'),
+      {
+        onerror: handleMcpHandlerError,
+      },
+    ),
     { onerror: handleMcpAdapterError },
   )
 

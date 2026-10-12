@@ -143,7 +143,10 @@ export async function runSocketMcpCli(deps: SocketMcpCliDeps): Promise<number> {
     // including the discarded `server/discover` probe — so it takes
     // `createConfiguredServer` itself, not one instance. Its default
     // `legacy` posture serves 2025-era clients alongside 2026-era ones.
-    deps.serveStdio(createConfiguredServer, { onerror: logStdioTransportError })
+    deps.serveStdio(
+      requestContext => createConfiguredServer(requestContext, 'stdio'),
+      { onerror: logStdioTransportError },
+    )
     logger.info(`Socket MCP server version ${VERSION} started successfully`)
   } catch (e) {
     logger.error(`Failed to start Socket MCP server: ${errorMessage(e)}`)
