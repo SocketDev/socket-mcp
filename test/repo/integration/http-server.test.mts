@@ -5,8 +5,11 @@
  *   `Mcp-Session-Id` — while the 2025-era handshake keeps working through the
  *   handler's legacy fallback.
  */
+import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import process from 'node:process'
 
 import {
@@ -27,6 +30,7 @@ import { VERSION } from '../../../lib/version.mts'
 const MODERN_PROTOCOL_VERSION = '2026-07-28'
 const LEGACY_PROTOCOL_VERSION = '2025-06-18'
 const MAX_POST_BODY_BYTES = 4 * 1024 * 1024
+const ORIGINAL_AUDIT_PATH = process.env['SOCKET_MCP_AUDIT_LOG']
 
 // The per-request `_meta` envelope every 2026-07-28 request carries. Paired
 // with the `Mcp-Method` header, it is what routes a request to modern serving.
@@ -38,6 +42,7 @@ const MODERN_META = {
 
 let httpServer: Server
 let endpoint: string
+let auditTempDirectory = ''
 
 // The slice of a `tools/list` wire response these cases read.
 interface WireToolsListMessage {
@@ -91,6 +96,11 @@ async function postModern(
 }
 
 beforeEach(async () => {
+  auditTempDirectory = mkdtempSync(path.join(tmpdir(), 'mcp-http-test-'))
+  process.env['SOCKET_MCP_AUDIT_LOG'] = path.join(
+    auditTempDirectory,
+    'audit.jsonl',
+  )
   // One handler for the server, exactly as startHttpServer builds it.
   const mcpHandler = toNodeHandler(createMcpHandler(createConfiguredServer))
   let port = 0
@@ -111,6 +121,15 @@ afterEach(async () => {
   await new Promise<void>(resolve => {
     httpServer.close(() => resolve())
   })
+  if (ORIGINAL_AUDIT_PATH === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_LOG']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_LOG'] = ORIGINAL_AUDIT_PATH
+  }
+  if (auditTempDirectory) {
+    rmSync(auditTempDirectory, { recursive: true, force: true })
+    auditTempDirectory = ''
+  }
 })
 
 describe('stateless serving', () => {

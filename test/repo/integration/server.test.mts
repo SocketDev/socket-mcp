@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import type { CallToolResult } from '@modelcontextprotocol/client'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import {
   authRequiredResult,
@@ -15,9 +19,29 @@ import {
   toToolHandlerExtra,
 } from '../../../lib/server.mts'
 
+const ORIGINAL_AUDIT_PATH = process.env['SOCKET_MCP_AUDIT_LOG']
+let auditTempDirectory = ''
+
+beforeEach(() => {
+  auditTempDirectory = mkdtempSync(path.join(tmpdir(), 'mcp-server-test-'))
+  process.env['SOCKET_MCP_AUDIT_LOG'] = path.join(
+    auditTempDirectory,
+    'audit.jsonl',
+  )
+})
+
 afterEach(() => {
   // Reset module-level static-key state so cases don't leak into each other.
   setStaticApiKey('')
+  if (ORIGINAL_AUDIT_PATH === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_LOG']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_LOG'] = ORIGINAL_AUDIT_PATH
+  }
+  if (auditTempDirectory) {
+    rmSync(auditTempDirectory, { recursive: true, force: true })
+    auditTempDirectory = ''
+  }
 })
 
 test('resolveAuthToken prefers the per-request token', () => {
