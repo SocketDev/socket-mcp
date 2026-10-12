@@ -15,6 +15,7 @@ import type { ToolCallResult } from '../../../lib/tool-types.mts'
 
 let auditDirectory: string | undefined
 let originalAuditLog: string | undefined
+let originalAuditSink: string | undefined
 
 function firstText(result: CallToolResult | ToolCallResult): string {
   const { 0: block } = result.content
@@ -28,6 +29,12 @@ afterEach(async () => {
   } else {
     process.env['SOCKET_MCP_AUDIT_LOG'] = originalAuditLog
   }
+  if (originalAuditSink === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_SINK']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_SINK'] = originalAuditSink
+  }
+  originalAuditSink = undefined
   originalAuditLog = undefined
   const temporaryAuditDirectory = auditDirectory
   auditDirectory = undefined
@@ -38,6 +45,8 @@ afterEach(async () => {
 
 beforeEach(async () => {
   originalAuditLog = process.env['SOCKET_MCP_AUDIT_LOG']
+  originalAuditSink = process.env['SOCKET_MCP_AUDIT_SINK']
+  process.env['SOCKET_MCP_AUDIT_SINK'] = 'jsonl'
   const temporaryAuditDirectory = await mkdtemp(
     path.join(os.tmpdir(), 'socket-mcp-tool-validation-'),
   )

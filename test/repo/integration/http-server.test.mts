@@ -31,6 +31,7 @@ const MODERN_PROTOCOL_VERSION = '2026-07-28'
 const LEGACY_PROTOCOL_VERSION = '2025-06-18'
 const MAX_POST_BODY_BYTES = 4 * 1024 * 1024
 const ORIGINAL_AUDIT_PATH = process.env['SOCKET_MCP_AUDIT_LOG']
+const ORIGINAL_AUDIT_SINK = process.env['SOCKET_MCP_AUDIT_SINK']
 
 // The per-request `_meta` envelope every 2026-07-28 request carries. Paired
 // with the `Mcp-Method` header, it is what routes a request to modern serving.
@@ -101,6 +102,7 @@ beforeEach(async () => {
     auditTempDirectory,
     'audit.jsonl',
   )
+  process.env['SOCKET_MCP_AUDIT_SINK'] = 'jsonl'
   // One handler for the server, exactly as startHttpServer builds it.
   const mcpHandler = toNodeHandler(createMcpHandler(createConfiguredServer))
   let port = 0
@@ -125,6 +127,11 @@ afterEach(async () => {
     delete process.env['SOCKET_MCP_AUDIT_LOG']
   } else {
     process.env['SOCKET_MCP_AUDIT_LOG'] = ORIGINAL_AUDIT_PATH
+  }
+  if (ORIGINAL_AUDIT_SINK === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_SINK']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_SINK'] = ORIGINAL_AUDIT_SINK
   }
   if (auditTempDirectory) {
     rmSync(auditTempDirectory, { recursive: true, force: true })

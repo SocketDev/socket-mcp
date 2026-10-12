@@ -20,6 +20,7 @@ import {
 } from '../../../lib/server.mts'
 
 const ORIGINAL_AUDIT_PATH = process.env['SOCKET_MCP_AUDIT_LOG']
+const ORIGINAL_AUDIT_SINK = process.env['SOCKET_MCP_AUDIT_SINK']
 let auditTempDirectory = ''
 
 beforeEach(() => {
@@ -28,6 +29,7 @@ beforeEach(() => {
     auditTempDirectory,
     'audit.jsonl',
   )
+  process.env['SOCKET_MCP_AUDIT_SINK'] = 'jsonl'
 })
 
 afterEach(() => {
@@ -37,6 +39,11 @@ afterEach(() => {
     delete process.env['SOCKET_MCP_AUDIT_LOG']
   } else {
     process.env['SOCKET_MCP_AUDIT_LOG'] = ORIGINAL_AUDIT_PATH
+  }
+  if (ORIGINAL_AUDIT_SINK === undefined) {
+    delete process.env['SOCKET_MCP_AUDIT_SINK']
+  } else {
+    process.env['SOCKET_MCP_AUDIT_SINK'] = ORIGINAL_AUDIT_SINK
   }
   if (auditTempDirectory) {
     rmSync(auditTempDirectory, { recursive: true, force: true })
