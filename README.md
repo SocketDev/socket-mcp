@@ -10,7 +10,7 @@ Socket MCP lets AI assistants query Socket's dependency security scores and meta
 Use it to score a package, audit a `package.json`, or identify risky dependencies in a conversation.
 Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or run the npm package yourself.
 
-## ✨ Features
+### ✨ Features
 
 - 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, cargo, Maven, NuGet, RubyGems, Go Modules, and more ([supported ecosystems](https://docs.socket.dev/docs/language-support))
 - 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; sign in once via OAuth, no self-hosting
@@ -202,7 +202,7 @@ See the [organization and alerts example](docs/service.md#worked-example-organiz
 
 See [client rule examples](docs/service.md#adjusting-tool-usage-via-client-rules).
 
-## Claude Code Hook (Optional)
+### Claude Code Hook (Optional)
 
 The optional Socket package guard is documented in the [commands and workflows reference](docs/commands.md#claude-code-hook-optional).
 

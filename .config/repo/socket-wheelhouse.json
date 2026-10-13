@@ -68,6 +68,20 @@
     "resolutionMode": "highest",
     "trustPolicy": "no-downgrade"
   },
+  "docs": {
+    "surfaces": [
+      {
+        "kind": "service",
+        "hub": "docs/service.md",
+        "sources": ["lib/server.mts", "lib/http-server.mts", "lib/env.mts"]
+      },
+      {
+        "kind": "commands",
+        "hub": "docs/commands.md",
+        "sources": ["lib/cli.mts"]
+      }
+    ]
+  },
   "github": {
     "apps": ["cursor", "socket-security", "socket-trufflehog"]
   },
