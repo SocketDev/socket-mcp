@@ -16,7 +16,14 @@ import path from 'node:path'
 
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
+import {
+  parseBunTestFiles,
+  readBunTestFiles as readConfiguredBunTestFiles,
+} from '../../scripts/fleet/test-runner/bun-tests.mts'
+
 export interface VitestRepoConfig {
+  // Exact repo-relative test files run by Bun and excluded from Vitest.
+  bunTests?: string[] | undefined
   // Module resolve aliases for the test transform, e.g.
   // `{ "@socketsecurity/sdk": "./dist/index.browser.js" }`. A key is a LITERAL
   // specifier, never a glob, so a monorepo lists one entry per package; see
@@ -144,6 +151,12 @@ export function readVitestLanes(): VitestLanes {
         slow: stringArray(lanes.slow),
       }
     : {}
+}
+
+export function readBunTestFiles(repoRoot?: string | undefined): string[] {
+  return repoRoot === undefined
+    ? parseBunTestFiles(readVitestSettings().bunTests)
+    : readConfiguredBunTestFiles(repoRoot)
 }
 
 /**

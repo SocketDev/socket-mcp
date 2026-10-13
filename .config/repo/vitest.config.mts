@@ -23,6 +23,7 @@ import { resolveGeneratedTestExcludes } from '../../scripts/fleet/test-runner/di
 import { resolveCoverageConfig } from '../../.config/fleet/vitest.coverage.fleet.config.mts'
 import {
   discoverSharedTestFiles,
+  readBunTestFiles,
   readConformanceExcludeGlobs,
   readNonIsolatedGlobs,
   readVitestLanes,
@@ -457,6 +458,7 @@ const config = defineConfig({
       // settings file's `vitest.nodeTestExclude`. The same key feeds
       // prefer-vitest-guard's allowlist so the two never drift.
       ...repoNodeTestExcludeGlobs(),
+      ...readBunTestFiles(),
       ...laneSelection.exclude,
     ],
     // Some repos in the fleet (scaffolding-only, hook-only, etc.) ship

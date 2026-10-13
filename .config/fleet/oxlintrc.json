@@ -362,6 +362,7 @@
     "**/test/fleet/unit/fix/plan.test.mts",
     "**/test/fleet/unit/fix/run.test.mts",
     "**/test/fleet/unit/lockstep/emit-mirror-globs.test.mts",
+    "**/test/fleet/unit/registry/apple/ci/keychain.test.mts",
     "**/test/fleet/unit/registry/cargo/placeholder.test.mts",
     "**/test/fleet/unit/registry/npm/placeholder.test.mts",
     "**/test/fleet/unit/setup/lib/pnpm-path.test.mts",

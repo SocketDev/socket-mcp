@@ -93,36 +93,35 @@ jobs:
           # key, hydration still pulls public GHCR anonymously.
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      - parallel:
-          - name: Prune workflow runs
-            env:
-              GH_TOKEN: ${{ github.token }}
-              DAYS: ${{ inputs.days || '' }}
-              DRY_RUN: ${{ inputs.dry-run }}
-            run: |
-              # No --days by default: the script's own policy applies (keep the
-              # newest 20 runs per present workflow, purge dependabot/gh-audit
-              # run groups and absent workflows).
-              ARGS=()
-              if [ -n "$DAYS" ]; then
-                ARGS+=(--days "$DAYS")
-              fi
-              if [ "$DRY_RUN" = "true" ]; then
-                ARGS+=(--dry-run)
-              fi
-              node scripts/fleet/workflow/runs/prune.mts "${ARGS[@]}"
+      - name: Prune workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DAYS: ${{ inputs.days || '' }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          # No --days by default: the script's own policy applies (keep the
+          # newest 20 runs per present workflow, purge dependabot/gh-audit
+          # run groups and absent workflows).
+          ARGS=()
+          if [ -n "$DAYS" ]; then
+            ARGS+=(--days "$DAYS")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          node scripts/fleet/workflow/runs/prune.mts "${ARGS[@]}"
 
-          - name: Prune Actions caches
-            if: always()
-            env:
-              GH_TOKEN: ${{ github.token }}
-              DRY_RUN: ${{ inputs.dry-run }}
-            run: |
-              # No flags by default: the script's own policy applies (keep the
-              # newest 2 generations per key group, hold the total under 8 GB, and
-              # never evict an entry accessed in the last 7 days).
-              ARGS=()
-              if [ "$DRY_RUN" = "true" ]; then
-                ARGS+=(--dry-run)
-              fi
-              node scripts/fleet/workflow/caches/prune.mts "${ARGS[@]}"
+      - name: Prune Actions caches
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          # No flags by default: the script's own policy applies (keep the
+          # newest 2 generations per key group, hold the total under 8 GB, and
+          # never evict an entry accessed in the last 7 days).
+          ARGS=()
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          node scripts/fleet/workflow/caches/prune.mts "${ARGS[@]}"
