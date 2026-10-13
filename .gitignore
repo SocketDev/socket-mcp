@@ -3849,7 +3849,12 @@ scripts/fleet/ci/fix/resume.mts
 scripts/fleet/ci/fix/run.mts
 scripts/fleet/ci/fix/snapshot.mts
 scripts/fleet/ci/fix/source.mts
+scripts/fleet/ci/fix/task/snapshot.mts
+scripts/fleet/ci/fix/task/snapshot/value.mts
 scripts/fleet/ci/fix/task/state.mts
+scripts/fleet/ci/fix/task/store.mts
+scripts/fleet/ci/fix/task/store/destination.mts
+scripts/fleet/ci/fix/task/store/types.mts
 scripts/fleet/ci/fix/wait.mts
 scripts/fleet/ci/gates/remote-target.mts
 scripts/fleet/ci/gates/run.mts
