@@ -8,12 +8,12 @@
 
 Socket MCP lets AI assistants query Socket's dependency security scores and metadata through the Model Context Protocol (MCP).
 Use it to score a package, audit a `package.json`, or identify risky dependencies in a conversation.
-Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or run the npm package yourself.
+Connect your MCP client to the hosted server at `https://mcp.socket.dev/` and authenticate through OAuth, or run the npm package yourself.
 
 ### ✨ Features
 
 - 🔍 **Dependency Security Scanning** - Get comprehensive security scores for npm, PyPI, cargo, Maven, NuGet, RubyGems, Go Modules, and more ([supported ecosystems](https://docs.socket.dev/docs/language-support))
-- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/`; package scoring is anonymous and organization tools use OAuth
+- 🌐 **Public Hosted Service** - Use our public server at `https://mcp.socket.dev/` and sign in through your MCP client's OAuth flow
 - 🚀 **Multiple Deployment Options** - Run locally via stdio, HTTP, or use our service
 - 🤖 **AI Assistant Integration** - Connect from MCP-compatible clients; OAuth behavior varies by client
 - 📊 **Batch Processing** - Check multiple dependencies in a single request
@@ -25,7 +25,7 @@ Connect your MCP client to the hosted server at `https://mcp.socket.dev/`, or ru
 
 ### Option 1: Use the public Socket MCP server (recommended)
 
-The public server supports anonymous package scoring. Organization tools require Socket sign-in through OAuth; some MCP clients need an explicit sign-in step. You do not need an API key.
+The public server requires Socket sign-in through OAuth for every tool call, including package scoring. Some MCP clients need an explicit sign-in step. You do not need an API key.
 
 - [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.socket.dev%2F%22%2C%22type%22%3A%22http%22%7D).
 - [Install in Cursor](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D).
@@ -220,7 +220,7 @@ See [package_file_contents](docs/service.md#package_file_contents).
 
 See [package_file_grep](docs/service.md#package_file_grep).
 
-### Authentication for organization-scoped tools
+### Authentication
 
 See the [authentication reference](docs/service.md#authentication-for-organization-scoped-tools) for local tokens, per-request HTTP credentials, and hosted OAuth.
 
