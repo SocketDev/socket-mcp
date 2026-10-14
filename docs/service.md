@@ -24,16 +24,16 @@ Query the Socket API for dependency scores. The result formats the available sco
 
 The `ecosystem` value is used as a PURL type. Common values listed in the input schema are:
 
-| Ecosystem | PURL type |
-| --- | --- |
-| JavaScript and TypeScript | `npm` |
-| Python | `pypi` |
-| Go | `golang` |
-| Java, Scala, and Kotlin | `maven` |
-| Ruby | `gem` |
-| .NET | `nuget` |
-| Rust | `cargo` |
-| PHP | `composer` |
+| Ecosystem                 | PURL type  |
+| ------------------------- | ---------- |
+| JavaScript and TypeScript | `npm`      |
+| Python                    | `pypi`     |
+| Go                        | `golang`   |
+| Java, Scala, and Kotlin   | `maven`    |
+| Ruby                      | `gem`      |
+| .NET                      | `nuget`    |
+| Rust                      | `cargo`    |
+| PHP                       | `composer` |
 
 `packagist` is accepted as an alias for `composer`, and `openvsx` for the `vscode` PURL type.
 
@@ -219,7 +219,6 @@ Example rule:
 ```md
 Always check dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself.
 ```
-
 
 ## HTTP service behavior
 

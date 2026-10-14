@@ -192,6 +192,8 @@ Once installed, ask your AI assistant questions like:
 
 The complete tool roster, schemas, parameters, and result examples are in the [service reference](docs/service.md#tools-exposed).
 
+<details><summary>Tool quick links</summary>
+
 #### depscore
 
 See [depscore](docs/service.md#depscore).
@@ -219,6 +221,8 @@ See [package_file_contents](docs/service.md#package_file_contents).
 #### package_file_grep
 
 See [package_file_grep](docs/service.md#package_file_grep).
+
+</details>
 
 ### Authentication
 
@@ -304,13 +308,13 @@ MCP is still evolving, and client implementations differ in how they handle part
 
 Snapshot dated October 2, 2026; tests ran September 29–October 1. Each result applies to the listed client version and setup.
 
-| Client and tested setup | Hosted OAuth result | Verified tools and continuity | Important limit or workaround |
-| --- | --- | --- | --- |
-| Claude Code 2.1.285, hosted HTTP | First `organizations` call failed with a sign-in request; explicit OAuth then completed. | The 2.1.285 run verified the initial failure and successful login. `organizations` and `depscore` passed after login in a separate 2.1.284 run. | The pre-login “authenticated” label was misleading; see [upstream issue #98942](https://github.com/anthropics/claude-code/issues/98942). |
-| Codex CLI 0.159.2, hosted HTTP | Works after explicit login. | `organizations` and `depscore` passed after login, including a new conversation and idle checks. | A broad scope request showed `invalid_scope` before Codex retried with the three MCP read permissions; see [upstream issue #15643](https://github.com/openai/codex/issues/15643). |
-| Cursor 3.22.12, hosted HTTP OAuth | Fails in tested conditions: `organizations` remained Unauthorized; the Authenticate card did not establish access. | `organizations` only; no successful hosted OAuth call verified. | Cursor 3.20 recurrence was manually reported; no fix version is known. [A related forum reply](https://forum.cursor.com/t/plugin-mcp-oauth-never-reaches-needsauth-authenticate-button-missing-browser-never-opens/170058/8) describes an unsuccessful workaround attempt but identifies a separate Cursor 3.18.9 marketplace-import blocker. |
-| Cursor, local stdio with API token (version not recorded) | Not applicable; this setup bypasses hosted OAuth. | `depscore` passed; restart continuity was reported manually. | This does not verify hosted OAuth, `organizations`, or other tools. |
-| Zed Agent 1.22.0, hosted HTTP | Works after explicit OAuth. | `organizations` and `depscore` passed after login, restart, and a six-minute idle check. | Intermittent timeouts after idle, cause under investigation; four client timeouts matched fast server HTTP 400 responses. |
+| Client and tested setup                                   | Hosted OAuth result                                                                                                | Verified tools and continuity                                                                                                                   | Important limit or workaround                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code 2.1.285, hosted HTTP                          | First `organizations` call failed with a sign-in request; explicit OAuth then completed.                           | The 2.1.285 run verified the initial failure and successful login. `organizations` and `depscore` passed after login in a separate 2.1.284 run. | The pre-login “authenticated” label was misleading; see [upstream issue #98942](https://github.com/anthropics/claude-code/issues/98942).                                                                                                                                                                                                      |
+| Codex CLI 0.159.2, hosted HTTP                            | Works after explicit login.                                                                                        | `organizations` and `depscore` passed after login, including a new conversation and idle checks.                                                | A broad scope request showed `invalid_scope` before Codex retried with the three MCP read permissions; see [upstream issue #15643](https://github.com/openai/codex/issues/15643).                                                                                                                                                             |
+| Cursor 3.22.12, hosted HTTP OAuth                         | Fails in tested conditions: `organizations` remained Unauthorized; the Authenticate card did not establish access. | `organizations` only; no successful hosted OAuth call verified.                                                                                 | Cursor 3.20 recurrence was manually reported; no fix version is known. [A related forum reply](https://forum.cursor.com/t/plugin-mcp-oauth-never-reaches-needsauth-authenticate-button-missing-browser-never-opens/170058/8) describes an unsuccessful workaround attempt but identifies a separate Cursor 3.18.9 marketplace-import blocker. |
+| Cursor, local stdio with API token (version not recorded) | Not applicable; this setup bypasses hosted OAuth.                                                                  | `depscore` passed; restart continuity was reported manually.                                                                                    | This does not verify hosted OAuth, `organizations`, or other tools.                                                                                                                                                                                                                                                                           |
+| Zed Agent 1.22.0, hosted HTTP                             | Works after explicit OAuth.                                                                                        | `organizations` and `depscore` passed after login, restart, and a six-minute idle check.                                                        | Intermittent timeouts after idle, cause under investigation; four client timeouts matched fast server HTTP 400 responses.                                                                                                                                                                                                                     |
 
 Only `organizations` and `depscore` were tested. Token refresh, server-side revocation, and all-tool coverage were not tested. Claude Desktop, VS Code, Windsurf, and Factory were not tested in this matrix.
 
