@@ -8,7 +8,7 @@ The server registers the tools in `lib/server.mts`; schemas and handlers are def
 
 <details><summary>The full tool roster - names, arguments, and what each returns</summary>
 
-#### depscore
+### depscore
 
 Query the Socket API for dependency scores. The result formats the available score components and includes a Socket report URL when the record has an overall score. Records without an overall score are labeled `No score found`.
 
@@ -20,7 +20,7 @@ Query the Socket API for dependency scores. The result formats the available sco
 | `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                                                                                                                                                                |
 | `platform`             | String | No       | -           | OS-architecture hint (`linux-x64`, `darwin-arm64`, `win32-x64`) applied to every package in the request. Picks the most relevant artifact when a package ships platform-specific builds. |
 
-##### Supported ecosystems
+#### Supported ecosystems
 
 The `ecosystem` value is used as a PURL type. Common values listed in the input schema are:
 
@@ -59,7 +59,7 @@ pkg:pypi/<package>@<version>: No score found
 
 The API response determines which package records appear. Compare the result with the request when you need to confirm that each requested package had a matching record.
 
-#### organizations
+### organizations
 
 List the Socket organizations the authenticated user belongs to. Takes no parameters. Use it to discover the `org_slug` value that the org-scoped tools (`alerts`, `threat_feed`) require.
 
@@ -80,7 +80,7 @@ The response is the Socket API's JSON, keyed by organization id. The `slug` is w
 }
 ```
 
-#### alerts
+### alerts
 
 List the latest security alerts for one Socket organization: supply-chain, vulnerability, quality, license, and maintenance issues across the org's monitored packages. Backed by `GET /v0/orgs/{org_slug}/alerts`. Results are paginated; pass the previous response's `endCursor` as `cursor` to fetch the next page.
 
@@ -97,7 +97,7 @@ List the latest security alerts for one Socket organization: supply-chain, vulne
 | `per_page`      | Integer | No       | `100`   | Results per page (1–5000)                                                             |
 | `cursor`        | String  | No       | -       | Pagination cursor - the `endCursor` from a previous response                          |
 
-#### threat_feed
+### threat_feed
 
 Look up items in a Socket organization's threat feed: packages recently flagged as malware, typosquats, obfuscated code, and similar. Backed by `GET /v0/orgs/{org_slug}/threat-feed`. The response carries a `nextPageCursor`; pass it as `cursor` to page forward.
 
@@ -116,7 +116,7 @@ Look up items in a Socket organization's threat feed: packages recently flagged 
 | `per_page`          | Integer | No       | `30`         | Results per page (1–100)                                                                                           |
 | `cursor`            | String  | No       | -            | Pagination cursor - the `nextPageCursor` from a previous response                                                  |
 
-#### package_files
+### package_files
 
 List the files published in a package: a tree of file paths, each with its size and blob hash, for any package on a supported ecosystem. Use it to inspect what a dependency ships before installing it. Pass a file's `hash` to `package_file_contents` or `package_file_grep`.
 
@@ -137,7 +137,7 @@ pkg:npm/<package>@<version> - <file-count> files, <size> KB
     │   ├── <file-name>  <size>  <blob-hash>
 ```
 
-#### package_file_contents
+### package_file_contents
 
 Read a single file from a package. Pass the `hash` printed next to an entry in `package_files` output. Returns up to 1 MB of UTF-8 text; binary files return metadata only.
 
@@ -146,7 +146,7 @@ Read a single file from a package. Pass the `hash` printed next to an entry in `
 | `hash`    | String | ✅ Yes   | -       | Blob hash from `package_files`                          |
 | `path`    | String | No       | -       | File path, for display only; does not affect the lookup |
 
-#### package_file_grep
+### package_file_grep
 
 Search a single file from a package for lines matching a JavaScript regular expression, returning matches with line numbers (grep -n style). Each blob is fetched once and held in a process-wide cache, so repeated reads and greps of the same hash skip the network.
 
