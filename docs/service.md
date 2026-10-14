@@ -4,11 +4,11 @@ Socket MCP exposes a stateless MCP server over stdio or HTTP. Its hosted deploym
 
 The server registers the tools in `lib/server.mts`; schemas and handlers are defined in the corresponding `lib/tool-*.mts` modules. The tables below list the current tool inputs. See [the command reference](commands.md) for launch modes, environment variables, and self-hosting setup.
 
-### Tools exposed
+## Tools exposed
 
-<details><summary>The full tool roster - names, arguments, and what each returns</summary>
+### depscore
 
-#### depscore
+<details><summary>Inputs and examples</summary>
 
 Query the Socket API for dependency scores. The result formats the available score components and includes a Socket report URL when the record has an overall score. Records without an overall score are labeled `No score found`.
 
@@ -20,20 +20,20 @@ Query the Socket API for dependency scores. The result formats the available sco
 | `packages[].version`   | String | No       | `"unknown"` | Version of the dependency                                                                                                                                                                |
 | `platform`             | String | No       | -           | OS-architecture hint (`linux-x64`, `darwin-arm64`, `win32-x64`) applied to every package in the request. Picks the most relevant artifact when a package ships platform-specific builds. |
 
-##### Supported ecosystems
+#### Supported ecosystems
 
 The `ecosystem` value is used as a PURL type. Common values listed in the input schema are:
 
-| Ecosystem | PURL type |
-| --- | --- |
-| JavaScript and TypeScript | `npm` |
-| Python | `pypi` |
-| Go | `golang` |
-| Java, Scala, and Kotlin | `maven` |
-| Ruby | `gem` |
-| .NET | `nuget` |
-| Rust | `cargo` |
-| PHP | `composer` |
+| Ecosystem                 | PURL type  |
+| ------------------------- | ---------- |
+| JavaScript and TypeScript | `npm`      |
+| Python                    | `pypi`     |
+| Go                        | `golang`   |
+| Java, Scala, and Kotlin   | `maven`    |
+| Ruby                      | `gem`      |
+| .NET                      | `nuget`    |
+| Rust                      | `cargo`    |
+| PHP                       | `composer` |
 
 `packagist` is accepted as an alias for `composer`, and `openvsx` for the `vscode` PURL type.
 
@@ -59,7 +59,9 @@ pkg:pypi/<package>@<version>: No score found
 
 The API response determines which package records appear. Compare the result with the request when you need to confirm that each requested package had a matching record.
 
-#### organizations
+</details>
+
+### organizations
 
 List the Socket organizations the authenticated user belongs to. Takes no parameters. Use it to discover the `org_slug` value that the org-scoped tools (`alerts`, `threat_feed`) require.
 
@@ -80,7 +82,7 @@ The response is the Socket API's JSON, keyed by organization id. The `slug` is w
 }
 ```
 
-#### alerts
+### alerts
 
 List the latest security alerts for one Socket organization: supply-chain, vulnerability, quality, license, and maintenance issues across the org's monitored packages. Backed by `GET /v0/orgs/{org_slug}/alerts`. Results are paginated; pass the previous response's `endCursor` as `cursor` to fetch the next page.
 
@@ -97,7 +99,7 @@ List the latest security alerts for one Socket organization: supply-chain, vulne
 | `per_page`      | Integer | No       | `100`   | Results per page (1–5000)                                                             |
 | `cursor`        | String  | No       | -       | Pagination cursor - the `endCursor` from a previous response                          |
 
-#### threat_feed
+### threat_feed
 
 Look up items in a Socket organization's threat feed: packages recently flagged as malware, typosquats, obfuscated code, and similar. Backed by `GET /v0/orgs/{org_slug}/threat-feed`. The response carries a `nextPageCursor`; pass it as `cursor` to page forward.
 
@@ -116,7 +118,7 @@ Look up items in a Socket organization's threat feed: packages recently flagged 
 | `per_page`          | Integer | No       | `30`         | Results per page (1–100)                                                                                           |
 | `cursor`            | String  | No       | -            | Pagination cursor - the `nextPageCursor` from a previous response                                                  |
 
-#### package_files
+### package_files
 
 List the files published in a package: a tree of file paths, each with its size and blob hash, for any package on a supported ecosystem. Use it to inspect what a dependency ships before installing it. Pass a file's `hash` to `package_file_contents` or `package_file_grep`.
 
@@ -137,7 +139,7 @@ pkg:npm/<package>@<version> - <file-count> files, <size> KB
     │   ├── <file-name>  <size>  <blob-hash>
 ```
 
-#### package_file_contents
+### package_file_contents
 
 Read a single file from a package. Pass the `hash` printed next to an entry in `package_files` output. Returns up to 1 MB of UTF-8 text; binary files return metadata only.
 
@@ -146,7 +148,7 @@ Read a single file from a package. Pass the `hash` printed next to an entry in `
 | `hash`    | String | ✅ Yes   | -       | Blob hash from `package_files`                          |
 | `path`    | String | No       | -       | File path, for display only; does not affect the lookup |
 
-#### package_file_grep
+### package_file_grep
 
 Search a single file from a package for lines matching a JavaScript regular expression, returning matches with line numbers (grep -n style). Each blob is fetched once and held in a process-wide cache, so repeated reads and greps of the same hash skip the network.
 
@@ -158,8 +160,6 @@ Search a single file from a package for lines matching a JavaScript regular expr
 | `contextLines`    | Integer | No       | `0`     | Lines of context before and after each match (0–5)      |
 | `maxMatches`      | Integer | No       | `100`   | Cap on matching lines returned (1–500)                  |
 | `path`            | String  | No       | -       | File path, for display only; does not affect the lookup |
-
-</details>
 
 ### Authentication for organization-scoped tools
 
@@ -219,7 +219,6 @@ Example rule:
 ```md
 Always check dependency scores with the depscore tool when you add a new dependency. If the score is low, consider using an alternative library or writing the code yourself.
 ```
-
 
 ## HTTP service behavior
 
