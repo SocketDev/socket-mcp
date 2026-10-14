@@ -4,7 +4,7 @@ Socket MCP exposes a stateless MCP server over stdio or HTTP. Its hosted deploym
 
 The server registers the tools in `lib/server.mts`; schemas and handlers are defined in the corresponding `lib/tool-*.mts` modules. The tables below list the current tool inputs. See [the command reference](commands.md) for launch modes, environment variables, and self-hosting setup.
 
-### Tools exposed
+## Tools exposed
 
 <details><summary>The full tool roster - names, arguments, and what each returns</summary>
 
