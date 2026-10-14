@@ -60,7 +60,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
       }
     },
     "depscore": {
@@ -101,7 +103,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "organizations": {
@@ -111,7 +115,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
       }
     },
     "package_file_contents": {
@@ -131,7 +137,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "package_file_grep": {
@@ -171,7 +179,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "package_files": {
@@ -204,7 +214,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     },
     "threat_feed": {
@@ -288,7 +300,9 @@
         "additionalProperties": false
       },
       "annotations": {
-        "readOnlyHint": true
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
       }
     }
   }
