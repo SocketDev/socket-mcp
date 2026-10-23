@@ -7,6 +7,7 @@ test('MCP tool schemas match the reviewed contract', async () => {
   const result = await spawn('pnpm', ['run', 'mcp:schema:check'], {
     cwd: REPO_ROOT,
     stdio: 'pipe',
+    shell: process.platform === 'win32',
     throws: false,
     localTimeout: 15_000,
   })
