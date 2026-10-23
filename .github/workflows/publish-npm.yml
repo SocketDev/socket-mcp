@@ -503,6 +503,8 @@ jobs:
     # npm's trusted-publisher config pins this GitHub environment name; the
     # OIDC token exchange 404s if the job runs outside it.
     environment: publish-npm
+    env:
+      MBX_REMOTE_URL: ''
     permissions:
       actions: read
       contents: read
