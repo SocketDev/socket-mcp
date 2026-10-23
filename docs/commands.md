@@ -155,7 +155,6 @@ Configure your MCP client to connect to the HTTP server:
 
 </details>
 
-
 ## Claude Code Hook (Optional)
 
 The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up; the public server signs in via OAuth on first use.
@@ -235,17 +234,16 @@ A best-effort guardrail, not a complete defense. Known gaps:
 
 Inspired by [Jimmy Vo's dependency hook](https://blog.jimmyvo.com/posts/claudes-dependency-hook/).
 
-
 ## Development commands
 
 From the repository root with Node.js 24 or later:
 
-| Task | Command |
-| --- | --- |
-| Run the stdio server from source | `pnpm run server-stdio` |
-| Run the HTTP server from source | `pnpm run server-http` |
-| Enable request tracing | Add `:debug` to either server script |
-| Build the package | `pnpm run build` |
-| Check the registered MCP schema | `pnpm run mcp:schema:check` |
+| Task                             | Command                              |
+| -------------------------------- | ------------------------------------ |
+| Run the stdio server from source | `pnpm run server-stdio`              |
+| Run the HTTP server from source  | `pnpm run server-http`               |
+| Enable request tracing           | Add `:debug` to either server script |
+| Build the package                | `pnpm run build`                     |
+| Check the registered MCP schema  | `pnpm run mcp:schema:check`          |
 
 Both server scripts read `SOCKET_API_TOKEN`, falling back to `SOCKET_API_KEY`. Debug scripts set `SOCKET_DEBUG=1` and write request traces to stderr. See [mock-client debugging](mock-client-debugging.md) for sending requests to a local server.
