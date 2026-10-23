@@ -40,7 +40,12 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    # FIRST step on purpose. $GITHUB_ENV only reaches SUBSEQUENT steps, so
+    - name: Export filtered TLS trust and install bash validation
+      shell: bash
+      run: | # zizmor: ignore[github-env] - emits generated absolute paths from private RUNNER_TEMP state.
+        node "${GITHUB_ACTION_PATH}/tls-trust-bootstrap.generated.mjs" --github-env >> "$GITHUB_ENV"
+
+    # Run immediately after TLS trust setup. $GITHUB_ENV only reaches subsequent steps, so
     # exporting here is what puts the no-phone-home posture in front of
     # everything this composite goes on to do - notably the pnpm install, which
     # is the step NO_UPDATE_NOTIFIER exists for.

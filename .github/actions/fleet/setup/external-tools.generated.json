@@ -87,109 +87,109 @@
       "description": "Claude Code native binary verified through the Anthropic signed release manifest",
       "origin": "native",
       "repository": "claude",
-      "version": "2.1.284",
-      "published": "2026-09-28T02:36:51Z",
+      "version": "2.1.301",
+      "published": "2026-10-15T14:01:03Z",
       "platforms": {
         "darwin-arm64": {
           "asset": "claude",
           "binary": "claude",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/darwin-arm64/claude",
-          "integrity": "sha256-UKFML1D1Zmg4D92kkBZ/HTYw1cwY+4rtMHPCx+pzFP4="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/darwin-arm64/claude",
+          "integrity": "sha256-HwTGnhwk5NCnFqhjrwqtj8ZNSaSZM0wpcB8HNwAna5k="
         },
         "darwin-x64": {
           "asset": "claude",
           "binary": "claude",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/darwin-x64/claude",
-          "integrity": "sha256-eUQbhok1oR7QYwsu5ZMn7an2qTu41HC9ZjPAPfdtITU="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/darwin-x64/claude",
+          "integrity": "sha256-NDlCe/zpYv3c9VfFoFjKkU+mPgb+6JT44So/EOBNGHE="
         },
         "linux-arm64": {
           "asset": "claude",
           "binary": "claude",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/linux-arm64/claude",
-          "integrity": "sha256-PdD5bXraRjFS0gMAGG9s/Gq5S1fiGPSeOshttCrGlaY="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/linux-arm64/claude",
+          "integrity": "sha256-HhGQNqgC01m6X5iGQo4DFYboeW96hY1ajuF5rHuGBPA="
         },
         "linux-arm64-musl": {
           "asset": "claude",
           "binary": "claude",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/linux-arm64-musl/claude",
-          "integrity": "sha256-2Lzlck7NHmkw3fX0zvfOuwzT5QtPXVFYswpT+Bgk+YI="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/linux-arm64-musl/claude",
+          "integrity": "sha256-0KayTRV9BhzVxAbrS489QBa2RsiAK0e6vTYlxjbkQz0="
         },
         "linux-x64": {
           "asset": "claude",
           "binary": "claude",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/linux-x64/claude",
-          "integrity": "sha256-XNkKq9g/ihUTbDWqN7sdkrNImTVzMWZD3D/k4Er7+I8="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/linux-x64/claude",
+          "integrity": "sha256-vBqtmYLHtZx9iJ/5JZXWHPRuCm6uB0y1UdkyqYm80iI="
         },
         "linux-x64-musl": {
           "asset": "claude",
           "binary": "claude",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/linux-x64-musl/claude",
-          "integrity": "sha256-HF5NdDHB5wxF79zmnqdMLJoq0wnxZVX33FY/R0PZeKA="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/linux-x64-musl/claude",
+          "integrity": "sha256-CBpyGc8HXlxdKjl5ZReuL6BmENmfNJjn7lxXfw2mh/o="
         },
         "win32-arm64": {
           "asset": "claude.exe",
           "binary": "claude.exe",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/win32-arm64/claude.exe",
-          "integrity": "sha256-ipaOFQBXbupD0E18/9QM85scg+W0Q1Irr+DpLlDWo4k="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/win32-arm64/claude.exe",
+          "integrity": "sha256-IOwRiX4YwVbeC+azWlS3CcUD0LYQcMmOw03ZECQjpKI="
         },
         "win32-x64": {
           "asset": "claude.exe",
           "binary": "claude.exe",
-          "source": "https://downloads.claude.ai/claude-code-releases/2.1.284/win32-x64/claude.exe",
-          "integrity": "sha256-BBZjHoRvdDEQ2lKCQJd2+hMT5l8zpYiq4Gbq+NsP2n0="
+          "source": "https://downloads.claude.ai/claude-code-releases/2.1.301/win32-x64/claude.exe",
+          "integrity": "sha256-hNYf7rGgflpbM1TWhDJZHKwYpdOKQZow2G0POtjLo5c="
         }
       }
     },
     "codex": {
       "description": "codex native CLI, pinned publisher release artifacts",
       "repository": "github:openai/codex",
-      "version": "0.159.0",
+      "version": "0.162.1",
       "versionDate": "2026-09-18",
       "binaryName": "codex",
       "platforms": {
         "darwin-arm64": {
           "asset": "codex-package-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-7qlCHeVybN+5EL7hfNCR3um5b1ddyez+pCh8Z713M7buNlpMV5HnAGQYq5K7Fk4iszhdVTtygJNWLBGZXd8nDQ==",
+          "integrity": "sha512-zaDU+q/Txn/JayysF46+JRTt6HGh39xD7Vt03NKR/4sWdYUspnGHAHkfMPhZwXKGMWIkDH2GZAEPIlwDiuD93g==",
           "binary": "bin/codex"
         },
         "darwin-x64": {
           "asset": "codex-package-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-32WbRlG2H5H5ohJFVyQEoHZ18xCn7fhbhcR8ZyFz810VhLcjGvwoy7gC6iOH+9G3JIm9whUxjFhmX2pIXZTVLQ==",
+          "integrity": "sha512-PTgenAidr5cZuHgRm+bDhlwt3R4c7PtHGxdZJk47lZdwfUnMGDHfV4Gm0upWmjV8JCEeMS6x5P+RiSuyyEZT4w==",
           "binary": "bin/codex"
         },
         "linux-arm64": {
           "asset": "codex-package-aarch64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-DQsTjEEGIjsGts3HVSw7CRc8zw1c/RY045KEUspDsxai8Si3YlPoQBfGkHvzJHCv4k/96gyWsnAT591CIH+1kg==",
+          "integrity": "sha512-KBEKWo2e0d9GFxoFgFvupqztulb7OTpcWnO354kvBBJxd5fZREJFoBJ/4xK0PUq9WDum5jJD051OfygdGp/kkw==",
           "binary": "bin/codex"
         },
         "linux-arm64-musl": {
           "asset": "codex-package-aarch64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-DQsTjEEGIjsGts3HVSw7CRc8zw1c/RY045KEUspDsxai8Si3YlPoQBfGkHvzJHCv4k/96gyWsnAT591CIH+1kg==",
+          "integrity": "sha512-KBEKWo2e0d9GFxoFgFvupqztulb7OTpcWnO354kvBBJxd5fZREJFoBJ/4xK0PUq9WDum5jJD051OfygdGp/kkw==",
           "binary": "bin/codex"
         },
         "linux-x64": {
           "asset": "codex-package-x86_64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-ipCnWdwQRDYeesjGR+30vmWxnhXqQhOMJdp4VKZ91JaBGlNT8zjNl1k3iyFw5oUhg09u0TPn0oKQKEhyg5DBnQ==",
+          "integrity": "sha512-mvBnTdR1ESrstm6Tl4Lq9+XZb0VebZsHxcng3IvuVENRUYdhUU9zMk9odzrACNwyk3uyPkUeT7tok7I+fxyDKw==",
           "binary": "bin/codex"
         },
         "linux-x64-musl": {
           "asset": "codex-package-x86_64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-ipCnWdwQRDYeesjGR+30vmWxnhXqQhOMJdp4VKZ91JaBGlNT8zjNl1k3iyFw5oUhg09u0TPn0oKQKEhyg5DBnQ==",
+          "integrity": "sha512-mvBnTdR1ESrstm6Tl4Lq9+XZb0VebZsHxcng3IvuVENRUYdhUU9zMk9odzrACNwyk3uyPkUeT7tok7I+fxyDKw==",
           "binary": "bin/codex"
         },
         "win32-arm64": {
           "asset": "codex-package-aarch64-pc-windows-msvc.tar.gz",
-          "integrity": "sha512-XhvNzw3xV9jC30v7D/oFEvDcsyAS4fEukba8M6Zk0eZYgQwMafXxRXDPEvjpl0CNKpMKo3r1ATbvRhQ5NEUdZA==",
+          "integrity": "sha512-cxZeq6BnVd6hvXDOvpiNKvsKjaHBE57vGhOvCwmKKURUBVCMMDBUzZpU49toqX2G0beRqgDEzdTPQXG9dhAY+A==",
           "binary": "bin/codex.exe"
         },
         "win32-x64": {
           "asset": "codex-package-x86_64-pc-windows-msvc.tar.gz",
-          "integrity": "sha512-sePz15qOkT2PTsfQMJXZ0mkH8dnGwgpxP/xkUmFbKzcP9x6u2gV0FdjG4LOPJ2K9cD4uSe5jFK+ZdX/4RrXX3g==",
+          "integrity": "sha512-fbtX0tWxJIe0WeXWYsreNVlke9GVO6FQFkxIPUHW8BZfMd/g7xX5Yq565jCoyGPH1h45cTcAD1WicDiG+BH99g==",
           "binary": "bin/codex.exe"
         }
       },
       "origin": "gh-asset",
-      "tag": "rust-v0.159.0",
+      "tag": "rust-v0.162.1",
       "notes": [
         "Platform SHA-256 values come from GitHub release asset digests at https://api.github.com/repos/openai/codex/releases/tags/rust-v0.155.1. The shared installer verifies downloaded bytes before activation."
       ]
@@ -279,70 +279,75 @@
     },
     "go": {
       "notes": [
-        "The Go toolchain — installed by the setup-go-toolchain composite action from the official go.dev tarballs. Pinned to the latest stable (go1.26.6, 2026-08-18) with per-platform SHA-256 from the go.dev release manifest (https://go.dev/dl/?mode=json).",
+        "The Go toolchain is installed from official go.dev archives. Version 1.27.3 contains the eMudhra certificate incident response. Platform SHA-256 values come from https://go.dev/dl/?mode=json&include=all.",
         "Go ships NO musl tarballs — the glibc archive is statically linked and runs on musl too, so the linux-*-musl canonical keys are absent and the installer falls back to the glibc sibling (linux-x64-musl → linux-x64, linux-arm64-musl → linux-arm64).",
         "integrity is the object form ({ value, src, date }) — value is `sha256-<hex>` (the publisher checksum shape), src the go.dev release manifest URL, date the pin day. install-tool.mjs parses the hex-after-prefix form and verifies before extract."
       ],
       "description": "Go toolchain — official go.dev tarball (pinned, SHA-256-verified per platform before extract)",
-      "version": "1.26.6",
-      "versionDate": "2026-08-18",
+      "version": "1.27.3",
+      "versionDate": "2026-10-20",
       "platforms": {
         "darwin-arm64": {
-          "asset": "https://go.dev/dl/go1.26.6.darwin-arm64.tar.gz",
+          "asset": "https://go.dev/dl/go1.27.3.darwin-arm64.tar.gz",
           "integrity": {
-            "value": "sha256-2dc95ce4675829f2df0e86b28bcef3283635902062a5f0580ca659bf570f3204",
-            "src": "https://go.dev/dl/?mode=json",
-            "date": "2026-08-18"
+            "value": "sha256-dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2",
+            "src": "https://go.dev/dl/?mode=json&include=all",
+            "date": "2026-10-20"
           }
         },
         "darwin-x64": {
-          "asset": "https://go.dev/dl/go1.26.6.darwin-amd64.tar.gz",
+          "asset": "https://go.dev/dl/go1.27.3.darwin-amd64.tar.gz",
           "integrity": {
-            "value": "sha256-08b65a63f244115121ced6c3b55ad38d801a7442acad5c949a17aad84ae6d684",
-            "src": "https://go.dev/dl/?mode=json",
-            "date": "2026-08-18"
+            "value": "sha256-b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750",
+            "src": "https://go.dev/dl/?mode=json&include=all",
+            "date": "2026-10-20"
           }
         },
         "linux-arm64": {
-          "asset": "https://go.dev/dl/go1.26.6.linux-arm64.tar.gz",
+          "asset": "https://go.dev/dl/go1.27.3.linux-arm64.tar.gz",
           "integrity": {
-            "value": "sha256-d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e",
-            "src": "https://go.dev/dl/?mode=json",
-            "date": "2026-08-18"
+            "value": "sha256-a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49",
+            "src": "https://go.dev/dl/?mode=json&include=all",
+            "date": "2026-10-20"
           }
         },
         "linux-x64": {
-          "asset": "https://go.dev/dl/go1.26.6.linux-amd64.tar.gz",
+          "asset": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
           "integrity": {
-            "value": "sha256-708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89",
-            "src": "https://go.dev/dl/?mode=json",
-            "date": "2026-08-18"
+            "value": "sha256-65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
+            "src": "https://go.dev/dl/?mode=json&include=all",
+            "date": "2026-10-20"
           }
         },
         "win32-arm64": {
-          "asset": "https://go.dev/dl/go1.26.6.windows-arm64.zip",
+          "asset": "https://go.dev/dl/go1.27.3.windows-arm64.zip",
           "integrity": {
-            "value": "sha256-06dbe785743d534ef8a469dad88adf7f1b2b438507ccfef9b98e7cf8c97b4b68",
-            "src": "https://go.dev/dl/?mode=json",
-            "date": "2026-08-18"
+            "value": "sha256-c507872ff21f8a7cd3c1c217b059c6f7271a4a9d8e692810ef9dd3e1f601197c",
+            "src": "https://go.dev/dl/?mode=json&include=all",
+            "date": "2026-10-20"
           }
         },
         "win32-x64": {
-          "asset": "https://go.dev/dl/go1.26.6.windows-amd64.zip",
+          "asset": "https://go.dev/dl/go1.27.3.windows-amd64.zip",
           "integrity": {
-            "value": "sha256-5b6c5b556525810463b5c897b50dc7a82d6a3dc0bfaf55d990a7e9f31d6b2318",
-            "src": "https://go.dev/dl/?mode=json",
-            "date": "2026-08-18"
+            "value": "sha256-f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff",
+            "src": "https://go.dev/dl/?mode=json&include=all",
+            "date": "2026-10-20"
           }
         }
       },
       "origin": "manager",
-      "manager": "go"
+      "manager": "go",
+      "soakBypass": {
+        "version": "1.27.3",
+        "published": "2026-10-20",
+        "removable": "2026-10-27"
+      }
     },
     "google-chrome-beta": {
       "description": "Google Chrome Beta for the Gemma on-device AI backend",
-      "version": "155.0.8059.12-1",
-      "versionDate": "2026-09-23T16:28:19.340691Z",
+      "version": "156.0.8078.12-1",
+      "versionDate": "2026-10-07T14:58:44.126486Z",
       "chromeVersionExclusions": [
         {
           "version": "154.0.8037.0-1",
@@ -356,8 +361,12 @@
       ],
       "platforms": {
         "linux-x64": {
-          "asset": "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-beta/google-chrome-beta_155.0.8059.12-1_amd64.deb",
-          "integrity": "sha512-Y+OdK+18q5zuh22tBx65KOZQlEPMg5cjLMfTNAR6umECNbJb2tJB4UEE5qWuRX0BNw3WfURarHvxIizjQQVd3A=="
+          "asset": "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-beta/google-chrome-beta_156.0.8078.12-1_amd64.deb",
+          "integrity": {
+            "value": "sha256-edf8b363114b320e84e30ea358e1e30f7827adb621e84a50bcbfbd0231cc58f9",
+            "src": "https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages",
+            "date": "2026-10-16"
+          }
         }
       },
       "origin": "node-dist"
@@ -369,12 +378,12 @@
         "The odai image must pass model session creation and offline inference before publication."
       ],
       "description": "Google Chrome stable .deb for the odai backend, pinned and integrity-verified before installation",
-      "version": "154.0.8037.97-1",
-      "versionDate": "2026-10-02T00:56:19.827163Z",
+      "version": "155.0.8059.79-1",
+      "versionDate": "2026-10-13T20:44:51.420550Z",
       "platforms": {
         "linux-x64": {
-          "asset": "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_154.0.8037.97-1_amd64.deb",
-          "integrity": "sha512-mQ8TPxCR0K6kjMC/vMjzA/7oDRKKk/AveRDA4LtGxF7paXGHkDfN4QC7NYmShP/0/lsXKs6bnV5kZdRfMR0a4A=="
+          "asset": "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_155.0.8059.79-1_amd64.deb",
+          "integrity": "sha512-3SzKdETgi5BcaSVfOfeNymmCJOqarXM3d6FDTDzZlk2uffKZQFqIpeGzqF5xt8saT4StOIFDnYnm8llu3ij3HA=="
         }
       },
       "origin": "node-dist"
@@ -399,34 +408,35 @@
       "origin": "gh-asset"
     },
     "mbx": {
-      "version": "1.22.0",
-      "tag": "v1.22.0",
+      "version": "1.24.1",
+      "tag": "v1.24.1",
       "repository": "github:jdx/mr-boxington",
       "origin": "gh-asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "mbx-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-Tjab3gdmPQtkmEvsjgjOqMzEWWxBCsAlQifXCcN/mv8oRH1BN8RRthm8jVdQ9PsNQjEhIhyYYlnhcysJ4+1YRg=="
+          "integrity": "sha512-D60ncHlyFaXgyFs6aGj5HCMFFWFlqMiHzDEbyDFmS5GpqSav2cpx5OQ9FYvqW35T0myEb6lv/DsziB/3MUH7/g=="
         },
         "linux-arm64-musl": {
           "asset": "mbx-aarch64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-qgsbEFeo6J9K7tH4K2hfFJjV6Rm6s26na2eEd8nw/qsSLzw/8E26rWrhTqsyXPog7f160iWG3/u6XV2sgSaYvg=="
+          "integrity": "sha512-OK/BQ8h9G5PKKzg3jHbjCoyixhAX8/if9sOvLo+pA+qUxPkvow5dpFOH6FvcAGW1CeNNUXOCBuztstwKfmJM9g=="
         },
         "linux-x64-musl": {
           "asset": "mbx-x86_64-unknown-linux-musl.tar.gz",
-          "integrity": "sha512-tdOgq9JazUqnPrDkwsCd77mZpao5kNCaXSun1QdV690X/LneoSzh0AK0z/609n6X8awdg4JNGsHolJs7WNbU2g=="
+          "integrity": "sha512-M19aTOiGUged/qI4VTCpt3OpEERGiBmpzdMod5pZUvLhN5DbhXZhstFhZtG3cpK5WUokQg4XBEWbudVjWytf2w=="
         },
         "win32-x64": {
           "asset": "mbx-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-BflfuUwzGfNGYPnbhIjs2bDXTSjpNqpXUjZ4AjPQhN/Eklpg1K2dlnyfeJX2ZQCikLknO02e5QnowSxuFgiihw=="
+          "integrity": "sha512-mKg9IeZqUIARkAe86hsGDHVGIYS6cdAnc1fp0es18uujI5k+lkeg9LNc8gdhdJ0jQfx2GJIwIHx68wZ9TzTKmw=="
         }
       },
       "description": "Cache front-end for cargo: put mbx in front of any cargo command and one cache warms every worktree and CI run, pruning itself to a size budget.",
       "soakBypass": {
-        "published": "2026-10-03",
-        "removable": "2026-10-10",
-        "version": "1.22.0"
-      }
+        "version": "1.24.1",
+        "published": "2026-10-16",
+        "removable": "2026-10-23"
+      },
+      "versionDate": "2026-10-16"
     },
     "mise": {
       "binaryName": "mise",
@@ -437,9 +447,9 @@
       ],
       "origin": "gh-asset",
       "repository": "github:jdx/mise",
-      "version": "2026.10.7",
-      "tag": "v2026.10.7",
-      "versionDate": "2026-10-09",
+      "version": "2026.10.17",
+      "tag": "v2026.10.17",
+      "versionDate": "2026-10-21",
       "misePolicy": {
         "autoInstall": false,
         "autoUpdate": false,
@@ -456,50 +466,50 @@
       },
       "platforms": {
         "darwin-arm64": {
-          "asset": "mise-v2026.10.7-macos-arm64.tar.gz",
+          "asset": "mise-v2026.10.17-macos-arm64.tar.gz",
           "binary": "mise/bin/mise",
-          "integrity": "sha512-JBK8ibr5rtHF/KKchcL4thopq0heY8N/8a/L833mw8xol6825j1WXzjpmzfCI1usXn3s04F+PcsN0aV9nkCovQ=="
+          "integrity": "sha512-QLLCP1RKpqM7YWrs5jn+r1cQ1XXCOobdPWJi+NkhCbPrwl9Id+Db6FVXNN5o7ROKC/0hf51lC/Qq3koR7kve+w=="
         },
         "darwin-x64": {
-          "asset": "mise-v2026.10.7-macos-x64.tar.gz",
+          "asset": "mise-v2026.10.17-macos-x64.tar.gz",
           "binary": "mise/bin/mise",
-          "integrity": "sha512-zKPmSFjmNadnjEdgAhDEeObomGM+8GInd/P8P3HSE4HcfPTTJEx0RRb9QgArTMHG3lUH25+42zTgnjBJXs+Lmg=="
+          "integrity": "sha512-bmMw+pN2mLOkd8g04PS9DNpmAtlKuDp3lNP3Sv3JbpYfKTkhl56saGNgWZGCll5eJrVzrbzl4cGqUl+wBgaERg=="
         },
         "linux-arm64": {
-          "asset": "mise-v2026.10.7-linux-arm64.tar.gz",
+          "asset": "mise-v2026.10.17-linux-arm64.tar.gz",
           "binary": "mise/bin/mise",
-          "integrity": "sha512-usbDMuNyEM564o5Y6rOf1/j71BXiEK1kfwkZ5SynsE06jaSugAGmY+6aNulq+xmVDboIqZ1KRYrQpRgDq1q8kg=="
+          "integrity": "sha512-BaoPRIEfYJraCAvN3rTARnR6nCstcElEq61g7vwTbTvNIR36s5V/UpXhNPRx+R3xnCdAMov6cD5oUqsRZoXq2Q=="
         },
         "linux-arm64-musl": {
-          "asset": "mise-v2026.10.7-linux-arm64-musl.tar.gz",
+          "asset": "mise-v2026.10.17-linux-arm64-musl.tar.gz",
           "binary": "mise/bin/mise",
-          "integrity": "sha512-J2axJbv4xS33k0IVe4DBRDjtSSaMZev3GeqTgT32JnUim194TgHkYC636UnWdmLyyXaRJ8pOW6P845WjxO+GqQ=="
+          "integrity": "sha512-KL8LsUcNgK4Azu52yFFOzcOmUkGGltN99xPTnpeSyFw/2sEB6CATJx/gcuehw+pd0YOA6egpO0EOQwXGBjshcw=="
         },
         "linux-x64": {
-          "asset": "mise-v2026.10.7-linux-x64.tar.gz",
+          "asset": "mise-v2026.10.17-linux-x64.tar.gz",
           "binary": "mise/bin/mise",
-          "integrity": "sha512-jkFRnX3mkN4VR79LkoPvs1cQK45YEnDacNdPfsZs/5w1hfJoxS+6UMpa1vbHZBBTMaVQuNbNuHLsPyNwpMmGiA=="
+          "integrity": "sha512-ZHvyIWJQ5NYYkHJ4efojdVR4+4F2/ti9sjIn2zedQfmiEFXrCGJIAKSvU2ioaELuReE8/Nk0JJK41RQSF96+cg=="
         },
         "linux-x64-musl": {
-          "asset": "mise-v2026.10.7-linux-x64-musl.tar.gz",
+          "asset": "mise-v2026.10.17-linux-x64-musl.tar.gz",
           "binary": "mise/bin/mise",
-          "integrity": "sha512-Cp2lQHOcupynS76CZvUEvDILj61EuMvUC1vhr5MMHL2gOCFVx4D+QoxY7H6cyU2V0cMYaNAZrWXsxPeVljbGWA=="
+          "integrity": "sha512-RJgrK9UV1jESwx/vJ4NZaH7NIqK/uumtKccbq/J4C5EE/fDbUtpwxJ6dUmtxjgpcDhnVIL89vZoICHIVqUEYLA=="
         },
         "win32-arm64": {
-          "asset": "mise-v2026.10.7-windows-arm64.zip",
+          "asset": "mise-v2026.10.17-windows-arm64.zip",
           "binary": "mise/bin/mise.exe",
-          "integrity": "sha512-7kYMeHTj4hOpYY6Tfb3q+VpiojIs9hDsMFoUxBaj7oJREpXyKsmIx9gogdw9yyqc+qSus2tsbGaf1kUTZcMcGw=="
+          "integrity": "sha512-0S9wnpH1tcS+z3VfPwoSagXeUpwwqYxlROOEW8eXwNPJyIoBaNjlCcUGQRTsc4F0MuSIrICRs72/LF5Tjoy2tg=="
         },
         "win32-x64": {
-          "asset": "mise-v2026.10.7-windows-x64.zip",
+          "asset": "mise-v2026.10.17-windows-x64.zip",
           "binary": "mise/bin/mise.exe",
-          "integrity": "sha512-bqxT4/JBwKzs+kAvuc6u8/J9CHwPU+Q49bULZ308aJzp6QEpoPZzsbtqYB2pqCw1pu5UFO3vc1gpIE3uedkzmA=="
+          "integrity": "sha512-XB2HokkUX1mjw3GKk+PfBeNYRfQVfg6zm7jKOfN2i4ftTlUfe6D0pnVqneINk98vjvsNo3Pz1CD4Kt5eOpWNoQ=="
         }
       },
       "soakBypass": {
-        "published": "2026-10-09",
-        "removable": "2026-10-16",
-        "version": "2026.10.7"
+        "published": "2026-10-21",
+        "removable": "2026-10-28",
+        "version": "2026.10.17"
       }
     },
     "mold": {
@@ -521,12 +531,7 @@
           "integrity": "sha512-zaBDy80sdWAo7Ht71p1wmrgyTvdN1FkeirMzKTHH++kX+ahDzEPaeoGsLEvFTR20OL8VysuLGKQVfxhbSqNlRA=="
         }
       },
-      "description": "mold high-speed ELF linker for Linux builds",
-      "soakBypass": {
-        "version": "3.0.0",
-        "published": "2026-10-05",
-        "removable": "2026-10-12"
-      }
+      "description": "mold high-speed ELF linker for Linux builds"
     },
     "npm": {
       "notes": [
@@ -538,135 +543,76 @@
       "repository": "npm:npm",
       "version": "12.2.0",
       "integrity": "sha512-ZsJjKpTnlmSXOLLXiU1xDCzC4Wlok4IwZmh/aw2KUuXytU7q6qMv/cUT7MoeSf95Slwuw/lRXYefGzGCspHPNQ==",
-      "soakBypass": {
-        "version": "12.2.0",
-        "published": "2026-09-30",
-        "removable": "2026-10-07"
-      },
       "origin": "npm"
     },
     "opencode": {
       "description": "OpenCode CLI; approved native binaries and a pending npm-native update",
       "repository": "opencode",
-      "version": "2.0.16",
+      "version": "2.0.24",
       "versionDate": "2026-08-28",
       "binaryName": "opencode",
       "platforms": {
         "darwin-arm64": {
-          "asset": "cli-darwin-arm64-2.0.16.tgz",
+          "asset": "cli-darwin-arm64-2.0.24.tgz",
           "binary": "package/bin/opencode",
-          "source": "https://registry.npmjs.org/@opencode/cli-darwin-arm64/-/cli-darwin-arm64-2.0.16.tgz",
-          "integrity": "sha512-WlzjaxNb/QY/nJk93AbFNmlxpb5YDdy/2/6FPLbd10QbrkYtfz1TmI6Y0sM3BASDOLG/yJ+0oBfj9OZ5fZ5rfA=="
+          "source": "https://registry.npmjs.org/@opencode/cli-darwin-arm64/-/cli-darwin-arm64-2.0.24.tgz",
+          "integrity": "sha512-KGZeXsTu7YQuijMuihwTsKM6ezLoksyqkL+RUdKBUv87XBdwDf9bv692tFaTQqcyuL++BMGEZdffy0ImLBtm3w=="
         },
         "darwin-x64": {
-          "asset": "cli-darwin-x64-baseline-2.0.16.tgz",
+          "asset": "cli-darwin-x64-baseline-2.0.24.tgz",
           "binary": "package/bin/opencode",
-          "source": "https://registry.npmjs.org/@opencode/cli-darwin-x64-baseline/-/cli-darwin-x64-baseline-2.0.16.tgz",
-          "integrity": "sha512-T+tKaSaDXMF9t0mNV3bflCQNeK5mAdqnDBHsisT+9AHYztsyoRr2oeVrR5bjMC5PeyxTJLYrlLVUTOkbgFyUFA=="
+          "source": "https://registry.npmjs.org/@opencode/cli-darwin-x64-baseline/-/cli-darwin-x64-baseline-2.0.24.tgz",
+          "integrity": "sha512-vCNA3+aRM4LlPl7BDEzEzsWur9OtC5Lg9ldqh7n9HUpo6Sla7G4ExCO3u6tqFUdFQIZ6/ciFLBXCowBJ1U5pJw=="
         },
         "linux-arm64": {
-          "asset": "cli-linux-arm64-2.0.16.tgz",
+          "asset": "cli-linux-arm64-2.0.24.tgz",
           "binary": "package/bin/opencode",
-          "source": "https://registry.npmjs.org/@opencode/cli-linux-arm64/-/cli-linux-arm64-2.0.16.tgz",
-          "integrity": "sha512-BThpExec9wEIhC4U9iRY/jWecM8bVOVuYw2YTYYZ/qNn2r/RljDG2flngDmCZFM1cC6miu2kqOgPkVnVeqaapQ=="
+          "source": "https://registry.npmjs.org/@opencode/cli-linux-arm64/-/cli-linux-arm64-2.0.24.tgz",
+          "integrity": "sha512-n+C1XkoIB0NaHK9CQo4gGIc9FRGDhrMdCXO8heEOvUgKsH/0ROxCr3CxUuJaKolL/5+c5u3CoiXsckL+fa52ag=="
         },
         "linux-arm64-musl": {
-          "asset": "cli-linux-arm64-musl-2.0.16.tgz",
+          "asset": "cli-linux-arm64-musl-2.0.24.tgz",
           "binary": "package/bin/opencode",
-          "source": "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.0.16.tgz",
-          "integrity": "sha512-lL5nQm2PSahKKVLAiX0uSBuD+4AdP8CGjfr60tI69sYJ7xoEDfVw1kCuJY9SW0NMT4uBso1gkD8StYttBHXYMw=="
+          "source": "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.0.24.tgz",
+          "integrity": "sha512-DfL6bISz9udxWU5AIEocMjDLnpgtWGfx5sw7fXKpLUhBFhsjdBOkCrBYuDBFuPwJoe5VJPdF+A/OoTfe+Wi6XA=="
         },
         "linux-x64": {
-          "asset": "cli-linux-x64-baseline-2.0.16.tgz",
+          "asset": "cli-linux-x64-baseline-2.0.24.tgz",
           "binary": "package/bin/opencode",
-          "source": "https://registry.npmjs.org/@opencode/cli-linux-x64-baseline/-/cli-linux-x64-baseline-2.0.16.tgz",
-          "integrity": "sha512-gux35kDqrnl41h41d4xudIN/fab/7hfBlLtYb3dbSdCC+bhwL1TmD9M3PIMaeznya8tqra31HMyRkc7aeJFnYg=="
+          "source": "https://registry.npmjs.org/@opencode/cli-linux-x64-baseline/-/cli-linux-x64-baseline-2.0.24.tgz",
+          "integrity": "sha512-dGa99UyGYS46alr6uxgaSKKHa/CtGgTlWdse1bbhNjLomeOhdIJVJwwxVKfFQz4/NDg1SzDXbxgcIXha2QYHPg=="
         },
         "linux-x64-musl": {
-          "asset": "cli-linux-x64-baseline-musl-2.0.16.tgz",
+          "asset": "cli-linux-x64-baseline-musl-2.0.24.tgz",
           "binary": "package/bin/opencode",
-          "source": "https://registry.npmjs.org/@opencode/cli-linux-x64-baseline-musl/-/cli-linux-x64-baseline-musl-2.0.16.tgz",
-          "integrity": "sha512-CeD2oYHH/vR2jCs7CSJoWWWpvGMy5iNWWyy4BpjdjravfwjqcgbKgaVm9BABnAMlHPFJklz1upvPyfYk/nEaEw=="
+          "source": "https://registry.npmjs.org/@opencode/cli-linux-x64-baseline-musl/-/cli-linux-x64-baseline-musl-2.0.24.tgz",
+          "integrity": "sha512-P5tr3bN+SzsCqGGK3GwLUy/eEhnI45Oi7mBR94RrDWYWg2VmLfkgE91a9F/0EohJXahqL0vbXIawLO6lAl2M0w=="
         },
         "win32-arm64": {
-          "asset": "cli-windows-arm64-2.0.16.tgz",
+          "asset": "cli-windows-arm64-2.0.24.tgz",
           "binary": "package/bin/opencode.exe",
-          "source": "https://registry.npmjs.org/@opencode/cli-windows-arm64/-/cli-windows-arm64-2.0.16.tgz",
-          "integrity": "sha512-zZqQ/yxkGuoVSRup4LXhOEN/4KhSSv4qS+sqsDdTpsD/4oMw7OkYIV+rQ4vdPeqGPmBK2OeevmBUndEUusBHmA=="
+          "source": "https://registry.npmjs.org/@opencode/cli-windows-arm64/-/cli-windows-arm64-2.0.24.tgz",
+          "integrity": "sha512-p+nOzm4heuV/KfoOcUyx6gyBRCsJ9DsDCmnBihmvyLFbqKGHrTCMSitv08denVf5PxVQZ/1mtnl5tr4XUgoEGg=="
         },
         "win32-x64": {
-          "asset": "cli-windows-x64-baseline-2.0.16.tgz",
+          "asset": "cli-windows-x64-baseline-2.0.24.tgz",
           "binary": "package/bin/opencode.exe",
-          "source": "https://registry.npmjs.org/@opencode/cli-windows-x64-baseline/-/cli-windows-x64-baseline-2.0.16.tgz",
-          "integrity": "sha512-MyfEOA9Pzsx4yary0WcLrXhjsQjIOfaeq1ngmLxBpmTWV6EBmtL5VZ3t5IfDfULvBlxhdizQ/36DR3Wu1t7UgA=="
+          "source": "https://registry.npmjs.org/@opencode/cli-windows-x64-baseline/-/cli-windows-x64-baseline-2.0.24.tgz",
+          "integrity": "sha512-hYjG7D7Qw5rJTXdxxaZ7ClswXipC1ku5+U08Ph1Rk9XuyzBOcXMFFha1Bd2OQWgRuWEyAHr4ZyMxadejmBcnHQ=="
         }
       },
       "origin": "native",
       "notes": [
         "Active and pending artifacts carry immutable URLs and publisher integrity values; installation verifies downloaded bytes before activation."
       ],
-      "published": "2026-09-24T06:34:29.888Z",
-      "pending": {
-        "version": "2.0.24",
-        "published": "2026-10-06T03:09:11.282Z",
-        "platforms": {
-          "darwin-arm64": {
-            "asset": "cli-darwin-arm64-2.0.24.tgz",
-            "binary": "package/bin/opencode",
-            "source": "https://registry.npmjs.org/@opencode/cli-darwin-arm64/-/cli-darwin-arm64-2.0.24.tgz",
-            "integrity": "sha512-KGZeXsTu7YQuijMuihwTsKM6ezLoksyqkL+RUdKBUv87XBdwDf9bv692tFaTQqcyuL++BMGEZdffy0ImLBtm3w=="
-          },
-          "darwin-x64": {
-            "asset": "cli-darwin-x64-baseline-2.0.24.tgz",
-            "binary": "package/bin/opencode",
-            "source": "https://registry.npmjs.org/@opencode/cli-darwin-x64-baseline/-/cli-darwin-x64-baseline-2.0.24.tgz",
-            "integrity": "sha512-vCNA3+aRM4LlPl7BDEzEzsWur9OtC5Lg9ldqh7n9HUpo6Sla7G4ExCO3u6tqFUdFQIZ6/ciFLBXCowBJ1U5pJw=="
-          },
-          "linux-arm64": {
-            "asset": "cli-linux-arm64-2.0.24.tgz",
-            "binary": "package/bin/opencode",
-            "source": "https://registry.npmjs.org/@opencode/cli-linux-arm64/-/cli-linux-arm64-2.0.24.tgz",
-            "integrity": "sha512-n+C1XkoIB0NaHK9CQo4gGIc9FRGDhrMdCXO8heEOvUgKsH/0ROxCr3CxUuJaKolL/5+c5u3CoiXsckL+fa52ag=="
-          },
-          "linux-arm64-musl": {
-            "asset": "cli-linux-arm64-musl-2.0.24.tgz",
-            "binary": "package/bin/opencode",
-            "source": "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.0.24.tgz",
-            "integrity": "sha512-DfL6bISz9udxWU5AIEocMjDLnpgtWGfx5sw7fXKpLUhBFhsjdBOkCrBYuDBFuPwJoe5VJPdF+A/OoTfe+Wi6XA=="
-          },
-          "linux-x64": {
-            "asset": "cli-linux-x64-baseline-2.0.24.tgz",
-            "binary": "package/bin/opencode",
-            "source": "https://registry.npmjs.org/@opencode/cli-linux-x64-baseline/-/cli-linux-x64-baseline-2.0.24.tgz",
-            "integrity": "sha512-dGa99UyGYS46alr6uxgaSKKHa/CtGgTlWdse1bbhNjLomeOhdIJVJwwxVKfFQz4/NDg1SzDXbxgcIXha2QYHPg=="
-          },
-          "linux-x64-musl": {
-            "asset": "cli-linux-x64-baseline-musl-2.0.24.tgz",
-            "binary": "package/bin/opencode",
-            "source": "https://registry.npmjs.org/@opencode/cli-linux-x64-baseline-musl/-/cli-linux-x64-baseline-musl-2.0.24.tgz",
-            "integrity": "sha512-P5tr3bN+SzsCqGGK3GwLUy/eEhnI45Oi7mBR94RrDWYWg2VmLfkgE91a9F/0EohJXahqL0vbXIawLO6lAl2M0w=="
-          },
-          "win32-arm64": {
-            "asset": "cli-windows-arm64-2.0.24.tgz",
-            "binary": "package/bin/opencode.exe",
-            "source": "https://registry.npmjs.org/@opencode/cli-windows-arm64/-/cli-windows-arm64-2.0.24.tgz",
-            "integrity": "sha512-p+nOzm4heuV/KfoOcUyx6gyBRCsJ9DsDCmnBihmvyLFbqKGHrTCMSitv08denVf5PxVQZ/1mtnl5tr4XUgoEGg=="
-          },
-          "win32-x64": {
-            "asset": "cli-windows-x64-baseline-2.0.24.tgz",
-            "binary": "package/bin/opencode.exe",
-            "source": "https://registry.npmjs.org/@opencode/cli-windows-x64-baseline/-/cli-windows-x64-baseline-2.0.24.tgz",
-            "integrity": "sha512-hYjG7D7Qw5rJTXdxxaZ7ClswXipC1ku5+U08Ph1Rk9XuyzBOcXMFFha1Bd2OQWgRuWEyAHr4ZyMxadejmBcnHQ=="
-          }
-        }
-      }
+      "published": "2026-10-06T03:09:11.282Z"
     },
     "perry": {
       "description": "Native TypeScript compiler and matching static libraries for the Claude statusline",
       "origin": "git",
       "repository": "https://github.com/PerryTS/perry.git",
       "ref": "main",
-      "sha": "9fda98df68d9fac3c08b2385fae007aa9f5278df",
+      "sha": "c4f234d89d7a9d67b8ed2af47487b767b8622af1",
       "integrity": "sha256:0b5f75fd3471e45ecfaf83fd8627ed9c0e68b4e5e8e23bd575cb0a587389bcf8",
       "submodule": {
         "path": "upstream/perry",
@@ -754,47 +700,47 @@
       ],
       "description": "Fast, disk space efficient package manager",
       "repository": "github:pnpm/pnpm",
-      "version": "12.12.0",
-      "tag": "v12.12.0",
+      "version": "12.14.0",
+      "tag": "v12.14.0",
       "platforms": {
         "darwin-arm64": {
           "asset": "pnpm-darwin-arm64.tar.gz",
-          "integrity": "sha512-7VnH+RdUx7PpoxkNv+Lb15REk3XpVj1S94tSSxnhBWn53tah9rFSGaWdoljF+a8+5FtmiLvKkzV3qZ/9+HmVPQ=="
+          "integrity": "sha512-Ky2n9ZilxNe0duiqhGbDuP6LmwL7S53bbD6fItj46irKxF+d2m02NK7DNEIRm/i96QOs6JEiBy984Xno9VoXYQ=="
         },
         "darwin-x64": {
           "asset": "pnpm-darwin-x64.tar.gz",
-          "integrity": "sha512-zjyoVTj2Bvo2DQuTnOCMaqBIazuMQHFl8Nt7+SZ19SVRemXvvh+Bg8iMzgaBDwJTEikpBx2fYY/Q0lSD36535w=="
+          "integrity": "sha512-DrwXNSlbarqasVg9Etui/2Z42ee8bGd1kMBEbgwbVXDfFePUNY6yHw6m3lRkDr1+lq9KFk6oyuA3eGi9OwKa8A=="
         },
         "linux-arm64": {
           "asset": "pnpm-linux-arm64.tar.gz",
-          "integrity": "sha512-xph5ueHRQX0mX1Lo53g74gJA8rCG9ce9iy48Rm6nSFSfv13y0ZH1o+8k5ai4GM6ZAuud6ZXF5zkU+gQemp6CRA=="
+          "integrity": "sha512-2SgUbKT1ACEv6sn6ftZIWKk1SUC6cJeHUQ3s7YQSeIFITx6fErPUp+EIGD84QRhuno6btwBSj4TXQJET967uOw=="
         },
         "linux-arm64-musl": {
           "asset": "pnpm-linux-arm64-musl.tar.gz",
-          "integrity": "sha512-V/k+2BJszqLgo7SK6vtRIAUrtYEKcieI6aG7SlRURYqPHMzCAL7h6g0+llXRKQFbLOXf9qsRSfWcvsCPaEf5cw=="
+          "integrity": "sha512-9zMQvH32hFq7lWjZS5AxV3hU3HVS0sQ8QQzL14cXL00sEmIaeby32Iw2Vzg8hzcyM2kPvoN/uctKPTo9Kp7oBA=="
         },
         "linux-x64": {
           "asset": "pnpm-linux-x64.tar.gz",
-          "integrity": "sha512-pKcD9MeYjJ0qy/IOrd7FHmsQMiqoi+wcBG3HGcnodsldG9I9gZ9joj0lCb8uqDCAqY4TnBvpmosJl4UpKJL3mg=="
+          "integrity": "sha512-loUuV/WPLGkDY8TAki62d5XicIeEVIQfTxRLs4Uxp3QFIUbKqmQ53X+2ygvMkVz/RQJQUGGHd0Evd5blx6Bj0A=="
         },
         "linux-x64-musl": {
           "asset": "pnpm-linux-x64-musl.tar.gz",
-          "integrity": "sha512-asJz8aBD4IFzXfJ45IhWFB631m+OJJ5Mn6PJOQalM/HM306ahRKoRITA8/a6OKRhx8klu/2uw8JYrQF9eEm+YQ=="
+          "integrity": "sha512-LkF2kBzAPziVtD+UHKUE0PQg12f0+b8y4CbyOC0BQo1zrPVFP939UtSdJ1korcN6VW5Hj47fCs1QXNLXGob5sw=="
         },
         "win32-arm64": {
           "asset": "pnpm-win32-arm64.zip",
-          "integrity": "sha512-i3NLV4gR0qL8jdSI0NbL9frQfXAGwnZu8WSlNJC+0vVUst53cm0JqeT39nWcqcfPsM5mszx5QA8+YZg3sjxvrw=="
+          "integrity": "sha512-saKGun49DlvU2GW4PgYaoMaSkww5LmAegAItsFfAzAkP7eD6jvKVz8t2uaEMhzkEJTneVKbGzDLjD45ZjmME5g=="
         },
         "win32-x64": {
           "asset": "pnpm-win32-x64.zip",
-          "integrity": "sha512-db9WaY/ydV4uqHUln/GI9pzxXi1MdGlsRZQDQKMr8BO/ktYfV9eeCwGI5ttJBWMWWewClOZQkp3yiAq89YT6dA=="
+          "integrity": "sha512-TuWK4XARVeFxi78emnLBIJo7aJXbgJxf1xBd+sF7IrvomhFuA2A8EeZWXxjW5EfisoVlGdUz10GOJRKCf8Fmyw=="
         }
       },
       "origin": "gh-asset",
       "soakBypass": {
-        "published": "2026-10-10",
-        "removable": "2026-10-17",
-        "version": "12.12.0"
+        "published": "2026-10-15",
+        "removable": "2026-10-22",
+        "version": "12.14.0"
       }
     },
     "rustup": {
@@ -915,12 +861,7 @@
           "integrity": "sha512-zi2isECucghnSVLVDjTaABKr/2nsmiUHVGEELcj1/7DRLbFIYLq+m3zpcfRJTLstElWbht2PjIJQuHWtnrzLrw=="
         }
       },
-      "origin": "gh-asset",
-      "soakBypass": {
-        "published": "2026-10-01",
-        "removable": "2026-10-08",
-        "version": "1.15.4"
-      }
+      "origin": "gh-asset"
     },
     "sfw-free": {
       "notes": [
@@ -962,62 +903,58 @@
           "integrity": "sha512-kh7yWn5TzLGI+rpujGwzX+HIaVa1/BHTVpJ58cBAYnwPSuYRhgUciX0vqKKoK3P3nYYMGrN7IvhZ4L91krsYLw=="
         }
       },
-      "origin": "gh-asset",
-      "soakBypass": {
-        "published": "2026-10-01",
-        "removable": "2026-10-08",
-        "version": "1.15.4"
-      }
+      "origin": "gh-asset"
     },
     "uv": {
       "notes": [
         "uv (Astral) — the fleet's Python project tool. Installed in the bootstrap (release-asset, SRI-verified per platform, like janus/codedb) so a hash-locked uv install is available BEFORE the security-tools step that needs it (SkillSpector installs via a uv project + uv.lock, no pipx — the fleet 'uv for projects' rule). external-tools/update.mts re-hashes the GitHub release assets on a bump.",
-        "The GitHub release is a known-publisher binary distribution. The installer uses the version as the release tag."
+        "The GitHub release is a known-publisher binary distribution. The installer uses the version as the release tag.",
+        "Security update: 0.13.4 adopts webpki-root-certs 1.0.10 after the eMudhra incident. https://github.com/astral-sh/uv/releases/tag/0.13.4"
       ],
       "description": "uv — Astral Python package/project manager (pinned, SRI-verified)",
       "repository": "github:astral-sh/uv",
-      "version": "0.12.23",
-      "tag": "0.12.23",
-      "versionDate": "2026-10-03",
+      "version": "0.13.4",
+      "tag": "0.13.4",
+      "versionDate": "2026-10-20",
       "binaryName": "uv",
       "platforms": {
         "darwin-arm64": {
           "asset": "uv-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-gfcAJYNFwKXKBwMYW/JKTLGO4O8YJ7bQAUhktvAG7nBRWwWhCBdLvFsFOL5qonUgZguve0oENxa2/o/ElT3E2A=="
+          "integrity": "sha512-rTH+JXnMR3YPVOibNvLUXtKozz3nR8YSamfvylhNompKp5i2eEsZrUCdhGd3A5S6e+oSo7ERYwfusCMan3Meeg=="
         },
         "darwin-x64": {
           "asset": "uv-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-T1F7q5xWEOkUPLGeekoWOwz8Cdkkc9akMfwLU2QO8i824WdfOipJ4/zddpkG/Xr9NWA+/LuyHFGwPdwtVv/grg=="
+          "integrity": "sha512-WmjYloU39f0ZAw0jCV73GH/iYs1jRGbZd+Q/aA2JPr+DtMbJsyVUH2CS/vw/e2pVqOEWbgWHZyRXm8QhRkB1Tw=="
         },
         "linux-arm64": {
           "asset": "uv-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-ebIJu9Gjeq5JoMPzMgW3F8ZF87IiQRjGV48JaEriium+Qy1dYsEP720173ekwSwrKRvE0FdhPyRb8QUEsbxuBg=="
+          "integrity": "sha512-vjsQLcnHlrLgpzwgoNOrqRJisgN0VG8PRlsnNvNPq9WFfLZgz0SSb22MsNvcKTxbo29UNfC3UbIaGXL8DZD9Sw=="
         },
         "linux-x64": {
           "asset": "uv-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-SYTJBAowVTXLInaa6v0NuBgzOOIC+CoupwDRwwcKHEHgYZOLUGOMUDgBEt2bX2n+Jc6Jz9PQfcvA7D+3Id+Gpg=="
+          "integrity": "sha512-qe2cdV4BVSr/pPdk/6kB7kMmM0LO+ctn16O9iCfGLxTeDGo570Fjr4I/g/mvITFUCGb9H/zBM0cbIewuWFZsjQ=="
         },
         "win32-arm64": {
           "asset": "uv-aarch64-pc-windows-msvc.zip",
-          "integrity": "sha512-RTNfWHH9F1k5oG1i4y8TACMbjh3PSyoR7bkoAKiaX0mNwZedokm4JXq3UpOZ/SwQZL6DpI1BRfuRsEwq2KtazQ=="
+          "integrity": "sha512-zv2J+yqvUitcoX9brJz00BQpuYFCjeWU5+LiwJ5d/ZWZgnOK/TVnTvrF5fC3tFj0EIoErbOCdTwwHBRvmLVs+w=="
         },
         "win32-x64": {
           "asset": "uv-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-8vtkGZbm5WXtEcuwkrgp50tNdxZpHah9tcwR/F9uMeNgw1yYTyVf6RYHhvliPnPUpMY3JEdzgUbID4LOhLflsw=="
+          "integrity": "sha512-8q0tX6gT4mIox8MwV1Lekt8YCTVkYY4Ym4tlg+h1q1AVaug7xbKkT4hU9v/uMxNUq/+xnpwMCa/jywXpvVXzrg=="
         }
       },
       "origin": "gh-asset",
       "soakBypass": {
-        "version": "0.12.23",
-        "published": "2026-10-03",
-        "removable": "2026-10-10"
+        "version": "0.13.4",
+        "published": "2026-10-20",
+        "removable": "2026-10-27"
       }
     },
     "zizmor": {
       "description": "GitHub Actions security linter — audits .github/ for workflow-injection / credential-leak patterns.",
-      "version": "1.30.1",
+      "version": "1.31.0",
       "repository": "github:zizmorcore/zizmor",
-      "tag": "v1.30.1",
+      "tag": "v1.31.0",
       "notes": [
         "Required: CI (blocks merges on medium+ findings)",
         "Installed by the setup-and-install composite; SRI-verified (sha512) per platform"
@@ -1025,23 +962,23 @@
       "platforms": {
         "darwin-arm64": {
           "asset": "zizmor-aarch64-apple-darwin.tar.gz",
-          "integrity": "sha512-0SJEhWNir4QzfGwrT2oX4w/4UJZp8CqDo2RK2bkcfHCilayAZkpvu/fq6rHo+X+gbJICazQBNRE2bo91mmNAKA=="
+          "integrity": "sha512-aHFSG5VFwSJ3LrlgH/vIuVHsRzBYAE8CbacVCHOoo0nOEbusERvdtm1rIgJm+YiKiy1lt95ni+v8CeSdjgfR8Q=="
         },
         "darwin-x64": {
           "asset": "zizmor-x86_64-apple-darwin.tar.gz",
-          "integrity": "sha512-QqPld71wwABqcLyxkJ02nItUczTQrtpAAT6xiDvyyBySuywAFGW4mUU7iO2Kcwg+CDY5ZLvkd/vNm76GqqbwXw=="
+          "integrity": "sha512-DDUbExoyRusqj+mc2vzj2xo9jmP6QtwgK0nXKot7hEXHIbl5Hlu5FIVKwQ6YMc7oCvu4ozEpbY9gS4G1/igFQg=="
         },
         "linux-arm64": {
           "asset": "zizmor-aarch64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-7AfMKqT+4SoyYRE4Ke7Ar5H+1SoU7QUuifuSKGjJIb7Qep29+oP0IrMsEMwjqAxpiGbEPyxSMgO7ghDlHhNsNQ=="
+          "integrity": "sha512-Hvr6TZ+X+tzi84Z37Cy0dAdDR4ePFZzM4U3g1KP3p0etOn7wPzrazOXJqP2bZgnY+LAJVoRu4ojkhM/GP0nelw=="
         },
         "linux-x64": {
           "asset": "zizmor-x86_64-unknown-linux-gnu.tar.gz",
-          "integrity": "sha512-sMHocgA1Rg12S12/szGaRumgmlAEjaeU5EIdGTczLNldhGFptlctCFqogoebWvE/PFioGlZ2vcSxoCZW3BegYg=="
+          "integrity": "sha512-0aN5cAmR6N0Yb3IhjvOt//OLgtRR7RS62d+6/0+zGCYWmWmYDaMATvGfT9n+2FTGcF9mnBML9XWefcHKMIwNFQ=="
         },
         "win32-x64": {
           "asset": "zizmor-x86_64-pc-windows-msvc.zip",
-          "integrity": "sha512-cYagZJ5fG+8UQ/Fr0LshEt7A6CXQgWeeBHlsztvzCepX661rrW9h3h//hedNUu7yM215f+fqDXE0++6MjuLgJg=="
+          "integrity": "sha512-ipIpgBsUyl1ZJOzm9iXwaSo1t+Cmv9Njw3rPlB6xJ5CPClJgFr9483rvhh/9kjWmwXW4PLXmzP2exg/O5/PxnA=="
         }
       },
       "origin": "gh-asset"

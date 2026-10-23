@@ -23,7 +23,7 @@ export { createRunnerSwap, validateRunnerSwap } from './runner-swap-file.mts'
 
 const GIB = 1024 ** 3
 const RESOURCE_TARGET = 12 * GIB
-const DISK_HEADROOM = 7 * GIB
+const DISK_HEADROOM = 6.5 * GIB
 const CGROUP_CONTROLS = ['memory.max', 'memory.swap.max', 'memory.swap.current']
 
 type ReadResource = (path: string) => Promise<string | undefined>
@@ -255,20 +255,6 @@ function reportRunnerResource(
   })
 }
 
-function validateRunnerDisk(
-  disk: RunnerResourceDisk,
-  details: RunnerDiskDetails,
-  added: number,
-  memory: number,
-): void {
-  const free = disk.availableBytes
-  if (!Number.isSafeInteger(free) || free - added < DISK_HEADROOM) {
-    refuseResource(
-      `insufficient disk headroom (memory=${memory} bytes, requiredSwap=${details.requiredAdded} bytes, reserve=${DISK_HEADROOM} bytes, freeDisk=${free} bytes, mount=${details.mount}, path=${details.path}, device=${disk.device})`,
-    )
-  }
-}
-
 async function cleanupFailedRunnerSwap(
   owned: OwnedSwap,
   system: ResourceSystem,
@@ -341,7 +327,6 @@ export async function prepareRunnerResources(
   if (!added) {
     return { status: 'sufficient', memory, swap, added: 0 }
   }
-  validateRunnerDisk(disk, diskDetails, added, memory)
   const owned = await system.create(added)
   return activateRunnerSwap(owned, added, memory, swap, system)
 }

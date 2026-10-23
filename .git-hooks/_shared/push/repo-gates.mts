@@ -3,8 +3,8 @@ import {
   sharedTypescriptBinTscPath,
 } from '../../../scripts/fleet/paths/util.mts'
 // Pre-push repo-level gates that run against the working-tree state (not a
-// commit range): submodule pristine-ness, soak-bypass date annotations, the
-// fast lint/format gate, and the wheelhouse-only hook-dispatch-table drift check.
+// commit range): submodule pristine-ness, soak-bypass date annotations, and
+// the wheelhouse-only hook-dispatch-table drift check.
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
 
@@ -125,101 +125,6 @@ export const scanSoakAnnotations = (): number => {
   return hits.length
 }
 
-// Fast lint/format gate: catches lint/format drift before push, not just in
-// CI ("green locally, red in CI" traces to nothing running lint at the push
-// boundary). The FAST, build-INDEPENDENT slice: oxfmt --check + oxlint, never
-// the full `check --all` (needs a built dist/, too slow for every push).
-//
-// MUST invoke the lint script DIRECTLY (`node <lint-script> …`), NOT via
-// `pnpm run lint`: the `pnpm run` path triggers pnpm's deps-status check,
-// which in a non-TTY context (CI, a linked worktree) tries to purge/reinstall
-// node_modules and aborts (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`), a
-// false push-block unrelated to lint.
-//
-// SCOPE: the pushed COMMITS via `--range=`, NEVER the working tree, which on a
-// shared checkout also holds a parallel session's files. Empty `ranges` falls
-// back to `--all`. See docs/fleet/agents.md/push-policy.md.
-//
-// Degrades to a skip (not a block) when there's no lint script, the script
-// isn't a `node <path>` invocation, or there's no oxlint config. Bypass:
-// `git push --no-verify`, `HUSKY=0`, or a redirected `core.hooksPath`, all
-// phrase-gated for Claude by no-revert-guard. Returns 1 on lint failure, 0 on
-// pass/skip.
-export const scanFastChecks = (ranges: readonly string[] = []): number => {
-  if (!existsSync('package.json')) {
-    return 0
-  }
-  // Skip when the checkout lives under a path segment the formatter ignores
-  // (e.g. a linked git worktree under `.claude/worktrees/...`): the lint
-  // runner's `oxfmt .` resolves `.` to the abs worktree path, whose `.claude/`
-  // ancestor matches the `**/.claude/**` ignore in .prettierignore, so EVERY
-  // file is excluded → "Expected at least one target file" → a false block.
-  // Such a worktree is a staging area for a push to main; CI re-lints from a
-  // clean checkout, so skipping here loses nothing.
-  let toplevel = ''
-  try {
-    toplevel = normalizePath(gitLines('rev-parse', '--show-toplevel')[0] ?? '')
-  } catch {
-    // bare repo / detached context — proceed, no skip.
-  }
-  // Matches `.claude` as a complete path segment anywhere in `toplevel`, start, middle, or end.
-  if (/(?:^|\/)\.claude(?:\/|$)/.test(toplevel)) {
-    logger.warn(
-      'Fast lint/format check skipped — checkout is under an ignored path (.claude/); CI re-lints from a clean tree.',
-    )
-    return 0
-  }
-  let pkg: { scripts?: Record<string, string> | undefined }
-  try {
-    pkg = JSON.parse(readFileSync('package.json', 'utf8')) as typeof pkg
-  } catch {
-    return 0
-  }
-  const lintScript = pkg.scripts?.['lint']
-  // No `lint` script → this repo doesn't lint; nothing to gate.
-  if (!lintScript) {
-    return 0
-  }
-  // Extract the local node-script path from a `node <path> [args]` lint script
-  // (the fleet shape is `node scripts/fleet/lint.mts`). A non-node lint script
-  // can't be run directly here — skip rather than risk a pnpm reinstall.
-  const m = /^node\s+(\S+\.[cm]?[jt]s)\b/.exec(lintScript.trim())
-  if (!m || !existsSync(m[1]!)) {
-    return 0
-  }
-  const scopeArgs =
-    ranges.length > 0 ? ranges.map(range => `--range=${range}`) : ['--all']
-  debugCheck(
-    ranges.length > 0
-      ? `Running fast lint/format check on the pushed range (${ranges.join(', ')})…`
-      : 'Running fast lint/format check on the whole tree (no pushed range to scope by)…',
-  )
-  // `CI=true`: lint.mts shells out to `pnpm exec oxfmt/oxlint`, and pnpm's
-  // deps-status check aborts in a non-TTY context (a linked git worktree, a
-  // headless run) trying to purge node_modules
-  // (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). Setting CI makes pnpm
-  // non-interactive — it skips the purge prompt and proceeds — so the gate
-  // runs the same everywhere (local TTY, worktree, CI) instead of false-
-  // blocking a worktree push.
-  const r = spawnSync(process.execPath, [m[1]!, ...scopeArgs], {
-    env: { ...process.env, CI: 'true' },
-    maxBuffer: Infinity,
-    stdioString: true,
-  })
-  showCheckResult(r)
-  if (r.status !== 0) {
-    logger.fail(
-      'Fast lint/format check failed — fix lint/format before pushing.',
-    )
-    logger.info(
-      '  Run `pnpm run fix` to autofix, then re-push. Bypass once with ' +
-        '`git push --no-verify` (records the skip).',
-    )
-    return 1
-  }
-  return 0
-}
-
 // The canonical fleet type gate — the same whole-project check the `type` npm
 // script and CI run.
 const TYPE_CHECK_TSCONFIG = sharedFleetTsconfigCheckJsonPath('.config')
@@ -241,18 +146,13 @@ const ensureDispatchTables = (): void => {
   spawnSync(process.execPath, [gen], { stdio: 'ignore' })
 }
 
-// Fast TYPE gate — the type-check sibling of scanFastChecks. A type error is the
-// OTHER class of breakage that reaches origin/main behind CI alone: oxlint and
-// oxfmt run per-edit, but a type error only surfaces against the whole project,
-// so a push carrying a bad type slipped straight to origin. Runs the canonical
+// Fast TYPE gate — type errors only surface against the whole project, so a
+// changed-file scope can miss a break in an untouched file. Runs the canonical
 // `tsc --noEmit -p .config/fleet/tsconfig.check.json` at the push boundary. A
 // BACKSTOP: this hook is bypassed routinely, so CI's check job runs it too.
 //
-// Unlike scanFastChecks it does NOT skip under a `.claude/` worktree path. That
-// skip exists only because the lint runner's `oxfmt .` resolves `.` to a path
-// whose `.claude/` ancestor is ignored, excluding every file; tsc runs against
-// an explicit project (`-p <tsconfig>`), so the `.`-resolution problem does not
-// apply and a worktree push must NOT escape the type gate.
+// It also runs under a `.claude/` worktree path because tsc uses an explicit
+// project (`-p <tsconfig>`) and does not depend on path-based file discovery.
 //
 // Fails CLOSED: a checkout carrying the fleet tsconfig but no compiler cannot
 // verify the push, so it is blocked, not skipped. A repo without the fleet

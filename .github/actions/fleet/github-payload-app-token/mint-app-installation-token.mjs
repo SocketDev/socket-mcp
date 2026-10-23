@@ -110,6 +110,28 @@ function gh(method, path, jwt, body) {
   })
 }
 
+function sleep(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds))
+}
+
+export async function requestAppInstallationToken(config) {
+  const {
+    body,
+    jwt,
+    method,
+    path,
+    requestImpl = gh,
+    sleepImpl = sleep,
+  } = config
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await requestImpl(method, path, jwt, body)
+    if (![500, 502, 503, 504].includes(response.status) || attempt === 2) {
+      return response
+    }
+    await sleepImpl(1000 * 2 ** attempt)
+  }
+}
+
 // Parse a PERMISSIONS string (a JSON object) into the access-token request, or
 // undefined when blank. Throws on malformed or empty-object input — an empty
 // object would mint a blanket-permission token, the opposite of least-privilege.
@@ -217,11 +239,32 @@ export function formatAppPermissionShortfall(config) {
 }
 
 export function formatAppTokenMintFailure(config) {
-  const { body, installationId, owner, slug, status } = config
+  const { installationId, owner, slug, status } = config
+  const where = `Where: POST /app/installations/${installationId}/access_tokens. `
+  if (status >= 500 && status <= 599) {
+    return (
+      `token mint failed: HTTP ${status}. ` +
+      where +
+      'Saw: GitHub returned a server error while creating the installation token. ' +
+      'Fix: retry the workflow later. Do not expand App permissions based on a GitHub server error.'
+    )
+  }
+  const responseMessage =
+    status === 422
+      ? 'GitHub rejected the requested repositories or permissions.'
+      : 'GitHub rejected the installation-token request.'
+  if (status !== 422) {
+    return (
+      `token mint failed: HTTP ${status}. ` +
+      where +
+      `Saw: ${responseMessage} ` +
+      `Fix: verify the ${slug} App credentials, its installation on ${owner}, and repository access.`
+    )
+  }
   return (
     `token mint failed: HTTP ${status}. ` +
-    `Where: POST /app/installations/${installationId}/access_tokens. ` +
-    `Saw: ${body}. Fix: the requested permissions/repositories must be ` +
+    where +
+    `Saw: ${responseMessage}. Fix: the requested permissions/repositories must be ` +
     `a subset of what the app's installation on ${owner} grants. ` +
     `${formatAppRegistrationGuidance(slug)} ` +
     'Open Permissions & events -> Repository permissions. ' +
@@ -333,16 +376,15 @@ async function main() {
     tokenBody.permissions = permissions
   }
   tokenBody.repositories = repositories
-  const minted = await gh(
-    'POST',
-    `/app/installations/${installationId}/access_tokens`,
+  const minted = await requestAppInstallationToken({
+    body: JSON.stringify(tokenBody),
     jwt,
-    JSON.stringify(tokenBody),
-  )
+    method: 'POST',
+    path: `/app/installations/${installationId}/access_tokens`,
+  })
   if (minted.status !== 201) {
     die(
       formatAppTokenMintFailure({
-        body: minted.body,
         installationId,
         owner,
         slug: installation.app_slug ?? '<app>',

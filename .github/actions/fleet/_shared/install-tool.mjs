@@ -155,17 +155,14 @@ export async function readToolArchive({
       }
     }
   }
-  const response = await fetchToolResponse(url, headers)
-  if (!response.ok) {
-    throw new Error(
-      `Tool download failed at ${url}: saw HTTP ${response.status} ${response.statusText}; wanted a successful response. Check the release URL and access permissions.`,
-    )
-  }
-  return new Uint8Array(await response.arrayBuffer())
+  return downloadToolArchive(url, headers)
 }
 
 function retryableToolDownloadError(error) {
   const code = error?.cause?.code ?? error?.code
+  if (error?.name === 'TimeoutError' || error?.cause?.name === 'TimeoutError') {
+    return true
+  }
   return [
     'ERR_HTTP2_STREAM_ERROR',
     'ECONNRESET',
@@ -176,7 +173,22 @@ function retryableToolDownloadError(error) {
   ].includes(code)
 }
 
+async function downloadToolArchive(url, headers) {
+  return requestToolDownload(url, headers, async response => {
+    if (!response.ok) {
+      throw new Error(
+        `Tool download failed at ${url}: saw HTTP ${response.status} ${response.statusText}; wanted a successful response. Check the release URL and access permissions.`,
+      )
+    }
+    return new Uint8Array(await response.arrayBuffer())
+  })
+}
+
 export async function fetchToolResponse(url, headers) {
+  return requestToolDownload(url, headers, response => response)
+}
+
+async function requestToolDownload(url, headers, consumeResponse) {
   for (let attempt = 0; ; attempt++) {
     try {
       // oxlint-disable-next-line socket/no-fetch-prefer-http-request -- dep-0 bootstrap
@@ -185,13 +197,14 @@ export async function fetchToolResponse(url, headers) {
         headers,
         signal: AbortSignal.timeout(120_000),
       })
-      if (
-        attempt === 2 ||
-        ![408, 429, 500, 502, 503, 504].includes(response.status)
-      ) {
-        return response
+      if ([408, 429, 500, 502, 503, 504].includes(response.status)) {
+        if (attempt === 2) {
+          return await consumeResponse(response)
+        }
+        await response.body?.cancel()
+      } else {
+        return await consumeResponse(response)
       }
-      await response.body?.cancel()
     } catch (error) {
       if (attempt === 2 || !retryableToolDownloadError(error)) {
         throw error

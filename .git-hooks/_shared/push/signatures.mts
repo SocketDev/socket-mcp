@@ -3,6 +3,7 @@
 // configured with an allowed_signers file — cross-checks each signing key
 // against that allowlist.
 
+import crypto from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 
 import process from 'node:process'
@@ -30,8 +31,7 @@ const logger = getDefaultLogger()
 
 // Parse the SSH allowed_signers file referenced by
 // `git config --get gpg.ssh.allowedSignersFile`. Returns the set of
-// public-key BLOBS (the same format `git log --format=%GK` emits for
-// SSH-signed commits — `<key-type> <base64-key>`).
+// SSH key fingerprints (the same format `git log --format=%GK` emits).
 //
 // Returns an empty set if:
 //   - gpg.format isn't 'ssh', allowed-signers only applies to SSH-format
@@ -40,46 +40,77 @@ const logger = getDefaultLogger()
 // An empty set means "don't enforce" — the %G? marker check alone
 // remains active. This degrades gracefully on first install before
 // the user has set up allowed_signers.
-export const readAllowedSignerKeys = (): Set<string> => {
+function decodeSignerKey(keyType: string, keyBlob: string): Buffer | undefined {
+  const key = Buffer.from(keyBlob, 'base64')
+  const canonicalBlob = key.toString('base64')
+  if (
+    key.length === 0 ||
+    (keyBlob !== canonicalBlob &&
+      keyBlob !== canonicalBlob.replace(/=+$/u, '')) ||
+    key.length < 4
+  ) {
+    return
+  }
+  const keyTypeLength = key.readUInt32BE(0)
+  if (
+    keyTypeLength === 0 ||
+    keyTypeLength > key.length - 4 ||
+    key.toString('utf8', 4, 4 + keyTypeLength) !== keyType
+  ) {
+    return
+  }
+  return key
+}
+
+export function parseAllowedSignerFingerprints(contents: string): Set<string> {
   const out = new Set<string>()
+  const rawLines = contents.split(/\r?\n/)
+  for (let i = 0, { length } = rawLines; i < length; i += 1) {
+    const rawLine = rawLines[i]!
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) {
+      continue
+    }
+    const fields =
+      /^(?<principal>\S+)\s+(?:(?<options>(?:[a-z][a-z-]*(?:=(?:"(?:[^"\\]|\\.)*"|[^,\s]+))?)(?:,(?:[a-z][a-z-]*(?:=(?:"(?:[^"\\]|\\.)*"|[^,\s]+))?))*)\s+)?(?<keyType>(?:ecdsa-|sk-|ssh-)[A-Za-z\d@._+-]+)\s+(?<keyBlob>[A-Za-z\d+/]+={0,2})(?:\s+.*)?$/u.exec(
+        line,
+      )
+    const keyType = fields?.groups?.['keyType']
+    const keyBlob = fields?.groups?.['keyBlob']
+    if (!keyType || !keyBlob) {
+      continue
+    }
+    const key = decodeSignerKey(keyType, keyBlob)
+    if (!key) {
+      continue
+    }
+    const digest = crypto.createHash('sha256').update(key).digest('base64')
+    out.add(`SHA256:${digest.replace(/=+$/u, '')}`)
+  }
+  return out
+}
+
+export function readAllowedSignerFingerprints(): Set<string> {
   try {
     const fmt = git('config', '--get', 'gpg.format').trim()
     if (fmt !== 'ssh') {
-      return out
+      return new Set()
     }
     const file = git('config', '--get', 'gpg.ssh.allowedSignersFile').trim()
     if (!file) {
-      return out
+      return new Set()
     }
     const expanded = file.startsWith('~')
       ? file.replace(/^~/, () => process.env['HOME'] ?? '')
       : file
     if (!existsSync(expanded)) {
-      return out
+      return new Set()
     }
-    // allowed_signers file format: `<principal> [<options>] <key-type> <base64-key>`
-    // %GK emits `<key-type> <base64-key>`, no principal. We extract
-    // the last two whitespace-separated tokens of each line.
-    const text = readFileSync(expanded, 'utf8')
-    const rawLines = text.split(/\r?\n/)
-    for (let i = 0, { length } = rawLines; i < length; i += 1) {
-      const rawLine = rawLines[i]!
-      const line = rawLine.trim()
-      if (!line || line.startsWith('#')) {
-        continue
-      }
-      const tokens = line.split(/\s+/)
-      if (tokens.length < 3) {
-        continue
-      }
-      const keyType = tokens[tokens.length - 2]!
-      const keyBlob = tokens[tokens.length - 1]!
-      out.add(`${keyType} ${keyBlob}`)
-    }
+    return parseAllowedSignerFingerprints(readFileSync(expanded, 'utf8'))
   } catch {
     // best-effort; absence of allowed-signers shouldn't crash the hook
+    return new Set()
   }
-  return out
 }
 
 interface SignatureVerdict {
@@ -88,7 +119,7 @@ interface SignatureVerdict {
 }
 
 // Sorts one `%H %G? %GK` line per commit into the two blocking buckets.
-function classifyCommitSignatures(
+export function classifyCommitSignatures(
   lines: string[],
   allowedSigners: Set<string>,
 ): SignatureVerdict {
@@ -115,6 +146,7 @@ function classifyCommitSignatures(
     // which keys we accept for the protected branch.
     if (
       allowedSigners.size > 0 &&
+      signerKey.startsWith('SHA256:') &&
       signerKey &&
       !allowedSigners.has(signerKey)
     ) {
@@ -155,7 +187,7 @@ function reportSignatureFailures(
   logger.info(`  git rebase --exec 'git commit --amend --no-edit -S' <base>`)
 }
 
-export const scanSignedCommits = (range: string, remoteRef: string): number => {
+export function scanSignedCommits(range: string, remoteRef: string): number {
   // Only enforce on default-branch refs (main / master). Feature
   // branches and topic branches can stay unsigned during development;
   // signing is required at the point of landing on the protected ref.
@@ -173,7 +205,7 @@ export const scanSignedCommits = (range: string, remoteRef: string): number => {
   // threat model (the attacker would need to control the dev's
   // ~/.gnupg, at which point the local box is fully owned).
   const lines = gitLines('log', '--format=%H %G? %GK', range)
-  const allowedSigners = readAllowedSignerKeys()
+  const allowedSigners = readAllowedSignerFingerprints()
   const verdict = classifyCommitSignatures(lines, allowedSigners)
   const errors = verdict.unsigned.length + verdict.unauthorized.length
   if (errors === 0) {

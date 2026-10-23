@@ -28,7 +28,7 @@
 # scripts/fleet/check/fuzz-targets-are-sound.mts, in the ordinary check suite,
 # so a broken target still fails the change that introduced it.
 #
-# Rust repo contract: `fuzz/run.sh <target> [seconds]` and
+# Rust repo contract: `pnpm run test:fuzz rust <target> [seconds]` and
 # `fuzz/no-unsafe-without-fuzz.sh` are required; `fuzz/seed-corpus.py` is
 # optional and runs only where it exists.
 name: 'cron: weekly fuzz'
@@ -274,7 +274,7 @@ jobs:
           # template-injection, and the fleet's other workflows carry the same
           # note.
           TARGET: ${{ matrix.target }}
-        run: bash fuzz/run.sh "$TARGET" 600
+        run: pnpm run test:fuzz rust "$TARGET" 600
       # A crash, timeout, or OOM writes fuzz/artifacts/<target>/. Upload it so
       # the fix + minimized-regression-commit protocol can proceed.
       - name: Upload crash artifacts
@@ -380,14 +380,6 @@ jobs:
           }
           fs.appendFileSync(process.env.GITHUB_PATH, `${path.dirname(result.binPath)}\n`)
           NODE
-      - name: Mint sdxgen read token
-        if: github.repository == 'SocketDev/socket-cli'
-        id: sdxgen-token
-        uses: ./.github/actions/fleet/github-payload-app-token
-        with:
-          client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-          repositories: sdxgen
       # The vitest-runnable harnesses (`*.fuzz.test.mts` — Tier 1 property,
       # Tier 3 seeded). The ordinary suite EXCLUDES these, so this is the only
       # place they run: FLEET_TEST_FUZZ=1 flips the vitest config's include to
@@ -399,13 +391,11 @@ jobs:
       - name: Run the vitest fuzz harnesses at full budget
         env:
           GH_TOKEN: ${{ github.token }}
-          SDXGEN_GITHUB_TOKEN: ${{ steps.sdxgen-token.outputs.token }}
           FLEET_TEST_FUZZ: '1'
         run: pnpm run test --all
       - name: Run the JS fuzz campaign
         env:
           GH_TOKEN: ${{ github.token }}
-          SDXGEN_GITHUB_TOKEN: ${{ steps.sdxgen-token.outputs.token }}
         run: |
           set -euo pipefail
           # No test:fuzz script means this repo has no vitiate lane, which is

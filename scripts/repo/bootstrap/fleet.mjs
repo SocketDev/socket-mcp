@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 import https from 'node:https'
 
 var __commonJSMin = (cb, mod) => () => (
-  mod || (cb((mod = { exports: {} }).exports, mod), (cb = null)),
+  mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), (cb = null)),
   mod.exports
 )
 var __require = /* #__PURE__ */ (() => createRequire(import.meta.url))()
@@ -1434,11 +1434,18 @@ const ALWAYS_TRACKED_PREFIXES = [
   'patches/fleet/run-local-ci@0.18.1.patch',
   'patches/fleet/vitest@5.0.0.patch',
   'patches/fleet/vitest@5.0.3.patch',
+  'patches/fleet/vitest@5.0.4.patch',
+  'patches/fleet/vitest@5.0.5.patch',
+  'scripts/fleet/npm/native-artifact-files.mts',
+  'scripts/fleet/npm/native-artifacts.mts',
+  'scripts/fleet/npm/native/build.mts',
   'scripts/fleet/npm/scan/receipt.mts',
   'scripts/fleet/npm/scan/staged.mts',
+  'scripts/fleet/registry/napi-matrix.mts',
   'scripts/fleet/registry/npm/scan/ndjson.mts',
   'scripts/fleet/registry/npm/scan/run.mts',
   'scripts/fleet/registry/npm/staged.mts',
+  'scripts/fleet/release/record/run.mts',
   'scripts/fleet/setup/bootstrap/zero-dep-packages.mjs',
   'scripts/fleet/setup/lib/check/sfw.mjs',
   'scripts/fleet/setup/lib/error-message.mjs',
@@ -3318,8 +3325,8 @@ var require_resolve = /* @__PURE__ */ __commonJSMin(exports => {
    */
   function relative(from, to) {
     if (from === to) return ''
-    const actualFrom = resolve$1(from)
-    const actualTo = resolve$1(to)
+    const actualFrom = resolve(from)
+    const actualTo = resolve(to)
     if (actualFrom === actualTo) return ''
     /* c8 ignore start - Windows-only case-insensitive comparison. */
     if (require_constants_platform.isWin32()) {
@@ -3414,7 +3421,7 @@ var require_resolve = /* @__PURE__ */ __commonJSMin(exports => {
    *
    * @returns {string} The resolved absolute path
    */
-  function resolve$1(...segments) {
+  function resolve(...segments) {
     let resolvedPath = ''
     let resolvedAbsolute = false
     for (let i = segments.length - 1; i >= 0 && !resolvedAbsolute; i -= 1) {
@@ -3436,7 +3443,7 @@ var require_resolve = /* @__PURE__ */ __commonJSMin(exports => {
   exports.relative = relative
   exports.relativePathParentSegments = relativePathParentSegments
   exports.relativeResolve = relativeResolve
-  exports.resolve = resolve$1
+  exports.resolve = resolve
 })
 
 var require_normalize = /* @__PURE__ */ __commonJSMin(exports => {
@@ -10887,6 +10894,13 @@ function installFiles(filesDir, dest, manifest, options) {
   for (let i = 0, { length } = rels; i < length; i += 1) {
     const rel = rels[i]
     const target = path.join(dest, rel)
+    if (
+      opts.preserveTracked === true &&
+      (isAlwaysTrackedSurface(rel) || rel === '.gitignore')
+    ) {
+      skippedAlwaysTracked += 1
+      continue
+    }
     const stat = repoOwnedPaths.has(normalizeBundlePath(rel))
       ? lstatSync(target, { throwIfNoEntry: false })
       : void 0
@@ -13266,13 +13280,17 @@ const MCP_PROVIDERS = {
   },
   slack: {
     connectOrder: 0,
-    serverName: 'fleet-slack-hosted',
+    serverName: 'feet-slack',
     url: 'https://mcp.slack.com/mcp',
     auth: 'oauth',
     localServerName: 'fleet-slack',
     setupUrl:
       'https://docs.slack.dev/ai/slack-mcp-server/connect-to-harnesses/',
-    allowedAuthorizationHosts: ['slack.com'],
+    allowedAuthorizationHosts: [
+      'slack.com',
+      'socket.enterprise.slack.com',
+      'socketdev.slack.com',
+    ],
     clients: {
       claude: {
         kind: 'oauth',
@@ -13280,12 +13298,13 @@ const MCP_PROVIDERS = {
         callbackPort: 3118,
       },
       codex: {
-        kind: 'registration-unavailable',
-        reason: 'slack-client-registration-unverified',
+        kind: 'oauth',
+        clientId: '1292389187026.12337285527779',
+        callbackPort: 3118,
       },
       opencode: {
-        kind: 'registration-unavailable',
-        reason: 'slack-client-registration-unverified',
+        kind: 'oauth',
+        clientId: '1601185624273.8899143856786',
       },
     },
   },
@@ -13337,11 +13356,24 @@ function parseMcpPublicOAuth(value) {
   if (value === void 0) return
   if (!(0, import_predicates.isPlainObject)(value))
     throw new TypeError('MCP OAuth metadata must be an object')
-  const { clientId, callbackPort } = value
+  const { clientId, callbackPort, callbackUrl } = value
+  assertPublicClientId(clientId)
+  assertCallbackPort(callbackPort)
+  assertCallbackUrl(callbackUrl, callbackPort)
+  assertPublicOAuthKeys(value)
+  return {
+    ...(clientId === void 0 ? {} : { clientId }),
+    ...(callbackPort === void 0 ? {} : { callbackPort }),
+    ...(callbackUrl === void 0 ? {} : { callbackUrl }),
+  }
+}
+function assertPublicClientId(clientId) {
   if (clientId !== void 0 && (typeof clientId !== 'string' || !clientId))
     throw new TypeError(
       'MCP OAuth clientId must be a nonempty public identifier',
     )
+}
+function assertCallbackPort(callbackPort) {
   if (
     callbackPort !== void 0 &&
     (typeof callbackPort !== 'number' ||
@@ -13352,16 +13384,40 @@ function parseMcpPublicOAuth(value) {
     throw new TypeError(
       'MCP OAuth callbackPort must be an integer from 1 to 65535',
     )
+}
+function assertCallbackUrl(callbackUrl, callbackPort) {
+  if (callbackUrl !== void 0 && typeof callbackUrl !== 'string')
+    throw new TypeError('MCP OAuth callbackUrl must be a loopback URL')
+  if (callbackUrl !== void 0) {
+    const url = new URL(callbackUrl)
+    const loopbackHosts = /* @__PURE__ */ new Set([
+      '[::1]',
+      '127.0.0.1',
+      'localhost',
+    ])
+    if (
+      url.protocol !== 'http:' ||
+      !loopbackHosts.has(url.hostname) ||
+      !url.port ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (callbackPort !== void 0 && Number(url.port) !== callbackPort)
+    )
+      throw new TypeError('MCP OAuth callbackUrl must be a loopback URL')
+  }
+}
+function assertPublicOAuthKeys(value) {
   if (
-    Object.keys(value).some(key => key !== 'callbackPort' && key !== 'clientId')
+    Object.keys(value).some(
+      key =>
+        key !== 'callbackPort' && key !== 'callbackUrl' && key !== 'clientId',
+    )
   )
     throw new TypeError(
-      'MCP OAuth metadata only supports clientId and callbackPort',
+      'MCP OAuth metadata only supports clientId, callbackPort, and callbackUrl',
     )
-  return {
-    clientId,
-    callbackPort,
-  }
 }
 function parseMcpAuthorizationEnv(provider, headers) {
   const env = provider?.apiKeyEnv
@@ -13408,7 +13464,8 @@ function parseMcpHttpAuthentication(name, server) {
   if (
     registeredOAuth?.kind === 'oauth' &&
     (oauth?.clientId !== registeredOAuth.clientId ||
-      oauth?.callbackPort !== registeredOAuth.callbackPort)
+      oauth?.callbackPort !== registeredOAuth.callbackPort ||
+      oauth?.callbackUrl !== registeredOAuth.callbackUrl)
   )
     throw new TypeError(
       `MCP provider ${name} requires its registered public OAuth metadata`,
@@ -13439,11 +13496,6 @@ function clientMcpServers(servers, client) {
       'registration-unavailable',
   )
 }
-function codexMcpOAuth(name, server) {
-  const support = findMcpProviderForServer(name)?.clients.codex
-  if (support?.kind !== 'oauth') return server.oauth
-  return support.clientId || support.callbackPort ? support : void 0
-}
 function compactOpenCodeCommandArrays(text, servers) {
   let result = text
   const items = Object.values(servers)
@@ -13465,15 +13517,52 @@ function compactOpenCodeCommandArrays(text, servers) {
   }
   return result
 }
+function nativeMcpOAuth(client, name, server) {
+  if (client === 'claude') return server.oauth
+  const support = findMcpProviderForServer(name)?.clients[client]
+  if (support?.kind !== 'oauth') return server.oauth
+  if (!support.clientId && !support.callbackPort && !support.callbackUrl) return
+  return {
+    ...(support.clientId === void 0 ? {} : { clientId: support.clientId }),
+    ...(support.callbackPort === void 0
+      ? {}
+      : { callbackPort: support.callbackPort }),
+    ...(support.callbackUrl === void 0
+      ? {}
+      : { callbackUrl: support.callbackUrl }),
+  }
+}
+function openCodeMcpOAuth(name, server) {
+  const oauth = nativeMcpOAuth('opencode', name, server)
+  if (!oauth) return
+  return {
+    ...(oauth.clientId === void 0 ? {} : { client_id: oauth.clientId }),
+    ...(oauth.callbackPort === void 0
+      ? {}
+      : { callback_port: oauth.callbackPort }),
+    ...(oauth.callbackUrl === void 0
+      ? {}
+      : { redirect_uri: oauth.callbackUrl }),
+  }
+}
+function nativeMcpOAuthFields(client, name, server) {
+  const oauth =
+    client === 'opencode'
+      ? openCodeMcpOAuth(name, server)
+      : nativeMcpOAuth(client, name, server)
+  return oauth === void 0 ? {} : { oauth }
+}
 function createOpenCodeMcpConfig(servers) {
   const entries = {}
   for (const [name, server] of clientMcpServers(servers, 'opencode'))
     entries[name] =
       server.kind === 'http'
         ? {
+            codemode: false,
+            disabled: false,
             type: 'remote',
             url: server.url,
-            ...(server.oauth === void 0 ? {} : { oauth: server.oauth }),
+            ...nativeMcpOAuthFields('opencode', name, server),
             ...(server.bearerTokenEnv === void 0
               ? {}
               : {
@@ -13485,11 +13574,17 @@ function createOpenCodeMcpConfig(servers) {
           }
         : {
             command: [server.command, ...server.args],
+            disabled: false,
+            environment: {
+              ...server.env,
+              FLEET_MCP_CLIENT: 'opencode',
+            },
             type: 'local',
+            codemode: false,
           }
   return {
     $schema: 'https://opencode.ai/config.json',
-    mcp: entries,
+    mcp: { servers: entries },
   }
 }
 function formatOpenCodeMcpConfig(config, servers) {
@@ -13515,36 +13610,73 @@ function parseCanonicalMcpConfig(text) {
     mcpServers: void 0,
   })
   const servers = {}
-  for (const [name, rawServer] of Object.entries(parsed['mcpServers'])) {
-    if (!(0, import_predicates.isPlainObject)(rawServer))
-      throw new Error(`MCP server ${name} must be an object`)
-    if (rawServer['type'] === 'http') {
-      const url = rawServer['url']
-      if (typeof url !== 'string' || url.length === 0)
-        throw new Error(`HTTP MCP server ${name} must have a URL`)
-      servers[name] = {
-        kind: 'http',
-        url,
-        ...parseMcpHttpAuthentication(name, rawServer),
-      }
-      continue
-    }
-    assertMcpConfigHasNoCredentials(rawServer, { location: name })
-    const command = rawServer['command']
-    if (typeof command !== 'string' || command.length === 0)
-      throw new Error(`stdio MCP server ${name} must have a command`)
-    servers[name] = {
-      args: parseStringArray(rawServer['args'] ?? [], `${name}.args`),
-      command,
-      kind: 'stdio',
+  for (const [name, rawServer] of Object.entries(parsed['mcpServers']))
+    servers[name] = parseCanonicalMcpServer(name, rawServer)
+  return sortRecord(servers)
+}
+function parseCanonicalMcpServer(name, rawServer) {
+  if (!(0, import_predicates.isPlainObject)(rawServer))
+    throw new Error(`MCP server ${name} must be an object`)
+  if (rawServer['type'] === 'http') {
+    const url = rawServer['url']
+    if (typeof url !== 'string' || url.length === 0)
+      throw new Error(`HTTP MCP server ${name} must have a URL`)
+    return {
+      kind: 'http',
+      url,
+      ...parseMcpHttpAuthentication(name, rawServer),
     }
   }
-  return sortRecord(servers)
+  assertMcpConfigHasNoCredentials(rawServer, { location: name })
+  const command = rawServer['command']
+  if (typeof command !== 'string' || command.length === 0)
+    throw new Error(`stdio MCP server ${name} must have a command`)
+  const env = parseMcpServerEnvironment(name, rawServer['env'])
+  return {
+    args: parseStringArray(rawServer['args'] ?? [], `${name}.args`),
+    command,
+    ...(env === void 0 ? {} : { env }),
+    kind: 'stdio',
+  }
+}
+function parseMcpServerEnvironment(name, env) {
+  if (env === void 0) return
+  if (
+    !(0, import_predicates.isPlainObject)(env) ||
+    Object.values(env).some(value => typeof value !== 'string')
+  )
+    throw new Error(`MCP server ${name}.env must contain string values`)
+  return { ...env }
 }
 function parseStringArray(value, field) {
   if (!Array.isArray(value) || value.some(item => typeof item !== 'string'))
     throw new Error(`MCP server ${field} must be an array of strings`)
   return [...value]
+}
+function appendCodexHttpMcpConfig(lines, name, key, server) {
+  lines.push(`url = ${tomlString(server.url)}`)
+  if (findMcpProviderForServer(name)?.auth === 'oauth')
+    lines.push(`auth = ${tomlString('oauth')}`)
+  if (server.bearerTokenEnv)
+    lines.push(`bearer_token_env_var = ${tomlString(server.bearerTokenEnv)}`)
+  const oauth = nativeMcpOAuth('codex', name, server)
+  if (!oauth?.clientId && !oauth?.callbackPort && !oauth?.callbackUrl) return
+  lines.push('', `[mcp_servers.${key}.oauth]`)
+  if (oauth.clientId) lines.push(`client_id = ${tomlString(oauth.clientId)}`)
+  if (oauth.callbackPort) lines.push(`callback_port = ${oauth.callbackPort}`)
+  if (oauth.callbackUrl)
+    lines.push(`callback_url = ${tomlString(oauth.callbackUrl)}`)
+}
+function appendCodexStdioMcpConfig(lines, key, server) {
+  lines.push(`command = ${tomlString(server.command)}`)
+  lines.push(...tomlStringArray(server.args))
+  lines.push('', `[mcp_servers.${key}.env]`)
+  const env = {
+    ...server.env,
+    FLEET_MCP_CLIENT: 'codex',
+  }
+  for (const [envName, value] of Object.entries(sortRecord(env)))
+    lines.push(`${tomlKey(envName)} = ${tomlString(value)}`)
 }
 /**
  * Render the trusted-project `.codex/config.toml` MCP section.
@@ -13557,24 +13689,9 @@ function renderCodexMcpConfig(servers) {
   for (const [name, server] of clientMcpServers(servers, 'codex')) {
     const key = /^[\w-]+$/.test(name) ? name : tomlString(name)
     lines.push('', `[mcp_servers.${key}]`)
-    if (server.kind === 'http') {
-      lines.push(`url = ${tomlString(server.url)}`)
-      if (server.bearerTokenEnv)
-        lines.push(
-          `bearer_token_env_var = ${tomlString(server.bearerTokenEnv)}`,
-        )
-      const oauth = codexMcpOAuth(name, server)
-      if (oauth?.clientId || oauth?.callbackPort) {
-        lines.push('', `[mcp_servers.${key}.oauth]`)
-        if (oauth.clientId)
-          lines.push(`client_id = ${tomlString(oauth.clientId)}`)
-        if (oauth.callbackPort)
-          lines.push(`callback_port = ${oauth.callbackPort}`)
-      }
-    } else {
-      lines.push(`command = ${tomlString(server.command)}`)
-      lines.push(...tomlStringArray(server.args))
-    }
+    if (server.kind === 'http')
+      appendCodexHttpMcpConfig(lines, name, key, server)
+    else appendCodexStdioMcpConfig(lines, key, server)
   }
   return `${lines.join('\n')}\n`
 }
@@ -13590,6 +13707,9 @@ function sortRecord(record) {
 }
 function tomlString(value) {
   return JSON.stringify(value)
+}
+function tomlKey(value) {
+  return /^[A-Za-z0-9_-]+$/.test(value) ? value : tomlString(value)
 }
 function tomlStringArray(values) {
   const compact = JSON.stringify(values)
@@ -13631,16 +13751,21 @@ function projectMcpClientConfigs(dest, preservedPaths) {
     throw new TypeError(
       `Adapter projection failed. Where: ${openCodePath}. Saw: non-object JSON; wanted an OpenCode configuration object. Fix: repair the file and retry installation.`,
     )
+  if (Object.hasOwn(existing, 'mcp') && !isPlainObject(existing['mcp']))
+    throw new TypeError(
+      `Adapter projection failed. Where: ${openCodePath}. Saw: non-object mcp member; wanted an OpenCode MCP configuration object. Fix: repair the file and retry installation.`,
+    )
   const generated = JSON.parse(renderOpenCodeMcpConfig(servers))
   if (!isPlainObject(generated))
     throw new TypeError('OpenCode MCP renderer returned invalid JSON.')
+  const generatedMcp = isPlainObject(generated['mcp']) ? generated['mcp'] : {}
   writeIfChanged(
     openCodePath,
     `${JSON.stringify(
       {
         ...generated,
         ...existing,
-        mcp: generated['mcp'],
+        mcp: generatedMcp,
       },
       void 0,
       2,
@@ -14163,6 +14288,7 @@ async function installFleet(config) {
         }
       : memberManifest
     const installResult = installFiles(filesDir, dest, runtimeManifest, {
+      preserveTracked,
       refreshTracked: cfg.refreshTracked === true,
       preservedPaths,
     })

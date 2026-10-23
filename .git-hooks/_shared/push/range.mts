@@ -1,7 +1,7 @@
 // Pre-push commit-range computation. Resolves the `<base>..<local>` range the
 // security gates scan for a given push line, handling new branches, force-pushes,
-// and default-branch fallback. Returns undefined for skip cases (tags,
-// deletions, no baseline).
+// and default-branch fallback. Returns undefined only for tags and deletions;
+// a push without a baseline scans all commits reachable from its local tip.
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
@@ -14,8 +14,9 @@ const logger = getDefaultLogger()
 
 export const ZERO_SHA = '0000000000000000000000000000000000000000'
 
-// Computes the commit range to scan. Returns null if no scan needed
-// (skip case — tag, delete, or no baseline).
+// Computes the commit range to scan. Returns undefined only when no scan is
+// needed (tag or delete). Without a baseline, scan every commit reachable from
+// the pushed tip rather than skipping security checks.
 export const computeRange = (
   remote: string,
   localRef: string,
@@ -65,8 +66,10 @@ export const computeRange = (
     const def = defaultBranchOf(remote)
     const baseRef = `${remote}/${def}`
     if (!refExists(baseRef)) {
-      logger.warn('Skipping validation (no baseline to compare against)')
-      return undefined
+      logger.warn(
+        'No push baseline is available; scanning all reachable commits',
+      )
+      return localSha
     }
     return `${baseRef}..${localSha}`
   }
@@ -88,8 +91,10 @@ export const computeRange = (
     const def = defaultBranchOf(remote)
     const baseRef = `${remote}/${def}`
     if (!refExists(baseRef)) {
-      logger.warn('Skipping validation (no baseline for force-push)')
-      return undefined
+      logger.warn(
+        'No force-push baseline is available; scanning all reachable commits',
+      )
+      return localSha
     }
     return `${baseRef}..${localSha}`
   }

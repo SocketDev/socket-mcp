@@ -35,6 +35,10 @@ runs:
           echo "Error: sfw is not installed — run the setup-and-install action first" >&2
           exit 1
         fi
+        if [ "${npm_config_frozen_lockfile:-}" = 'false' ]; then
+          node scripts/repo/bootstrap/prepare.mts --hydrate-only
+          pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+        fi
         node scripts/repo/bootstrap/prepare.mts --pipeline
 
     - name: Verify @socketsecurity/lib resolvable and >= floor version

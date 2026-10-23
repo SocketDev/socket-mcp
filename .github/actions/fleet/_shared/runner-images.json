@@ -7,8 +7,8 @@
       "variant": "",
       "label": "ubuntu-26.04",
       "channel": "ubuntu26",
-      "release": "ubuntu26/20260927.149",
-      "publishedAt": "2026-09-28T18:47:14Z",
+      "release": "ubuntu26/20261012.163",
+      "publishedAt": "2026-10-13T10:35:30Z",
       "aliases": [
         "ubuntu-latest"
       ]
@@ -19,8 +19,8 @@
       "variant": "",
       "label": "macos-26",
       "channel": "macos-26-arm64",
-      "release": "macos-26-arm64/20260831.0337",
-      "publishedAt": "2026-09-01T11:17:55Z",
+      "release": "macos-26-arm64/20261013.0424",
+      "publishedAt": "2026-10-13T13:47:25Z",
       "aliases": [
         "macos-latest"
       ]
@@ -31,8 +31,8 @@
       "variant": "",
       "label": "windows-2025",
       "channel": "win25-vs2026",
-      "release": "win25-vs2026/20260925.250",
-      "publishedAt": "2026-09-28T19:12:20Z",
+      "release": "win25-vs2026/20261007.264",
+      "publishedAt": "2026-10-14T10:41:28Z",
       "aliases": [
         "windows-latest"
       ]
@@ -349,15 +349,6 @@
       "path": [
         "jobs",
         "npm-publish",
-        "runs-on"
-      ],
-      "role": "linux-x64"
-    },
-    {
-      "file": ".github/workflows/publish-npm.yml",
-      "path": [
-        "jobs",
-        "scan-staged-package",
         "runs-on"
       ],
       "role": "linux-x64"

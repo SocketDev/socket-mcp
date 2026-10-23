@@ -44,6 +44,10 @@ function repositoryPathLiteral(value: string): boolean {
   )
 }
 
+function isRepositoryRootPlaceholder(value: string): boolean {
+  return /^file:\/\/\/REPO(?:\/|$)/iu.test(value.replaceAll('\\', '/'))
+}
+
 function isRepositorySourceRead(name: string): boolean {
   const separator = name.indexOf('.')
   if (
@@ -188,6 +192,7 @@ export function analyzeCrossRepositoryPaths(
   }
   function record(value: string, start: number, base: string): void {
     if (
+      isRepositoryRootPlaceholder(value) ||
       !repositoryPathLiteral(value) ||
       isKernelRuntimePath(value) ||
       !repositoryReferenceEscapes(value, base, root, physicalRoot) ||
