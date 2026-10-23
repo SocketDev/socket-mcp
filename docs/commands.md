@@ -157,7 +157,7 @@ Configure your MCP client to connect to the HTTP server:
 
 ## Claude Code Hook (Optional)
 
-The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up; the public server signs in via OAuth on first use.
+The repo ships an optional [Claude Code hook](https://code.claude.com/docs/en/hooks) that blocks high-risk packages before installation. When Claude Code runs an install command, the hook queries the public Socket MCP server at `https://mcp.socket.dev/` and denies the install when the package's supply chain score is below `20` (known malware, typosquats, high-risk supply chain signals). No CLI to install - copy the file and wire it up. The hook does not configure or initiate OAuth.
 
 Supported ecosystems and package managers:
 

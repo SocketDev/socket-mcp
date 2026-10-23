@@ -6,9 +6,9 @@ The server registers the tools in `lib/server.mts`; schemas and handlers are def
 
 ## Tools exposed
 
-<details><summary>The full tool roster - names, arguments, and what each returns</summary>
-
 ### depscore
+
+<details><summary>Inputs and examples</summary>
 
 Query the Socket API for dependency scores. The result formats the available score components and includes a Socket report URL when the record has an overall score. Records without an overall score are labeled `No score found`.
 
@@ -58,6 +58,8 @@ pkg:pypi/<package>@<version>: No score found
 ```
 
 The API response determines which package records appear. Compare the result with the request when you need to confirm that each requested package had a matching record.
+
+</details>
 
 ### organizations
 
@@ -158,8 +160,6 @@ Search a single file from a package for lines matching a JavaScript regular expr
 | `contextLines`    | Integer | No       | `0`     | Lines of context before and after each match (0–5)      |
 | `maxMatches`      | Integer | No       | `100`   | Cap on matching lines returned (1–500)                  |
 | `path`            | String  | No       | -       | File path, for display only; does not affect the lookup |
-
-</details>
 
 ### Authentication for organization-scoped tools
 
