@@ -48,6 +48,7 @@
     "browser:advice": "node scripts/fleet/ai/browser/agent/jev/run.mts",
     "browser:bridge": "node scripts/fleet/ai/browser/bridge/cli.mts",
     "browser:open-setup": "node scripts/fleet/ai/browser/open-setup.mts",
+    "browser:session": "node scripts/fleet/mcp/chrome/session/run.mts",
     "build": "pnpm run clean && pnpm run build:bundle && pnpm run build:permissions",
     "build-mcpb": "pnpm run build && pnpm run build-mcpb:versions_match && pnpm run build-mcpb:validate && pnpm run build-mcpb:ensure-deps && pnpm run build-mcpb:mcpb-pack",
     "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
@@ -275,8 +276,7 @@
     "workflow:actions:lock:install": "node scripts/fleet/workflow/actions-lock/install.mts",
     "worktree:create": "node scripts/fleet/worktree/create/run.mts",
     "worktree:discard-reviewed": "node scripts/fleet/worktree/discard-reviewed/run.mts",
-    "worktree:land": "node scripts/fleet/worktree/land/run.mts",
-    "browser:session": "node scripts/fleet/mcp/chrome/session/run.mts"
+    "worktree:land": "node scripts/fleet/worktree/land/run.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "catalog:",

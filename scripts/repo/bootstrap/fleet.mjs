@@ -12798,7 +12798,7 @@ function isManagedGitignoreResult(index, current) {
     composeGitignore({
       packBlock,
       target: withFleet,
-    }) === current
+    }) === current.replace(/^# <\/?fleet>\n/gm, '')
   )
 }
 function readIndexFile(dest, relative) {
@@ -13064,15 +13064,18 @@ var require_array$1 = /* @__PURE__ */ __commonJSMin(exports => {
   const ArrayPrototypeToLocaleString = require_primordials_uncurry.uncurryThis(
     Array.prototype.toLocaleString,
   )
-  const ArrayPrototypeToReversed = require_primordials_uncurry.uncurryThis(
-    Array.prototype.toReversed,
-  )
-  const ArrayPrototypeToSorted = require_primordials_uncurry.uncurryThis(
-    Array.prototype.toSorted,
-  )
-  const ArrayPrototypeToSpliced = require_primordials_uncurry.uncurryThis(
-    Array.prototype.toSpliced,
-  )
+  const ArrayPrototypeToReversed =
+    typeof Array.prototype.toReversed === 'function'
+      ? require_primordials_uncurry.uncurryThis(Array.prototype.toReversed)
+      : arrayToReversedFallback
+  const ArrayPrototypeToSorted =
+    typeof Array.prototype.toSorted === 'function'
+      ? require_primordials_uncurry.uncurryThis(Array.prototype.toSorted)
+      : arrayToSortedFallback
+  const ArrayPrototypeToSpliced =
+    typeof Array.prototype.toSpliced === 'function'
+      ? require_primordials_uncurry.uncurryThis(Array.prototype.toSpliced)
+      : arrayToSplicedFallback
   const ArrayPrototypeToString = require_primordials_uncurry.uncurryThis(
     Array.prototype.toString,
   )
@@ -13082,9 +13085,70 @@ var require_array$1 = /* @__PURE__ */ __commonJSMin(exports => {
   const ArrayPrototypeValues = require_primordials_uncurry.uncurryThis(
     Array.prototype.values,
   )
-  const ArrayPrototypeWith = require_primordials_uncurry.uncurryThis(
-    Array.prototype.with,
-  )
+  const ArrayPrototypeWith =
+    typeof Array.prototype.with === 'function'
+      ? require_primordials_uncurry.uncurryThis(Array.prototype.with)
+      : arrayWithFallback
+  function arrayToReversedFallback(self) {
+    const output = new ArrayCtor(self.length)
+    for (let index = 0; index < self.length; index += 1)
+      output[index] = self[self.length - index - 1]
+    return output
+  }
+  function arrayToSortedFallback(self, comparator) {
+    if (comparator !== void 0 && typeof comparator !== 'function')
+      throw new TypeError('The comparator must be a function or undefined')
+    const output = new ArrayCtor(self.length)
+    for (let index = 0; index < self.length; index += 1)
+      output[index] = self[index]
+    return ArrayPrototypeSort(output, comparator)
+  }
+  function arrayToSplicedFallback(self, start, deleteCount, ...items) {
+    const length = self.length
+    const relativeStart = normalizeArrayStart(start, length)
+    const actualDeleteCount =
+      arguments.length < 3
+        ? length - relativeStart
+        : Math.min(
+            Math.max(Math.trunc(Number(deleteCount)) || 0, 0),
+            length - relativeStart,
+          )
+    const output = new ArrayCtor(length - actualDeleteCount + items.length)
+    let outputIndex = 0
+    for (let index = 0; index < relativeStart; index += 1) {
+      output[outputIndex] = self[index]
+      outputIndex += 1
+    }
+    for (const item of items) {
+      output[outputIndex] = item
+      outputIndex += 1
+    }
+    for (
+      let index = relativeStart + actualDeleteCount;
+      index < length;
+      index += 1
+    ) {
+      output[outputIndex] = self[index]
+      outputIndex += 1
+    }
+    return output
+  }
+  function arrayWithFallback(self, index, value) {
+    const integer = Number.isNaN(index) ? 0 : Math.trunc(index)
+    const actualIndex = integer < 0 ? self.length + integer : integer
+    if (actualIndex < 0 || actualIndex >= self.length)
+      throw new RangeError('Array index is out of range')
+    const output = new ArrayCtor(self.length)
+    for (let position = 0; position < self.length; position += 1)
+      output[position] = position === actualIndex ? value : self[position]
+    return output
+  }
+  function normalizeArrayStart(index, length) {
+    const integer = Number.isNaN(index) ? 0 : Math.trunc(index)
+    if (integer === -Infinity) return 0
+    if (integer < 0) return Math.max(length + integer, 0)
+    return Math.min(integer, length)
+  }
   const anyIterator = /* @__PURE__ */ new Map().keys()
   let iteratorLookup = Object.getPrototypeOf(anyIterator)
   while (iteratorLookup && typeof iteratorLookup.next !== 'function')
@@ -13160,6 +13224,11 @@ var require_array$1 = /* @__PURE__ */ __commonJSMin(exports => {
   exports.Uint32ArrayCtor = Uint32ArrayCtor
   exports.Uint8ArrayCtor = Uint8ArrayCtor
   exports.Uint8ClampedArrayCtor = Uint8ClampedArrayCtor
+  exports.arrayToReversedFallback = arrayToReversedFallback
+  exports.arrayToSortedFallback = arrayToSortedFallback
+  exports.arrayToSplicedFallback = arrayToSplicedFallback
+  exports.arrayWithFallback = arrayWithFallback
+  exports.normalizeArrayStart = normalizeArrayStart
 })
 
 var require_math = /* @__PURE__ */ __commonJSMin(exports => {

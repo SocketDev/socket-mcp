@@ -2654,6 +2654,7 @@ opencode.json
 .github/actions/fleet/github-release/cut-immutable-release.mjs
 .github/actions/fleet/run-offline/action.yml
 .github/actions/fleet/run-script/action.yml
+.github/actions/fleet/run-script/filter-output.mts
 .github/actions/fleet/setup-git-signing/action.yml
 .github/actions/fleet/setup-go-toolchain/action.yml
 .github/actions/fleet/setup-odai/action.yml
@@ -4270,6 +4271,7 @@ scripts/fleet/git/admin/push/audit-tree.mts
 scripts/fleet/git/admin/push/git.mts
 scripts/fleet/git/admin/push/github.mts
 scripts/fleet/git/admin/push/lock.mts
+scripts/fleet/git/admin/push/pending-ci.mts
 scripts/fleet/git/admin/push/timings.mts
 scripts/fleet/git/admin/push/tracking-transaction.mts
 scripts/fleet/git/admin/push/transaction.mts
@@ -4477,6 +4479,9 @@ scripts/fleet/mcp/1password/run.mts
 scripts/fleet/mcp/browser-args.mts
 scripts/fleet/mcp/browser-launch.mts
 scripts/fleet/mcp/chrome-devtools/run.mts
+scripts/fleet/mcp/chrome/devtools/run.mts
+scripts/fleet/mcp/chrome/session/inventory.mts
+scripts/fleet/mcp/chrome/session/run.mts
 scripts/fleet/mcp/claude-native-executable.mts
 scripts/fleet/mcp/claude-native-hook-config.mts
 scripts/fleet/mcp/claude-native-hook-protocol.mts
@@ -4600,6 +4605,7 @@ scripts/fleet/npm/publish/scan-retry.mts
 scripts/fleet/npm/publish/stage-evidence-cache.mts
 scripts/fleet/npm/publish/stage/followup/evidence.mts
 scripts/fleet/npm/publish/stage/followup/identity.mts
+scripts/fleet/npm/publish/workflow-evidence.mts
 scripts/fleet/npm/publish/workflow-run.mts
 scripts/fleet/npm/release-target.mts
 scripts/fleet/npm/scan.mts
@@ -4634,6 +4640,7 @@ scripts/fleet/paths/browser.mts
 scripts/fleet/paths/browser/maintenance.mts
 scripts/fleet/paths/browser/runtime.mts
 scripts/fleet/paths/browser/update.mts
+scripts/fleet/paths/chrome.mts
 scripts/fleet/paths/macos/app.mts
 scripts/fleet/paths/npm.mts
 scripts/fleet/paths/runtime.mts
@@ -4884,6 +4891,8 @@ scripts/fleet/registry/cargo/browser/credential.mts
 scripts/fleet/registry/cargo/browser/store.mts
 scripts/fleet/registry/cargo/browser/validation.mts
 scripts/fleet/registry/cargo/bump.mts
+scripts/fleet/registry/cargo/crate.mts
+scripts/fleet/registry/cargo/finalize.mts
 scripts/fleet/registry/cargo/placeholder.mts
 scripts/fleet/registry/cargo/publish/run.mts
 scripts/fleet/registry/cargo/registry.mts
@@ -4995,6 +5004,7 @@ scripts/fleet/release/bump/reentry.mts
 scripts/fleet/release/bump/run.mts
 scripts/fleet/release/bump/subject.mts
 scripts/fleet/release/changelog-path.mts
+scripts/fleet/release/changelog-policy.mts
 scripts/fleet/release/channels.mts
 scripts/fleet/release/gap-recovery.mts
 scripts/fleet/release/git/reconcile.mts
@@ -5222,6 +5232,7 @@ scripts/fleet/setup/tls-trust-disabled-ca-directory.mts
 scripts/fleet/setup/tls-trust-inputs.mts
 scripts/fleet/setup/tls-trust-inspect.mts
 scripts/fleet/setup/tls-trust-paths.mts
+scripts/fleet/setup/tls-trust-permissions.mts
 scripts/fleet/setup/tls-trust-runtime-bundles.mts
 scripts/fleet/setup/tls-trust-runtime.mts
 scripts/fleet/setup/tls-trust-shell.mts
