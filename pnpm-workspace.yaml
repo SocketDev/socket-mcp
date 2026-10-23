@@ -549,6 +549,14 @@ minimumReleaseAgeExclude:
   - 'rolldown@1.2.15'
   # published: 2026-10-19 | removable: 2026-10-26
   - 'tsrs@0.18.0-ts7.1.0-dev.20260929'
+  # published: 2026-10-16 | removable: 2026-10-23
+  - '@maschwenk/tsrslint-darwin-arm64@0.1.5'
+  # published: 2026-10-16 | removable: 2026-10-23
+  - '@maschwenk/tsrslint-linux-arm64@0.1.5'
+  # published: 2026-10-16 | removable: 2026-10-23
+  - '@maschwenk/tsrslint-linux-x64@0.1.5'
+  # published: 2026-10-16 | removable: 2026-10-23
+  - '@maschwenk/tsrslint@0.1.5'
 
 # pnpm 11's packageManager-version-check failure policy. `warn` lets the
 # install proceed with a mismatched pnpm (emitting a warning) rather than
