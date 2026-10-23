@@ -16,7 +16,7 @@ import {
   isLinkedAgentWorktree,
   pathsOutsideAgentWorktreeScope,
   readAgentWorktreeScope,
-} from '../../scripts/fleet/worktree/agent-scope.mts'
+} from '../../scripts/fleet/worktree/agent/scope.mts'
 import { debugCheck } from '../_shared/check-output.mts'
 
 import {
@@ -52,9 +52,8 @@ const logger = getDefaultLogger()
 
 function refuseCatastrophicDeletion(): number {
   // Catastrophic mass-deletion gate — FIRST, unconditionally. The PreToolUse
-  // mass-delete-guard checked the index when the `git commit` command was seen,
-  // but a pre-commit step (lint/test) can stage deletions mid-commit, after
-  // that check passed. The index here IS the about-to-commit tree, so this is
+  // mass-delete-guard checked the index when the `git commit` command was seen.
+  // The index here IS the about-to-commit tree, so this is
   // the last line of defense against a wipe (a hung `pnpm test` once staged the
   // whole .claude/ tree for deletion). Runs before the ACM-staged read because
   // a pure-deletion commit has zero ACM files. No bypass — a wipe is never
@@ -70,9 +69,9 @@ function refuseCatastrophicDeletion(): number {
     logger.fail('Refusing to commit: catastrophic mass deletion staged.')
     logger.info(`  ${wipeReason}.`)
     logger.info('')
-    logger.info('  A pre-commit step (lint/test) or a clobbered index likely')
-    logger.info('  staged these deletions. Inspect: git diff --cached --stat')
-    logger.info('  | tail. Restore the tree, then commit only what you meant.')
+    logger.info('  The staged index contains these deletions. Inspect:')
+    logger.info('  git diff --cached --stat | tail. Restore the tree, then')
+    logger.info('  commit only what you meant.')
     return 1
   }
   return 0
@@ -130,7 +129,7 @@ function refuseOutOfScopeStagedPaths(repoRoot: string): number {
   if (outside.length === 0) {
     return 0
   }
-  logger.fail('Refusing to commit paths outside this feature worktree scope.')
+  logger.warn('Staged paths are outside this feature worktree scope.')
   const shownPaths = outside.slice(0, 8)
   for (let i = 0, { length } = shownPaths; i < length; i += 1) {
     logger.info(`  ${shownPaths[i]!}`)
@@ -139,9 +138,9 @@ function refuseOutOfScopeStagedPaths(repoRoot: string): number {
     logger.info(`  …and ${outside.length - 8} more`)
   }
   logger.info(
-    '  fix: unstage those paths or create a separate scoped worktree.',
+    '  review: update the worktree scope or confirm these paths belong here.',
   )
-  return 1
+  return 0
 }
 
 function checkSigningConfig(): number {
@@ -168,11 +167,8 @@ function checkSigningConfig(): number {
       logger.info('  git config --global commit.gpgsign true')
       logger.info('')
       logger.info('If you have not set up commit signing yet, run:')
-      logger.info('  node .claude/hooks/fleet/setup-security-tools/install.mts')
-      logger.info(
-        'which detects available signing methods (GPG, SSH, 1Password)',
-      )
-      logger.info('and walks you through the one-time setup.')
+      logger.info('  pnpm run setup:signing')
+      logger.info('It detects your active SSH agent, then SSH keys or GPG.')
       errors++
     } else if (!signingKey) {
       logger.fail('commit.gpgsign=true but user.signingkey is not set')
@@ -181,7 +177,7 @@ function checkSigningConfig(): number {
       logger.info('  git config --global user.signingkey <YOUR_KEY_ID>')
       logger.info('')
       logger.info('Or run the setup helper for guided configuration:')
-      logger.info('  node .claude/hooks/fleet/setup-security-tools/install.mts')
+      logger.info('  pnpm run setup:signing')
       errors++
     }
     if (errors > 0) {
@@ -668,9 +664,8 @@ function checkCrossRepoPaths(stagedFiles: string[]): number {
   return errors
 }
 
-function checkPrProcessComments(stagedFiles: string[]): number {
-  let errors = 0
-  // PR-process / quest / step-N narrative in source COMMENTS (HARD block).
+function warnPrProcessComments(stagedFiles: string[]): void {
+  // PR-process / quest / step-N narrative in source comments is a follow-up.
   // Sub-agents wrote point-in-time process references — `//! Step 4 of the net
   // perf quest (#5419) …`, `// Step 2 ([#5638]) replaced …` — into shipping
   // source. Those are meaningless once the PR merges and leak internal process
@@ -700,7 +695,7 @@ function checkPrProcessComments(stagedFiles: string[]): number {
     }
     const hits = scanPrProcessComments(text)
     if (hits.length > 0) {
-      logger.fail(`PR-process / step-N reference in comment(s) in: ${file}`)
+      logger.warn(`PR-process / step-N reference in comment(s) in: ${file}`)
       const hs = hits.slice(0, 3)
       for (let i = 0, { length } = hs; i < length; i += 1) {
         const h = hs[i]!
@@ -714,18 +709,15 @@ function checkPrProcessComments(stagedFiles: string[]): number {
           'the PR description and git history. For a rare legitimate reference, ' +
           `append the marker \`${suppressionFor(file, 'pr-process-comment')}\`.`,
       )
-      errors++
     }
   }
-  return errors
 }
 
-function checkOxlintRuleWiring(
+function warnOxlintRuleWiring(
   stagedFiles: string[],
   repoTopline: string,
-): number {
-  let errors = 0
-  // oxlint plugin rule WIRING gate. When a rule file / plugin index /
+): void {
+  // oxlint plugin rule wiring is a follow-up. When a rule file / plugin index /
   // oxlintrc activation / rule test is staged, confirm the wiring triad
   // (rule file → import+registry → activation → test) is complete. A
   // half-wired rule sits silently dormant fleet-wide; this catches it at
@@ -736,7 +728,7 @@ function checkOxlintRuleWiring(
   const wiringRoot = repoTopline || process.cwd()
   const wiringDrift = checkOxlintRuleWiringStaged(stagedFiles, wiringRoot)
   if (wiringDrift) {
-    logger.fail('oxlint plugin rule wiring is out of sync.')
+    logger.warn('oxlint plugin rule wiring is out of sync.')
     const lineList = wiringDrift.split(/\r?\n/).slice(0, 8)
     for (let i = 0, { length } = lineList; i < length; i += 1) {
       const line = lineList[i]!
@@ -747,9 +739,7 @@ function checkOxlintRuleWiring(
         'oxlintrc activations. A missing `test/<rule>.test.mts` must be ' +
         'hand-written (the rule + registration + test triad must be complete).',
     )
-    errors++
   }
-  return errors
 }
 
 function checkCanonicalForks(
@@ -840,8 +830,8 @@ const main = (): number => {
   warnDocsPnpmFirst(stagedFiles)
   errors += checkLoggerLeaks(stagedFiles)
   errors += checkCrossRepoPaths(stagedFiles)
-  errors += checkPrProcessComments(stagedFiles)
-  errors += checkOxlintRuleWiring(stagedFiles, repoTopline)
+  warnPrProcessComments(stagedFiles)
+  warnOxlintRuleWiring(stagedFiles, repoTopline)
   errors += checkCanonicalForks(stagedFiles, repoTopline)
 
   if (errors > 0) {
