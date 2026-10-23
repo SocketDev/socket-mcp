@@ -48,7 +48,6 @@
     "browser:advice": "node scripts/fleet/ai/browser/agent/jev/run.mts",
     "browser:bridge": "node scripts/fleet/ai/browser/bridge/cli.mts",
     "browser:open-setup": "node scripts/fleet/ai/browser/open-setup.mts",
-    "browser:session": "node scripts/fleet/mcp/chrome/session/run.mts",
     "build": "pnpm run clean && pnpm run build:bundle && pnpm run build:permissions",
     "build-mcpb": "pnpm run build && pnpm run build-mcpb:versions_match && pnpm run build-mcpb:validate && pnpm run build-mcpb:ensure-deps && pnpm run build-mcpb:mcpb-pack",
     "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
@@ -233,8 +232,6 @@
     "setup:token:rotate": "node scripts/fleet/setup/token.mts --rotate",
     "setup:xcode": "node scripts/fleet/setup/xcode-license.mts",
     "setup:xcode-license": "node scripts/fleet/setup/xcode-license.mts",
-    "slack:auth": "node scripts/fleet/setup/slack-token.mts",
-    "slack:token": "node scripts/fleet/setup/slack-token.mts",
     "soak:bypass": "node scripts/fleet/soak-bypass.mts",
     "soak:check": "node scripts/fleet/check/soak-time-is-consistent.mts",
     "socket-wheelhouse:emit-schema": "node scripts/fleet/socket-wheelhouse-emit-schema.mts",
@@ -278,7 +275,8 @@
     "workflow:actions:lock:install": "node scripts/fleet/workflow/actions-lock/install.mts",
     "worktree:create": "node scripts/fleet/worktree/create/run.mts",
     "worktree:discard-reviewed": "node scripts/fleet/worktree/discard-reviewed/run.mts",
-    "worktree:land": "node scripts/fleet/worktree/land/run.mts"
+    "worktree:land": "node scripts/fleet/worktree/land/run.mts",
+    "browser:session": "node scripts/fleet/mcp/chrome/session/run.mts"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "catalog:",
@@ -348,7 +346,7 @@
     "packageManager": [
       {
         "name": "npm",
-        "version": "^11.19.0 || >=12.0.2",
+        "version": ">=12.2.0",
         "onFail": "error"
       },
       {
