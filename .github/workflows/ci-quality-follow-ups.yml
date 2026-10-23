@@ -1,0 +1,82 @@
+# Baseline quality follow-ups. This workflow is seeded once by socket-wheelhouse
+# and becomes repo-owned. Lint, formatting, documentation, coverage, and
+# historical release audits run weekly and on demand. They do not block CI.
+name: 'ci: quality follow-ups'
+run-name: 'ci: quality follow-ups'
+
+on:
+  workflow_dispatch:
+    inputs:
+      loglevel:
+        description: 'Command output level; each level includes lower levels'
+        required: false
+        type: choice
+        options: [verbose, info, warnings, errors]
+        default: errors
+  schedule:
+    # Avoid the Sunday fuzz and Monday dependency-update lanes.
+    - cron: '17 8 * * 2'
+
+permissions:
+  contents: read
+
+env:
+  ACTIONS_STEP_DEBUG: ${{ inputs.loglevel == 'verbose' }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Lint, format, and documentation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Bootstrap checkout
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          TRIGGER_REF: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git init -q
+          git config --local advice.detachedHead false
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${SERVER_URL}/${REPOSITORY}"
+          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${TRIGGER_REF}")
+          if [ -n "${GITHUB_TOKEN}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+            export GIT_CONFIG_COUNT=1
+            export GIT_CONFIG_KEY_0="http.${SERVER_URL}/.extraheader"
+            export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH_B64}"
+            git fetch "${FETCH_ARGS[@]}"
+          else
+            git fetch "${FETCH_ARGS[@]}"
+          fi
+          git checkout -q --detach FETCH_HEAD
+      - name: Set up and install
+        id: setup
+        uses: ./.github/actions/fleet/setup-and-install
+        with:
+          socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
+          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
+      - name: Run quality checks
+        uses: ./.github/actions/fleet/run-script
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          loglevel: ${{ inputs.loglevel || 'errors' }}
+          continue-on-error: true
+          main-script: pnpm run ci:gates --stage=quality
+      - name: Run coverage follow-up
+        if: ${{ always() && steps.setup.conclusion == 'success' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        uses: ./.github/actions/fleet/run-script
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          loglevel: ${{ inputs.loglevel || 'errors' }}
+          main-script: pnpm run cover
