@@ -137,27 +137,6 @@ jobs:
           # key, hydration still pulls public GHCR anonymously.
           payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      # The SFW proxy interposes crates.io at the system level. Other tools
-      # receive its CA via NODE_EXTRA_CA_CERTS; cargo needs CARGO_HTTP_CAINFO
-      # explicitly, and on Windows schannel additionally demands revocation
-      # status the proxy-minted certs cannot publish. A no-op for repos (and
-      # steps) that never invoke cargo.
-      - name: 'Trust the firewall CA in Cargo'
-        # CARGO_HTTP_CAINFO REPLACES cargo's trust store. The fleet bypass
-        # list routes the registry hosts (index.crates.io, static.crates.io,
-        # crates.io) DIRECT past the proxy, so the CA file must merge the
-        # public roots (Node's baked-in Mozilla store) with the proxy CA —
-        # the proxy CA alone fails every direct fetch with "untrusted root".
-        shell: bash
-        run: |
-          if [ -n "${NODE_EXTRA_CA_CERTS:-}" ] && [ -f "${NODE_EXTRA_CA_CERTS}" ]; then
-            BUNDLE="${RUNNER_TEMP}/cargo-ca-bundle.pem"
-            node -e 'const fs=require("node:fs");const tls=require("node:tls");fs.writeFileSync(process.argv[1], tls.rootCertificates.join("\n")+"\n"+fs.readFileSync(process.env.NODE_EXTRA_CA_CERTS,"utf8")+"\n")' "$BUNDLE"
-            echo "CARGO_HTTP_CAINFO=${BUNDLE}" >> "$GITHUB_ENV"
-          fi
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            echo "CARGO_HTTP_CHECK_REVOKE=false" >> "$GITHUB_ENV"
-          fi
       - name: 'Run tests'
         uses: ./.github/actions/fleet/run-script
         env:
