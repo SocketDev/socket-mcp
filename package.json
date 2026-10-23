@@ -84,6 +84,8 @@
     "ci:fix": "node scripts/fleet/ci/fix/run.mts",
     "ci:fix:preview": "node scripts/fleet/ci/fix/preview.mts",
     "ci:gates": "node scripts/fleet/ci/gates/run.mts",
+    "repo:check": "pnpm run repo:type && pnpm run build",
+    "repo:type": "tsc --noEmit -p tsconfig.json",
     "ci:local": "node scripts/fleet/ci/local/run.mts run --all --quiet --github-token --pause-on-failure",
     "ci:remote:secrets:retire": "node scripts/fleet/ci/remote/secrets/retire.mts",
     "ci:remote:variables:migrate": "node scripts/fleet/ci/remote/variables/migrate.mts",

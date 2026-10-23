@@ -14,7 +14,13 @@
     "stripInternal": true,
     "types": ["node"]
   },
-  "include": ["**/*"],
+  "include": [
+    "index.mts",
+    "lib/**/*.mts",
+    "hooks/**/*.mts",
+    "mock-client/**/*.mts",
+    "test/repo/**/*.mts"
+  ],
   "exclude": [
     "**/*.cjs",
     "**/*.js",

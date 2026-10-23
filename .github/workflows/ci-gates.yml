@@ -89,7 +89,7 @@ jobs:
       - name: 'Check'
         uses: ./.github/actions/fleet/run-script
         with:
-          main-script: pnpm run ci:gates --stage=check
+          main-script: pnpm run repo:check
 
   test:
     name: 'Test (${{ matrix.os }})'
