@@ -43,9 +43,7 @@ export interface ToolInputSchema {
 }
 
 /**
- * Tool annotations the SDK forwards to clients. The only one socket-mcp sets
- * today is `readOnlyHint`; left open-ended so future flags don't need a type
- * bump.
+ * Tool annotations forwarded to clients.
  */
 export interface ToolAnnotations {
   readOnlyHint?: boolean | undefined

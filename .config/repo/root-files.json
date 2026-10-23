@@ -9,6 +9,7 @@
     "logo-black.png": "Socket logo referenced by README.md's root-relative picture srcset, rendered on GitHub and npm.",
     "logo-white.png": "Socket logo (dark mode) referenced by README.md's root-relative picture srcset, rendered on GitHub and npm.",
     "manifest.json": "MCPB (Claude extension) manifest; the mcpb packer requires it at the package root and its entry_point/icon paths resolve from there.",
-    "mock-client": "Local MCP debug clients (stdio/http) used to exercise the server during development; documented in mock-client/README.md."
+    "mock-client": "Local MCP debug clients (stdio/http) used to exercise the server during development; documented in mock-client/README.md.",
+    "plugins": "ChatGPT plugin manifest and assets used for package distribution."
   }
 }
