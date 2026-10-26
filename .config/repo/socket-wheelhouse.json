@@ -40,18 +40,6 @@
     "requirePinnedFullSha": true,
     "weeklyUpdate": true
   },
-  "release": {
-    "provenanceOrphanBaseline": [
-      {
-        "id": "@socketsecurity/mcp@0.2.0",
-        "reason": "Historical reserved resume run 35229467462 attested dispatch d44ad0540fb69bc6977c226418234b5875f1b6f3, but the v0.2.0 checkout is 2f21773327e92b8e98092a3270db26370d935baa. The immutable release archive matches npm, but exact-parent/source equivalence fails. Grandfathered immutable source-attribution anomaly."
-      },
-      {
-        "id": "@socketsecurity/mcp@0.2.1",
-        "reason": "Historical bump-in-CI run 35244698560 attested dispatch 6f8349a08463dce50f66b760c2d1b60d936b899c, then rebuilt c9dc7fd92073f92a5739d90a2c6acda360c55307. The immutable release archive matches npm, but an extra pnpm-lock change prevents reservation source equivalence. Grandfathered immutable source-attribution anomaly."
-      }
-    ]
-  },
   "claude": {
     "includeSecurityScanSkill": true,
     "includeSharedSkills": true,
