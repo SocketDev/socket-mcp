@@ -31,6 +31,7 @@ import { isJsonRequested } from '../../../fleet/process/script-meta.mts'
 import { PLUGIN_CHATGPT_DIR } from '../../paths.mts'
 import type { ChatgptPluginFindings } from './requirements.mts'
 import type { ScriptMeta } from '../../../fleet/process/main/run.mts'
+import type { ScriptResult } from '../../../fleet/process/script-result.mts'
 
 const logger = getDefaultLogger()
 
@@ -97,29 +98,26 @@ function readOutputDir(argv: readonly string[]): string {
   return value === undefined ? os.tmpdir() : path.resolve(value)
 }
 
-export async function main(): Promise<number> {
+// The payload rides back on ScriptResult.data so the fleet runner renders the
+// one JSON document `json: 'result'` promises. Printing it here as well would
+// put two documents on stdout and leave no parseable output.
+export async function main(): Promise<ScriptResult> {
   const argv = process.argv.slice(2)
   const result = await packChatgptPlugin({
     outputDir: readOutputDir(argv),
     strict: argv.includes('--strict'),
   })
   const { errors, warnings } = result.findings
+  const blocked = result.outputPath === undefined
+  const data = {
+    bytes: result.bytes,
+    errors,
+    outputPath: result.outputPath,
+    warnings,
+  }
 
   if (isJsonRequested(argv)) {
-    logger.log(
-      JSON.stringify(
-        {
-          bytes: result.bytes,
-          errors,
-          ok: result.outputPath !== undefined,
-          outputPath: result.outputPath,
-          warnings,
-        },
-        undefined,
-        2,
-      ),
-    )
-    return result.outputPath === undefined ? 1 : 0
+    return { data, exitCode: blocked ? 1 : 0 }
   }
 
   for (const warning of warnings) {
@@ -128,14 +126,14 @@ export async function main(): Promise<number> {
   for (const error of errors) {
     logger.fail(error)
   }
-  if (result.outputPath === undefined) {
+  if (blocked) {
     logger.fail(
       `Wrote no ZIP. Where: ${PLUGIN_CHATGPT_DIR}. Saw ${errors.length} error(s) and ${warnings.length} warning(s); wanted a package that satisfies the OpenAI submission requirements. Fix: resolve the findings above.`,
     )
-    return 1
+    return { data, exitCode: 1 }
   }
   logger.success(`Wrote ${result.outputPath} (${result.bytes} bytes).`)
-  return 0
+  return { data, exitCode: 0 }
 }
 
 const SCRIPT_META: ScriptMeta = {
