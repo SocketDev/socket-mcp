@@ -77,12 +77,16 @@ function objectField(
     : undefined
 }
 
+// An empty string reads as absent, the same way envString treats an empty
+// environment variable. The portal rejects a blank display name or review
+// field exactly as it rejects a missing one, so a presence check that accepts
+// '' would let --strict pass a package OpenAI still refuses.
 function stringField(
   source: Record<string, unknown>,
   key: string,
 ): string | undefined {
   const value = source[key]
-  return typeof value === 'string' ? value : undefined
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function checkBoundedString(
@@ -209,10 +213,11 @@ function checkInterface(
   for (const [index, capability] of capabilities.entries()) {
     if (
       typeof capability !== 'string' ||
+      capability.length === 0 ||
       capability.length > CAPABILITY_LENGTH_MAX
     ) {
       errors.push(
-        `${where}.capabilities[${index}] must be a string of at most ${CAPABILITY_LENGTH_MAX} characters.`,
+        `${where}.capabilities[${index}] must be a non-empty string of at most ${CAPABILITY_LENGTH_MAX} characters.`,
       )
     }
   }

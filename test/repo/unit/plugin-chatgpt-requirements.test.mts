@@ -162,6 +162,57 @@ describe('listing metadata limits', () => {
   })
 })
 
+describe('a blank string reads as absent', () => {
+  test('still warns when demo_recording_url is empty', () => {
+    const pluginJson = withManifest(manifest => {
+      openaiReview(manifest)['demo_recording_url'] = ''
+    })
+    const findings = inspectChatgptPluginPackage({
+      ...readShippedPackage(),
+      pluginJson,
+    })
+    expect(findings.warnings.join('\n')).toContain('demo_recording_url')
+  })
+
+  test('rejects a blank review-case field', () => {
+    const pluginJson = withManifest(manifest => {
+      const firstCase = reviewCases(manifest, 'positive')[0]
+      if (!isPlainObject(firstCase)) {
+        throw new Error('Fixture holds no first positive case.')
+      }
+      firstCase['expected_behavior'] = ''
+    })
+    const findings = inspectChatgptPluginPackage({
+      ...readShippedPackage(),
+      pluginJson,
+    })
+    expect(findings.errors.join('\n')).toContain('expected_behavior')
+  })
+
+  test('rejects a blank capability entry', () => {
+    const pluginJson = withManifest(manifest => {
+      const capabilities = arrayAt(openaiInterface(manifest), 'capabilities')
+      capabilities[0] = ''
+    })
+    const findings = inspectChatgptPluginPackage({
+      ...readShippedPackage(),
+      pluginJson,
+    })
+    expect(findings.errors.join('\n')).toContain('capabilities[0]')
+  })
+
+  test('rejects a blank category', () => {
+    const pluginJson = withManifest(manifest => {
+      openaiInterface(manifest)['category'] = ''
+    })
+    const findings = inspectChatgptPluginPackage({
+      ...readShippedPackage(),
+      pluginJson,
+    })
+    expect(findings.errors.join('\n')).toContain('category')
+  })
+})
+
 describe('review test cases', () => {
   test('requires exactly five positive cases', () => {
     const pluginJson = withManifest(manifest => {
