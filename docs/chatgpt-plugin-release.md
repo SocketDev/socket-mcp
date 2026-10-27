@@ -16,6 +16,16 @@ package.
   organization data belongs to the signed-in account.
 - Use a dedicated reviewer account with synthetic organization data. Never
   use a customer's account for review.
+- Serve the domain verification challenge as plain text at
+  `https://mcp.socket.dev/.well-known/openai-apps-challenge`. Read the
+  challenge base host and the token from the portal first; the base must be
+  the MCP hostname or an eligible parent domain. Return the token alone, not
+  JSON, and do not answer with a redirect. The server serves this route from
+  `SOCKET_MCP_APPS_CHALLENGE_TOKEN`, which needs a deploy; an edge rule on
+  the same hostname, or a file on the parent domain, verifies without one.
+- Record the reviewer walkthrough video and set `demo_recording_url` in
+  `plugin.json`. Record it after the developer-mode install, because the
+  walkthrough shows the installed plugin.
 
 ## Package and portal
 

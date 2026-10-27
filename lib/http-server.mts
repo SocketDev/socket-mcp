@@ -7,6 +7,10 @@ import { createMcpHandler } from '@modelcontextprotocol/server'
 import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import {
+  isAppsChallengeRequest,
+  writeAppsChallenge,
+} from './apps-challenge.mts'
 import { createConfiguredServer } from './server.mts'
 import { getRequestBaseUrl, getRequestHeaderValue, writeJson } from './http.mts'
 import {
@@ -268,26 +272,15 @@ export async function routeRequest(
     return
   }
 
-  const baseUrl = getRequestBaseUrl(req, port)
   if (
-    isOauthEnabled() &&
-    url.pathname === OAUTH_PROTECTED_RESOURCE_METADATA_PATH
+    isAppsChallengeRequest(req.method, url.pathname) &&
+    writeAppsChallenge(res, req.method)
   ) {
-    // Discovery rejects when the issuer is unreachable or serves no usable
-    // metadata. Answering from the catch keeps a down issuer from becoming an
-    // unhandled rejection, which would hang the request and take the process
-    // with it.
-    try {
-      await loadOAuthMetadata()
-    } catch (error) {
-      logger.error(`OAuth metadata discovery failed: ${errorMessage(error)}`)
-      writeJson(res, 500, {
-        error: 'server_error',
-        error_description: 'OAuth metadata is unavailable',
-      })
-      return
-    }
-    writeJson(res, 200, buildProtectedResourceMetadata(baseUrl))
+    return
+  }
+
+  const baseUrl = getRequestBaseUrl(req, port)
+  if (await writeOauthMetadata(res, url.pathname, baseUrl)) {
     return
   }
 
@@ -364,4 +357,38 @@ export function startHttpServer(port: number): void {
     )
     logger.info(`Connect to: http://localhost:${listeningPort}/`)
   })
+}
+
+/**
+ * Answer the RFC 9728 protected-resource metadata probe, and report whether
+ * the response was written. Returns false on a deployment with OAuth off, or
+ * for any other path, leaving the caller to continue routing.
+ */
+export async function writeOauthMetadata(
+  res: ServerResponse,
+  pathname: string,
+  baseUrl: URL,
+): Promise<boolean> {
+  if (
+    !isOauthEnabled() ||
+    pathname !== OAUTH_PROTECTED_RESOURCE_METADATA_PATH
+  ) {
+    return false
+  }
+  // Discovery rejects when the issuer is unreachable or serves no usable
+  // metadata. Answering from the catch keeps a down issuer from becoming an
+  // unhandled rejection, which would hang the request and take the process
+  // with it.
+  try {
+    await loadOAuthMetadata()
+  } catch (error) {
+    logger.error(`OAuth metadata discovery failed: ${errorMessage(error)}`)
+    writeJson(res, 500, {
+      error: 'server_error',
+      error_description: 'OAuth metadata is unavailable',
+    })
+    return true
+  }
+  writeJson(res, 200, buildProtectedResourceMetadata(baseUrl))
+  return true
 }

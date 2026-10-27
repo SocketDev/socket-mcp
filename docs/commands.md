@@ -77,6 +77,7 @@ Environment variables for HTTP mode:
 | `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                               | None    | Scopes required on incoming access tokens, separated by spaces or commas. When unset, any active token passes.                             |
 | `SOCKET_API_BASE_URL`                      | No                               | None    | Override the upstream Socket API endpoint. Falls back to `https://api.socket.dev` when unset.                                              |
 | `SOCKET_DEBUG`                             | No                               | `false` | Turns on verbose request and cache tracing on stderr, points `depscore` at `http://localhost:8866`, and permits a local OAuth issuer.      |
+| `SOCKET_MCP_APPS_CHALLENGE_TOKEN`          | For domain verification          | None    | Token the OpenAI plugin portal issues for domain verification. When set, `GET /.well-known/openai-apps-challenge` returns it as plain text; when unset, that path returns `404`. |
 | `TRUST_PROXY`                              | No                               | `false` | Trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a reverse proxy that rewrites them. |
 
 The three OAuth variables are a set: configure all three or none. Setting only some of them makes the server print `Incomplete OAuth configuration for HTTP mode` and exit `1`, rather than quietly start unauthenticated.

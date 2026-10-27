@@ -114,6 +114,14 @@ export function getSocketInternalUserAgent(): string {
   return envString('SOCKET_INTERNAL_USER_AGENT') || 'socket-internal-tool/1.0'
 }
 
+// The OpenAI plugin portal's domain-verification token. Issued by the portal,
+// pasted into the deployment environment, and echoed verbatim at
+// /.well-known/openai-apps-challenge. Unset on a deployment that is not being
+// verified, which keeps that route a 404.
+export function getSocketMcpAppsChallengeToken(): string | undefined {
+  return envString('SOCKET_MCP_APPS_CHALLENGE_TOKEN')
+}
+
 export function getSocketMcpAuditLogPath(): string {
   return (
     envString('SOCKET_MCP_AUDIT_LOG') ||
