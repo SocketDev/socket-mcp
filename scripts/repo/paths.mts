@@ -24,6 +24,13 @@ export const DIST_DIR = path.join(REPO_ROOT, 'dist')
 export const SERVER_SOURCE = path.join(REPO_ROOT, 'index.mts')
 
 /**
+ * Absolute path to the ChatGPT plugin package source: the listing manifest,
+ * the MCP server configuration, and the listing assets. The upload ZIP is
+ * built from this directory and written outside the repository.
+ */
+export const PLUGIN_CHATGPT_DIR = path.join(REPO_ROOT, 'plugins', 'chatgpt')
+
+/**
  * Absolute path to the socket-gate hook's SOURCE directory: the hook source
  * (`index.mts`) and its README. Dev/test content only — the published,
  * copyable unit is `SOCKET_GATE_DIST_DIR`.

@@ -22,9 +22,11 @@ package.
 1. Validate `plugins/chatgpt/plugin.json` and `mcp.json` against the current
    OpenAI plugin schemas. Confirm every referenced asset exists and uses the
    approved Socket brand asset.
-2. Build the upload ZIP from `plugins/chatgpt/`, with `plugin.json`, `mcp.json`,
-   and `assets/icon.png` at the archive root. Keep the generated ZIP outside
-   the repository.
+2. Run `pnpm run plugin:chatgpt:pack` to check the package and build the
+   upload ZIP, with `plugin.json`, `mcp.json`, and `assets/icon.png` at the
+   archive root. The ZIP goes to the OS temp directory, outside the
+   repository. Add `--strict` before submission to fail on an unmet
+   submission gate, and `--out <dir>` to choose the destination.
 3. Install the package in ChatGPT developer mode and sign in to Socket.
    Exercise the positive and negative review cases in `plugin.json`, including
    account isolation, expired credentials, reconnect, and unsupported

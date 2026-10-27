@@ -181,6 +181,7 @@
     "npm:trust:browser": "node scripts/fleet/registry/npm/settings/trusted-publisher/browser.mts",
     "npm:trust:migrate": "node scripts/fleet/npm/trusted-publisher/run.mts",
     "offload:model": "node scripts/fleet/offload-model.mts",
+    "plugin:chatgpt:pack": "node scripts/repo/plugin/chatgpt/pack.mts",
     "postpublish": "pnpm run clean",
     "preflight": "node scripts/repo/bootstrap/fleet.mjs --quiet && node scripts/fleet/preflight.mts",
     "prepare": "node scripts/repo/bootstrap/prepare.mts && node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
