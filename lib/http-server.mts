@@ -1,16 +1,14 @@
 // HTTP transport module: request routing, the post-body size guard, and the
 // per-request auth handoff — the cohesive request path that reads
-// top-to-bottom. Origin/CORS/Accept-header validation lives in http-origin.mts.
+// top-to-bottom. Origin/CORS/Accept-header validation lives in
+// http-origin.mts, and the endpoints that answer without an MCP credential
+// live in http-public-routes.mts.
 import { toNodeHandler } from '@modelcontextprotocol/node'
 import type { NodeMcpRequestHandler } from '@modelcontextprotocol/node'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import {
-  isAppsChallengeRequest,
-  writeAppsChallenge,
-} from './apps-challenge.mts'
 import { createConfiguredServer } from './server.mts'
 import { getRequestBaseUrl, getRequestHeaderValue, writeJson } from './http.mts'
 import {
@@ -18,14 +16,12 @@ import {
   validateOriginAndHost,
   writeCorsHeaders,
 } from './http-origin.mts'
-import { logger } from './logger.mts'
 import {
-  authenticateRequest,
-  buildProtectedResourceMetadata,
-  isOauthEnabled,
-  loadOAuthMetadata,
-  OAUTH_PROTECTED_RESOURCE_METADATA_PATH,
-} from './oauth.mts'
+  dispatchPublicRoute,
+  dispatchUnvalidatedRoute,
+} from './http-public-routes.mts'
+import { logger } from './logger.mts'
+import { authenticateRequest, isOauthEnabled } from './oauth.mts'
 import type { AuthenticatedRequest } from './oauth.mts'
 import { VERSION } from './version.mts'
 
@@ -237,15 +233,9 @@ export async function routeRequest(
     return
   }
 
-  // Health endpoint bypasses origin validation so K8s / Docker probes
-  // succeed without configuring origins.
-  if (url.pathname === '/health') {
-    writeJson(res, 200, {
-      status: 'healthy',
-      service: 'socket-mcp',
-      version: VERSION,
-      timestamp: new Date().toISOString(),
-    })
+  // Answers before origin validation so a container probe succeeds without
+  // per-deployment origin configuration.
+  if (dispatchUnvalidatedRoute(res, url.pathname)) {
     return
   }
 
@@ -272,15 +262,9 @@ export async function routeRequest(
     return
   }
 
-  if (
-    isAppsChallengeRequest(req.method, url.pathname) &&
-    writeAppsChallenge(res, req.method)
-  ) {
-    return
-  }
-
-  const baseUrl = getRequestBaseUrl(req, port)
-  if (await writeOauthMetadata(res, url.pathname, baseUrl)) {
+  // Answers after CORS and before authentication: both probes are issued by a
+  // third party that holds no credential.
+  if (await dispatchPublicRoute(req, res, url.pathname, port)) {
     return
   }
 
@@ -297,7 +281,11 @@ export async function routeRequest(
   // token prefix is not authentication, so a raw Socket API key is accepted
   // only when OAuth is off.
   if (isOauthEnabled()) {
-    const authResult = await authenticateRequest(req, res, baseUrl)
+    const authResult = await authenticateRequest(
+      req,
+      res,
+      getRequestBaseUrl(req, port),
+    )
     if (!authResult.ok) {
       return
     }
@@ -357,38 +345,4 @@ export function startHttpServer(port: number): void {
     )
     logger.info(`Connect to: http://localhost:${listeningPort}/`)
   })
-}
-
-/**
- * Answer the RFC 9728 protected-resource metadata probe, and report whether
- * the response was written. Returns false on a deployment with OAuth off, or
- * for any other path, leaving the caller to continue routing.
- */
-export async function writeOauthMetadata(
-  res: ServerResponse,
-  pathname: string,
-  baseUrl: URL,
-): Promise<boolean> {
-  if (
-    !isOauthEnabled() ||
-    pathname !== OAUTH_PROTECTED_RESOURCE_METADATA_PATH
-  ) {
-    return false
-  }
-  // Discovery rejects when the issuer is unreachable or serves no usable
-  // metadata. Answering from the catch keeps a down issuer from becoming an
-  // unhandled rejection, which would hang the request and take the process
-  // with it.
-  try {
-    await loadOAuthMetadata()
-  } catch (error) {
-    logger.error(`OAuth metadata discovery failed: ${errorMessage(error)}`)
-    writeJson(res, 500, {
-      error: 'server_error',
-      error_description: 'OAuth metadata is unavailable',
-    })
-    return true
-  }
-  writeJson(res, 200, buildProtectedResourceMetadata(baseUrl))
-  return true
 }
