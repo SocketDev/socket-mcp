@@ -12,6 +12,7 @@ import {
   getRequestHeaderValue,
   parseJsonObject,
   writeJson,
+  writeOAuthChallenge,
   writeOAuthError,
 } from '../../../lib/http.mts'
 
@@ -294,5 +295,31 @@ describe('getRequestBaseUrl forwarded-host hardening', () => {
         'http://observed.example.test:1234/',
       )
     }
+  })
+})
+
+describe('writeOAuthChallenge', () => {
+  test('emits a bare RFC 6750 §3.1 challenge with no error code', () => {
+    const { res, calls } = fakeResponse()
+    writeOAuthChallenge(
+      res,
+      'Missing Authorization header',
+      'https://mcp.socket.dev/.well-known/oauth-protected-resource',
+      'packages:list alerts:list threat-feed:list',
+    )
+    expect(calls.statusCode).toBe(401)
+    expect(calls.headers!['WWW-Authenticate']).toBe(
+      'Bearer resource_metadata="https://mcp.socket.dev/.well-known/oauth-protected-resource", scope="packages:list alerts:list threat-feed:list"',
+    )
+    expect(JSON.parse(calls.body!)).toEqual({
+      error: 'invalid_request',
+      error_description: 'Missing Authorization header',
+    })
+  })
+
+  test('omits empty resource_metadata and scope', () => {
+    const { res, calls } = fakeResponse()
+    writeOAuthChallenge(res, 'Missing Authorization header')
+    expect(calls.headers!['WWW-Authenticate']).toBe('Bearer')
   })
 })

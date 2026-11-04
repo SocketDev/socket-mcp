@@ -20,6 +20,7 @@ import {
   getRequestHeaderValue,
   parseJsonObject,
   writeJson,
+  writeOAuthChallenge,
   writeOAuthError,
 } from './http.mts'
 import { logger } from './logger.mts'
@@ -81,12 +82,14 @@ export async function authenticateRequest(
   const resourceIdentifier = getOAuthResourceIdentifier(baseUrl)
   const scope = buildOAuthScopeParameter(options)
 
+  // No credentials, or credentials in a scheme this resource does not take,
+  // get the bare RFC 6750 §3.1 challenge. This runs for every MCP method —
+  // initialize and tools/list included — so a client learns it must sign in
+  // during the connect handshake, not only at its first tools/call.
   const authHeader = getRequestHeaderValue(req.headers.authorization).trim()
   if (!authHeader) {
-    writeOAuthError(
+    writeOAuthChallenge(
       res,
-      401,
-      'invalid_request',
       'Missing Authorization header',
       resourceMetadataUrl,
       scope,
@@ -97,7 +100,16 @@ export async function authenticateRequest(
   // `authHeader` is trimmed and non-empty, so splitting on whitespace always
   // yields a non-empty first element.
   const { 0: type, 1: token } = authHeader.split(/\s+/u)
-  if (type!.toLowerCase() !== 'bearer' || !token) {
+  if (type!.toLowerCase() !== 'bearer') {
+    writeOAuthChallenge(
+      res,
+      "Invalid Authorization header format, expected 'Bearer TOKEN'",
+      resourceMetadataUrl,
+      scope,
+    )
+    return { ok: false }
+  }
+  if (!token) {
     writeOAuthError(
       res,
       401,

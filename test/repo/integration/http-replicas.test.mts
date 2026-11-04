@@ -114,7 +114,10 @@ function mockDepscoreUpstream(token: string): nock.Scope {
     )
 }
 
+const RESOURCE_SCOPES = 'packages:list alerts:list threat-feed:list'
+
 function stubOAuthEnv(): void {
+  vi.stubEnv('SOCKET_OAUTH_REQUIRED_SCOPES', RESOURCE_SCOPES)
   vi.stubEnv('SOCKET_OAUTH_ISSUER', ISSUER)
   vi.stubEnv('SOCKET_OAUTH_INTROSPECTION_CLIENT_ID', 'introspection-client')
   vi.stubEnv('SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET', 'introspection-secret')
@@ -194,16 +197,40 @@ describe('the OAuth resource-server flow across replicas', () => {
 
     const init = await post(replica, initializeBody())
     expect(init.status).toBe(401)
-    const challenge = String(init.headers['www-authenticate'])
     const metadataUrl = `${replica.endpoint}.well-known/oauth-protected-resource`
-    expect(challenge).toContain(`resource_metadata="${metadataUrl}"`)
+    // The bare RFC 6750 §3.1 form on the connect handshake: no error code,
+    // just where to discover the authorization server and the resource's own
+    // scopes, so a client never falls back to the issuer's full scope list.
+    expect(init.headers['www-authenticate']).toBe(
+      `Bearer resource_metadata="${metadataUrl}", scope="${RESOURCE_SCOPES}"`,
+    )
 
     const metadata = await httpRequest(metadataUrl)
     expect(metadata.status).toBe(200)
     expect(metadata.json()).toMatchObject({
       resource: replica.endpoint,
       authorization_servers: [ISSUER],
+      scopes_supported: RESOURCE_SCOPES.split(' '),
     })
+  })
+
+  test('an anonymous tools/list is challenged the same way', async () => {
+    stubOAuthEnv()
+    vi.resetModules()
+    mockIssuer()
+    const { setOauthEnabled } = await import('../../../lib/oauth.mts')
+    setOauthEnabled()
+    const replica = await startReplica()
+
+    const list = await post(replica, {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/list',
+    })
+    expect(list.status).toBe(401)
+    expect(list.headers['www-authenticate']).toBe(
+      `Bearer resource_metadata="${replica.endpoint}.well-known/oauth-protected-resource", scope="${RESOURCE_SCOPES}"`,
+    )
   })
 
   test('an anonymous depscore call is challenged, not scored', async () => {
@@ -237,7 +264,7 @@ describe('the OAuth resource-server flow across replicas', () => {
         active: true,
         aud: [first.endpoint, second.endpoint],
         client_id: 'chat-client',
-        scope: 'packages:list',
+        scope: RESOURCE_SCOPES,
       })
     const upstream = mockDepscoreUpstream('oauth-access-token')
     const auth = { authorization: 'Bearer oauth-access-token' }
