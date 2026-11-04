@@ -290,6 +290,44 @@ test('authenticateRequest rejects a Bearer scheme with no token as invalid_reque
   })
 })
 
+test('authenticateRequest matches the Bearer scheme case-insensitively', async () => {
+  // A lowercase scheme with no token is still a malformed Bearer request, not
+  // an unsupported scheme, so it keeps its error code.
+  for (const header of ['bearer', 'BEARER   ']) {
+    const captured = makeMockResponse()
+    const result = await authenticateRequest(
+      makeRequest(header),
+      captured.res,
+      resourceBaseUrl,
+      makeConfig(),
+    )
+    expect(result.ok).toBe(false)
+    assertOAuthError(captured, resourceMetadataUrl, {
+      status: 401,
+      error: 'invalid_request',
+      errorDescription:
+        "Invalid Authorization header format, expected 'Bearer TOKEN'",
+    })
+  }
+
+  // A lowercase scheme with a token reaches introspection.
+  mockDiscovery()
+  mockIntrospection()
+  const captured = makeMockResponse()
+  const result = await authenticateRequest(
+    makeRequest('bearer inactive-token'),
+    captured.res,
+    resourceBaseUrl,
+    makeConfig(),
+  )
+  expect(result.ok).toBe(false)
+  assertOAuthError(captured, resourceMetadataUrl, {
+    status: 401,
+    error: 'invalid_token',
+    errorDescription: 'Invalid or expired token',
+  })
+})
+
 test('the challenge scope is the resource scopes, never offline_access', async () => {
   const captured = makeMockResponse()
   await authenticateRequest(
