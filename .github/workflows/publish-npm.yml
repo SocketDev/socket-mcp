@@ -1,0 +1,49 @@
+name: '📦 npm publish'
+run-name: '📦 npm publish'
+
+on:
+  workflow_dispatch:
+    inputs:
+      dist-tag:
+        description: npm dist-tag. Bump to an unpublished package version before dispatching.
+        required: true
+        type: string
+        default: latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    name: Publish npm package
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    environment: publish-npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      - name: Install pnpm
+        run: npm install --global pnpm@12.14.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify package
+        run: pnpm run repo:check && pnpm test
+      - name: Build package
+        run: pnpm run build
+      - name: Publish package
+        env:
+          DIST_TAG: ${{ inputs.dist-tag }}
+        run: npm publish --provenance --access public --tag "$DIST_TAG"
