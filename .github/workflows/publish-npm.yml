@@ -35,8 +35,8 @@ jobs:
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
-      - name: Install pnpm
-        run: npm install --global pnpm@12.14.0
+      - name: Install npm and pnpm
+        run: npm install --global npm@12.2.0 pnpm@12.14.0
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify package

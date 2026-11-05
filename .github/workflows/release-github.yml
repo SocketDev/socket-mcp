@@ -58,6 +58,7 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
       - name: Check npm publication
         if: ${{ github.event_name == 'push' || inputs.release }}
+        working-directory: ${{ runner.temp }}
         env:
           VERSION: ${{ steps.tag.outputs.version }}
         run: npm view "@socketsecurity/mcp@${VERSION}" version

@@ -1,5 +1,5 @@
 # EditorConfig — editor-agnostic source of truth for whitespace + width.
-# Mirrors the fleet oxfmt config (.config/fleet/oxfmtrc.json: useTabs false,
+# Mirrors the oxfmt config (.config/repo/oxfmtrc.json: useTabs false,
 # tabWidth 2, printWidth 80). oxfmt formats JS/TS; this reaches every other
 # editor + file type (JSON, YAML, Markdown, shell) so the whole tree agrees.
 # https://editorconfig.org

@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check and build
-        run: pnpm run repo:check
+        run: pnpm run check
 
   test:
     name: 'Test (${{ matrix.os }})'
