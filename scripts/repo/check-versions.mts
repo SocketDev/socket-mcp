@@ -62,7 +62,10 @@ export function main(): void {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     process.stdout.write('Usage: pnpm run build-mcpb:versions_match\n')
   } else {

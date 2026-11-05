@@ -15,3 +15,6 @@ coverage/
 .tmp/
 *.log
 *.tsbuildinfo
+*.generated.*
+*.mcpb
+*.tgz

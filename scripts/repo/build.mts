@@ -73,13 +73,16 @@ export async function main(): Promise<void> {
   logger.log(`Built ${buildConfigs.length} artifact(s)`)
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     process.stdout.write('Usage: pnpm run build:bundle\n')
   } else {
-  main().catch(err => {
-    logger.fail(`build: ${errorMessage(err)}`)
-    process.exitCode = 1
-  })
+    main().catch(err => {
+      logger.fail(`build: ${errorMessage(err)}`)
+      process.exitCode = 1
+    })
   }
 }

@@ -1,15 +1,18 @@
 /**
  * @file Repo-owned path constants for socket-mcp's build outputs. Re-exports
- *   the local repository resolvers (REPO_ROOT, etc.) and adds the constants this
- *   repo's build needs. Mantra: 1 path, 1 reference — every build-output path
- *   is constructed once here; rolldown.config.mts and build.mts import the
+ *   the local repository resolvers (REPO_ROOT, etc.) and adds the constants
+ *   this repo's build needs. Mantra: 1 path, 1 reference — every build-output
+ *   path is constructed once here; rolldown.config.mts and build.mts import the
  *   computed value.
  */
 
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+export const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../..',
+)
 
 /**
  * Absolute path to the build output directory for the published server bin.

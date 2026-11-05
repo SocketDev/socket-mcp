@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxfmt/configuration_schema.json",
+  "useTabs": false,
+  "printWidth": 80,
+  "tabWidth": 2,
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "quoteProps": "as-needed",
+  "semi": false,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "bracketSameLine": false,
+  "bracketSpacing": true,
+  "singleAttributePerLine": false,
+  "jsdoc": {
+    "addDefaultToDescription": false,
+    "bracketSpacing": false,
+    "capitalizeDescriptions": true,
+    "commentLineStrategy": "multiline",
+    "descriptionTag": false,
+    "descriptionWithDot": true,
+    "keepUnparsableExampleIndent": false,
+    "lineWrappingStyle": "balance",
+    "preferCodeFences": false,
+    "separateReturnsFromParam": false,
+    "separateTagGroups": true
+  }
+}

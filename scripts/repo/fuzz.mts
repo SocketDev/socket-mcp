@@ -27,7 +27,6 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
-
 const logger = getDefaultLogger()
 
 // scripts/repo/fuzz.mts → repo root is two levels up.
@@ -149,7 +148,10 @@ export function main(): void {
   process.exit(result.status ?? 1)
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     process.stdout.write('Usage: pnpm run test:fuzz [target]\n')
   } else {
