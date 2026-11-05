@@ -65,13 +65,13 @@ export interface FetchFileListConfig {
 }
 
 export interface RawFileEntry {
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- repository optional type convention: the explicit | undefined on an optional is intentional, not redundant.
   path?: unknown | undefined
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- repository optional type convention: the explicit | undefined on an optional is intentional, not redundant.
   type?: unknown | undefined
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- repository optional type convention: the explicit | undefined on an optional is intentional, not redundant.
   size?: unknown | undefined
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- repository optional type convention: the explicit | undefined on an optional is intentional, not redundant.
   hash?: unknown | undefined
 }
 

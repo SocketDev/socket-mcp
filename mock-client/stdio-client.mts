@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { isMainModule } from '../scripts/fleet/process/is-main-module.mts'
-import { runMain } from '../scripts/fleet/process/main/run.mts'
-import type { ScriptMeta } from '../scripts/fleet/process/main/run.mts'
+import { isMainModule, runMain } from '../scripts/repo/cli.mts'
+import type { ScriptMeta } from '../scripts/repo/cli.mts'
 import process from 'node:process'
 
 import { Client } from '@modelcontextprotocol/client'

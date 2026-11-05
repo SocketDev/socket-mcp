@@ -473,7 +473,7 @@ describe('tool audit resource extraction', () => {
         return { depname: 'invented-late' }
       },
     })
-    packages[Symbol.iterator] = function* () {
+    packages[Symbol.iterator] = () => {
       throw new Error('iterator must not run')
     }
     const result = extractToolAuditResources(
@@ -485,7 +485,8 @@ describe('tool audit resource extraction', () => {
     expect(result.resources).toEqual([])
     expect(result.truncated).toBe(true)
 
-    const sparse: unknown[] = new Array(1)
+    const sparse: unknown[] = []
+    sparse.length = 1
     Object.setPrototypeOf(sparse, { 0: { depname: 'inherited-package' } })
     const sparseResult = extractToolAuditResources(
       'depscore',

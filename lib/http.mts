@@ -10,8 +10,8 @@ import { buildMcpUserAgent } from './user-agent.mts'
 // Trust forwarded headers only when an operator has explicitly opted in by
 // setting TRUST_PROXY=true. Without this gate, any client could spoof
 // X-Forwarded-Host / X-Forwarded-Proto and influence OAuth metadata URLs.
-// Resolved via the fleet-canonical helper so the env-var name + parse
-// semantics stay in lockstep across the fleet.
+// Resolved via the shared helper so the env-var name + parse
+// semantics stay consistent across the application.
 export const TRUST_PROXY: boolean = getTrustProxy()
 
 // Loopback / link-local / private IPv4 ranges + IPv6 loopback/ULA that an
