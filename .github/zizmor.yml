@@ -4,8 +4,8 @@
 rules:
   secrets-outside-env:
     disable: true
-  # `dangerous-triggers` stays ON fleet-wide — it is the rule that catches a
-  # `pull_request_target` checking out a fork's code, and blinding the fleet to
+  # `dangerous-triggers` stays enabled — it catches a
+  # `pull_request_target` checking out a fork's code, and disabling the rule
   # that is not worth one file. Scoped to the single workflow instead.
   #
   # release-reconcile.yml is triggered by `workflow_run` so a publish finishing

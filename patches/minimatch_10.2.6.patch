@@ -21,7 +21,7 @@ index a5e6fa8..5a6216e 100644
  minimatch.escape = escape;
  minimatch.unescape = unescape;
 +// Interop: the ESM build ships named exports only. A default import (the
-+// shape the fleet CI cache action resolves through the `import` condition)
++// shape a CI cache action resolves through the `import` condition)
 +// otherwise throws "does not provide an export named 'default'" and kills
 +// the job at setup before a check runs.
 +export default minimatch;

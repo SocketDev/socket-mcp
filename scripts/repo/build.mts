@@ -9,6 +9,7 @@
 
 import { chmod, copyFile } from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
@@ -16,9 +17,6 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { rolldown } from 'rolldown'
 
 import { buildConfigs } from '../../.config/repo/rolldown.config.mts'
-import { runMain } from '../fleet/process/main/run.mts'
-import type { ScriptMeta } from '../fleet/process/main/run.mts'
-import { isMainModule } from '../fleet/process/is-main-module.mts'
 import {
   DIST_DIR,
   SOCKET_GATE_DIST_DIR,
@@ -75,18 +73,13 @@ export async function main(): Promise<void> {
   logger.log(`Built ${buildConfigs.length} artifact(s)`)
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe: 'builds the MCP server and Socket Gate bundles',
-  help: 'Usage: pnpm run build:bundle',
-  json: 'result',
-}
-if (isMainModule(import.meta.url)) {
-  runMain(
-    () =>
-      main().catch(err => {
-        logger.fail(`build: ${errorMessage(err)}`)
-        process.exitCode = 1
-      }),
-    SCRIPT_META,
-  )
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    process.stdout.write('Usage: pnpm run build:bundle\n')
+  } else {
+  main().catch(err => {
+    logger.fail(`build: ${errorMessage(err)}`)
+    process.exitCode = 1
+  })
+  }
 }

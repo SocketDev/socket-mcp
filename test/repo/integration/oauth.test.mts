@@ -13,7 +13,7 @@ const inheritedEnv = Object.fromEntries(
 // Both env-var names are valid entry points — the canonical name is
 // SOCKET_API_TOKEN, but SOCKET_API_KEY is the legacy alias more tools
 // (and most local-dev setups) export, so mcp's local getSocketApiToken
-// shim walks the fleet-canonical chain. Cover both so a future drop of
+// shim walks the supported alias chain. Cover both so a future drop of
 // either alias surfaces here, not in a user report.
 // socket-api-token-env: bootstrap -- this array tests the alias-normalization shim.
 const SOCKET_API_TOKEN_ALIASES = [
