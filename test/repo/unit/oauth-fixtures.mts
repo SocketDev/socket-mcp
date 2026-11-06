@@ -142,6 +142,28 @@ export function assertOAuthError(
   )
 }
 
+// RFC 6750 §3.1: a request with no usable credentials gets a challenge with
+// no error code — only where to discover the authorization server and which
+// scopes to ask for. The body still names the problem.
+export function assertOAuthChallenge(
+  captured: CapturedResponse,
+  metadataUrl: string,
+  errorDescription: string,
+): void {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double / fixture cast: the mock provides only the members the code under test touches.
+  const body = JSON.parse(captured.getBody()) as {
+    error?: string | undefined
+    error_description?: string | undefined
+  }
+  assert.equal(captured.getStatus(), 401)
+  assert.equal(body.error, 'invalid_request')
+  assert.equal(body.error_description, errorDescription)
+  assert.equal(
+    captured.getHeaders()['WWW-Authenticate'],
+    `Bearer resource_metadata="${metadataUrl}", scope="packages:list"`,
+  )
+}
+
 // Build an enabled OAuthConfig pointed at the nock-mocked issuer. Each
 // call gets a fresh config so the per-config discovery cache is isolated.
 export function makeConfig(overrides: Partial<OAuthConfig> = {}): OAuthConfig {

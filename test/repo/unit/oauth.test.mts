@@ -11,6 +11,7 @@ import {
   verifyAccessToken,
 } from '../../../lib/oauth.mts'
 import {
+  assertOAuthChallenge,
   assertOAuthError,
   issuerBaseUrl,
   makeConfig,
@@ -240,7 +241,7 @@ test('setOauthEnabled refuses a partial OAuth config', async () => {
   }
 })
 
-test('authenticateRequest rejects a missing Authorization header', async () => {
+test('authenticateRequest answers a missing Authorization header with a bare challenge', async () => {
   const captured = makeMockResponse()
   const result = await authenticateRequest(
     makeRequest(),
@@ -249,17 +250,33 @@ test('authenticateRequest rejects a missing Authorization header', async () => {
     makeConfig(),
   )
   expect(result.ok).toBe(false)
-  assertOAuthError(captured, resourceMetadataUrl, {
-    status: 401,
-    error: 'invalid_request',
-    errorDescription: 'Missing Authorization header',
-  })
+  assertOAuthChallenge(
+    captured,
+    resourceMetadataUrl,
+    'Missing Authorization header',
+  )
 })
 
-test('authenticateRequest rejects a malformed Authorization header', async () => {
+test('authenticateRequest answers a non-Bearer scheme with a bare challenge', async () => {
   const captured = makeMockResponse()
   const result = await authenticateRequest(
     makeRequest('Basic abc123'),
+    captured.res,
+    resourceBaseUrl,
+    makeConfig(),
+  )
+  expect(result.ok).toBe(false)
+  assertOAuthChallenge(
+    captured,
+    resourceMetadataUrl,
+    "Invalid Authorization header format, expected 'Bearer TOKEN'",
+  )
+})
+
+test('authenticateRequest rejects a Bearer scheme with no token as invalid_request', async () => {
+  const captured = makeMockResponse()
+  const result = await authenticateRequest(
+    makeRequest('Bearer'),
     captured.res,
     resourceBaseUrl,
     makeConfig(),
@@ -271,6 +288,77 @@ test('authenticateRequest rejects a malformed Authorization header', async () =>
     errorDescription:
       "Invalid Authorization header format, expected 'Bearer TOKEN'",
   })
+})
+
+test('authenticateRequest matches the Bearer scheme case-insensitively', async () => {
+  // A lowercase scheme with no token is still a malformed Bearer request, not
+  // an unsupported scheme, so it keeps its error code.
+  for (const header of ['bearer', 'BEARER   ']) {
+    const captured = makeMockResponse()
+    const result = await authenticateRequest(
+      makeRequest(header),
+      captured.res,
+      resourceBaseUrl,
+      makeConfig(),
+    )
+    expect(result.ok).toBe(false)
+    assertOAuthError(captured, resourceMetadataUrl, {
+      status: 401,
+      error: 'invalid_request',
+      errorDescription:
+        "Invalid Authorization header format, expected 'Bearer TOKEN'",
+    })
+  }
+
+  // A lowercase scheme with a token reaches introspection.
+  mockDiscovery()
+  mockIntrospection()
+  const captured = makeMockResponse()
+  const result = await authenticateRequest(
+    makeRequest('bearer inactive-token'),
+    captured.res,
+    resourceBaseUrl,
+    makeConfig(),
+  )
+  expect(result.ok).toBe(false)
+  assertOAuthError(captured, resourceMetadataUrl, {
+    status: 401,
+    error: 'invalid_token',
+    errorDescription: 'Invalid or expired token',
+  })
+})
+
+test('the challenge scope is the resource scopes, never offline_access', async () => {
+  const captured = makeMockResponse()
+  await authenticateRequest(
+    makeRequest(),
+    captured.res,
+    resourceBaseUrl,
+    makeConfig({
+      requiredScopes: [
+        'packages:list',
+        'alerts:list',
+        'threat-feed:list',
+        'offline_access',
+      ],
+    }),
+  )
+  expect(captured.getHeaders()['WWW-Authenticate']).toBe(
+    `Bearer resource_metadata="${resourceMetadataUrl}", scope="packages:list alerts:list threat-feed:list"`,
+  )
+})
+
+test('the challenge omits scope when the resource enforces none', async () => {
+  const captured = makeMockResponse()
+  await authenticateRequest(
+    makeRequest(),
+    captured.res,
+    resourceBaseUrl,
+    makeConfig({ requiredScopes: [] }),
+  )
+  expect(captured.getHeaders()['WWW-Authenticate']).toBe(
+    `Bearer resource_metadata="${resourceMetadataUrl}"`,
+  )
 })
 
 test('authenticateRequest returns invalid_token for an inactive token', async () => {
