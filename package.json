@@ -51,6 +51,7 @@
     "check": "pnpm run fmt:check && pnpm run lint && pnpm run repo:check && pnpm run build-mcpb:versions_match && pnpm run repo:scan",
     "mcp:schema:check": "mcp-tada check --command node --arg index.mts --env SOCKET_API_TOKEN=YOUR_API_TOKEN --env MCP_HTTP_MODE=false --timeout 5000 --against test/repo/integration/server-schema.golden.json",
     "mcp:schema:update": "mcp-tada introspect --command node --arg index.mts --env SOCKET_API_TOKEN=YOUR_API_TOKEN --env MCP_HTTP_MODE=false --timeout 5000 --json --out test/repo/integration/server-schema.golden.json && pnpm run fmt test/repo/integration/server-schema.golden.json",
+    "plugin:chatgpt:pack": "node scripts/repo/plugin/chatgpt/pack.mts",
     "postpublish": "pnpm run clean",
     "prepare": "node scripts/repo/install-git-hooks.mts",
     "prepublishOnly": "node -e \"if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Publish through the npm workflow')\"",
