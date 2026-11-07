@@ -1,7 +1,7 @@
 /**
  * @file Rolldown plugin: stub heavy `@socketsecurity/lib-stable` internals that
  *   runtime code never reaches. Why: `@socketsecurity/lib-stable` is the
- *   canonical fleet utility surface, but its module graph statically pulls in
+ *   shared utility surface, but its module graph statically pulls in
  *   heavyweight files (e.g. globs.js → picomatch ~260KB, sorts.js → semver +
  *   npm-pack ~2.5MB) along import paths that real consumers never traverse.
  *   Tree-shaking can't drop unreachable subgraphs that look reachable to the
@@ -11,7 +11,7 @@
  *   — stubbing a file that IS reached at runtime gives runtime crashes, not
  *   bundle-time errors. Source: lifted from socket-packageurl-js's inline
  *   plugin (.config/repo/rolldown.config.mts), generalized so the stub-pattern
- *   is caller-provided. Fleet-canonical via socket-wheelhouse.
+ *   is caller-provided.
  */
 
 import type { Plugin } from 'rolldown'

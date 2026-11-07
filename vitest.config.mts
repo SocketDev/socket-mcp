@@ -1,7 +1,7 @@
 /**
  * @file ROOT vitest config that exists ONLY for the vitiate coverage-guided
  *   fuzz lane (Tier 2 of the property-and-fuzz-testing skill). It is NOT the
- *   config `pnpm test` uses — `scripts/fleet/test.mts` passes `--config
+ *   config `pnpm test` uses — the repo test script passes `--config
  *   .config/repo/vitest.config.mts` explicitly whenever that file exists (it
  *   does here), so the normal suite never loads this file or the
  *   SWC-instrumenting `vitiatePlugin`. Why a ROOT config and not a custom-named

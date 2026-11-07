@@ -58,10 +58,15 @@ export function formatToolValidationFailure(
 }
 
 export function formatValidationPath(path: string): string {
-  const safePath = path
-    .replace(/[\u0000-\u001f\u007f]/gu, '?')
-    .slice(0, MAX_VALIDATION_PATH_LENGTH)
-  return safePath || '/'
+  let safePath = ''
+  for (const character of path) {
+    const codePoint = character.codePointAt(0)
+    safePath +=
+      codePoint !== undefined && (codePoint < 0x20 || codePoint === 0x7f)
+        ? '?'
+        : character
+  }
+  return safePath.slice(0, MAX_VALIDATION_PATH_LENGTH) || '/'
 }
 
 export function formatValidationReason(type: ValueErrorType): string {

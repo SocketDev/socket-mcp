@@ -24,7 +24,7 @@ import {
   MCP_CONFIG_NAME,
   PLUGIN_MANIFEST_NAME,
 } from './requirements.mts'
-import { createZipArchive } from '../../../fleet/artifact/zip.mts'
+import { createZipArchive } from './zip.mts'
 import { isMainModule } from '../../../fleet/process/is-main-module.mts'
 import { runMain } from '../../../fleet/process/main/run.mts'
 import { isJsonRequested } from '../../../fleet/process/script-meta.mts'

@@ -2,7 +2,7 @@
 /**
  * @file `pnpm run test:fuzz` runner — the vitiate coverage-guided fuzz lane
  *   (Tier 2 of the property-and-fuzz-testing skill). Resolves the repo-root
- *   vitest binary directly (fleet `no-pm-exec-guard` bans `pnpm exec`) and runs
+ *   vitest binary directly and runs
  *   `vitest run` with `VITIATE_FUZZ=1`, letting vitest AUTO-DISCOVER the
  *   repo-root `vitest.config.mts` (which loads the `vitiatePlugin`). We must
  *   NOT pass `--config`: vitiate's supervisor re-spawns a child `vitest run`
@@ -19,16 +19,13 @@
 
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import process from 'node:process'
 
 import { isWin32 } from '@socketsecurity/lib-stable/constants/platform'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
-
-import { runMain } from '../fleet/process/main/run.mts'
-import type { ScriptMeta } from '../fleet/process/main/run.mts'
-import { isMainModule } from '../fleet/process/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -151,11 +148,13 @@ export function main(): void {
   process.exit(result.status ?? 1)
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe: 'runs coverage-guided MCP input fuzz targets',
-  help: 'Usage: pnpm run test:fuzz [target]',
-  json: 'result',
-}
-if (isMainModule(import.meta.url)) {
-  runMain(main, SCRIPT_META)
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    process.stdout.write('Usage: pnpm run test:fuzz [target]\n')
+  } else {
+    main()
+  }
 }

@@ -2,13 +2,11 @@
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from './paths.mts'
-import { isMainModule } from '../fleet/process/is-main-module.mts'
-import { runMain } from '../fleet/process/main/run.mts'
-import type { ScriptMeta } from '../fleet/process/main/run.mts'
 
 const logger = getDefaultLogger()
 
@@ -64,11 +62,13 @@ export function main(): void {
   }
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe: 'checks MCP package and manifest version agreement',
-  help: 'Usage: pnpm run build-mcpb:versions_match',
-  json: 'result',
-}
-if (isMainModule(import.meta.url)) {
-  runMain(main, SCRIPT_META)
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    process.stdout.write('Usage: pnpm run build-mcpb:versions_match\n')
+  } else {
+    main()
+  }
 }

@@ -238,6 +238,10 @@ Each tool call produces a bounded, versioned audit event. By default, the server
 
 In HTTP mode, `GET /health` returns a JSON object with `status`, `service`, `version`, and `timestamp`. The endpoint skips origin validation so a health probe can omit `Origin`.
 
+### Domain verification endpoint
+
+The OpenAI plugin portal verifies a domain by reading a token it issues. Set `SOCKET_MCP_APPS_CHALLENGE_TOKEN` to that token, and `GET /.well-known/openai-apps-challenge` returns it as `text/plain`, with no JSON envelope and no trailing newline. The endpoint answers before authentication, because the portal probe carries no credential and no `Origin` header. A deployment that sets no token returns the ordinary 404, so an unconfigured environment never reports itself as verified.
+
 ### Troubleshooting
 
 - A local stdio process exits at startup when no Socket API token is configured. Set `SOCKET_API_TOKEN` or one of its documented aliases.

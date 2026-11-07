@@ -71,6 +71,45 @@ describe('routeRequest', () => {
     expect(calls).toHaveLength(0)
   })
 
+  // The ordering these two pin is the reason /health dispatches before origin
+  // validation rather than beside the other public routes. The first test
+  // alone would pass even if that ordering were lost, because an absent
+  // Origin validates; the second proves this Origin really is rejected.
+  test('answers /health even when the origin is rejected', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await routeRequest(
+      handler,
+      plainReq({
+        url: '/health',
+        method: 'GET',
+        headers: { host: 'localhost:3000', origin: 'https://evil.example.com' },
+      }),
+      res,
+      3000,
+    )
+    expect(captured.statusCode).toBe(200)
+    expect(JSON.parse(captured.body!).status).toBe('healthy')
+    expect(calls).toHaveLength(0)
+  })
+
+  test('rejects that same origin on the MCP path', async () => {
+    const { captured, res } = makeRes()
+    const { calls, handler } = recordingMcpHandler()
+    await routeRequest(
+      handler,
+      plainReq({
+        url: '/',
+        method: 'POST',
+        headers: { host: 'localhost:3000', origin: 'https://evil.example.com' },
+      }),
+      res,
+      3000,
+    )
+    expect(captured.statusCode).toBe(403)
+    expect(calls).toHaveLength(0)
+  })
+
   test('answers 400 when the request target is not a parseable URL', async () => {
     const { captured, res } = makeRes()
     const { calls, handler } = recordingMcpHandler()
