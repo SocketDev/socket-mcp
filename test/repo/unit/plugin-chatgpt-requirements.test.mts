@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 import {
   createZipArchive,
   extractZipArchive,
-} from '../../../scripts/fleet/artifact/zip.mts'
+} from '../../../scripts/repo/plugin/chatgpt/zip.mts'
 import {
   chatgptManifestVersion,
   checkChatgptIcon,
