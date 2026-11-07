@@ -30,7 +30,7 @@ export interface DepscoreRequestOptions {
 
 // Default Socket API URL. SOCKET_DEBUG=true points at localhost for local
 // stack development; the default targets production. Both env vars resolved
-// via fleet-canonical helpers.
+// via shared helpers.
 const DEFAULT_SOCKET_API_URL = envAsBoolean(getSocketDebug())
   ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
   : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'

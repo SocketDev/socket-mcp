@@ -8,9 +8,8 @@
  *   server still answers a pre-2026 client exactly as it always did. The two
  *   SDK-backed clients in this directory cover the modern era.
  */
-import { isMainModule } from '../scripts/fleet/process/is-main-module.mts'
-import { runMain } from '../scripts/fleet/process/main/run.mts'
-import type { ScriptMeta } from '../scripts/fleet/process/main/run.mts'
+import { isMainModule, runMain } from '../scripts/repo/cli.mts'
+import type { ScriptMeta } from '../scripts/repo/cli.mts'
 import process from 'node:process'
 import readline from 'node:readline'
 

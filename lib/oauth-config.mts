@@ -97,7 +97,7 @@ export function isOauthEnabled(): boolean {
   return defaultOAuthConfig.enabled
 }
 
-// Build an OAuthConfig from the fleet-canonical env helpers. Centralizing the
+// Build an OAuthConfig from the shared environment helpers. Centralizing the
 // reads means an env-var rename / alias-table change is a single-file edit
 // upstream; socket-mcp picks it up on the next dep bump. Tests call this with
 // explicit overrides instead of mutating process.env.

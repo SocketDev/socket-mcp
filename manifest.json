@@ -33,7 +33,7 @@
     "SOCKET_API_TOKEN": {
       "type": "string",
       "title": "Socket API token",
-      "description": "API token for interacting with the Socket API. Legacy aliases (SOCKET_API_KEY, SOCKET_SECURITY_API_TOKEN, etc.) are also accepted via the fleet-canonical getSocketApiToken() helper.",
+      "description": "API token for interacting with the Socket API. Legacy aliases (SOCKET_API_KEY, SOCKET_SECURITY_API_TOKEN, etc.) are also accepted by the shared getSocketApiToken() helper.",
       "required": true,
       "sensitive": true
     }
