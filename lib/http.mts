@@ -62,6 +62,23 @@ export function assertSafeHttpUrl(
   return url
 }
 
+// Assemble a `Bearer` WWW-Authenticate value from the leading auth-params,
+// then the RFC 9728 resource_metadata URL and the RFC 6750 scope list.
+export function buildBearerChallenge(
+  parts: string[],
+  resourceMetadataUrl: string | undefined,
+  scope: string | undefined,
+): string {
+  const params = [...parts]
+  if (resourceMetadataUrl) {
+    params.push(`resource_metadata="${resourceMetadataUrl}"`)
+  }
+  if (scope) {
+    params.push(`scope="${scope}"`)
+  }
+  return params.length > 0 ? `Bearer ${params.join(', ')}` : 'Bearer'
+}
+
 // Build request headers for the JSON REST endpoints (alerts, organizations,
 // threat-feed, file-list): `accept: application/json` plus optional user-agent,
 // bearer token, and caller extra headers. Shared so the four data modules
@@ -221,6 +238,32 @@ export function writeJson(
   res.end(JSON.stringify(body))
 }
 
+// RFC 6750 §3.1: when a request carries no usable credentials at all — no
+// Authorization header, or a scheme other than Bearer — the challenge SHOULD
+// NOT carry an error code. The bare `Bearer resource_metadata=…, scope=…`
+// form is the MCP authorization spec's "authentication required" signal:
+// clients that only start sign-in for a challenge on the connect handshake
+// (initialize / tools/list) key on exactly this. The JSON body still names the
+// problem for a human reading the response.
+export function writeOAuthChallenge(
+  res: ServerResponse,
+  message: string,
+  resourceMetadataUrl?: string | undefined,
+  scope?: string | undefined,
+): void {
+  writeJson(
+    res,
+    401,
+    {
+      error: 'invalid_request',
+      error_description: message,
+    },
+    {
+      'WWW-Authenticate': buildBearerChallenge([], resourceMetadataUrl, scope),
+    },
+  )
+}
+
 // RFC 6750 §3 OAuth error responses: the JSON body carries
 // error / error_description and the WWW-Authenticate header signals the
 // realm, the optional resource_metadata URL for discovery, and the optional
@@ -235,15 +278,6 @@ export function writeOAuthError(
   resourceMetadataUrl?: string | undefined,
   scope?: string | undefined,
 ): void {
-  const parts = [`error="${errorCode}"`, `error_description="${message}"`]
-  if (resourceMetadataUrl) {
-    parts.push(`resource_metadata="${resourceMetadataUrl}"`)
-  }
-  if (scope) {
-    parts.push(`scope="${scope}"`)
-  }
-  const authenticateValue = `Bearer ${parts.join(', ')}`
-
   writeJson(
     res,
     statusCode,
@@ -251,6 +285,12 @@ export function writeOAuthError(
       error: errorCode,
       error_description: message,
     },
-    { 'WWW-Authenticate': authenticateValue },
+    {
+      'WWW-Authenticate': buildBearerChallenge(
+        [`error="${errorCode}"`, `error_description="${message}"`],
+        resourceMetadataUrl,
+        scope,
+      ),
+    },
   )
 }
