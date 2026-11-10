@@ -1,0 +1,160 @@
+#!/usr/bin/env node
+/**
+ * @file `pnpm run test:fuzz` runner — the vitiate coverage-guided fuzz lane
+ *   (Tier 2 of the property-and-fuzz-testing skill). Resolves the repo-root
+ *   vitest binary directly and runs
+ *   `vitest run` with `VITIATE_FUZZ=1`, letting vitest AUTO-DISCOVER the
+ *   repo-root `vitest.config.mts` (which loads the `vitiatePlugin`). We must
+ *   NOT pass `--config`: vitiate's supervisor re-spawns a child `vitest run`
+ *   for the coverage-guided pass without forwarding `--config`, so parent and
+ *   child have to agree via auto-discovery on the same root config (see the
+ *   header of vitest.config.mts). The `fuzz()` targets (`test/**\/*.fuzz.mts`)
+ *   are then coverage-fuzzed with mutated inputs; without `VITIATE_FUZZ` they
+ *   replay the committed seed corpus as fast regression checks. Budget via
+ *   `FUZZ_TIME_MS` (default 15s; CI raises it). Exits with vitest's status —
+ *   vitest reports a crash/hang as a failed test, which sidesteps the vitiate
+ *   CLI exit-code nuances. Extra argv is forwarded (e.g. a single `*.fuzz.mts`
+ *   path).
+ */
+
+import os from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import process from 'node:process'
+
+import { isWin32 } from '@socketsecurity/lib-stable/constants/platform'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
+
+const logger = getDefaultLogger()
+
+// scripts/repo/fuzz.mts → repo root is two levels up.
+const repoRoot = path.resolve(import.meta.dirname, '..', '..')
+const VITEST_BIN = path.join(
+  repoRoot,
+  'node_modules',
+  '.bin',
+  isWin32() ? 'vitest.cmd' : 'vitest',
+)
+
+/**
+ * Parse `ipcs -ma` output into shm rows this sweep can judge. Exported for
+ * unit tests. macOS columns: T ID KEY MODE OWNER GROUP CREATOR CGROUP NATTCH
+ * SEGSZ CPID LPID …; Linux (util-linux) uses a different layout, but this
+ * sweep only runs on darwin, where the leak occurs.
+ */
+export function parseShmRows(
+  ipcsOutput: string,
+): Array<{ cpid: number; nattch: number; owner: string; shmid: number }> {
+  const rows: Array<{
+    cpid: number
+    nattch: number
+    owner: string
+    shmid: number
+  }> = []
+  const lines = ipcsOutput.split(/\r?\n/)
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!
+    const cols = line.trim().split(/\s+/u)
+    // Data rows start with the type marker `m` (shared memory).
+    if (cols[0] !== 'm' || cols.length < 11) {
+      continue
+    }
+    const shmid = Number(cols[1])
+    const nattch = Number(cols[8])
+    const cpid = Number(cols[10])
+    if (!Number.isInteger(shmid) || !Number.isInteger(nattch)) {
+      continue
+    }
+    rows.push({ cpid, nattch, owner: cols[4] ?? '', shmid })
+  }
+  return rows
+}
+
+function pidIsAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false
+  }
+  try {
+    // Signal 0 probes existence without sending anything.
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Sweep orphaned SysV shared-memory segments before the fuzz run. vitiate
+ * 0.3.1 leaks one control segment per fuzz-target run on macOS (never
+ * IPC_RMID'd); the default kern.sysv.shmmni=32 caps the table at ~32 runs,
+ * after which every run dies with "shmem allocation failed … check OS limits
+ * (shmall, shmmax)". A segment is an orphan only when it is OURS, has zero
+ * attachments, and its creator PID is dead — live fuzz runs are untouched.
+ */
+export function sweepOrphanedShmSegments(): void {
+  if (process.platform !== 'darwin') {
+    return
+  }
+  const listing = spawnSync('ipcs', ['-ma'], {
+    stdio: ['ignore', 'pipe', 'ignore'] satisfies SpawnSyncOptions['stdio'],
+  })
+  if (listing.status !== 0 || typeof listing.stdout !== 'string') {
+    return
+  }
+  const me = os.userInfo().username
+  let swept = 0
+  for (const row of parseShmRows(listing.stdout)) {
+    if (row.owner !== me || row.nattch !== 0 || pidIsAlive(row.cpid)) {
+      continue
+    }
+    const rm = spawnSync('ipcrm', ['-m', String(row.shmid)], {
+      stdio: 'ignore',
+    })
+    if (rm.status === 0) {
+      swept += 1
+    }
+  }
+  if (swept > 0) {
+    logger.log(
+      `fuzz: swept ${swept} orphaned SysV shm segment(s) (vitiate 0.3.1 leaks one per run; macOS caps the table at kern.sysv.shmmni=32).`,
+    )
+  }
+}
+
+export function main(): void {
+  sweepOrphanedShmSegments()
+
+  // Sync-required: top-level CLI runner, exits with the child's code.
+  // oxlint-disable-next-line socket/prefer-async-spawn -- sync CLI runner
+  const environment: NodeJS.ProcessEnv = { ...process.env, VITIATE_FUZZ: '1' }
+  Object.setPrototypeOf(environment, null)
+  const spawnOptions: SpawnSyncOptions = {
+    cwd: repoRoot,
+    env: environment,
+    stdio: 'inherit',
+  }
+  Object.setPrototypeOf(spawnOptions, null)
+  const result = spawnSync(
+    VITEST_BIN,
+    // No `--config`: vitest auto-discovers the repo-root vitest.config.mts, which
+    // is the only config both this parent run and vitiate's re-spawned child agree
+    // on (the child never receives --config). See vitest.config.mts header.
+    ['run', ...process.argv.slice(2)],
+    spawnOptions,
+  )
+
+  process.exit(result.status ?? 1)
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    process.stdout.write('Usage: pnpm run test:fuzz [target]\n')
+  } else {
+    main()
+  }
+}

@@ -1,0 +1,15 @@
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
+import { expect, test } from 'vitest'
+
+import { REPO_ROOT } from '../../../scripts/repo/paths.mts'
+
+test('MCP tool schemas match the reviewed contract', async () => {
+  const result = await spawn('pnpm', ['run', 'mcp:schema:check'], {
+    cwd: REPO_ROOT,
+    stdio: 'pipe',
+    shell: process.platform === 'win32',
+    throws: false,
+    localTimeout: 15_000,
+  })
+  expect(result.code, `${result.stdout}\n${result.stderr}`).toBe(0)
+})

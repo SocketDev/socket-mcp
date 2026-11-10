@@ -1,0 +1,122 @@
+{
+  "name": "@socketsecurity/mcp",
+  "version": "0.3.0",
+  "description": "Socket MCP server for scanning dependencies",
+  "keywords": [],
+  "homepage": "https://github.com/SocketDev/socket-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/SocketDev/socket-mcp/issues"
+  },
+  "author": "Alexandros Kapravelos",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SocketDev/socket-mcp.git"
+  },
+  "bin": {
+    "socket-mcp": "dist/index.cjs"
+  },
+  "files": [
+    "CHANGELOG.md",
+    "dist/index.cjs",
+    "dist/socket-gate",
+    "package.json"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "node scripts/repo/build.mts",
+    "build-mcpb": "pnpm run build && pnpm run build-mcpb:versions_match && pnpm run build-mcpb:validate && pnpm run build-mcpb:ensure-deps && pnpm run build-mcpb:mcpb-pack",
+    "build-mcpb:ensure-deps": "npm install --production --ignore-scripts",
+    "build-mcpb:mcpb-pack": "mcpb pack ./",
+    "build-mcpb:validate": "mcpb validate ./",
+    "build-mcpb:versions_match": "node scripts/repo/check-versions.mts",
+    "build:bundle": "node scripts/repo/build.mts",
+    "build:permissions": "chmod +x ./dist/index.cjs",
+    "repo:check": "pnpm run repo:type && pnpm run build",
+    "repo:type": "tsc --noEmit -p tsconfig.json",
+    "repo:scan": "node scripts/repo/scan.mts",
+    "clean": "node scripts/repo/clean.mts",
+    "cover": "vitest run --coverage --config .config/repo/vitest.config.mts",
+    "debug-http": "node ./mock-client/http-client.mts",
+    "debug-sdk": "node ./mock-client/stdio-client.mts",
+    "debug-stdio": "node ./mock-client/debug-client.mts",
+    "lint": "oxlint --config .config/repo/oxlintrc.json",
+    "fmt": "oxfmt --config .config/repo/oxfmtrc.json --write",
+    "fmt:check": "oxfmt --config .config/repo/oxfmtrc.json --check",
+    "fix": "pnpm run fmt && pnpm run lint --fix && pnpm run fmt",
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run repo:check && pnpm run build-mcpb:versions_match && pnpm run repo:scan",
+    "mcp:schema:check": "mcp-tada check --command node --arg index.mts --env SOCKET_API_TOKEN=YOUR_API_TOKEN --env MCP_HTTP_MODE=false --timeout 5000 --against test/repo/integration/server-schema.golden.json",
+    "mcp:schema:update": "mcp-tada introspect --command node --arg index.mts --env SOCKET_API_TOKEN=YOUR_API_TOKEN --env MCP_HTTP_MODE=false --timeout 5000 --json --out test/repo/integration/server-schema.golden.json && pnpm run fmt test/repo/integration/server-schema.golden.json",
+    "plugin:chatgpt:pack": "node scripts/repo/plugin/chatgpt/pack.mts",
+    "postpublish": "pnpm run clean",
+    "prepare": "node scripts/repo/install-git-hooks.mts",
+    "prepublishOnly": "node -e \"if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Publish through the npm workflow')\"",
+    "publish:npm": "node scripts/repo/npm/dispatch.mts",
+    "approve:npm": "node scripts/repo/npm/approve.mts",
+    "server-http": "pnpm run build:bundle && MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
+    "server-http:debug": "pnpm run build:bundle && SOCKET_DEBUG=1 MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
+    "server-stdio": "pnpm run build:bundle && SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
+    "server-stdio:debug": "pnpm run build:bundle && SOCKET_DEBUG=1 SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
+    "test": "vitest run --config .config/repo/vitest.config.mts",
+    "test:e2e": "vitest run --config .config/repo/vitest.e2e.config.mts",
+    "test:fuzz": "node scripts/repo/fuzz.mts",
+    "test:tsc": "tsgo --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "catalog:",
+    "@modelcontextprotocol/client": "catalog:",
+    "@modelcontextprotocol/core": "catalog:",
+    "@modelcontextprotocol/node": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
+    "@sinclair/typebox": "catalog:",
+    "@socketregistry/packageurl-js": "catalog:",
+    "@socketregistry/packageurl-js-stable": "catalog:",
+    "@socketsecurity/lib": "catalog:",
+    "@socketsecurity/lib-stable": "catalog:",
+    "@socketsecurity/sdk": "catalog:",
+    "@socketsecurity/sdk-stable": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@vitiate/core": "catalog:",
+    "fast-check": "catalog:",
+    "mcp-tada": "catalog:",
+    "nock": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vitiate": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": [
+      {
+        "name": "npm",
+        "version": ">=12.2.0",
+        "onFail": "error"
+      },
+      {
+        "name": "pnpm",
+        "version": ">=12.12.0",
+        "onFail": "error"
+      }
+    ]
+  },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=12.2.0",
+    "pnpm": ">=12.12.0"
+  },
+  "allowScripts": {
+    "cpu-features": false,
+    "esbuild": true,
+    "protobufjs": false,
+    "puppeteer": false,
+    "ssh2": false
+  }
+}

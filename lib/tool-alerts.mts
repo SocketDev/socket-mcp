@@ -1,0 +1,147 @@
+import { Type } from '@sinclair/typebox'
+
+import { errorMessage } from '@socketsecurity/lib/errors/message'
+
+import { fetchAlerts } from './alerts.mts'
+import { logger } from './logger.mts'
+import {
+  authRequiredResult,
+  resolveScopedAuthToken,
+  SOCKET_API_BASE_URL,
+} from './server.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
+import { resolveMcpUserAgent } from './user-agent.mts'
+import { defineToolSchema } from './tool-validation.mts'
+import { markUpstreamHttpOutcome } from './tool-outcome.mts'
+
+export interface AlertsArgs {
+  org_slug: string
+  severity?: string | undefined
+  status?: 'open' | 'cleared' | undefined
+  category?: string | undefined
+  artifact_type?: string | undefined
+  artifact_name?: string | undefined
+  alert_type?: string | undefined
+  repo_slug?: string | undefined
+  per_page?: number | undefined
+  cursor?: string | undefined
+}
+
+const alertsSchema = defineToolSchema(
+  Type.Object(
+    {
+      org_slug: Type.String({
+        description:
+          'Organization slug, e.g. "my-org" (use the `organizations` tool to discover this)',
+      }),
+      severity: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated severities to include: subset of low,medium,high,critical',
+        }),
+      ),
+      status: Type.Optional(
+        Type.Union([Type.Literal('open'), Type.Literal('cleared')], {
+          description: 'Filter to open or cleared alerts',
+        }),
+      ),
+      category: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated categories: subset of supplyChainRisk,maintenance,quality,license,vulnerability',
+        }),
+      ),
+      artifact_type: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated ecosystems: subset of npm,pypi,gem,maven,golang,nuget,cargo,chrome,openvsx',
+        }),
+      ),
+      artifact_name: Type.Optional(
+        Type.String({ description: 'Filter to a specific package name' }),
+      ),
+      alert_type: Type.Optional(
+        Type.String({
+          description:
+            'Comma-separated Socket alert types (e.g. "usesEval,unmaintained")',
+        }),
+      ),
+      repo_slug: Type.Optional(
+        Type.String({ description: 'Comma-separated repo slugs' }),
+      ),
+      per_page: Type.Optional(
+        Type.Integer({
+          minimum: 1,
+          maximum: 5000,
+          description: 'Results per page (default 100, max 5000)',
+        }),
+      ),
+      cursor: Type.Optional(
+        Type.String({
+          description:
+            "Pagination cursor — the `endCursor` from a previous response's metadata",
+        }),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+export function defineAlertsTool(): ValidatedToolSpec {
+  return {
+    name: 'alerts',
+    title: 'List Alerts Tool',
+    description:
+      "List the latest security alerts for a Socket organization with the `alerts` tool. Requires `org_slug` — call the `organizations` tool first if you don't have it. Supports filtering by severity, category, status, artifact type/name, alert type, and repo. Use this to surface supply-chain, vulnerability, quality, license, and maintenance issues across the org's monitored packages. Results are paginated — pass the previous response's `endCursor` as `cursor` to fetch the next page.",
+    ...alertsSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    async handler(rawArgs, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
+      const args = rawArgs as unknown as AlertsArgs
+      logger.info({ tool: 'alerts' }, 'tool invoked')
+      const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
+      if (!accessToken) {
+        logger.error({ tool: 'alerts' }, 'authentication required')
+        return authRequiredResult()
+      }
+      try {
+        const data = await fetchAlerts({
+          baseUrl: SOCKET_API_BASE_URL,
+          orgSlug: args.org_slug,
+          userAgent: resolveMcpUserAgent(extra.userAgent),
+          authToken: accessToken,
+          filters: {
+            ...(args.severity ? { severity: args.severity } : {}),
+            ...(args.status ? { status: args.status } : {}),
+            ...(args.category ? { category: args.category } : {}),
+            ...(args.artifact_type ? { artifactType: args.artifact_type } : {}),
+            ...(args.artifact_name ? { artifactName: args.artifact_name } : {}),
+            ...(args.alert_type ? { alertType: args.alert_type } : {}),
+            ...(args.repo_slug ? { repoSlug: args.repo_slug } : {}),
+            perPage: args.per_page ?? 100,
+            ...(args.cursor ? { cursor: args.cursor } : {}),
+          },
+        })
+        return {
+          __proto__: null,
+          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        }
+      } catch (e) {
+        const errorMsg = `Error fetching alerts for ${args.org_slug}: ${errorMessage(e)}`
+        logger.error({ tool: 'alerts' }, 'upstream request failed')
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
+      }
+    },
+  }
+}

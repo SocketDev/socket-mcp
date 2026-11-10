@@ -1,0 +1,64 @@
+import { Type } from '@sinclair/typebox'
+
+import { errorMessage } from '@socketsecurity/lib/errors/message'
+
+import { logger } from './logger.mts'
+import { fetchOrganizations } from './organizations.mts'
+import {
+  authRequiredResult,
+  resolveScopedAuthToken,
+  SOCKET_API_BASE_URL,
+} from './server.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
+import { resolveMcpUserAgent } from './user-agent.mts'
+import { defineToolSchema } from './tool-validation.mts'
+import { markUpstreamHttpOutcome } from './tool-outcome.mts'
+
+const organizationsSchema = defineToolSchema(
+  Type.Object({}, { additionalProperties: false }),
+)
+
+export function defineOrganizationsTool(): ValidatedToolSpec {
+  return {
+    name: 'organizations',
+    title: 'List Organizations Tool',
+    description:
+      'List the Socket organizations the authenticated user belongs to with the `organizations` tool. Use this to discover the `org_slug` values needed by other org-scoped tools (e.g. `alerts`, `threat_feed`), or when the user asks which organizations they have access to.',
+    ...organizationsSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    async handler(_args, extra) {
+      logger.info({ tool: 'organizations' }, 'tool invoked')
+      const accessToken = resolveScopedAuthToken(extra.authInfo?.token)
+      if (!accessToken) {
+        logger.error({ tool: 'organizations' }, 'authentication required')
+        return authRequiredResult()
+      }
+      try {
+        const data = await fetchOrganizations({
+          baseUrl: SOCKET_API_BASE_URL,
+          userAgent: resolveMcpUserAgent(extra.userAgent),
+          authToken: accessToken,
+        })
+        return {
+          __proto__: null,
+          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        }
+      } catch (e) {
+        const errorMsg = `Error fetching organizations: ${errorMessage(e)}`
+        logger.error({ tool: 'organizations' }, 'upstream request failed')
+        return markUpstreamHttpOutcome(
+          {
+            __proto__: null,
+            content: [{ type: 'text', text: errorMsg }],
+            isError: true,
+          },
+          e,
+        )
+      }
+    },
+  }
+}

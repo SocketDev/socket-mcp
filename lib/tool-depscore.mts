@@ -1,0 +1,315 @@
+import { Type } from '@sinclair/typebox'
+
+import { getSocketDebug } from '@socketsecurity/lib/env/socket'
+import { envAsBoolean } from '@socketsecurity/lib-stable/env/boolean'
+import { httpRequest } from '@socketsecurity/lib/http-request/request'
+
+import { deduplicateArtifacts } from './artifacts.mts'
+import { getSocketApiUrl } from './env.mts'
+import { buildSocketHeaders } from './http.mts'
+import { logger } from './logger.mts'
+import { buildPurl } from './purl.mts'
+import { markToolOutcome } from './tool-outcome.mts'
+import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.mts'
+import type { ToolErrorResult, ToolOkResult } from './server.mts'
+import { buildSocketReportUrl } from './socket-url.mts'
+import { defineToolSchema } from './tool-validation.mts'
+import type { ValidatedToolSpec } from './tool-types.mts'
+
+export interface DepscorePackageInput {
+  ecosystem?: string | undefined
+  depname: string
+  version?: string | undefined
+}
+
+export interface DepscoreRequestOptions {
+  accessTokenFromAuth?: string | undefined
+  platform?: string | undefined
+  userAgent?: string | undefined
+}
+
+// Default Socket API URL. SOCKET_DEBUG=true points at localhost for local
+// stack development; the default targets production. Both env vars resolved
+// via shared helpers.
+const DEFAULT_SOCKET_API_URL = envAsBoolean(getSocketDebug())
+  ? 'http://localhost:8866/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
+  : 'https://api.socket.dev/v0/purl?alerts=false&compact=false&fixable=false&licenseattrib=false&licensedetails=false'
+
+const SOCKET_API_URL = getSocketApiUrl() || DEFAULT_SOCKET_API_URL
+
+// Single shared JSON Schema (via TypeBox) reused by both stdio and HTTP
+// modes. TypeBox `Type.Object` returns native JSON Schema — the SDK ships
+// it verbatim to clients as `Tool.inputSchema`.
+const depscoreSchema = defineToolSchema(
+  Type.Object(
+    {
+      packages: Type.Array(
+        Type.Object(
+          {
+            ecosystem: Type.Optional(
+              Type.String({
+                description:
+                  'Package ecosystem (PURL type): npm (JS/TS), pypi (Python), golang (Go), maven (Java/Scala/Kotlin), gem (Ruby), nuget (.NET), cargo (Rust), composer (PHP; "packagist" also accepted). See https://docs.socket.dev/docs/language-support',
+                default: 'npm',
+              }),
+            ),
+            depname: Type.String({ description: 'The name of the dependency' }),
+            version: Type.Optional(
+              Type.String({
+                description:
+                  "The version of the dependency, use 'unknown' if not known",
+                default: 'unknown',
+              }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        { description: 'Array of packages to check' },
+      ),
+      platform: Type.Optional(
+        Type.String({
+          description:
+            "Optional OS-architecture hint (e.g., 'linux-x64', 'darwin-arm64', 'win32-x64'). Used to select the most relevant artifact when a package has platform-specific builds.",
+        }),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+)
+
+// Convert the depscore input list into PURLs ready for the components payload,
+// stripping semver range prefixes from versions.
+export function buildPackageComponents(
+  packages: DepscorePackageInput[],
+): Array<{ purl: string }> {
+  return packages.map(pkg => {
+    // Strip ^ and ~ range prefixes — depscore is a single-version lookup.
+    const cleanedVersion = (pkg.version ?? 'unknown').replace(/[\^~]/g, '')
+    const ecosystem = pkg.ecosystem ?? 'npm'
+    const purl = buildPurl(ecosystem, pkg.depname, cleanedVersion)
+    if (
+      cleanedVersion !== '1.0.0' &&
+      cleanedVersion !== 'unknown' &&
+      cleanedVersion
+    ) {
+      logger.info({ tool: 'depscore' }, 'using explicit package version')
+    }
+    return { __proto__: null, purl }
+  })
+}
+
+export function defineDepscoreTool(): ValidatedToolSpec {
+  return {
+    name: 'depscore',
+    title: 'Dependency Score Tool',
+    description:
+      "Look up Socket scores when evaluating or adding dependencies. Returns available 0-100 supply chain, quality, maintenance, vulnerability, and license scores, plus report links. Lower scores mean higher risk. Use exact versions; ^ and ~ are stripped. Use 'unknown' to let Socket resolve a version, which may differ from the installed one. Missing scores are not a safety verdict. Scores do not list individual alerts.",
+    ...depscoreSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    handler(args, extra) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
+      const packages = args['packages'] as DepscorePackageInput[]
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK hands tool args over as an untyped record; the tool's inputSchema constrains the shape and the handler validates fields at runtime.
+      const platform = args['platform'] as string | undefined
+      return handleDepscoreRequest(packages, {
+        platform,
+        accessTokenFromAuth: extra.authInfo?.token,
+        userAgent: extra.userAgent,
+      })
+    },
+  }
+}
+
+// Render `Object.entries(score)` into a human-readable "k1: v1, k2: v2"
+// summary. Sub-1 floats render as percentages (0–100); values >1 render raw so
+// non-percentage metrics aren't distorted.
+export function formatScoreEntries(score: Record<string, unknown>): string {
+  return Object.entries(score)
+    .filter(([key]) => key !== 'overall' && key !== 'uuid')
+    .map(([key, value]) => {
+      const numValue = Number(value)
+      if (!Number.isFinite(numValue)) {
+        // A non-numeric score field would render the literal "NaN";
+        // pass the raw value through instead (JSON-encoded when non-string
+        // so objects can't collapse to "[object Object]").
+        return `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
+      }
+      const displayValue = numValue <= 1 ? Math.round(numValue * 100) : numValue
+      return `${key}: ${displayValue}`
+    })
+    .join(', ')
+}
+
+// Compose a "pkg:.../...@..." string + per-key score summary used by the
+// depscore output. `score.overall` being defined gates whether we have real
+// scores to render.
+export function formatScoreLine(jsonData: Record<string, unknown>): string {
+  // The API returns these purl parts as strings; anything else falls back so
+  // the template can't stringify an object into "[object Object]".
+  const nsRaw = jsonData['namespace']
+  const ns = typeof nsRaw === 'string' && nsRaw ? `${nsRaw}/` : ''
+  const typeRaw = jsonData['type']
+  const type = typeof typeRaw === 'string' && typeRaw ? typeRaw : 'unknown'
+  const nameRaw = jsonData['name']
+  const name = typeof nameRaw === 'string' && nameRaw ? nameRaw : 'unknown'
+  const versionRaw = jsonData['version']
+  const version =
+    typeof versionRaw === 'string' && versionRaw ? versionRaw : 'unknown'
+  const purl = `pkg:${type}/${ns}${name}@${version}`
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
+  const score = jsonData['score'] as Record<string, unknown> | undefined
+  if (score && score['overall'] !== undefined) {
+    const reportUrl = buildSocketReportUrl(jsonData)
+    return `${purl}: ${formatScoreEntries(score)}\n  Report: ${reportUrl}`
+  }
+  return `${purl}: No score found`
+}
+
+export async function handleDepscore(
+  packages: DepscorePackageInput[],
+  platform: string | undefined,
+  accessTokenFromAuth: string | undefined,
+): Promise<ToolOkResult | ToolErrorResult> {
+  return handleDepscoreRequest(packages, { platform, accessTokenFromAuth })
+}
+
+export async function handleDepscoreRequest(
+  packages: DepscorePackageInput[],
+  config: DepscoreRequestOptions,
+): Promise<ToolOkResult | ToolErrorResult> {
+  config = { __proto__: null, ...config } as DepscoreRequestOptions
+  const { accessTokenFromAuth, platform, userAgent } = config
+  logger.info(
+    { tool: 'depscore', packageCount: Math.min(packages.length, 10_000) },
+    'request received',
+  )
+  const accessToken = resolveAuthToken(accessTokenFromAuth)
+  if (!accessToken) {
+    logger.error({ tool: 'depscore' }, 'authentication required')
+    return markToolOutcome(errorResult(AUTH_REQUIRED_MSG), 'denied')
+  }
+
+  const components = buildPackageComponents(packages)
+
+  let response
+  try {
+    response = await httpRequest(SOCKET_API_URL, {
+      method: 'POST',
+      headers: buildSocketHeaders(accessToken, userAgent),
+      body: JSON.stringify({ components }),
+    })
+  } catch {
+    logger.error({ tool: 'depscore' }, 'upstream request failed')
+    return errorResult('Error connecting to Socket API')
+  }
+
+  const responseText = response.text()
+
+  if (response.status === 401) {
+    const errorMsg = `Socket authentication failed [401]. Re-authenticate and retry. ${responseText}`
+    logger.error({ tool: 'depscore', status: 401 }, 'upstream request denied')
+    return markToolOutcome(errorResult(errorMsg), 'denied')
+  }
+
+  if (response.status === 403) {
+    const errorMsg = `Socket denied access [403]. Re-authenticate with the correct organization or repository permissions and retry. ${responseText}`
+    logger.error({ tool: 'depscore', status: 403 }, 'upstream request denied')
+    return markToolOutcome(errorResult(errorMsg), 'denied')
+  }
+
+  if (response.status !== 200) {
+    const errorMsg = `Error processing packages: [${response.status}] ${responseText}`
+    logger.error(
+      { tool: 'depscore', status: response.status },
+      'upstream request failed',
+    )
+    return errorResult(errorMsg)
+  }
+
+  if (!responseText.trim()) {
+    const errorMsg = 'No packages were found.'
+    logger.error({ tool: 'depscore' }, 'empty upstream response')
+    return errorResult(errorMsg)
+  }
+
+  try {
+    const contentTypeValue = response.headers['content-type'] || ''
+    const isNdjson = contentTypeValue.includes('x-ndjson')
+
+    const parseResult = isNdjson
+      ? parseNdjsonPackageBody(responseText, platform)
+      : parseSinglePackageBody(responseText)
+
+    if (!Array.isArray(parseResult)) {
+      return errorResult(parseResult.error)
+    }
+
+    // Both parsers yield at least one line for a body that reached here:
+    // the NDJSON parser returns an error object when no document parsed, and
+    // the single-document parser always formats exactly one line.
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Dependency scores:\n${parseResult.join('\n')}`,
+        },
+      ],
+    }
+  } catch {
+    logger.error({ tool: 'depscore' }, 'response parse failed')
+    return errorResult('Error parsing response from Socket API')
+  }
+}
+
+// Parse an NDJSON response body — one JSON document per line — into result
+// lines, dropping `_type`-tagged control frames and running the platform-aware
+// artifact deduplication before formatting.
+export function parseNdjsonPackageBody(
+  responseText: string,
+  platform: string | undefined,
+): string[] | { error: string } {
+  // Parse line-by-line so one malformed line doesn't discard the whole
+  // batch — NDJSON is line-oriented, and a truncated/garbage line is skipped
+  // (logged) rather than thrown.
+  const jsonLines: Array<Record<string, unknown>> = []
+  const lines = responseText.split(/\r?\n/)
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const line = lines[i]!.trim()
+    if (!line) {
+      continue
+    }
+    let obj: Record<string, unknown>
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
+      obj = JSON.parse(line) as Record<string, unknown>
+    } catch {
+      logger.error({ tool: 'depscore' }, 'skipping malformed NDJSON line')
+      continue
+    }
+    if (!obj['_type']) {
+      jsonLines.push(obj)
+    }
+  }
+
+  if (!jsonLines.length) {
+    return { error: 'No valid JSON objects found in NDJSON response' }
+  }
+
+  const deduplicated = deduplicateArtifacts(jsonLines, platform)
+  const results: string[] = []
+  for (let i = 0, { length } = deduplicated; i < length; i += 1) {
+    results.push(formatScoreLine(deduplicated[i]!))
+  }
+  return results
+}
+
+// Parse a non-NDJSON response (single JSON document) into one result line.
+export function parseSinglePackageBody(responseText: string): string[] {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; the asserted record type is the loosest object view and every field read is type-guarded at use.
+  const jsonData = JSON.parse(responseText) as Record<string, unknown>
+  return [formatScoreLine(jsonData)]
+}

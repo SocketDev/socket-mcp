@@ -1,0 +1,275 @@
+packages:
+  - .config/repo/oxlint-plugin/*
+enableGlobalVirtualStore: true
+allowBuilds:
+  "@anthropic-ai/claude-code": false
+  cpu-features: false
+  protobufjs: false
+  puppeteer: false
+  ssh2: false
+  "@socketsecurity/sdk": false
+  "@swc/core": true
+  esbuild: true
+autoInstallPeers: true
+blockExoticSubdeps: true
+catalog:
+  "@modelcontextprotocol/client": 2.3.1
+  "@modelcontextprotocol/core": 2.0.0
+  "@modelcontextprotocol/node": 2.0.0
+  "@modelcontextprotocol/server": 2.0.0
+  "@mdn/browser-compat-data": 8.1.6
+  "@ultrathink/acorn.rs.wasm": 0.2.0
+  ata-validator: 1.56.0
+  "@sinclair/typebox": 0.34.52
+  fallow: 3.33.1
+  mcp-tada: 0.5.0
+  tsrs: 0.18.0-ts7.1.0-dev.20260929
+  typebox: 1.3.37
+  "@socketregistry/packageurl-js": 1.7.0
+  "@socketregistry/packageurl-js-stable": npm:@socketregistry/packageurl-js@1.7.0
+  "@socketsecurity/lib": 7.2.0
+  "@socketsecurity/lib-stable": npm:@socketsecurity/lib@7.2.0
+  "@socketsecurity/registry": 2.0.5
+  "@socketsecurity/sdk": 4.3.0
+  "@socketsecurity/sdk-stable": npm:@socketsecurity/sdk@4.3.0
+  "@types/mdast": 4.0.4
+  "@types/node": 26.6.5
+  "@types/semver": 7.8.0
+  "@types/shell-quote": 1.7.5
+  fast-check: 4.10.2
+  magic-string: 1.4.3
+  markdownlint-cli2: 0.23.3
+  mdast-util-from-markdown: 2.1.0
+  mdast-util-gfm: 3.1.0
+  mdast-util-to-markdown: 2.2.0
+  micromark: 4.0.3
+  micromark-extension-gfm: 3.0.0
+  neosanitize: 0.5.0
+  nock: 14.0.17
+  npm-high-impact: 1.13.0
+  oxfmt: 0.74.0
+  oxlint: 1.89.0
+  oxlint-tsgolint: 7.0.2004
+  parse5: 8.0.1
+  playwright-core: 1.64.1
+  portless: 0.15.8
+  regjsparser: 0.13.4
+  rolldown: 1.2.15
+  semver: 7.8.5
+  shell-quote: 1.12.0
+  taze: 21.3.0
+  typescript: 7.1.0-dev.20261015.1
+  vitest: 5.0.5
+  "@vitest/coverage-v8": 5.0.5
+  "@bcoe/v8-coverage": 1.0.2
+  ast-v8-to-istanbul: 1.0.7
+  "@vitest/ui": 5.0.5
+  c8: 12.0.0
+  svgo: 4.1.0
+  vite: 8.3.4
+  vitiate: 0.3.1
+  "@vitiate/core": 0.3.1
+  "@anthropic-ai/mcpb": 1.2.0
+  "@typescript/native-preview": 7.0.0-dev.20260510.1
+  untracked: 1.6.7
+  yaml: 2.9.1
+enablePrePostScripts: true
+overrides:
+  "@sinclair/typebox": "catalog:"
+  "@socketregistry/packageurl-js": "catalog:"
+  "@socketsecurity/lib": "catalog:"
+  "@socketsecurity/registry": "catalog:"
+  "@socketsecurity/sdk": "catalog:"
+  "@swc/core": 1.16.1
+  "@vitiate/core@0.3.1>@swc/core": 1.15.41
+  brace-expansion@>=4: 5.0.12
+  chalk@>=5: 5.6.2
+  es-define-property: npm:@socketregistry/es-define-property@1.0.7
+  es-set-tostringtag: npm:@socketregistry/es-set-tostringtag@1.0.10
+  function-bind: npm:@socketregistry/function-bind@1.0.7
+  glob: 13.0.6
+  gopd: npm:@socketregistry/gopd@1.0.7
+  has-symbols: npm:@socketregistry/has-symbols@1.0.7
+  has-tostringtag: npm:@socketregistry/has-tostringtag@1.0.7
+  hasown: npm:@socketregistry/hasown@1.0.7
+  iconv-lite: 0.7.3
+  isexe@>=3: 4.0.0
+  js-yaml@>=5.0.0 <5.2.2: 5.4.3
+  lru-cache@>=10: 11.5.3
+  magic-string: 1.4.3
+  mime-db: 1.54.0
+  mime-types@>=3: 3.0.2
+  minimatch@>=3: 10.2.6
+  minipass@>=4: 7.1.3
+  oxlint-tsgolint: npm:@maschwenk/tsrslint@0.1.5
+  postcss@>=8: 8.5.30
+  safe-buffer: npm:@socketregistry/safe-buffer@1.0.9
+  safer-buffer: npm:@socketregistry/safer-buffer@1.0.10
+  semver@>=5.0.0 <7.6.0: 7.8.5
+  side-channel: npm:@socketregistry/side-channel@1.0.10
+  ssri@>=12: 13.0.1
+  string-width@>=5: 8.3.0
+  tinyexec: 1.3.1
+  typebox: "catalog:"
+  undici@<6: 6.28.0
+  update-notifier@>=4.0.0: 7.3.1
+  uuid: 11.1.1
+  which: 7.0.0
+  wrap-ansi@>=8: 9.0.2
+  yaml@2: 2.9.1
+  "@grpc/proto-loader": 0.8.1
+  "@hono/node-server": 1.19.17
+  "@types/unist@2": 3.0.3
+  ansi-regex: 6.3.0
+  color-convert: 2.0.1
+  commander: 11.1.0
+  content-type: 2.1.0
+  css-tree: 3.2.1
+  fast-uri: 3.1.8
+  hono: 4.13.8
+  ip-address: 10.7.2
+  is-interactive: npm:@socketregistry/is-interactive@1.0.6
+  is-unicode-supported: npm:@socketregistry/is-unicode-supported@1.0.5
+  json-stable-stringify: npm:@socketregistry/json-stable-stringify@1.0.14
+  markdown-it: 14.3.2
+  node-forge: 1.4.0
+  path-to-regexp: 8.4.2
+  picomatch: 4.0.7
+  protobufjs: 7.6.6
+  qs: 6.16.0
+  rolldown: "catalog:"
+  sharp: 0.35.4
+  shell-quote: 1.10.0
+  string-width: 8.2.2
+  strip-ansi: 7.2.0
+  tmp: 0.2.7
+  vite: "catalog:"
+  which@>=4: 7.0.0
+  zod: 3.25.76
+  zod-to-json-schema: 3.25.2
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "@socketoverride/*"
+  - "@socketregistry/*"
+  - "@socketsecurity/*"
+  - sfw
+  - socket
+  - "@stuie/*"
+  - "@ultrathink/*"
+  - "@sdxgen/*"
+  - sdxgen
+  - "@abitious/*"
+  - "@decmpfs/*"
+  - "@node-smol/*"
+  - sockeye
+  - sfw
+  - socket
+  - sdxgen
+  - sockeye
+  - "@ata-validator/native-darwin-arm64@1.56.0"
+  - "@ata-validator/native-darwin-x64@1.56.0"
+  - "@ata-validator/native-linux-arm64-gnu@1.56.0"
+  - "@ata-validator/native-linux-arm64-musl@1.56.0"
+  - "@ata-validator/native-linux-x64-gnu@1.56.0"
+  - "@ata-validator/native-linux-x64-musl@1.56.0"
+  - "@ata-validator/native-win32-x64@1.56.0"
+  - "@motherload/core@0.1.0"
+  - "@motherload/csv@0.1.0"
+  - "@motherload/env@0.1.0"
+  - "@motherload/json5@0.1.0"
+  - "@motherload/jsonc@0.1.0"
+  - "@motherload/md@0.1.0"
+  - "@motherload/toml@0.1.0"
+  - "@motherload/txt@0.1.0"
+  - "@motherload/yaml@0.1.0"
+  - "@oxc-project/types@0.155.0"
+  - "@oxfmt/binding-android-arm-eabi@0.74.0"
+  - "@oxfmt/binding-android-arm64@0.74.0"
+  - "@oxfmt/binding-darwin-arm64@0.74.0"
+  - "@oxfmt/binding-darwin-x64@0.74.0"
+  - "@oxfmt/binding-freebsd-x64@0.74.0"
+  - "@oxfmt/binding-linux-arm-gnueabihf@0.74.0"
+  - "@oxfmt/binding-linux-arm-musleabihf@0.74.0"
+  - "@oxfmt/binding-linux-arm64-gnu@0.74.0"
+  - "@oxfmt/binding-linux-arm64-musl@0.74.0"
+  - "@oxfmt/binding-linux-ppc64-gnu@0.74.0"
+  - "@oxfmt/binding-linux-riscv64-gnu@0.74.0"
+  - "@oxfmt/binding-linux-riscv64-musl@0.74.0"
+  - "@oxfmt/binding-linux-s390x-gnu@0.74.0"
+  - "@oxfmt/binding-linux-x64-gnu@0.74.0"
+  - "@oxfmt/binding-linux-x64-musl@0.74.0"
+  - "@oxfmt/binding-openharmony-arm64@0.74.0"
+  - "@oxfmt/binding-win32-arm64-msvc@0.74.0"
+  - "@oxfmt/binding-win32-ia32-msvc@0.74.0"
+  - "@oxfmt/binding-win32-x64-msvc@0.74.0"
+  - "@oxlint/binding-android-arm-eabi@1.89.0"
+  - "@oxlint/binding-android-arm64@1.89.0"
+  - "@oxlint/binding-darwin-arm64@1.89.0"
+  - "@oxlint/binding-darwin-x64@1.89.0"
+  - "@oxlint/binding-freebsd-x64@1.89.0"
+  - "@oxlint/binding-linux-arm-gnueabihf@1.89.0"
+  - "@oxlint/binding-linux-arm-musleabihf@1.89.0"
+  - "@oxlint/binding-linux-arm64-gnu@1.89.0"
+  - "@oxlint/binding-linux-arm64-musl@1.89.0"
+  - "@oxlint/binding-linux-ppc64-gnu@1.89.0"
+  - "@oxlint/binding-linux-riscv64-gnu@1.89.0"
+  - "@oxlint/binding-linux-riscv64-musl@1.89.0"
+  - "@oxlint/binding-linux-s390x-gnu@1.89.0"
+  - "@oxlint/binding-linux-x64-gnu@1.89.0"
+  - "@oxlint/binding-linux-x64-musl@1.89.0"
+  - "@oxlint/binding-openharmony-arm64@1.89.0"
+  - "@oxlint/binding-win32-arm64-msvc@1.89.0"
+  - "@oxlint/binding-win32-ia32-msvc@1.89.0"
+  - "@oxlint/binding-win32-x64-msvc@1.89.0"
+  - "@rolldown/binding-android-arm-eabi@1.2.15"
+  - "@rolldown/binding-android-arm64@1.2.15"
+  - "@rolldown/binding-darwin-arm64@1.2.15"
+  - "@rolldown/binding-darwin-x64@1.2.15"
+  - "@rolldown/binding-freebsd-x64@1.2.15"
+  - "@rolldown/binding-linux-arm-gnueabihf@1.2.15"
+  - "@rolldown/binding-linux-arm64-gnu@1.2.15"
+  - "@rolldown/binding-linux-arm64-musl@1.2.15"
+  - "@rolldown/binding-linux-ppc64-gnu@1.2.15"
+  - "@rolldown/binding-linux-s390x-gnu@1.2.15"
+  - "@rolldown/binding-linux-x64-gnu@1.2.15"
+  - "@rolldown/binding-linux-x64-musl@1.2.15"
+  - "@rolldown/binding-openharmony-arm64@1.2.15"
+  - "@rolldown/binding-win32-arm64-msvc@1.2.15"
+  - "@rolldown/binding-win32-x64-msvc@1.2.15"
+  - "@tsrs/darwin-arm64@0.18.0-ts7.1.0-dev.20260929"
+  - "@tsrs/linux-arm64-gnu@0.18.0-ts7.1.0-dev.20260929"
+  - "@tsrs/linux-arm64-musl@0.18.0-ts7.1.0-dev.20260929"
+  - "@tsrs/linux-x64-gnu@0.18.0-ts7.1.0-dev.20260929"
+  - "@tsrs/linux-x64-musl@0.18.0-ts7.1.0-dev.20260929"
+  - ata-validator@1.56.0
+  - motherload@0.1.0
+  - oxfmt@0.74.0
+  - oxlint@1.89.0
+  - rolldown@1.2.15
+  - tsrs@0.18.0-ts7.1.0-dev.20260929
+  - "@maschwenk/tsrslint-darwin-arm64@0.1.5"
+  - "@maschwenk/tsrslint-linux-arm64@0.1.5"
+  - "@maschwenk/tsrslint-linux-x64@0.1.5"
+  - "@maschwenk/tsrslint@0.1.5"
+pmOnFail: warn
+autoDedupe: true
+savePrefix: ""
+saveTypes: true
+progress: false
+resolutionMode: highest
+saveExact: true
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - "@socketregistry/packageurl-js@1.7.0"
+  - "@socketsecurity/lib@7.2.0"
+  - "@socketsecurity/sdk@4.3.0"
+  - undici-types@6.21.0
+includeWorkspaceRoot: true
+trustPolicyExcludePrune: true
+peerDependencyRules:
+  allowedVersions:
+    "@socketsecurity/lib>typescript": 7.1.0-dev.20261015.1
+    "@socketsecurity/registry>typescript": 7.1.0-dev.20261015.1
+    mcp-tada>typescript: 7.1.0-dev.20261015.1
+patchedDependencies:
+  vitest@5.0.5: patches/vitest_5.0.5.patch

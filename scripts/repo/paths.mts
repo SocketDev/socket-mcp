@@ -1,0 +1,49 @@
+/**
+ * @file Repo-owned path constants for socket-mcp's build outputs. Re-exports
+ *   the local repository resolvers (REPO_ROOT, etc.) and adds the constants
+ *   this repo's build needs. Mantra: 1 path, 1 reference — every build-output
+ *   path is constructed once here; rolldown.config.mts and build.mts import the
+ *   computed value.
+ */
+
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+export const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../..',
+)
+
+/**
+ * Absolute path to the build output directory for the published server bin.
+ */
+export const DIST_DIR = path.join(REPO_ROOT, 'dist')
+
+/**
+ * Absolute path to the server source entry.
+ */
+
+export const SERVER_SOURCE = path.join(REPO_ROOT, 'index.mts')
+
+/**
+ * Absolute path to the ChatGPT plugin package source: the listing manifest,
+ * the MCP server configuration, and the listing assets. The upload ZIP is
+ * built from this directory and written outside the repository.
+ */
+export const PLUGIN_CHATGPT_DIR = path.join(REPO_ROOT, 'plugins', 'chatgpt')
+
+/**
+ * Absolute path to the socket-gate hook's SOURCE directory: the hook source
+ * (`index.mts`) and its README. Dev/test content only — the published,
+ * copyable unit is `SOCKET_GATE_DIST_DIR`.
+ */
+export const SOCKET_GATE_SRC_DIR = path.join(REPO_ROOT, 'hooks', 'socket-gate')
+
+/**
+ * Absolute path to the socket-gate hook's build-output directory. Holds the
+ * bundled `socket-gate.cjs` plus a copy of the hook README, so the directory
+ * is a self-contained unit: it ships in the npm package (`files:` lists
+ * `dist/socket-gate`) and is what end users copy (recursively) into
+ * `~/.claude/hooks/`.
+ */
+export const SOCKET_GATE_DIST_DIR = path.join(DIST_DIR, 'socket-gate')

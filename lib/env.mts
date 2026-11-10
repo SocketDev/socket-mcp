@@ -1,0 +1,167 @@
+/**
+ * @file Mcp-local env getters. Functions that `lib/*.ts` previously imported
+ *   from `@socketsecurity/lib/env/socket`, but which aren't exported by
+ *   the catalog-pinned `lib@5.28.0`. The functions fall into
+ *   two groups:
+ *
+ *   1. mcp-specific (MCP_HTTP_MODE, MCP_PORT, TRUST_PROXY) — these will never live
+ *      in the canonical socket-lib env surface; they belong here.
+ *   2. naming drift (`getSocketApiUrl` → `getSocketApiBaseUrl` in lib@5.28+) and
+ *      OAuth getters that haven't shipped upstream yet — re-exports / shims
+ *      that keep the mcp call sites stable until lib catches up. When lib
+ *      publishes the missing canonical getters, this file shrinks to just the
+ *      mcp-specific group.
+ */
+
+import os from 'node:os'
+import path from 'node:path'
+import process from 'node:process'
+
+import { getSocketApiBaseUrl } from '@socketsecurity/lib/env/socket'
+
+export function envBool(key: string): boolean {
+  const v = process.env[key]
+  if (v === undefined || v === '') {
+    return false
+  }
+  return v === '1' || v.toLowerCase() === 'true'
+}
+
+export function envInt(key: string): number | undefined {
+  const v = envString(key)
+  if (v === undefined) {
+    return undefined
+  }
+  const n = Number.parseInt(v, 10)
+  return Number.isFinite(n) ? n : undefined
+}
+
+export function envString(key: string): string | undefined {
+  const v = process.env[key]
+  return v === undefined || v === '' ? undefined : v
+}
+
+export function getMcpHttpMode(): boolean {
+  return envBool('MCP_HTTP_MODE')
+}
+
+export function getMcpPort(): number {
+  return envInt('MCP_PORT') ?? 3000
+}
+
+// API URL — bridge for naming drift. lib@5.28.0 exposes
+// `getSocketApiBaseUrl`; older mcp code asks for `getSocketApiUrl`.
+// Both names resolve to the same value (SOCKET_API_BASE_URL or its
+// legacy alias). Re-export under the legacy name so call sites
+// don't have to change.
+export const getSocketApiUrl = getSocketApiBaseUrl
+
+// API token resolution — lib@5.28.0's getSocketApiToken only reads
+// SOCKET_API_TOKEN. Local dev + CI configs already export
+// SOCKET_API_KEY (because more tools support that name), and
+// socket-cli ships SOCKET_CLI_API_TOKEN / SOCKET_SECURITY_API_TOKEN
+// for backward compatibility. Walk the same chain socket-lib's
+// unpublished src/env/socket.ts defines; once that ships, replace
+// this shim with `export { getSocketApiToken } from '@socketsecurity/lib/env/socket'`.
+// socket-api-token-env: bootstrap -- this array IS the alias-normalization shim.
+const SOCKET_API_TOKEN_ENV_VARS = [
+  'SOCKET_API_TOKEN',
+  'SOCKET_API_KEY',
+  'SOCKET_CLI_API_TOKEN',
+  'SOCKET_CLI_API_KEY',
+  'SOCKET_SECURITY_API_TOKEN',
+  'SOCKET_SECURITY_API_KEY',
+] as const
+
+export function getSocketApiToken(): string | undefined {
+  for (let i = 0, { length } = SOCKET_API_TOKEN_ENV_VARS; i < length; i += 1) {
+    const v = envString(SOCKET_API_TOKEN_ENV_VARS[i]!)
+    if (v !== undefined) {
+      return v
+    }
+  }
+  return undefined
+}
+
+// Max bytes the process-wide blob cache holds before LRU eviction. Defaults
+// to 64 MB; invalid/non-positive values fall back to the default.
+export function getSocketBlobCacheBytes(): number {
+  const n = envInt('SOCKET_BLOB_CACHE_BYTES')
+  return typeof n === 'number' && n > 0 ? n : 64 * 1024 * 1024
+}
+
+export function getSocketBlobUrl(): string {
+  return envString('SOCKET_BLOB_URL') || 'https://socketusercontent.com'
+}
+
+export function getSocketBrowserUserAgent(): string {
+  return (
+    envString('SOCKET_BROWSER_USER_AGENT') ||
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
+  )
+}
+
+export function getSocketBypassHeaderName(): string {
+  return envString('SOCKET_BYPASS_HEADER_NAME') || ''
+}
+
+export function getSocketBypassHeaderValue(): string {
+  return envString('SOCKET_BYPASS_HEADER_VALUE') || ''
+}
+
+// Internal UA for authenticated calls to socket.dev's file-list endpoint.
+export function getSocketInternalUserAgent(): string {
+  return envString('SOCKET_INTERNAL_USER_AGENT') || 'socket-internal-tool/1.0'
+}
+
+// The OpenAI plugin portal's domain-verification token. Issued by the portal,
+// pasted into the deployment environment, and echoed verbatim at
+// /.well-known/openai-apps-challenge. Unset on a deployment that is not being
+// verified, which keeps that route a 404.
+export function getSocketMcpAppsChallengeToken(): string | undefined {
+  return envString('SOCKET_MCP_APPS_CHALLENGE_TOKEN')
+}
+
+export function getSocketMcpAuditLogPath(): string {
+  return (
+    envString('SOCKET_MCP_AUDIT_LOG') ||
+    path.join(os.homedir(), '.socket', 'mcp-audit.jsonl')
+  )
+}
+
+export function getSocketMcpAuditSink(): 'jsonl' | 'stderr' | 'unknown' {
+  const sink = envString('SOCKET_MCP_AUDIT_SINK')
+  if (!sink || sink === 'jsonl') {
+    return 'jsonl'
+  }
+  return sink === 'stderr' ? 'stderr' : 'unknown'
+}
+
+// OAuth getters — not yet in the canonical lib surface. These read
+// the same env vars that the future lib getters will read. Once
+// lib ships them, this file's OAuth section can be replaced with
+// a re-export from @socketsecurity/lib.
+
+export function getSocketOauthIntrospectionClientId(): string | undefined {
+  return envString('SOCKET_OAUTH_INTROSPECTION_CLIENT_ID')
+}
+
+export function getSocketOauthIntrospectionClientSecret(): string | undefined {
+  return envString('SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET')
+}
+
+export function getSocketOauthIssuer(): string | undefined {
+  return envString('SOCKET_OAUTH_ISSUER')
+}
+
+export function getSocketOauthRequiredScopes(): string[] {
+  const raw = envString('SOCKET_OAUTH_REQUIRED_SCOPES')
+  if (raw === undefined) {
+    return []
+  }
+  return raw.split(/[\s,]+/).filter(Boolean)
+}
+
+export function getTrustProxy(): boolean {
+  return envBool('TRUST_PROXY')
+}
