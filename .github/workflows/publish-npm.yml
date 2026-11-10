@@ -1,14 +1,8 @@
-name: '📦 npm publish'
-run-name: '📦 npm publish'
+name: 'publish: npm'
+run-name: 'publish: npm'
 
 on:
   workflow_dispatch:
-    inputs:
-      dist-tag:
-        description: npm dist-tag. Bump to an unpublished package version before dispatching.
-        required: true
-        type: string
-        default: latest
 
 permissions:
   contents: read
@@ -20,9 +14,9 @@ concurrency:
 jobs:
   publish:
     if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-    name: Publish npm package
+    name: Prepare or stage npm release
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     environment: publish-npm
     permissions:
       contents: read
@@ -30,20 +24,52 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        id: release-app
+        with:
+          app-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        id: pr-app
+        with:
+          app-id: ${{ secrets.SOCKET_PR_CLIENT_ID }}
+          private-key: ${{ secrets.SOCKET_PR_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-pull-requests: write
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .node-version
-          registry-url: https://registry.npmjs.org
       - name: Install npm and pnpm
         run: npm install --global npm@12.2.0 pnpm@12.14.0
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Verify package
-        run: pnpm run repo:check && pnpm test
-      - name: Build package
-        run: pnpm run build
-      - name: Publish package
+      - name: Prepare signed release pull request or reserve merged release
+        id: preparation
         env:
-          DIST_TAG: ${{ inputs.dist-tag }}
-        run: npm publish --provenance --access public --tag "$DIST_TAG"
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ steps.release-app.outputs.token }}
+          PR_TOKEN: ${{ steps.pr-app.outputs.token }}
+          PR_APP_SLUG: ${{ steps.pr-app.outputs.app-slug }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node scripts/repo/npm/prepare.mts
+      - name: Validate package version and release ref
+        if: ${{ steps.preparation.outputs.should-stage == 'true' }}
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DIST_TAG: latest
+          REF: ${{ github.ref }}
+        run: node scripts/repo/npm/validate.mts
+      - name: Verify package
+        if: ${{ steps.preparation.outputs.should-stage == 'true' }}
+        run: pnpm run repo:check && pnpm run cover
+      - name: Stage package with npm provenance
+        if: ${{ steps.preparation.outputs.should-stage == 'true' }}
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DIST_TAG: latest
+        run: node scripts/repo/npm/publish.mts
