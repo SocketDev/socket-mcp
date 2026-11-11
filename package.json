@@ -55,6 +55,8 @@
     "postpublish": "pnpm run clean",
     "prepare": "node scripts/repo/install-git-hooks.mts",
     "prepublishOnly": "node -e \"if (process.env.GITHUB_ACTIONS !== 'true') throw new Error('Publish through the npm workflow')\"",
+    "publish:npm": "node scripts/repo/npm/dispatch.mts",
+    "approve:npm": "node scripts/repo/npm/approve.mts",
     "server-http": "pnpm run build:bundle && MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
     "server-http:debug": "pnpm run build:bundle && SOCKET_DEBUG=1 MCP_HTTP_MODE=true SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
     "server-stdio": "pnpm run build:bundle && SOCKET_API_TOKEN=${SOCKET_API_TOKEN:-${SOCKET_API_KEY}} node ./dist/index.cjs",
