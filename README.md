@@ -1,7 +1,7 @@
 # Socket MCP Server
 
 <a href="https://socket.dev/npm/package/@socketsecurity/mcp"><img src="https://badge.socket.dev/npm/package/@socketsecurity/mcp" alt="Socket Badge" height="20"></a>
-<picture><img src="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/assets/repo/coverage.svg?v=d3f1fd881dda" height="20" alt="Coverage" /></picture>
+<picture><img src="https://raw.githubusercontent.com/SocketDev/socket-mcp/v0.4.0/assets/repo/coverage.svg?v=d3f1fd881dda" height="20" alt="Coverage" /></picture>
 
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
 [![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
@@ -324,8 +324,8 @@ MIT
 
 <div align="center">
   <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/assets/fleet/socket-combomark-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/assets/fleet/socket-combomark-light.svg">
-      <img width="320" height="91" alt="Socket" src="https://raw.githubusercontent.com/SocketDev/socket-mcp/HEAD/assets/fleet/socket-combomark-light.svg">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SocketDev/socket-mcp/v0.4.0/assets/fleet/socket-combomark-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/SocketDev/socket-mcp/v0.4.0/assets/fleet/socket-combomark-light.svg">
+      <img width="320" height="91" alt="Socket" src="https://raw.githubusercontent.com/SocketDev/socket-mcp/v0.4.0/assets/fleet/socket-combomark-light.svg">
   </picture>
 </div>

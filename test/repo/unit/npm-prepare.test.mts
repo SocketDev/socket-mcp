@@ -47,6 +47,7 @@ import {
   chooseReleaseVersion,
   insertChangelogSection,
   latestPublishedBaseline,
+  parseConventionalCommit,
   stableVersions,
 } from '../../../scripts/repo/npm/prepare-content.mts'
 import { parseReleasePolicy } from '../../../scripts/repo/npm/release-policy.mts'
@@ -75,6 +76,46 @@ afterEach(() => {
 })
 
 describe('release preparation policy', () => {
+  it('parses Conventional Commit types, scopes, and breaking markers', () => {
+    expect(parseConventionalCommit('feat(api)!: add authentication')).toEqual({
+      type: 'feat',
+      scope: 'api',
+      breaking: true,
+      description: 'add authentication',
+    })
+    expect(
+      parseConventionalCommit('maintenance without a type'),
+    ).toBeUndefined()
+  })
+
+  it('includes only fix and feat commits in generated changelog entries', () => {
+    expect(
+      changelogSection(
+        '1.3.0',
+        [
+          { sha: source, subject: 'feat: add release flow' },
+          { sha: 'b'.repeat(40), subject: 'fix(cli): repair output' },
+          { sha: 'c'.repeat(40), subject: 'chore: update CI' },
+          { sha: 'd'.repeat(40), subject: 'docs: clarify setup' },
+        ],
+        '2026-11-11',
+      ),
+    ).toContain('feat: add release flow')
+    const section = changelogSection(
+      '1.3.0',
+      [
+        { sha: source, subject: 'feat: add release flow' },
+        { sha: 'b'.repeat(40), subject: 'fix(cli): repair output' },
+        { sha: 'c'.repeat(40), subject: 'chore: update CI' },
+        { sha: 'd'.repeat(40), subject: 'docs: clarify setup' },
+      ],
+      '2026-11-11',
+    )
+    expect(section).toContain('fix(cli): repair output')
+    expect(section).not.toContain('chore:')
+    expect(section).not.toContain('docs:')
+  })
+
   it('uses only actually published stable versions, including 0.0.0', () => {
     expect(
       stableVersions({
@@ -86,7 +127,7 @@ describe('release preparation policy', () => {
     ).toEqual(['0.0.0', '0.9.3'])
   })
 
-  it('bumps patch for fix-only changes and minor for other changes', () => {
+  it('bumps minor for feature commits and patch for other changes', () => {
     expect(
       chooseReleaseVersion(
         ['1.2.3'],
@@ -98,6 +139,27 @@ describe('release preparation policy', () => {
       chooseReleaseVersion(
         ['1.2.3'],
         [{ sha: source, subject: 'perf: improve startup' }],
+        [],
+      ),
+    ).toBe('1.2.4')
+    expect(
+      chooseReleaseVersion(
+        ['1.2.3'],
+        [{ sha: source, subject: 'chore: update CI config' }],
+        [],
+      ),
+    ).toBe('1.2.4')
+    expect(
+      chooseReleaseVersion(
+        ['1.2.3'],
+        [{ sha: source, subject: 'docs: clarify setup' }],
+        [],
+      ),
+    ).toBe('1.2.4')
+    expect(
+      chooseReleaseVersion(
+        ['1.2.3'],
+        [{ sha: source, subject: 'feat(plugin): add upload support' }],
         [],
       ),
     ).toBe('1.3.0')

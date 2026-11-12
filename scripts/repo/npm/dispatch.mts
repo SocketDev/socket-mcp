@@ -41,7 +41,7 @@ export function dispatchNpmPublish(): void {
   if (result.status !== 0) process.exitCode = result.status ?? 1
   else
     process.stdout.write(
-      `Dispatched npm release preparation from ${branch}. Check Actions; merge its preparation PR, then run pnpm run publish:npm again.\n`,
+      `Dispatched the npm release workflow from ${branch}. The first run prepares a version PR; merge it, then run pnpm run publish:npm again to stage the release. This run does not publish the package. Check Actions for its result.\n`,
     )
 }
 

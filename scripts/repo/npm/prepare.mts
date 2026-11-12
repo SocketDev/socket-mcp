@@ -466,12 +466,17 @@ export async function runNpmReleasePreparation(
   >
   pkg['version'] = version
   files.set('package.json', `${JSON.stringify(pkg, null, 2)}\n`)
-  const plugin = JSON.parse(readFileSync('manifest.json', 'utf8')) as Record<
-    string,
-    unknown
-  >
-  plugin['version'] = version
-  files.set('manifest.json', `${JSON.stringify(plugin, null, 2)}\n`)
+  const manifestText = readFileSync('manifest.json', 'utf8')
+  const plugin = JSON.parse(manifestText) as Record<string, unknown>
+  if (typeof plugin['version'] !== 'string')
+    throw new Error('manifest.json version must be a string.')
+  const formattedManifest = manifestText.replace(
+    /("version"\s*:\s*)"[^"]+"(?=\s*[,}])/u,
+    `$1"${version}"`,
+  )
+  if (formattedManifest === manifestText)
+    throw new Error('manifest.json does not contain a top-level version.')
+  files.set('manifest.json', formattedManifest)
   const changelog = baseline
     ? run('git', ['show', `${baseline}:CHANGELOG.md`])
     : changelogIntroduction(readFileSync('CHANGELOG.md', 'utf8'))
@@ -554,7 +559,7 @@ export async function runNpmReleasePreparation(
       '--title',
       `chore(release): prepare v${version}`,
       '--body',
-      `Generated release preparation for ${manifest.name}@${version}.\n\nReview and merge this PR. Then run \`pnpm run publish:npm\` again to stage the release.`,
+      `Generated release preparation for \`${manifest.name}@${version}\`.\n\nReview and merge this PR. Then run \`pnpm run publish:npm\` again to stage the release.`,
     ],
     undefined,
     env['PR_TOKEN'],
