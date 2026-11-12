@@ -117,10 +117,29 @@ describe('npm stage output', () => {
     expect(parseNpmStageId(json, '@example/pkg', '1.2.3')).toBe(stageId)
   })
 
+  it('reads the stage ID after pnpm progress output', () => {
+    const json = JSON.stringify(
+      { '@example/pkg': { name: '@example/pkg', version: '1.2.3', stageId } },
+      null,
+      2,
+    )
+    const output = [
+      'GET https://example.invalid/idtoken 200 193ms',
+      '📦 @example/pkg@1.2.3 → https://registry.npmjs.org/',
+      'Signed provenance statement with source and build information',
+      '✅ Staged package @example/pkg@1.2.3',
+      json,
+      '',
+    ].join('\n')
+    expect(parseNpmStageId(output, '@example/pkg', '1.2.3')).toBe(stageId)
+  })
+
   it('rejects missing, duplicate, malformed, or mismatched stage records', () => {
     for (const value of [
       '',
       '{}',
+      '✅ Staged package pkg@1.2.3\n{invalid}',
+      'progress\n{}\ntrailing output',
       JSON.stringify({ pkg: { name: 'wrong', version: '1.2.3', stageId } }),
       JSON.stringify([
         { name: 'pkg', version: '1.2.3', stageId },
