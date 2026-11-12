@@ -108,7 +108,9 @@ export function changelogSection(
   date = new Date().toISOString().slice(0, 10),
 ): string {
   const rows = commits.filter(
-    c => !/^chore\(release\): prepare v\d+\.\d+\.\d+/u.test(c.subject),
+    c =>
+      !/^chore\(release\): prepare v\d+\.\d+\.\d+/u.test(c.subject) &&
+      !/wheelhouse/iu.test(c.subject),
   )
   const bullets = rows.length
     ? rows.map(c => `- ${c.subject} (${c.sha.slice(0, 7)})`).join('\n')
@@ -121,9 +123,11 @@ export function insertChangelogSection(
   section: string,
 ): string {
   const first = /^## /mu.exec(changelog)?.index
-  return first === undefined
-    ? `${changelog.trimEnd()}\n\n${section}`
-    : `${changelog.slice(0, first)}${section}${changelog.slice(first)}`
+  const inserted =
+    first === undefined
+      ? `${changelog.trimEnd()}\n\n${section}`
+      : `${changelog.slice(0, first)}${section}${changelog.slice(first)}`
+  return inserted.endsWith('\n') ? inserted : `${inserted}\n`
 }
 
 export function changelogIntroduction(changelog: string): string {
