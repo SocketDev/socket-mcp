@@ -7,17 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0](https://github.com/SocketDev/socket-mcp/releases/tag/v0.4.0) - 2026-11-12
 
-- ci(npm): prepare staged releases and approve locally (#234) (0538e09)
 - feat(plugin): validate and pack the chatgpt upload package (#229) (371fd53)
 - fix(oauth): send a bare Bearer challenge when a request has no credentials (#230) (dee2454)
 - feat(http): serve the openai apps domain verification challenge (#228) (dd0454f)
-- build(repo): add git hooks and content scan, fix release npm version (#232) (1ba48c7)
-- refactor(repo): remove fleet-pack orchestration (#231) (3297e6c)
 - fix(config): remove retired release baseline (e1fb803)
 - fix(ci): gate on repository types and package build (591899f)
 - fix(ci): disable remote cache for npm publication (9df1d89)
 - fix(ci): preserve the verified setup trust bundle (a1753af)
-- docs(readme): refresh coverage badge to 98 percent (7aa6e0f)
 
 ## [0.2.1](https://github.com/SocketDev/socket-mcp/releases/tag/v0.2.1) - 2026-09-17
 
