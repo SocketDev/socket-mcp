@@ -7,95 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0](https://github.com/SocketDev/socket-mcp/releases/tag/v0.4.0) - 2026-11-12
 
-- ci(npm): prepare staged releases and approve locally (#234) (0538e09)
-- feat(plugin): validate and pack the chatgpt upload package (#229) (371fd53)
-- fix(oauth): send a bare Bearer challenge when a request has no credentials (#230) (dee2454)
-- feat(http): serve the openai apps domain verification challenge (#228) (dd0454f)
-- build(repo): add git hooks and content scan, fix release npm version (#232) (1ba48c7)
-- refactor(repo): remove fleet-pack orchestration (#231) (3297e6c)
-- fix(config): remove retired release baseline (e1fb803)
-- fix(ci): gate on repository types and package build (591899f)
-- fix(ci): disable remote cache for npm publication (9df1d89)
-- fix(ci): preserve the verified setup trust bundle (a1753af)
-- docs(readme): refresh coverage badge to 98 percent (7aa6e0f)
+- Add validation and packaging for ChatGPT uploads (#229) (371fd53)
+- Send a bare Bearer challenge when OAuth requests have no credentials (#230) (dee2454)
+- Serve the OpenAI Apps domain verification challenge (#228) (dd0454f)
+- Remove the retired release baseline (e1fb803)
+- Run repository type checks and the package build in CI (591899f)
+- Disable remote caching during npm publication (9df1d89)
+- Preserve the verified trust bundle in CI setup (a1753af)
 
 ## [0.2.1](https://github.com/SocketDev/socket-mcp/releases/tag/v0.2.1) - 2026-09-17
 
 ### Fixed
 
-- The README shows one Socket logo and uses text links for VS Code and Cursor installation.
+- Show one Socket logo in the README and use text links for VS Code and Cursor installation.
 
 ## [0.2.0](https://github.com/SocketDev/socket-mcp/releases/tag/v0.2.0) - 2026-09-15
 
-### Internal
-
-- **`ci`** — normalize workflow labels
-
 ## [0.1.0](https://github.com/SocketDev/socket-mcp/releases/tag/v0.1.0) - 2026-09-14
 
-### Added
+### Features
 
 - **`mcp`** — structured audit logging for MCP tool executions
-- **`mcp`** — serve the stateless protocol on the v2 sdk
+- **`mcp`** — serve the stateless protocol with SDK v2
 
-### Changed
-
-- The copyable socket-gate hook directory in the published package moved from
-  `hooks/socket-gate` to `dist/socket-gate`.
-
-### Fixed
+### Fixes
 
 - **`telemetry`** — forward MCP client identity to Socket API
-- **`build`** — omit dependency documentation from bundles
-- **`tooling`** — keep debug client callbacks void
-- **`tooling`** — classify the product entrypoint
-- **`build`** — resolve current fleet entrypoint helpers
-- **`oauth`** — reject tokens at expiration and verify reauthorization
-- match Socket coverage badge styling
-- **`server`** — refine artifact lookup and request checks
-- **`fuzz`** — match .mts targets and stay quiet on an empty run
-- **`workspace`** — drop pnpm settings current pnpm rejects
-- **`docs`** — remove trailing space inside a code span
+- **`build`** — exclude dependency documentation from bundles
+- **`tooling`** — keep debug-client callbacks void
+- **`tooling`** — identify the product entry point
+- **`build`** — resolve the current fleet entry-point helpers
+- **`oauth`** — reject expired tokens and verify reauthorization
+- **`server`** — improve artifact lookup and request validation
+- **`fuzz`** — find `.mts` targets and stay quiet when no targets match
 - **`origin`** — trust the hosted deployment's Host over a strict Origin allowlist (#214)
-- **`mcp`** — use socket-lib isPlainObject in maskArgs
-- **`readme`** — serve the four images from absolute raw URLs
-- **`catalog`** — sync the sdk -stable alias to its base version
-- **`catalog`** — sync the sdk -stable alias to the held base version
-- **`soak`** — drop the unpublishable bare stuie exclude
-- **`scripts`** — drop npm-run-all2 and the dead llms-txt script
-- **`oauth`** — bind tokens to this resource server and harden discovery
-- **`build`** — stop the clean step racing concurrent cache writers
-
-### Internal
-
-- **`ci`** — consolidate pins and collect offline server tests
-- **`ci`** — read app client identifiers from secrets
-- **`ci`** — use public app client identifiers
-- **`ci`** — read payload client ids from secrets
-- **`config`** — reconcile repository-owned files
-- **`ci`** — use inline checkout bootstrap
-- **`ci`** — align lockfile with hydrated catalogs
-- **`bootstrap`** — await the newest fleet reference
-- **`deps`** — restore the missing yaml catalog entry
-- **`deps`** — drop the orphaned pnpm package-manager pin
-- **`deps`** — restore the payload importer the lockfile dropped
-- **`ci`** — keep the zizmor config tracked, it is not fleet payload
-- **`lint`** — escape raw NULs and hoist bypass markers
+- **`mcp`** — use Socket Lib's `isPlainObject` in `maskArgs`
+- **`oauth`** — bind tokens to this resource server and strengthen discovery
 
 ## [0.0.20]
 
 ### Fixed
 
 - OAuth-enabled HTTP deployments now accept `sktsec_` Socket API tokens sent
-  via `Authorization: Bearer <token>`.
+  in the `Authorization: Bearer <token>` header.
 
 ## [0.0.19]
 
-### Changed
+### Features
 
 - Organization tools now scope their results to the authenticated caller.
 
-### Fixed
+### Fixes
 
 - Composer package URLs parse correctly: `packagist` is accepted as a composer
   alias, bare-name packages resolve, and the vendor namespace is split from the
@@ -108,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.18]
 
-### Fixed
+### Fixes
 
 - The `package_files` and `organizations` tools no longer fail with
   `Unexpected token` JSON errors against the live Socket API.
