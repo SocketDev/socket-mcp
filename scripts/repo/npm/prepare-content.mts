@@ -3,6 +3,26 @@ import type { ReleasePolicy } from './release-policy.mts'
 
 export type ReleaseCommit = { sha: string; subject: string }
 
+export type ConventionalCommit = {
+  type: string
+  scope?: string
+  breaking: boolean
+  description: string
+}
+
+export function parseConventionalCommit(
+  subject: string,
+): ConventionalCommit | undefined {
+  const match = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)$/u.exec(subject)
+  if (!match) return undefined
+  return {
+    type: match[1]!,
+    ...(match[2] === undefined ? {} : { scope: match[2] }),
+    breaking: Boolean(match[3]),
+    description: match[4]!,
+  }
+}
+
 export function stableVersions(versions: Record<string, unknown>): string[] {
   return Object.keys(versions).filter(version =>
     /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u.test(version),
@@ -83,8 +103,8 @@ export function chooseReleaseVersion(
     candidate = hint.replace(/^v/u, '').replace(/-[\w.-]+$/u, '')
   else {
     const [major = 0, minor = 0, patch = 0] = highest.split('.').map(Number)
-    const hasFeature = meaningful.some(commit =>
-      /^feat(?:\([^)]*\))?!?:/u.test(commit.subject),
+    const hasFeature = meaningful.some(
+      commit => parseConventionalCommit(commit.subject)?.type === 'feat',
     )
     candidate = hasFeature
       ? `${major}.${minor + 1}.0`
@@ -107,10 +127,8 @@ export function changelogSection(
   commits: ReleaseCommit[],
   date = new Date().toISOString().slice(0, 10),
 ): string {
-  const rows = commits.filter(
-    c =>
-      !/^chore\(release\): prepare v\d+\.\d+\.\d+/u.test(c.subject) &&
-      !/wheelhouse/iu.test(c.subject),
+  const rows = commits.filter(c =>
+    ['feat', 'fix'].includes(parseConventionalCommit(c.subject)?.type ?? ''),
   )
   const bullets = rows.length
     ? rows.map(c => `- ${c.subject} (${c.sha.slice(0, 7)})`).join('\n')
