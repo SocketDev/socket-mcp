@@ -471,7 +471,7 @@ export async function runNpmReleasePreparation(
   if (typeof plugin['version'] !== 'string')
     throw new Error('manifest.json version must be a string.')
   const formattedManifest = manifestText.replace(
-    /(^ {2}"version": )"[^"]+"$/mu,
+    /("version"\s*:\s*)"[^"]+"(?=\s*[,}])/u,
     `$1"${version}"`,
   )
   if (formattedManifest === manifestText)
