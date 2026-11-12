@@ -15,7 +15,9 @@ export function parseNpmStageId(
 ): string {
   let value: unknown
   try {
-    value = JSON.parse(output) as unknown
+    // pnpm prints OIDC and staging progress before its JSON summary.
+    const start = output.search(/^(?:\{|\[)/mu)
+    value = JSON.parse(start < 0 ? output : output.slice(start)) as unknown
   } catch {
     throw new Error('pnpm stage publish --json returned invalid JSON.')
   }

@@ -86,6 +86,6 @@ jobs:
               gh release create "${TAG}" --draft --verify-tag --notes-file release-notes.md
             fi
           fi
-          RELEASE_ID=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.id')
+          RELEASE_ID=$(gh release view "${TAG}" --json databaseId --jq '.databaseId')
           gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -X PATCH \
             -F draft=false -F prerelease="${IS_PRERELEASE}" >/dev/null
