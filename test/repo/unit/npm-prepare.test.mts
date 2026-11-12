@@ -86,7 +86,7 @@ describe('release preparation policy', () => {
     ).toEqual(['0.0.0', '0.9.3'])
   })
 
-  it('bumps patch for fix-only changes and minor for other changes', () => {
+  it('bumps minor for feature commits and patch for other changes', () => {
     expect(
       chooseReleaseVersion(
         ['1.2.3'],
@@ -98,6 +98,27 @@ describe('release preparation policy', () => {
       chooseReleaseVersion(
         ['1.2.3'],
         [{ sha: source, subject: 'perf: improve startup' }],
+        [],
+      ),
+    ).toBe('1.2.4')
+    expect(
+      chooseReleaseVersion(
+        ['1.2.3'],
+        [{ sha: source, subject: 'chore: update CI config' }],
+        [],
+      ),
+    ).toBe('1.2.4')
+    expect(
+      chooseReleaseVersion(
+        ['1.2.3'],
+        [{ sha: source, subject: 'docs: clarify setup' }],
+        [],
+      ),
+    ).toBe('1.2.4')
+    expect(
+      chooseReleaseVersion(
+        ['1.2.3'],
+        [{ sha: source, subject: 'feat(plugin): add upload support' }],
         [],
       ),
     ).toBe('1.3.0')

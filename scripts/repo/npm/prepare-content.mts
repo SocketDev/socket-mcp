@@ -83,12 +83,12 @@ export function chooseReleaseVersion(
     candidate = hint.replace(/^v/u, '').replace(/-[\w.-]+$/u, '')
   else {
     const [major = 0, minor = 0, patch = 0] = highest.split('.').map(Number)
-    const patchOnly =
-      meaningful.length > 0 &&
-      meaningful.every(commit => /^fix(?:\([^)]*\))?:/u.test(commit.subject))
-    candidate = patchOnly
-      ? `${major}.${minor}.${patch + 1}`
-      : `${major}.${minor + 1}.0`
+    const hasFeature = meaningful.some(commit =>
+      /^feat(?:\([^)]*\))?!?:/u.test(commit.subject),
+    )
+    candidate = hasFeature
+      ? `${major}.${minor + 1}.0`
+      : `${major}.${minor}.${patch + 1}`
   }
   if (compareVersions(candidate, highest) <= 0)
     throw new Error(
