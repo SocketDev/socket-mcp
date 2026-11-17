@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
   buildPackageComponents,
+  collectDepscoreAlertTypes,
   defineDepscoreTool,
+  formatAlerts,
   formatScoreEntries,
   formatScoreLine,
   handleDepscore,
@@ -72,6 +74,138 @@ describe('formatScoreLine', () => {
     expect(
       formatScoreLine({ type: 42, name: {}, version: [], namespace: 7 }),
     ).toBe('pkg:unknown/unknown@unknown: No score found')
+  })
+
+  test('includes alert reasons with and without scores', () => {
+    expect(
+      formatScoreLine({
+        type: 'npm',
+        name: 'example',
+        version: '1.0.0',
+        score: { overall: 0.4 },
+        alerts: [{ type: 'malware', severity: 'critical' }],
+      }),
+    ).toContain('\n  Reasons: Reason unavailable for malware (critical)')
+    expect(
+      formatScoreLine({
+        type: 'npm',
+        name: 'example',
+        version: '1.0.0',
+        alerts: [{ type: 'usesEval' }],
+      }),
+    ).toBe(
+      'pkg:npm/example@1.0.0: No score found\n  Reasons: Reason unavailable for usesEval',
+    )
+  })
+})
+
+describe('formatAlerts', () => {
+  test('deduplicates alert types and includes severity when available', () => {
+    expect(
+      formatAlerts([
+        { type: 'malware', severity: 'critical' },
+        { type: 'usesEval', severity: 'middle' },
+        { type: 'usesEval', severity: 'middle' },
+      ]),
+    ).toBe(
+      'Reason unavailable for malware (critical) and Reason unavailable for usesEval (middle)',
+    )
+  })
+
+  test('renders the description and useful alert properties', () => {
+    const metadata = new Map([
+      [
+        'usesEval',
+        {
+          description:
+            'Package uses dynamic code execution, which can introduce risk.',
+          title: 'Uses eval',
+          propLabels: new Map([['evalType', 'Dynamic execution type']]),
+        },
+      ],
+      [
+        'malware',
+        {
+          description: 'This package version is identified as malware.',
+          title: 'Known malware',
+          propLabels: new Map([['note', 'Note']]),
+        },
+      ],
+    ])
+    const summary = formatAlerts(
+      [
+        {
+          type: 'usesEval',
+          severity: 'middle',
+          props: { evalType: 'eval' },
+        },
+        {
+          type: 'malware',
+          severity: 'critical',
+          props: { note: 'Confirmed malicious payload' },
+        },
+      ],
+      metadata,
+    )
+    expect(summary).toContain(
+      'This package version is identified as malware. Details: Note: Confirmed malicious payload (critical)',
+    )
+    expect(summary).toContain(
+      'Package uses dynamic code execution, which can introduce risk.',
+    )
+    expect(summary).toContain('Dynamic execution type: eval')
+    expect(summary).not.toContain('usesEval')
+  })
+
+  test('ignores malformed alerts and strips line breaks from API values', () => {
+    expect(
+      formatAlerts([
+        null,
+        { type: 'malware\nalert', severity: 'critical\nseverity' },
+        { severity: 'high' },
+      ]),
+    ).toBe('Reason unavailable for malware alert (critical severity)')
+  })
+
+  test('prioritizes severe alerts and reports omitted alert types', () => {
+    const alerts = [
+      ...Array.from({ length: 13 }, (_, index) => ({
+        type: 'alert' + index,
+        severity: 'low',
+      })),
+      { type: 'criticalFinding', severity: 'critical' },
+    ]
+    expect(formatAlerts(alerts)).toBe(
+      'Reason unavailable for criticalFinding (critical), Reason unavailable for alert0 (low), Reason unavailable for alert1 (low), Reason unavailable for alert2 (low), Reason unavailable for alert3 (low), Reason unavailable for alert4 (low), Reason unavailable for alert5 (low), Reason unavailable for alert6 (low), Reason unavailable for alert7 (low), Reason unavailable for alert8 (low), and 4 more',
+    )
+  })
+
+  test('omits the summary when there are no usable alerts', () => {
+    expect(formatAlerts(undefined)).toBe('')
+    expect(formatAlerts([])).toBe('')
+    expect(formatAlerts([{ severity: 'high' }, null])).toBe('')
+  })
+})
+
+describe('collectDepscoreAlertTypes', () => {
+  test('collects unique alert types and ignores NDJSON control records', () => {
+    const body = [
+      JSON.stringify({ _type: 'meta' }),
+      JSON.stringify({
+        type: 'npm',
+        name: 'one',
+        alerts: [{ type: 'malware' }, { type: 'usesEval' }],
+      }),
+      JSON.stringify({
+        type: 'npm',
+        name: 'two',
+        alerts: [{ type: 'malware' }],
+      }),
+    ].join('\n')
+    expect(collectDepscoreAlertTypes(body, true)).toEqual([
+      'malware',
+      'usesEval',
+    ])
   })
 })
 
@@ -227,7 +361,13 @@ describe('handleDepscore', () => {
   test('renders a single-document JSON response', async () => {
     nock(API)
       .post('/v0/purl')
-      .query(true)
+      .query({
+        alerts: 'true',
+        compact: 'false',
+        fixable: 'false',
+        licenseattrib: 'false',
+        licensedetails: 'false',
+      })
       .reply(
         200,
         JSON.stringify({
@@ -247,6 +387,51 @@ describe('handleDepscore', () => {
     expect(result.isError).toBeUndefined()
     expect(result.content[0]!.text).toMatch(/Dependency scores:/)
     expect(result.content[0]!.text).toMatch(/pkg:npm\/express@4.18.2/)
+  })
+
+  test('includes human-readable alert reasons from Socket metadata', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(
+        200,
+        JSON.stringify({
+          type: 'npm',
+          name: 'example',
+          version: '1.0.0',
+          score: { overall: 0.4 },
+          alerts: [
+            {
+              type: 'usesEval',
+              severity: 'middle',
+              props: { evalType: 'eval' },
+            },
+          ],
+        }),
+        { 'content-type': 'application/json' },
+      )
+    nock(API)
+      .post('/v0/alert-types', ['usesEval'])
+      .reply(200, [
+        {
+          type: 'usesEval',
+          title: 'Uses eval',
+          description: 'Package uses dynamic code execution.',
+          props: { evalType: 'Dynamic execution type' },
+        },
+      ])
+
+    const result = await handleDepscore(
+      [{ depname: 'example', version: '1.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0]!.text).toContain(
+      'Reasons: Package uses dynamic code execution.',
+    )
+    expect(result.content[0]!.text).toContain('Dynamic execution type: eval')
+    expect(result.content[0]!.text).not.toContain('Alerts: usesEval')
   })
 
   test('parses an NDJSON response body', async () => {
