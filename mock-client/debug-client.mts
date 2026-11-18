@@ -126,20 +126,11 @@ export class SimpleJSONRPCClient {
 }
 
 export async function main() {
-  // socket-api-token-getter: allow direct-env — mock client / dev tool, not the runtime auth path.
-  const apiKey = process.env['SOCKET_API_TOKEN']
-  if (!apiKey) {
-    logger.error('Error: SOCKET_API_TOKEN environment variable is required')
-    process.exit(1)
-  }
-
   logger.info('Starting MCP server debug client…')
 
   logger.info(`Using server script: ${SERVER_SOURCE}`)
 
-  const client = new SimpleJSONRPCClient('node', [SERVER_SOURCE], {
-    SOCKET_API_TOKEN: apiKey,
-  })
+  const client = new SimpleJSONRPCClient('node', [SERVER_SOURCE])
 
   try {
     // Legacy 2025 handshake: `initialize` request, then the

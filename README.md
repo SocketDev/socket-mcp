@@ -27,8 +27,8 @@ Connect your MCP client to the hosted server at `https://mcp.socket.dev/` and au
 
 The public server requires Socket sign-in through OAuth for every tool call, including package scoring. Some MCP clients need an explicit sign-in step. You do not need an API key.
 
-- [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.socket.dev%2F%22%2C%22type%22%3A%22http%22%7D).
-- [Install in Cursor](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D).
+- [Install in VS Code](https://vscode.dev/redirect/mcp/install?name=socket-mcp&config=%7B%22url%22%3A%22https%3A%2F%2Fmcp.socket.dev%2F%22%2C%22type%22%3A%22http%22%7D)
+- [Install in Cursor](https://cursor.com/en/install-mcp?name=socket-mcp&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vbWNwLnNvY2tldC5kZXYvIn0%3D)
 
 <details><summary><b>Manual install - Claude Desktop / Claude Code</b></summary>
 
@@ -270,7 +270,7 @@ pnpm install
 Run from source. No build step is needed, because Node 24 strips the TypeScript itself:
 
 ```sh
-export SOCKET_API_TOKEN=your_api_token_here
+node index.mts login
 pnpm run server-stdio
 ```
 
@@ -280,7 +280,7 @@ Or in HTTP mode:
 pnpm run server-http
 ```
 
-Both scripts read `SOCKET_API_TOKEN` (falling back to `SOCKET_API_KEY`) from your environment. Append `:debug` to either one (`pnpm run server-http:debug`) to set `SOCKET_DEBUG=1` and get per-request tracing on stderr.
+The stdio server uses the saved browser OAuth session. A `SOCKET_API_TOKEN` environment variable remains available as a discouraged fallback. The HTTP script reads `SOCKET_API_TOKEN` (falling back to `SOCKET_API_KEY`) from your environment. Append `:debug` to either script (`pnpm run server-http:debug`) to set `SOCKET_DEBUG=1` and get per-request tracing on stderr.
 
 ### Audit events
 

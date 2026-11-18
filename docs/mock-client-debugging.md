@@ -9,22 +9,18 @@ This page covers what the output means and what to do when it looks wrong.
 
 ## Before you start
 
-You need Node 24 or later (`package.json` sets `engines.node` to `>=24`) and a
-Socket API token:
+You need Node 24 or later (`package.json` sets `engines.node` to `>=24`). For
+the local stdio clients, sign in with browser OAuth:
 
 ```bash
 node --version
 # v24.0.0 or higher
-
-export SOCKET_API_TOKEN="your-socket-api-token"
+node index.mts login
 ```
 
-Get a token from the [Socket dashboard](https://socket.dev/) under API tokens.
-Only the `packages:list` scope is needed for `depscore`.
-
-`mock-client/debug-client.ts` reads `SOCKET_API_TOKEN` and nothing else, so the
-aliases the server itself accepts (`SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, and
-friends) will not satisfy it. Export `SOCKET_API_TOKEN` specifically.
+The debug clients inherit the process environment. A `SOCKET_API_TOKEN`
+environment variable remains available as a discouraged fallback. HTTP mode
+without OAuth still needs an API token.
 
 No build step is needed. Every client spawns `index.ts` directly and Node 24
 strips the types.
@@ -179,11 +175,9 @@ A JSON-RPC `error` object means the failure happened below the tool layer:
 
 <details><summary>Failure signatures and their fixes</summary>
 
-**`SOCKET_API_TOKEN environment variable is required`** - the stdio server
-refuses to start without a token. Export one, or use the aliases the server
-accepts (`SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`,
-`SOCKET_SECURITY_API_TOKEN`, `SOCKET_SECURITY_API_KEY`). The debug clients
-themselves only read `SOCKET_API_TOKEN`.
+**`No local sign-in is available`** - run `node index.mts login` to save a
+browser OAuth session. Set `SOCKET_API_TOKEN` only when browser sign-in is
+unavailable.
 
 **`Authentication is required.` from `organizations` / `alerts` /
 `threat_feed` / `package_files`** - these tools are org-scoped and never fall
