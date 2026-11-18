@@ -6,18 +6,18 @@ The `socket-mcp` executable starts the MCP service. It uses stdio by default, wh
 
 ### Option 2: Self-host the Socket MCP server
 
-Self-hosting keeps every request inside your own infrastructure. It needs a Socket API token and Node.js 24 or later.
+Self-hosting keeps every request inside your own infrastructure. It needs Node.js 24 or later. For local stdio, sign in with `socket-mcp login`. Treat a raw API token as a fallback for setups that cannot use browser sign-in.
 
-**Get a token first.** Sign in at [socket.dev](https://socket.dev/), open the API tokens page, and create a token with the `packages:list` scope. That single scope covers `depscore`; the org-scoped tools need whatever scopes your organization requires for the endpoints they call. Full walkthrough: [creating and managing API tokens](https://docs.socket.dev/reference/creating-and-managing-api-tokens).
+**Sign in for local use.** Install the package, then run `socket-mcp login` once. It opens your browser and saves a per-user OAuth session for local stdio. The session refreshes while the MCP server runs.
 
 **Then pick a transport.** The server speaks the same MCP protocol either way; the difference is who launches it.
 
-|                        | Stdio (Option 2a)                             | HTTP (Option 2b)                                                     |
-| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------- |
-| Who starts the process | Your MCP client, on demand                    | You, as a long-running service                                       |
-| Who it serves          | One local user                                | Any client that can reach the port                                   |
-| Where the token lives  | The client's config, as an env var            | The server env, or per-request `Authorization` headers               |
-| Reach for it when      | You are a developer wiring up your own editor | You are deploying one instance for a team, or fronting it with OAuth |
+|                        | Stdio (Option 2a)                                       | HTTP (Option 2b)                                                     |
+| ---------------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| Who starts the process | Your MCP client, on demand                              | You, as a long-running service                                       |
+| Who it serves          | One local user                                          | Any client that can reach the port                                   |
+| Where credentials live | Per-user browser OAuth session; token env is a fallback | The server env, or per-request `Authorization` headers               |
+| Reach for it when      | You are a developer wiring up your own editor           | You are deploying one instance for a team, or fronting it with OAuth |
 
 Stdio is the default and the right answer for a single developer. Choose HTTP when more than one person, or something that is not a local process, needs to reach the server.
 
@@ -32,7 +32,7 @@ pnpm add -g @socketsecurity/mcp
 Claude Code:
 
 ```sh
-claude mcp add socket-mcp -e SOCKET_API_TOKEN="your-api-token-here" -- socket-mcp
+claude mcp add socket-mcp -- socket-mcp
 ```
 
 Most other MCP clients:
@@ -41,14 +41,13 @@ Most other MCP clients:
 {
   "mcpServers": {
     "socket-mcp": {
-      "command": "socket-mcp",
-      "env": {
-        "SOCKET_API_TOKEN": "your-api-token-here"
-      }
+      "command": "socket-mcp"
     }
   }
 }
 ```
+
+The MCP client does not need the OAuth session or an API token in its config. Run `socket-mcp login` from a terminal before connecting. If browser sign-in is unavailable, set `SOCKET_API_TOKEN` in the process environment. Avoid storing raw tokens in client configuration.
 
 </details>
 
@@ -66,25 +65,26 @@ The transport is stateless. Each `POST /` is self-contained, with no session to 
 
 Environment variables for HTTP mode:
 
-| Variable                                   | Required                         | Default | Description                                                                                                                                                                      |
-| ------------------------------------------ | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MCP_HTTP_MODE`                            | Yes, unless you pass `--http`    | `false` | Set to `true` to serve HTTP instead of stdio. The `--http` CLI flag does the same thing.                                                                                         |
-| `MCP_PORT`                                 | No                               | `3000`  | Port to bind the HTTP server to.                                                                                                                                                 |
-| `SOCKET_API_TOKEN`                         | Required unless OAuth is enabled | None    | Socket API token for outbound API calls. See the alias list below.                                                                                                               |
-| `SOCKET_OAUTH_ISSUER`                      | With OAuth                       | None    | OAuth issuer URL. Must be `https` on a public host. See "Enabling OAuth" below.                                                                                                  |
-| `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                       | None    | Client ID used for RFC 7662 token introspection.                                                                                                                                 |
-| `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                       | None    | Client secret used for RFC 7662 token introspection.                                                                                                                             |
-| `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                               | None    | Scopes required on incoming access tokens, separated by spaces or commas. When unset, any active token passes.                                                                   |
-| `SOCKET_API_BASE_URL`                      | No                               | None    | Override the upstream Socket API endpoint. Falls back to `https://api.socket.dev` when unset.                                                                                    |
-| `SOCKET_DEBUG`                             | No                               | `false` | Turns on verbose request and cache tracing on stderr, points `depscore` at `http://localhost:8866`, and permits a local OAuth issuer.                                            |
-| `SOCKET_MCP_APPS_CHALLENGE_TOKEN`          | For domain verification          | None    | Token the OpenAI plugin portal issues for domain verification. When set, `GET /.well-known/openai-apps-challenge` returns it as plain text; when unset, that path returns `404`. |
-| `TRUST_PROXY`                              | No                               | `false` | Trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a reverse proxy that rewrites them.                                       |
+| Variable                                   | Required                      | Default | Description                                                                                                                                                                                           |
+| ------------------------------------------ | ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_HTTP_MODE`                            | Yes, unless you pass `--http` | `false` | Set to `true` to serve HTTP instead of stdio. The `--http` CLI flag does the same thing.                                                                                                              |
+| `MCP_PORT`                                 | No                            | `3000`  | Port to bind the HTTP server to.                                                                                                                                                                      |
+| `SOCKET_API_TOKEN`                         | Optional                      | None    | API token for outbound API calls. Use it only as a fallback for local stdio. `socket-mcp login` is the recommended local sign-in. HTTP OAuth does not need a startup token. See the alias list below. |
+| `SOCKET_OAUTH_ISSUER`                      | With OAuth                    | None    | OAuth issuer URL. Must be `https` on a public host. See "Enabling OAuth" below.                                                                                                                       |
+| `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`     | With OAuth                    | None    | Client ID used for RFC 7662 token introspection.                                                                                                                                                      |
+| `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET` | With OAuth                    | None    | Client secret used for RFC 7662 token introspection.                                                                                                                                                  |
+| `SOCKET_OAUTH_REQUIRED_SCOPES`             | No                            | None    | Scopes required on incoming access tokens, separated by spaces or commas. When unset, any active token passes.                                                                                        |
+| `SOCKET_API_BASE_URL`                      | No                            | None    | Override the upstream Socket API endpoint. Falls back to `https://api.socket.dev` when unset.                                                                                                         |
+| `SOCKET_MCP_OAUTH_BASE_URL`                | No                            | API URL | Override the issuer used by local stdio OAuth. By default, OAuth follows `SOCKET_API_BASE_URL`; an `api.` hostname maps to its matching `mcp.` resource host. Non-loopback URLs must use HTTPS.       |
+| `SOCKET_DEBUG`                             | No                            | `false` | Turns on verbose request and cache tracing on stderr, points `depscore` at `http://localhost:8866`, and permits a local OAuth issuer.                                                                 |
+| `SOCKET_MCP_APPS_CHALLENGE_TOKEN`          | For domain verification       | None    | Token the OpenAI plugin portal issues for domain verification. When set, `GET /.well-known/openai-apps-challenge` returns it as plain text; when unset, that path returns `404`.                      |
+| `TRUST_PROXY`                              | No                            | `false` | Trust `X-Forwarded-Host` and `X-Forwarded-Proto` when building OAuth metadata URLs. Enable only behind a reverse proxy that rewrites them.                                                            |
 
 The three OAuth variables are a set: configure all three or none. Setting only some of them makes the server print `Incomplete OAuth configuration for HTTP mode` and exit `1`, rather than quietly start unauthenticated.
 
 `SOCKET_API_TOKEN` is canonical. These aliases are read in order, first non-empty wins: `SOCKET_API_TOKEN`, `SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`, `SOCKET_SECURITY_API_TOKEN`, `SOCKET_SECURITY_API_KEY`.
 
-`SOCKET_API_TOKEN`, `SOCKET_API_BASE_URL`, and `SOCKET_DEBUG` also apply in stdio mode. Everything else in the table is HTTP-only.
+`SOCKET_API_TOKEN`, `SOCKET_API_BASE_URL`, `SOCKET_MCP_OAUTH_BASE_URL`, and `SOCKET_DEBUG` also apply in stdio mode. Set `SOCKET_API_BASE_URL` to the staging API to use its matching OAuth issuer and resource; use `SOCKET_MCP_OAUTH_BASE_URL` when the issuer differs. Saved sessions are bound to their issuer and resource. Everything else in the table is HTTP-only. When both a saved OAuth session and a token environment variable are present, the environment variable takes precedence and the CLI warns that raw tokens are discouraged.
 
 <details>
 

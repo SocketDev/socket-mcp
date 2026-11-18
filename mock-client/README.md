@@ -29,17 +29,17 @@ node --version
 # v24.0.0 or higher
 ```
 
-### 2. Set the API token
+### 2. Sign in for stdio
 
-Get one from the [Socket dashboard](https://socket.dev/) under API tokens; the
-`packages:list` scope covers `depscore`.
+Run the browser sign-in once:
 
 ```bash
-export SOCKET_API_TOKEN=your-api-token
+node index.mts login
 ```
 
-The debug clients read `SOCKET_API_TOKEN` and nothing else. The server accepts
-aliases such as `SOCKET_API_KEY`, but the clients do not.
+The stdio clients use the saved OAuth session. Set `SOCKET_API_TOKEN` only as a
+fallback when browser sign-in is unavailable. HTTP mode without OAuth still
+needs an API token in the server environment.
 
 ### 3. Start the MCP server
 
@@ -84,7 +84,7 @@ No build is needed. Each client spawns `index.mts` and Node 24 strips the types.
 **Server not responding?**
 
 - Check the health endpoint: `curl http://localhost:3000/health`
-- Verify `SOCKET_API_TOKEN` is set
+- Run `node index.mts login` for local stdio, or check the server's HTTP auth configuration
 - Re-run with `SOCKET_DEBUG=1` for per-request traces on stderr
 
 **HTTP client getting 404?**
