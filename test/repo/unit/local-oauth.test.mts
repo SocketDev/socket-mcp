@@ -121,7 +121,7 @@ async function startFakeIssuer(
 }
 
 function completeBrowserAuthorization(_command: string, args: string[]) {
-  const authorizationUrl = new URL(args[0]!)
+  const authorizationUrl = new URL(args.at(-1)!)
   const callbackUrl = new URL(
     authorizationUrl.searchParams.get('redirect_uri')!,
   )
