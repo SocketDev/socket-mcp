@@ -17,6 +17,11 @@ import { startHttpServer } from './http-server.mts'
 import { logger } from './logger.mts'
 import { hasAnyOAuthConfig, setOauthEnabled } from './oauth.mts'
 import { loadOAuthMetadata } from './oauth-discovery.mts'
+import {
+  refreshLocalOAuthSession,
+  resolveLocalOAuthSession,
+} from './local-oauth.mts'
+import type { LocalOAuthSession } from './local-oauth.mts'
 import { createConfiguredServer, setStaticApiKey } from './server.mts'
 import { VERSION } from './version.mts'
 
@@ -36,6 +41,10 @@ export interface SocketMcpCliDeps {
   readonly loadOAuthMetadata: () => Promise<unknown>
   readonly port: number
   readonly promptForApiKey: () => Promise<string>
+  readonly refreshLocalOAuthSession?: () => Promise<LocalOAuthSession>
+  readonly resolveLocalOAuthSession?: () => Promise<
+    LocalOAuthSession | undefined
+  >
   readonly serveStdio: typeof serveStdio
   readonly setOauthEnabled: () => { issuer: string } | undefined
   readonly setStaticApiKey: typeof setStaticApiKey
@@ -57,6 +66,8 @@ export function createSocketMcpCliDeps(): SocketMcpCliDeps {
     loadOAuthMetadata,
     port: getMcpPort(),
     promptForApiKey: getApiKeyInteractively,
+    refreshLocalOAuthSession,
+    resolveLocalOAuthSession,
     serveStdio,
     setOauthEnabled,
     setStaticApiKey,
@@ -78,6 +89,33 @@ export function reportSocketMcpStartupFailure(error: unknown): void {
   process.exitCode = 1
 }
 
+function scheduleLocalOAuthRefresh(
+  session: LocalOAuthSession,
+  deps: SocketMcpCliDeps,
+  retryDelayMs?: number,
+): void {
+  const refresh = deps.refreshLocalOAuthSession
+  if (!refresh) {
+    return
+  }
+  const delay =
+    retryDelayMs ?? Math.max(1_000, session.expiresAt - Date.now() - 20_000)
+  const timer = setTimeout(() => {
+    void refresh()
+      .then(next => {
+        deps.setStaticApiKey(next.accessToken, { shared: false })
+        scheduleLocalOAuthRefresh(next, deps)
+      })
+      .catch(error => {
+        logger.error(
+          `Failed to refresh the Socket MCP browser sign-in: ${errorMessage(error)}. Run \`socket-mcp login\` again.`,
+        )
+        scheduleLocalOAuthRefresh(session, deps, 30_000)
+      })
+  }, delay)
+  timer.unref()
+}
+
 /**
  * Run CLI startup and answer the process exit code — 0 when a transport is
  * serving, 1 when a precondition refused. The caller owns `process.exitCode`
@@ -97,7 +135,25 @@ export async function runSocketMcpCli(deps: SocketMcpCliDeps): Promise<number> {
     return 1
   }
 
-  let apiKey = deps.apiToken ?? ''
+  let localOAuthSession: LocalOAuthSession | undefined
+  if (!useHttp && !deps.apiToken && deps.resolveLocalOAuthSession) {
+    try {
+      localOAuthSession = await deps.resolveLocalOAuthSession()
+    } catch (e) {
+      logger.error(
+        `Failed to load the Socket MCP browser sign-in: ${errorMessage(e)}`,
+      )
+      return 1
+    }
+  }
+
+  if (!useHttp && deps.apiToken) {
+    logger.warn(
+      'Using a raw API token for local stdio is discouraged. Run `socket-mcp login` and unset the token environment variable to use browser OAuth.',
+    )
+  }
+
+  let apiKey = deps.apiToken ?? localOAuthSession?.accessToken ?? ''
 
   if (!apiKey && !oauthResult) {
     if (useHttp) {
@@ -105,10 +161,7 @@ export async function runSocketMcpCli(deps: SocketMcpCliDeps): Promise<number> {
       apiKey = await deps.promptForApiKey()
     } else {
       logger.error(
-        'SOCKET_API_TOKEN environment variable is required in stdio mode',
-      )
-      logger.error(
-        'Please set SOCKET_API_TOKEN (or one of the legacy aliases) and try again',
+        'No local sign-in is available. Run `socket-mcp login` to sign in with your browser, or set SOCKET_API_TOKEN as a discouraged fallback.',
       )
       return 1
     }
@@ -138,6 +191,9 @@ export async function runSocketMcpCli(deps: SocketMcpCliDeps): Promise<number> {
   }
 
   logger.info('Starting in stdio mode')
+  if (localOAuthSession) {
+    scheduleLocalOAuthRefresh(localOAuthSession, deps)
+  }
   try {
     // serveStdio owns the transport and calls the factory per connection —
     // including the discarded `server/discover` probe — so it takes

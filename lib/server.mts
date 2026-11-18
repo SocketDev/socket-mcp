@@ -69,10 +69,10 @@ export const SOCKET_API_BASE_URL = getSocketApiUrl() || 'https://api.socket.dev'
 // The single auth-missing message every tool returns when no token is
 // available — kept here so the wording stays identical across tools.
 export const AUTH_REQUIRED_MSG =
-  'Authentication is required. Set SOCKET_API_TOKEN for stdio mode, or send your Socket API token as an `Authorization: Bearer <token>` header (or connect through OAuth) in HTTP mode.'
+  'Authentication is required. Run `socket-mcp login` for local stdio, or send your Socket API token as an `Authorization: Bearer <token>` header (or connect through OAuth) in HTTP mode.'
 
-// Boot-time static API key. In stdio mode this is the local user's own token
-// (set from SOCKET_API_TOKEN in index.mts), so it is safe to use for any tool.
+// Boot-time static API key. In stdio mode this is the local user's credential
+// (a saved OAuth token or SOCKET_API_TOKEN), so it is safe to use for any tool.
 // In HTTP mode it is the deploy operator's token, shared across every caller —
 // `staticApiKeyShared` records that distinction so per-tenant tools never hand
 // the operator's private data to an arbitrary caller.

@@ -106,6 +106,38 @@ describe('transport selection', () => {
     ])
   })
 
+  test('retries a failed local OAuth refresh', async () => {
+    vi.useFakeTimers()
+    let refreshCalls = 0
+    const { deps, recorded } = recordingDeps({
+      apiToken: undefined,
+      resolveLocalOAuthSession: () =>
+        Promise.resolve({ accessToken: 'oauth-token', expiresAt: Date.now() }),
+      refreshLocalOAuthSession: () => {
+        refreshCalls += 1
+        return refreshCalls === 1
+          ? Promise.reject(new Error('temporary network error'))
+          : Promise.resolve({
+              accessToken: 'refreshed-token',
+              expiresAt: Date.now() + 60_000,
+            })
+      },
+    })
+    try {
+      await expect(runSocketMcpCli(deps)).resolves.toBe(0)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(refreshCalls).toBe(1)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(refreshCalls).toBe(2)
+      expect(recorded.staticKeys).toEqual([
+        { key: 'oauth-token', shared: false },
+        { key: 'refreshed-token', shared: false },
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test('serves HTTP when MCP_HTTP_MODE is set', async () => {
     const { deps, recorded } = recordingDeps({
       envHttpMode: true,
@@ -170,7 +202,7 @@ describe('auth preconditions', () => {
     try {
       await expect(runSocketMcpCli(deps)).resolves.toBe(1)
       expect(errors.read()).toContain(
-        'SOCKET_API_TOKEN environment variable is required in stdio mode',
+        'No local sign-in is available. Run `socket-mcp login`',
       )
       expect(recorded.stdioStarts).toBe(0)
     } finally {

@@ -167,18 +167,18 @@ The tools that call the Socket API need credentials. `depscore`, `organizations`
 
 How the server resolves a token depends on the transport:
 
-- **stdio mode** reads one Socket API token at startup from the environment and uses it for each API-backed tool call. Set `SOCKET_API_TOKEN`. Accepted names, in priority order, are `SOCKET_API_TOKEN`, `SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`, `SOCKET_SECURITY_API_TOKEN`, and `SOCKET_SECURITY_API_KEY`.
+- **stdio mode** uses the saved browser OAuth session created by `socket-mcp login`. It refreshes the session while the process runs. A token environment variable remains a fallback and takes precedence when set, but the CLI warns against raw-token use. Accepted names, in priority order, are `SOCKET_API_TOKEN`, `SOCKET_API_KEY`, `SOCKET_CLI_API_TOKEN`, `SOCKET_CLI_API_KEY`, `SOCKET_SECURITY_API_TOKEN`, and `SOCKET_SECURITY_API_KEY`.
 - **HTTP mode without OAuth** accepts a Socket API token in an `Authorization: Bearer <token>` header on each request. Tools scoped to an organization use the caller's token and do not fall back to a shared operator token. `depscore` can fall back to the server's startup token because package scores are public data.
 - **HTTP mode with OAuth** requires an OAuth access token on every MCP request. The server validates it through introspection and uses that caller credential for Socket API calls. A raw Socket API token is rejected with a `401` challenge.
 
 When a token is missing, every affected tool returns the same message:
 
 ```text
-Authentication is required. Set SOCKET_API_TOKEN for stdio mode, or send your Socket API
+Authentication is required. Run `socket-mcp login` for local stdio, or send your Socket API
 token as an `Authorization: Bearer <token>` header (or connect through OAuth) in HTTP mode.
 ```
 
-Generate a token from the [Socket dashboard](https://socket.dev/) under API tokens, then export it before launching the server:
+For environments that cannot use browser sign-in, generate a token from the [Socket dashboard](https://socket.dev/) under API tokens, then export it before launching the server:
 
 ```sh
 export SOCKET_API_TOKEN="your-socket-api-token"
@@ -244,7 +244,7 @@ The OpenAI plugin portal verifies a domain by reading a token it issues. Set `SO
 
 ### Troubleshooting
 
-- A local stdio process exits at startup when no Socket API token is configured. Set `SOCKET_API_TOKEN` or one of its documented aliases.
+- A local stdio process exits at startup when no browser session or token environment variable is available. Run `socket-mcp login`; use `SOCKET_API_TOKEN` only as a fallback.
 - HTTP OAuth requires all three values: `SOCKET_OAUTH_ISSUER`, `SOCKET_OAUTH_INTROSPECTION_CLIENT_ID`, and `SOCKET_OAUTH_INTROSPECTION_CLIENT_SECRET`. Partial configuration makes startup fail.
 - On HTTP deployments, `organizations`, `alerts`, `threat_feed`, and `package_files` require the caller's credential. The server does not use a shared operator token for those organization-scoped requests.
 - If a client does not show a newly added tool, restart the client. The `tools/list` response is cached for up to one hour.
