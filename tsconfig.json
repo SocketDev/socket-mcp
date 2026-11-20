@@ -43,7 +43,9 @@
     "lib/**/*.mts",
     "hooks/**/*.mts",
     "mock-client/**/*.mts",
-    "test/repo/**/*.mts"
+    "test/repo/**/*.mts",
+    "test/e2e/**/*.mts",
+    "test/lib/termless/**/*.mts"
   ],
   "exclude": [
     "**/*.cjs",

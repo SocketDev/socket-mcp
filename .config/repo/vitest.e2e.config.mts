@@ -9,6 +9,6 @@ process.env['TZ'] ??= 'UTC'
 export default defineConfig({
   test: {
     ...repoTestOptions,
-    include: ['test/repo/e2e/**/*.test.mts'],
+    include: ['test/e2e/**/*.test.mts'],
   },
 })
