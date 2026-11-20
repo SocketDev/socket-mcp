@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { SERVER_SOURCE } from '../../../scripts/repo/paths.mts'
+import { SERVER_SOURCE } from '../../scripts/repo/paths.mts'
 
 const FIXTURE_RESPONSE = [
   { type: 'npm', namespace: '@babel', name: 'core', version: '7.24.0' },

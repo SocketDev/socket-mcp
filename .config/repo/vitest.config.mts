@@ -13,6 +13,5 @@ export default defineConfig({
       'test/repo/unit/**/*.test.mts',
       'test/repo/integration/**/*.test.mts',
     ],
-    exclude: ['test/repo/e2e/**'],
   },
 })

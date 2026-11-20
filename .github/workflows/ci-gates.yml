@@ -55,3 +55,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run tests
         run: pnpm test
+      - name: Check terminal screenshots
+        id: screenshots
+        run: pnpm exec vitest run --config .config/repo/vitest.e2e.config.mts test/e2e/termless.test.mts
+      - name: Upload terminal screenshot differences
+        if: failure() && steps.screenshots.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: terminal-screenshots-${{ matrix.os }}
+          path: .cache/terminal-screenshots/
+          include-hidden-files: true
+          if-no-files-found: ignore

@@ -7,7 +7,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { SERVER_SOURCE } from '../../../scripts/repo/paths.mts'
 
 const FIXTURE_NETWORK_GUARD = new URL(
-  '../e2e/fixture/network.mts',
+  '../../e2e/fixture/network.mts',
   import.meta.url,
 ).href
 const MAX_CAPTURED_STDERR_BYTES = 64 * 1024

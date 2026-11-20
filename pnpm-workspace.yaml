@@ -10,6 +10,7 @@ allowBuilds:
   "@socketsecurity/sdk": false
   "@swc/core": true
   esbuild: true
+  node-pty: true
 autoInstallPeers: true
 blockExoticSubdeps: true
 catalog:
@@ -75,6 +76,12 @@ catalog:
   yaml: 2.9.1
 enablePrePostScripts: true
 overrides:
+  "@termless/core>@napi-rs/canvas": "-"
+  "@termless/core>@resvg/resvg-js": "-"
+  "@termless/core>@twemoji/svg": "-"
+  "@termless/core>gifenc": "-"
+  "@termless/core>playwright": "-"
+  "@termless/core>upng-js": "-"
   "@sinclair/typebox": "catalog:"
   "@socketregistry/packageurl-js": "catalog:"
   "@socketsecurity/lib": "catalog:"
