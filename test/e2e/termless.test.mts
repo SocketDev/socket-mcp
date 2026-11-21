@@ -6,6 +6,7 @@ import { createTerminal, type TestTerminal } from '@termless/core'
 import { createVtermBackend } from '@termless/vterm'
 import { expect, onTestFinished, test } from 'vitest'
 
+import { SERVER_BIN } from '../../scripts/repo/paths.mts'
 import { createTestIssuer } from '../lib/oauth-issuer.mts'
 import { renderScreenshot } from '../lib/termless/screenshot.mts'
 
@@ -76,7 +77,7 @@ async function startCommand(
   nodeArgs: string[] = [],
 ) {
   const terminal = createSession()
-  await terminal.spawn([process.execPath, ...nodeArgs, 'index.mts', ...args], {
+  await terminal.spawn([process.execPath, ...nodeArgs, SERVER_BIN, ...args], {
     env,
   })
   return terminal

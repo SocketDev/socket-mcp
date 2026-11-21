@@ -279,4 +279,5 @@ peerDependencyRules:
     "@socketsecurity/registry>typescript": 7.1.0-dev.20261015.1
     mcp-tada>typescript: 7.1.0-dev.20261015.1
 patchedDependencies:
+  '@termless/core@0.11.0': patches/@termless__core@0.11.0.patch
   vitest@5.0.5: patches/vitest_5.0.5.patch
