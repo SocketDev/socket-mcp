@@ -19,6 +19,7 @@ catalog:
   "@modelcontextprotocol/node": 2.0.0
   "@modelcontextprotocol/server": 2.0.0
   "@mdn/browser-compat-data": 8.1.6
+  "@sentry/core": 11.13.0
   "@ultrathink/acorn.rs.wasm": 0.2.0
   ata-validator: 1.56.0
   "@sinclair/typebox": 0.34.52

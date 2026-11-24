@@ -15,10 +15,12 @@ import {
   runSocketMcpCli,
 } from '../../../lib/cli.mts'
 import type { SocketMcpCliDeps } from '../../../lib/cli.mts'
+import type { ErrorReportingConfig } from '../../../lib/error-reporting.mts'
 import { logger } from '../../../lib/logger.mts'
 
 // What startup did with the deps it was handed.
 interface Recorded {
+  errorReporting: ErrorReportingConfig[]
   httpPorts: number[]
   prompted: number
   staticKeys: Array<{ key: string; shared: boolean | undefined }>
@@ -32,6 +34,7 @@ function recordingDeps(overrides?: Partial<SocketMcpCliDeps> | undefined): {
   recorded: Recorded
 } {
   const recorded: Recorded = {
+    errorReporting: [],
     httpPorts: [],
     prompted: 0,
     staticKeys: [],
@@ -52,9 +55,15 @@ function recordingDeps(overrides?: Partial<SocketMcpCliDeps> | undefined): {
       recorded.stdioStarts += 1
       return { close: () => Promise.resolve() }
     },
+    sentryDsn: undefined,
+    sentryEnvironment: undefined,
     setOauthEnabled: () => undefined,
     setStaticApiKey: (value, options) => {
       recorded.staticKeys.push({ key: value, shared: options?.shared })
+    },
+    startErrorReporting: config => {
+      recorded.errorReporting.push(config)
+      return Promise.resolve()
     },
     startHttpServer: port => {
       recorded.httpPorts.push(port)
@@ -86,10 +95,47 @@ describe('createSocketMcpCliDeps', () => {
       'serveStdio',
       'setOauthEnabled',
       'setStaticApiKey',
+      'startErrorReporting',
       'startHttpServer',
     ] as const) {
       expect(typeof deps[name]).toBe('function')
     }
+  })
+})
+
+describe('error reporting', () => {
+  test('stays off in HTTP mode when no DSN is set', async () => {
+    const { deps, recorded } = recordingDeps({ envHttpMode: true })
+    await expect(runSocketMcpCli(deps)).resolves.toBe(0)
+    expect(recorded.httpPorts).toEqual([3000])
+    expect(recorded.errorReporting).toEqual([])
+  })
+
+  test('starts before the HTTP server listens when a DSN is set', async () => {
+    const order: string[] = []
+    const { deps } = recordingDeps({
+      envHttpMode: true,
+      sentryDsn: 'https://public@sentry.invalid/1',
+      sentryEnvironment: 'staging',
+      startErrorReporting: config => {
+        order.push(`reporting:${config.mode}:${config.environment}`)
+        return Promise.resolve()
+      },
+      startHttpServer: () => {
+        order.push('http')
+      },
+    })
+    await expect(runSocketMcpCli(deps)).resolves.toBe(0)
+    expect(order).toEqual(['reporting:http:staging', 'http'])
+  })
+
+  test('never starts in stdio mode, even with a DSN', async () => {
+    const { deps, recorded } = recordingDeps({
+      sentryDsn: 'https://public@sentry.invalid/1',
+    })
+    await expect(runSocketMcpCli(deps)).resolves.toBe(0)
+    expect(recorded.stdioStarts).toBe(1)
+    expect(recorded.errorReporting).toEqual([])
   })
 })
 

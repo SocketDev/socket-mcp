@@ -234,6 +234,40 @@ Tool results use text content. `organizations`, `alerts`, and `threat_feed` seri
 
 Each tool call produces a bounded, versioned audit event. By default, the server appends JSONL records to `~/.socket/mcp-audit.jsonl`. Set `SOCKET_MCP_AUDIT_LOG` to choose another file or `SOCKET_MCP_AUDIT_SINK=stderr` to write records to stderr. The default sink is JSONL. Unknown sink values produce a diagnostic and fall back to JSONL. Existing records are left in place.
 
+### Error reporting
+
+Error reporting is off by default. Set `SOCKET_MCP_SENTRY_DSN` in HTTP mode to send errors to Sentry, and `SOCKET_MCP_SENTRY_ENVIRONMENT` to name the environment (Sentry's default is `production`). Without the DSN, the Sentry SDK is never loaded and nothing is sent. stdio mode never reports, even when the DSN is set. A DSN that does not parse logs one line, and the server starts without reporting.
+
+Events are sent only for failures on the server's side:
+
+- A tool handler throws.
+- A tool call fails because the Socket API answered with a 5xx, the connection failed, the request timed out, or the response could not be handled.
+- An anonymous call falls back to the deployment's `SOCKET_API_TOKEN`, and the Socket API rejects that token with 401 or 403.
+- The MCP handler or the Node adapter reports a serving failure, request routing or body reading throws, or OAuth token verification throws.
+
+Invalid arguments, unknown tools, a caller's missing or rejected token, other upstream 4xx answers, and clients that disconnect are the caller's doing. They send no event; each adds a breadcrumb to the next one.
+
+Every event carries these tags:
+
+| Tag                  | Values                                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp.tool`           | A registered tool name, or `unknown`                                                                                                                             |
+| `mcp.client`         | The request's `clientInfo.name` (2026-07-28 requests), else the first product token of the `User-Agent`, else `unknown`. Lowercased and capped at 64 characters. |
+| `mcp.client_version` | The matching version, when it looks like one and fits in 32 characters                                                                                           |
+| `auth.outcome`       | `anonymous`, `bearer_ok`, `bearer_denied`, `operator_denied` (the deployment's own token was rejected), or `unknown` for errors outside a tool call              |
+| `tool.outcome`       | `failure` or `denied`, on tool-call events                                                                                                                       |
+| `failure.cause`      | `thrown`, `upstream_5xx`, `network`, `timeout`, `exception`, or `upstream_denied`, on tool-call events                                                           |
+| `upstream.status`    | The upstream HTTP status, when there was one                                                                                                                     |
+| `error.code`         | A Node error code such as `ECONNREFUSED`, when there was one                                                                                                     |
+| `error.source`       | `mcp_handler`, `mcp_adapter`, `mcp_request`, `http_route`, `http_body`, or `oauth_verify`, on events outside a tool call                                         |
+| `transport`          | `http`                                                                                                                                                           |
+
+The event's `release` is the package version. Tool-call events are grouped by tool, outcome, auth outcome and failure cause, and other events by source and error type, never by message text.
+
+Before an event leaves the process, it is rebuilt from an allowlist. The exception message is replaced with a summary built from the tags, such as `alerts upstream_5xx 502`, because upstream errors embed request URLs and response bodies. Stack frames keep only the function name, the file's basename, the line and the column. Events carry no tokens or token hashes, no request headers (including `Authorization`, `Cookie` and `Mcp-Session-Id`), no query strings, no tool arguments or results, no user data and no host name. Only errors are sent; there is no performance tracing.
+
+On `SIGINT` or `SIGTERM`, the server waits up to two seconds for queued events, then exits. An unreachable Sentry never blocks or fails a request: each send gives up after five seconds.
+
 ### Health check endpoint
 
 In HTTP mode, `GET /health` returns a JSON object with `status`, `service`, `version`, and `timestamp`. The endpoint skips origin validation so a health probe can omit `Origin`.

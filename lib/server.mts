@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { writeSync } from 'node:fs'
 
-import { Server } from '@modelcontextprotocol/server'
+import { CLIENT_INFO_META_KEY, Server } from '@modelcontextprotocol/server'
 import type {
   McpRequestContext,
   ServerContext,
@@ -9,6 +9,7 @@ import type {
 import { isPlainObject } from '@socketsecurity/lib-stable/objects/predicates'
 
 import { getSocketApiUrl } from './env.mts'
+import { reportToolCall } from './error-reporting.mts'
 import { buildToolAuditEvent } from './tool-audit-event.mts'
 import type {
   ToolAuditEventV1,
@@ -195,6 +196,9 @@ export function createConfiguredServer(
     let outcome: ToolAuditOutcome = 'failure'
     let inputValidated = false
     let auditSnapshot: ToolAuditEventV1 | undefined
+    let handlerResult: object | undefined
+    let threw = false
+    let thrownError: unknown
     try {
       const spec = specsByName.get(name)
       const handler = handlers.get(name)
@@ -234,8 +238,13 @@ export function createConfiguredServer(
         { inputValidated, requestId },
       )
       const result = await handler(args, toToolHandlerExtra(ctx, userAgent))
+      handlerResult = result
       outcome = classifyToolOutcome(result)
       return result
+    } catch (error) {
+      threw = true
+      thrownError = error
+      throw error
     } finally {
       try {
         const snapshot =
@@ -272,6 +281,20 @@ export function createConfiguredServer(
       } catch {
         reportToolAuditFailure('mcp audit event construction failed\n')
       }
+      // A no-op unless HTTP-mode error reporting is on. It reads the outcome
+      // and identity computed above rather than deriving its own.
+      reportToolCall({
+        clientInfo: readEnvelopeClientInfo(ctx),
+        error: thrownError,
+        identity,
+        outcome,
+        result: handlerResult,
+        threw,
+        tool: specsByName.has(name) ? name : 'unknown',
+        transport,
+        userAgent:
+          requestContext?.requestInfo?.headers.get('user-agent') ?? undefined,
+      })
     }
   })
 
@@ -343,6 +366,17 @@ export function isToolInputSchema(value: unknown): value is ToolInputSchema {
     return false
   }
   return true
+}
+
+// The `clientInfo` a 2026-07-28 request carries in its `_meta` envelope. A
+// 2025-era request has no envelope: on the stateless legacy leg `initialize`
+// is its own exchange, so the per-request `Server` never sees the client's
+// name and this answers undefined.
+export function readEnvelopeClientInfo(ctx: ServerContext): unknown {
+  const envelope: unknown = ctx.mcpReq.envelope
+  return typeof envelope === 'object' && envelope !== null
+    ? Reflect.get(envelope, CLIENT_INFO_META_KEY)
+    : undefined
 }
 
 // Resolve the access token a PUBLIC-data tool (depscore) should use: the
