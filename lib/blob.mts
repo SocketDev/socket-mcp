@@ -202,7 +202,9 @@ export async function fetchRawBytes(
   try {
     res = await httpRequest(url, { headers })
   } catch (e) {
-    throw new Error(`blob request to ${url} failed: ${errorMessage(e)}`)
+    throw new Error(`blob request to ${url} failed: ${errorMessage(e)}`, {
+      cause: e,
+    })
   }
   if (!res.ok) {
     throw new UpstreamHttpError(

@@ -11,7 +11,11 @@ import { getSocketApiUrl } from './env.mts'
 import { buildSocketHeaders } from './http.mts'
 import { logger } from './logger.mts'
 import { buildPurl } from './purl.mts'
-import { markToolOutcome } from './tool-outcome.mts'
+import {
+  markToolOutcome,
+  markUpstreamHttpOutcome,
+  UpstreamHttpError,
+} from './tool-outcome.mts'
 import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.mts'
 import type { ToolErrorResult, ToolOkResult } from './server.mts'
 import { buildSocketReportUrl } from './socket-url.mts'
@@ -343,9 +347,12 @@ export async function handleDepscoreRequest(
       headers: buildSocketHeaders(accessToken, userAgent),
       body: JSON.stringify({ components }),
     })
-  } catch {
+  } catch (e) {
     logger.error({ tool: 'depscore' }, 'upstream request failed')
-    return errorResult('Error connecting to Socket API')
+    return markUpstreamHttpOutcome(
+      errorResult('Error connecting to Socket API'),
+      e,
+    )
   }
 
   const responseText = response.text()
@@ -353,13 +360,19 @@ export async function handleDepscoreRequest(
   if (response.status === 401) {
     const errorMsg = `Socket authentication failed [401]. Re-authenticate and retry. ${responseText}`
     logger.error({ tool: 'depscore', status: 401 }, 'upstream request denied')
-    return markToolOutcome(errorResult(errorMsg), 'denied')
+    return markUpstreamHttpOutcome(
+      errorResult(errorMsg),
+      new UpstreamHttpError(401, 'depscore endpoint 401'),
+    )
   }
 
   if (response.status === 403) {
     const errorMsg = `Socket denied access [403]. Re-authenticate with the correct organization or repository permissions and retry. ${responseText}`
     logger.error({ tool: 'depscore', status: 403 }, 'upstream request denied')
-    return markToolOutcome(errorResult(errorMsg), 'denied')
+    return markUpstreamHttpOutcome(
+      errorResult(errorMsg),
+      new UpstreamHttpError(403, 'depscore endpoint 403'),
+    )
   }
 
   if (response.status !== 200) {
@@ -368,7 +381,13 @@ export async function handleDepscoreRequest(
       { tool: 'depscore', status: response.status },
       'upstream request failed',
     )
-    return errorResult(errorMsg)
+    return markUpstreamHttpOutcome(
+      errorResult(errorMsg),
+      new UpstreamHttpError(
+        response.status,
+        `depscore endpoint ${response.status}`,
+      ),
+    )
   }
 
   if (!responseText.trim()) {
@@ -406,9 +425,12 @@ export async function handleDepscoreRequest(
         },
       ],
     }
-  } catch {
+  } catch (e) {
     logger.error({ tool: 'depscore' }, 'response parse failed')
-    return errorResult('Error parsing response from Socket API')
+    return markUpstreamHttpOutcome(
+      errorResult('Error parsing response from Socket API'),
+      e,
+    )
   }
 }
 
