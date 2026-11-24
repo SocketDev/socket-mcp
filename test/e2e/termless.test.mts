@@ -1,17 +1,25 @@
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { createTerminal, type TestTerminal } from '@termless/core'
-import { createVtermBackend } from '@termless/vterm'
+import { createXtermBackend } from '@termless/xtermjs'
 import { expect, onTestFinished, test } from 'vitest'
 
+import { SERVER_BIN } from '../../scripts/paths.mts'
 import { createTestIssuer } from '../lib/oauth-issuer.mts'
 import { renderScreenshot } from '../lib/termless/screenshot.mts'
 
 function createSession() {
   const terminal = createTerminal({
-    backend: createVtermBackend(),
+    backend: createXtermBackend(),
     cols: 100,
     rows: 30,
   })
@@ -76,7 +84,7 @@ async function startCommand(
   nodeArgs: string[] = [],
 ) {
   const terminal = createSession()
-  await terminal.spawn([process.execPath, ...nodeArgs, 'index.mts', ...args], {
+  await terminal.spawn([process.execPath, ...nodeArgs, SERVER_BIN, ...args], {
     env,
   })
   return terminal
@@ -98,13 +106,19 @@ async function snapshotOutput(
   }
   const filename = `termless.${name}.svg`
   const baseline = join(process.cwd(), 'test/snapshots/termless', filename)
-  const actual = renderScreenshot(frame)
+  const dir = join(
+    process.env['SOCKET_MCP_TERMINAL_ARTIFACTS'] ??
+      join(process.cwd(), '.cache/terminal-screenshots'),
+    name,
+  )
+  await mkdir(dir, { recursive: true })
+  const actualPath = join(dir, 'actual.svg')
+  await writeFile(actualPath, renderScreenshot(frame))
   try {
-    await expect(actual).toMatchFileSnapshot(baseline)
+    await expect(await readFile(actualPath, 'utf8')).toMatchFileSnapshot(
+      baseline,
+    )
   } catch (error) {
-    const dir = join(process.cwd(), '.cache/terminal-screenshots', name)
-    await mkdir(dir, { recursive: true })
-    await writeFile(join(dir, 'actual.svg'), actual)
     await writeFile(join(dir, 'output.txt'), frame.screen.getText())
     await copyFile(baseline, join(dir, 'expected.svg')).catch(
       (copyError: NodeJS.ErrnoException) => {

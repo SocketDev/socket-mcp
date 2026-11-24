@@ -176,6 +176,6 @@ if (isMainModule(import.meta.url))
     {
       describe:
         'Builds once, validates, and stages the npm package with provenance.',
-      help: 'Usage: node scripts/repo/npm/publish.mts (inside the publish workflow)',
+      help: 'Usage: node scripts/npm/publish.mts (inside the publish workflow)',
     },
   )

@@ -8,8 +8,8 @@
  *   server still answers a pre-2026 client exactly as it always did. The two
  *   SDK-backed clients in this directory cover the modern era.
  */
-import { isMainModule, runMain } from '../scripts/repo/cli.mts'
-import type { ScriptMeta } from '../scripts/repo/cli.mts'
+import { isMainModule, runMain } from '../scripts/cli.mts'
+import type { ScriptMeta } from '../scripts/cli.mts'
 import process from 'node:process'
 import readline from 'node:readline'
 
@@ -17,7 +17,7 @@ import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/client'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
-import { SERVER_SOURCE } from '../scripts/repo/paths.mts'
+import { SERVER_SOURCE } from '../scripts/paths.mts'
 
 const logger = getDefaultLogger()
 

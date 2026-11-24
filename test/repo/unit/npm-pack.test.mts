@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { expect, it } from 'vitest'
-import { verifyNpmTarball } from '../../../scripts/repo/npm/pack.mts'
+import { verifyNpmTarball } from '../../../scripts/npm/pack.mts'
 
 it('checks identity and executable presence inside the packed archive', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'npm-pack-check-'))

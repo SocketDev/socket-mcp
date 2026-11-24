@@ -36,6 +36,8 @@ jobs:
 
   test:
     name: 'Test (${{ matrix.os }})'
+    env:
+      SOCKET_MCP_TERMINAL_ARTIFACTS: .cache/terminal-screenshots
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +65,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: terminal-screenshots-${{ matrix.os }}
-          path: .cache/terminal-screenshots/
+          path: ${{ env.SOCKET_MCP_TERMINAL_ARTIFACTS }}
           include-hidden-files: true
           if-no-files-found: ignore

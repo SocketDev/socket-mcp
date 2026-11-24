@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { isMainModule, runMain } from '../scripts/repo/cli.mts'
-import type { ScriptMeta } from '../scripts/repo/cli.mts'
+import { isMainModule, runMain } from '../scripts/cli.mts'
+import type { ScriptMeta } from '../scripts/cli.mts'
 import process from 'node:process'
 
 import {

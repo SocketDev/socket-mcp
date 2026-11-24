@@ -1,3 +1,3 @@
 #!/bin/sh
 set -e
-exec node "$(git rev-parse --show-toplevel)/scripts/repo/hooks/commit-msg.mts" "$@"
+exec node "$(git rev-parse --show-toplevel)/scripts/hooks/commit-msg.mts" "$@"

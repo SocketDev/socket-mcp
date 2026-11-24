@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { SERVER_SOURCE } from '../../scripts/repo/paths.mts'
+import { SERVER_BIN } from '../../scripts/paths.mts'
 
 const FIXTURE_RESPONSE = [
   { type: 'npm', namespace: '@babel', name: 'core', version: '7.24.0' },
@@ -60,7 +60,7 @@ describe('Socket MCP Server', () => {
       args: [
         '--import',
         new URL('./fixture/network.mts', import.meta.url).href,
-        SERVER_SOURCE,
+        SERVER_BIN,
       ],
       env: {
         SOCKET_API_BASE_URL: `http://127.0.0.1:${address.port}/v0/purl`,

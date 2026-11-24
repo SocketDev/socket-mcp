@@ -577,5 +577,5 @@ if (isMainModule(import.meta.url))
   runMain(() => runNpmReleasePreparation(), {
     describe:
       'Prepares a version bump pull request or resumes a merged npm release.',
-    help: 'Usage: node scripts/repo/npm/prepare.mts',
+    help: 'Usage: node scripts/npm/prepare.mts',
   })

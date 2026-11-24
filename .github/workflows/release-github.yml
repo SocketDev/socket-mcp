@@ -62,7 +62,7 @@ jobs:
       # anonymous HEAD 404 cannot distinguish pending, blocked, deleted, or
       # missing versions. A timeout preserves the version for retry.
       - name: Wait for exact npm version
-        run: node scripts/repo/npm/availability.mts "${VERSION}"
+        run: node scripts/npm/availability.mts "${VERSION}"
         env:
           VERSION: ${{ steps.release.outputs.version }}
       - name: Create or finish GitHub release

@@ -22,8 +22,8 @@ import {
   parseNpmStageId,
   run,
   runNpmStagePublish,
-} from '../../../scripts/repo/npm/publish.mts'
-import { validateNpmRelease } from '../../../scripts/repo/npm/validate.mts'
+} from '../../../scripts/npm/publish.mts'
+import { validateNpmRelease } from '../../../scripts/npm/validate.mts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
