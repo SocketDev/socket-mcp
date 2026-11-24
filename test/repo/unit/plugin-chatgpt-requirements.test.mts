@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 import {
   createZipArchive,
   extractZipArchive,
-} from '../../../scripts/repo/plugin/chatgpt/zip.mts'
+} from '../../../scripts/plugin/chatgpt/zip.mts'
 import {
   chatgptManifestVersion,
   checkChatgptIcon,
@@ -16,8 +16,8 @@ import {
   inspectChatgptPluginPackage,
   MCP_CONFIG_NAME,
   PLUGIN_MANIFEST_NAME,
-} from '../../../scripts/repo/plugin/chatgpt/requirements.mts'
-import type { ChatgptPluginFindings } from '../../../scripts/repo/plugin/chatgpt/requirements.mts'
+} from '../../../scripts/plugin/chatgpt/requirements.mts'
+import type { ChatgptPluginFindings } from '../../../scripts/plugin/chatgpt/requirements.mts'
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..')
 const pluginDir = path.join(repoRoot, 'plugins', 'chatgpt')

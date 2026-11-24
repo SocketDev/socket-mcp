@@ -56,13 +56,13 @@ jobs:
           PR_APP_SLUG: ${{ steps.pr-app.outputs.app-slug }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-        run: node scripts/repo/npm/prepare.mts
+        run: node scripts/npm/prepare.mts
       - name: Validate package version and release ref
         if: ${{ steps.preparation.outputs.should-stage == 'true' }}
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REF: ${{ github.ref }}
-        run: node scripts/repo/npm/validate.mts
+        run: node scripts/npm/validate.mts
       - name: Verify package
         if: ${{ steps.preparation.outputs.should-stage == 'true' }}
         run: pnpm run repo:check && pnpm run cover
@@ -70,4 +70,4 @@ jobs:
         if: ${{ steps.preparation.outputs.should-stage == 'true' }}
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: node scripts/repo/npm/publish.mts
+        run: node scripts/npm/publish.mts

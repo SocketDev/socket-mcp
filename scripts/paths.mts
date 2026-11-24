@@ -9,9 +9,11 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import manifest from '../package.json' with { type: 'json' }
+
 export const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../..',
+  '..',
 )
 
 /**
@@ -24,6 +26,7 @@ export const DIST_DIR = path.join(REPO_ROOT, 'dist')
  */
 
 export const SERVER_SOURCE = path.join(REPO_ROOT, 'index.mts')
+export const SERVER_BIN = path.resolve(REPO_ROOT, manifest.bin['socket-mcp'])
 
 /**
  * Absolute path to the ChatGPT plugin package source: the listing manifest,

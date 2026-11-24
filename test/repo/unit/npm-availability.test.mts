@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { waitForNpmVersion } from '../../../scripts/repo/npm/availability.mts'
+import { waitForNpmVersion } from '../../../scripts/npm/availability.mts'
 
 it('retries 404 and 429, honoring Retry-After before succeeding', async () => {
   const statuses = [404, 429, 200]

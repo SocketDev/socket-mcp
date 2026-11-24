@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawnSync: spawn }))
-import { dispatchNpmPublish } from '../../../scripts/repo/npm/dispatch.mts'
+import { dispatchNpmPublish } from '../../../scripts/npm/dispatch.mts'
 import { REPOSITORY } from './npm-repository.mts'
 
 afterEach(() => {

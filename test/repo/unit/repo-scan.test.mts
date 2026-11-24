@@ -5,15 +5,15 @@ import path from 'node:path'
 import process from 'node:process'
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { REPO_ROOT } from '../../../scripts/repo/paths.mts'
+import { REPO_ROOT } from '../../../scripts/paths.mts'
 import {
   readWorkingTreeFile,
   scanFiles,
   scanText,
-} from '../../../scripts/repo/util/scan.mts'
+} from '../../../scripts/util/scan.mts'
 
 const FAKE_GITHUB_TOKEN = `ghp_${'A'.repeat(36)}`
-const PRE_COMMIT = path.join(REPO_ROOT, 'scripts/repo/hooks/pre-commit.mts')
+const PRE_COMMIT = path.join(REPO_ROOT, 'scripts/hooks/pre-commit.mts')
 
 const tempDirs: string[] = []
 

@@ -2,8 +2,8 @@ import { expect, it, vi } from 'vitest'
 import {
   approveNpmStage,
   validateStage,
-} from '../../../scripts/repo/npm/approve.mts'
-import type { ReleasePolicy } from '../../../scripts/repo/npm/release-policy.mts'
+} from '../../../scripts/npm/approve.mts'
+import type { ReleasePolicy } from '../../../scripts/npm/release-policy.mts'
 import { REPOSITORY } from './npm-repository.mts'
 
 const id = '12345678-1234-4123-8123-123456789abc'

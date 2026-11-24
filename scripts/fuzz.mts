@@ -29,8 +29,8 @@ import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/
 
 const logger = getDefaultLogger()
 
-// scripts/repo/fuzz.mts → repo root is two levels up.
-const repoRoot = path.resolve(import.meta.dirname, '..', '..')
+// scripts/fuzz.mts → repo root is one level up.
+const repoRoot = path.resolve(import.meta.dirname, '..')
 const VITEST_BIN = path.join(
   repoRoot,
   'node_modules',

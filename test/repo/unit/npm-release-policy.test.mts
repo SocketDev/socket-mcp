@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   parseReleasePolicy,
   readReleasePolicy,
-} from '../../../scripts/repo/npm/release-policy.mts'
+} from '../../../scripts/npm/release-policy.mts'
 
 const roots: string[] = []
 

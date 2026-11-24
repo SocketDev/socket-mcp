@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import { isMainModule, runMain } from '../scripts/repo/cli.mts'
-import type { ScriptMeta } from '../scripts/repo/cli.mts'
+import { isMainModule, runMain } from '../scripts/cli.mts'
+import type { ScriptMeta } from '../scripts/cli.mts'
 import process from 'node:process'
 
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
-import { SERVER_SOURCE } from '../scripts/repo/paths.mts'
+import { SERVER_SOURCE } from '../scripts/paths.mts'
 
 const logger = getDefaultLogger()
 

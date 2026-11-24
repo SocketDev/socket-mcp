@@ -25,13 +25,13 @@ import {
   PLUGIN_MANIFEST_NAME,
 } from './requirements.mts'
 import { createZipArchive } from './zip.mts'
-import { isMainModule } from '../../../fleet/process/is-main-module.mts'
-import { runMain } from '../../../fleet/process/main/run.mts'
-import { isJsonRequested } from '../../../fleet/process/script-meta.mts'
+import { isMainModule } from '../../fleet/process/is-main-module.mts'
+import { runMain } from '../../fleet/process/main/run.mts'
+import { isJsonRequested } from '../../fleet/process/script-meta.mts'
 import { PLUGIN_CHATGPT_DIR } from '../../paths.mts'
 import type { ChatgptPluginFindings } from './requirements.mts'
-import type { ScriptMeta } from '../../../fleet/process/main/run.mts'
-import type { ScriptResult } from '../../../fleet/process/script-result.mts'
+import type { ScriptMeta } from '../../fleet/process/main/run.mts'
+import type { ScriptResult } from '../../fleet/process/script-result.mts'
 
 const logger = getDefaultLogger()
 

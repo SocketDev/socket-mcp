@@ -4,7 +4,7 @@ import process from 'node:process'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 
-import { SERVER_SOURCE } from '../../../scripts/repo/paths.mts'
+import { SERVER_SOURCE } from '../../../scripts/paths.mts'
 
 const FIXTURE_NETWORK_GUARD = new URL(
   '../../e2e/fixture/network.mts',

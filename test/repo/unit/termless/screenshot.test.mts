@@ -1,12 +1,12 @@
 import { createTerminal } from '@termless/core'
-import { createVtermBackend } from '@termless/vterm'
+import { createXtermBackend } from '@termless/xtermjs'
 import { expect, onTestFinished, test } from 'vitest'
 
 import { renderScreenshot } from '../../../lib/termless/screenshot.mts'
 
 test('trims unused rows but keeps styled blanks and the visible cursor', () => {
   const terminal = createTerminal({
-    backend: createVtermBackend(),
+    backend: createXtermBackend(),
     cols: 20,
     rows: 30,
   })

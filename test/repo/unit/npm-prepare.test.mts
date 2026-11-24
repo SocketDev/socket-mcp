@@ -40,7 +40,7 @@ vi.mock('node:fs', async importOriginal => {
 import {
   resolveVersionFlipAnchor,
   runNpmReleasePreparation,
-} from '../../../scripts/repo/npm/prepare.mts'
+} from '../../../scripts/npm/prepare.mts'
 import {
   changelogIntroduction,
   changelogSection,
@@ -49,8 +49,8 @@ import {
   latestPublishedBaseline,
   parseConventionalCommit,
   stableVersions,
-} from '../../../scripts/repo/npm/prepare-content.mts'
-import { parseReleasePolicy } from '../../../scripts/repo/npm/release-policy.mts'
+} from '../../../scripts/npm/prepare-content.mts'
+import { parseReleasePolicy } from '../../../scripts/npm/release-policy.mts'
 import { REPOSITORY } from './npm-repository.mts'
 
 const source = 'a'.repeat(40)

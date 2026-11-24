@@ -23,7 +23,7 @@ import {
   REPO_ROOT,
   SOCKET_GATE_DIST_DIR,
   SOCKET_GATE_SRC_DIR,
-} from '../../scripts/repo/paths.mts'
+} from '../../scripts/paths.mts'
 import { createLibStubPlugin } from './rolldown/lib-stub.mts'
 
 // Externalize Node builtins (with + without `node:` prefix). Everything

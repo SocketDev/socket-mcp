@@ -77,7 +77,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       version,
     )
   )
-    throw new Error('Usage: node scripts/repo/npm/availability.mts <version>')
+    throw new Error('Usage: node scripts/npm/availability.mts <version>')
   await waitForNpmVersion(
     `https://registry.npmjs.org/@socketsecurity%2fmcp/${encodeURIComponent(version)}`,
   )
@@ -87,5 +87,5 @@ if (isMainModule(import.meta.url))
   runMain(main, {
     describe:
       'Waits for the exact npm version to become anonymously available.',
-    help: 'Usage: node scripts/repo/npm/availability.mts <version>',
+    help: 'Usage: node scripts/npm/availability.mts <version>',
   })

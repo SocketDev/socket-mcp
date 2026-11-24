@@ -76,5 +76,5 @@ function main(): void {
 if (isMainModule(import.meta.url))
   runMain(main, {
     describe: 'Validates the npm release version, tag, and source branch.',
-    help: 'Usage: node scripts/repo/npm/validate.mts (inside the publish workflow)',
+    help: 'Usage: node scripts/npm/validate.mts (inside the publish workflow)',
   })
