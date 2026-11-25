@@ -411,7 +411,14 @@ export async function handleDepscoreRequest(
       : parseSinglePackageBody(responseText, alertMetadata)
 
     if (!Array.isArray(parseResult)) {
-      return errorResult(parseResult.error)
+      // Only control frames (every purl unresolved) is the caller's outcome;
+      // unparseable lines are a response this server could not handle.
+      return parseResult.malformed
+        ? markUpstreamHttpOutcome(
+            errorResult(parseResult.error),
+            new Error('depscore response had no parseable documents'),
+          )
+        : errorResult(parseResult.error)
     }
 
     // Both parsers yield at least one line for a body that reached here:
@@ -441,11 +448,12 @@ export function parseNdjsonPackageBody(
   responseText: string,
   platform: string | undefined,
   alertMetadata?: ReadonlyMap<string, DepscoreAlertTypeMetadata>,
-): string[] | { error: string } {
+): string[] | { error: string; malformed: boolean } {
   // Parse line-by-line so one malformed line doesn't discard the whole
   // batch — NDJSON is line-oriented, and a truncated/garbage line is skipped
   // (logged) rather than thrown.
   const jsonLines: Array<Record<string, unknown>> = []
+  let malformed = false
   const lines = responseText.split(/\r?\n/)
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i]!.trim()
@@ -458,6 +466,7 @@ export function parseNdjsonPackageBody(
       obj = JSON.parse(line) as Record<string, unknown>
     } catch {
       logger.error({ tool: 'depscore' }, 'skipping malformed NDJSON line')
+      malformed = true
       continue
     }
     if (!obj['_type']) {
@@ -466,7 +475,10 @@ export function parseNdjsonPackageBody(
   }
 
   if (!jsonLines.length) {
-    return { error: 'No valid JSON objects found in NDJSON response' }
+    return {
+      error: 'No valid JSON objects found in NDJSON response',
+      malformed,
+    }
   }
 
   const deduplicated = deduplicateArtifacts(jsonLines, platform)
