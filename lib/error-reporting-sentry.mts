@@ -3,7 +3,8 @@
  *   this module with a dynamic import, and only when SOCKET_MCP_SENTRY_DSN is
  *   set in HTTP mode. The client comes from `@sentry/core` alone: no
  *   OpenTelemetry, no module patching, no default integrations and no
- *   tracing. Envelopes go out through the global `fetch`.
+ *   tracing. Envelopes go out through the shared `httpRequest` helper (Node's
+ *   own HTTP and HTTPS modules), to an HTTPS DSN.
  *   Every event is rebuilt from an allowlist in `beforeSend`, so nothing the
  *   SDK or an error happens to carry leaves the process unless it is named
  *   here. Exception messages are replaced with a summary built from the
@@ -30,8 +31,10 @@ import type {
   Transport,
 } from '@sentry/core'
 import { nodeStackLineParser, ServerRuntimeClient } from '@sentry/core/server'
+import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
 import type { ErrorReporter } from './error-reporting.mts'
+import { isSecureOrLoopback } from './http.mts'
 
 export interface SentryReporterOptions {
   readonly dsn: string
@@ -78,7 +81,7 @@ export function createSentryReporter(
     dsn: options.dsn,
     ...(options.environment ? { environment: options.environment } : {}),
     release: options.release,
-    transport: options.makeTransport ?? makeFetchTransport,
+    transport: options.makeTransport ?? makeHttpTransport,
     stackParser: createStackParser(nodeStackLineParser()),
     integrations: [linkedErrorsIntegration({ limit: 3 })],
     beforeSend: event => sanitizeEvent(event),
@@ -136,22 +139,28 @@ export function createSentryReporter(
   }
 }
 
-// Post each envelope with the global `fetch`. A request that hangs past five
-// seconds is aborted; the SDK records the loss and the server carries on.
-export function makeFetchTransport(options: BaseTransportOptions): Transport {
+// Post each envelope once, without following redirects. A request that hangs
+// past five seconds is aborted; the SDK records the loss and the server
+// carries on.
+export function makeHttpTransport(options: BaseTransportOptions): Transport {
   return createTransport(options, async request => {
-    const response = await fetch(options.url, {
+    const response = await httpRequest(options.url, {
       method: 'POST',
-      body: request.body,
+      body:
+        typeof request.body === 'string'
+          ? request.body
+          : Buffer.from(request.body),
       ...(options.headers ? { headers: options.headers } : {}),
-      signal: AbortSignal.timeout(TRANSPORT_TIMEOUT_MS),
+      timeout: TRANSPORT_TIMEOUT_MS,
+      retries: 0,
+      followRedirects: false,
     })
-    await response.body?.cancel().catch(() => {})
     return {
       statusCode: response.status,
       headers: {
-        'retry-after': response.headers.get('retry-after'),
-        'x-sentry-rate-limits': response.headers.get('x-sentry-rate-limits'),
+        'retry-after': response.headers['retry-after']?.toString() ?? null,
+        'x-sentry-rate-limits':
+          response.headers['x-sentry-rate-limits']?.toString() ?? null,
       },
     }
   })
@@ -220,13 +229,13 @@ export function sanitizeEvent(event: ErrorEvent): ErrorEvent {
   return safe
 }
 
-// An http(s) URL with a public key and a numeric project id, the shape the
-// SDK accepts.
+// An HTTPS URL with a public key and a numeric project id, the shape the SDK
+// accepts. Cleartext HTTP is accepted only for a recorder on this machine.
 export function isPlausibleDsn(dsn: string): boolean {
   try {
     const url = new URL(dsn)
     return (
-      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      isSecureOrLoopback(url) &&
       url.username !== '' &&
       /\/\d+$/u.test(url.pathname)
     )

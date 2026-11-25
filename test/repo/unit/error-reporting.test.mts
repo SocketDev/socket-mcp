@@ -31,6 +31,22 @@ vi.mock('../../../lib/error-reporting-sentry.mts', async importOriginal => {
   return await importOriginal()
 })
 
+// Record every request the shared HTTP helper sends.
+const httpRequests = vi.hoisted(() => ({ count: 0 }))
+vi.mock('@socketsecurity/lib/http-request/request', async importOriginal => {
+  const actual =
+    await importOriginal<
+      typeof import('@socketsecurity/lib/http-request/request')
+    >()
+  return {
+    ...actual,
+    httpRequest: (...args: Parameters<typeof actual.httpRequest>) => {
+      httpRequests.count += 1
+      return actual.httpRequest(...args)
+    },
+  }
+})
+
 afterEach(async () => {
   await closeErrorReporting()
   vi.restoreAllMocks()
@@ -40,7 +56,6 @@ afterEach(async () => {
 // no longer show that the off path skipped it.
 describe('when no DSN is set or the transport is stdio', () => {
   test('does not load Sentry, send anything or report', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     await expect(
       initErrorReporting({ dsn: undefined, mode: 'http' }),
     ).resolves.toBe(false)
@@ -66,7 +81,7 @@ describe('when no DSN is set or the transport is stdio', () => {
     await expect(flushErrorReporting(10)).resolves.toBe(true)
 
     expect(sentryModule.loads).toBe(0)
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(httpRequests.count).toBe(0)
   })
 })
 
@@ -79,6 +94,8 @@ describe('initErrorReporting', () => {
       'ftp://public@127.0.0.1/1',
       'http://127.0.0.1/1',
       'http://public@127.0.0.1/project',
+      // Cleartext HTTP is refused off loopback.
+      'http://public@sentry.example.com/1',
     ]) {
       await expect(initErrorReporting({ dsn, mode: 'http' })).resolves.toBe(
         false,
@@ -89,7 +106,7 @@ describe('initErrorReporting', () => {
     // A DSN is what loads the Sentry module at all.
     expect(sentryModule.loads).toBe(1)
     expect(warn).toHaveBeenCalledWith(
-      'SOCKET_MCP_SENTRY_DSN is not a valid Sentry DSN; error reporting is off',
+      'SOCKET_MCP_SENTRY_DSN is not a valid HTTPS Sentry DSN; error reporting is off',
     )
     // The log line never echoes the DSN.
     expect(JSON.stringify(warn.mock.calls)).not.toContain('not a dsn')

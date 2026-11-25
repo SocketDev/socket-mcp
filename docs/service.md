@@ -236,7 +236,7 @@ Each tool call produces a bounded, versioned audit event. By default, the server
 
 ### Error reporting
 
-Error reporting is off by default. Set `SOCKET_MCP_SENTRY_DSN` in HTTP mode to send errors to Sentry, and `SOCKET_MCP_SENTRY_ENVIRONMENT` to name the environment (Sentry's default is `production`). Without the DSN, the Sentry SDK is never loaded and nothing is sent. stdio mode never reports, even when the DSN is set. A DSN that does not parse logs one line, and the server starts without reporting.
+Error reporting is off by default. Set `SOCKET_MCP_SENTRY_DSN` in HTTP mode to send errors to Sentry, and `SOCKET_MCP_SENTRY_ENVIRONMENT` to name the environment (Sentry's default is `production`). Without the DSN, the Sentry SDK is never loaded and nothing is sent. stdio mode never reports, even when the DSN is set. The DSN must use HTTPS; cleartext HTTP is accepted only for a loopback host, for local testing. A DSN that does not parse, or uses HTTP elsewhere, logs one line, and the server starts without reporting.
 
 Events are sent only for failures on the server's side:
 

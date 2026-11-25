@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import readline from 'node:readline'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
@@ -202,6 +203,14 @@ export function getRequestHeaderValue(
   return header || ''
 }
 
+// HTTPS anywhere, or cleartext HTTP to this machine only (local test servers).
+export function isSecureOrLoopback(url: URL): boolean {
+  return (
+    url.protocol === 'https:' ||
+    (url.protocol === 'http:' && isLoopbackHost(url.hostname))
+  )
+}
+
 // Parse a response body that must be a JSON object — not an array, not a
 // primitive. Throws a contextual error pointing at the upstream caller.
 export function parseJsonObject(
@@ -293,4 +302,16 @@ export function writeOAuthError(
       ),
     },
   )
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/u, '')
+  if (host === 'localhost' || host.endsWith('.localhost')) {
+    return true
+  }
+  const address = host.replace(/^\[|\]$/gu, '')
+  if (isIP(address) === 4) {
+    return Number.parseInt(address.split('.')[0]!, 10) === 127
+  }
+  return address === '::1'
 }

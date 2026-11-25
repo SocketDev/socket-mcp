@@ -195,7 +195,7 @@ export async function initErrorReporting(
     })
     if (!created) {
       logger.warn(
-        'SOCKET_MCP_SENTRY_DSN is not a valid Sentry DSN; error reporting is off',
+        'SOCKET_MCP_SENTRY_DSN is not a valid HTTPS Sentry DSN; error reporting is off',
       )
       return false
     }

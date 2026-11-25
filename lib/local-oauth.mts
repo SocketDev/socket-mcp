@@ -7,7 +7,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { promises as fs, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { isIP } from 'node:net'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,7 +14,7 @@ import path from 'node:path'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 
 import { getSocketApiUrl } from './env.mts'
-import { parseJsonObject } from './http.mts'
+import { isSecureOrLoopback, parseJsonObject } from './http.mts'
 import { logger } from './logger.mts'
 
 const DEFAULT_OAUTH_BASE_URL = 'https://api.socket.dev'
@@ -87,25 +86,6 @@ function credentialPath(): string {
 
 function oauthError(message: string): Error {
   return new Error(`Socket MCP browser sign-in: ${message}`)
-}
-
-function isLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.$/u, '')
-  if (host === 'localhost' || host.endsWith('.localhost')) {
-    return true
-  }
-  const address = host.replace(/^\[|\]$/gu, '')
-  if (isIP(address) === 4) {
-    return Number.parseInt(address.split('.')[0]!, 10) === 127
-  }
-  return address === '::1'
-}
-
-function isSecureOrLoopback(url: URL): boolean {
-  return (
-    url.protocol === 'https:' ||
-    (url.protocol === 'http:' && isLoopbackHost(url.hostname))
-  )
 }
 
 function configuredOAuthTarget(): { issuer: string; resource: string } {
