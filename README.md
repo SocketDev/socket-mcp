@@ -286,6 +286,10 @@ The stdio server uses the saved browser OAuth session. A `SOCKET_API_TOKEN` envi
 
 Audit-event destinations and record behavior are documented in the [service reference](docs/service.md#audit-events).
 
+### Error reporting
+
+HTTP mode can report server-side failures to Sentry. It is off unless `SOCKET_MCP_SENTRY_DSN` is set, and `SOCKET_MCP_SENTRY_ENVIRONMENT` names the environment. stdio mode never reports. What is sent, and what is scrubbed, is documented in the [service reference](docs/service.md#error-reporting).
+
 ### Health check endpoint
 
 The HTTP health response is documented in the [service reference](docs/service.md#health-check-endpoint).

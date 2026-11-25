@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  classifyToolFailure,
+  classifyUpstreamFailure,
   classifyUpstreamHttpError,
   classifyToolOutcome,
+  errorCode,
   markToolOutcome,
   markUpstreamHttpOutcome,
   UpstreamHttpError,
@@ -83,5 +86,73 @@ describe('tool result outcomes', () => {
     expect(JSON.stringify(result)).toBe(
       '{"content":[{"type":"text","text":"original upstream detail"}],"isError":true}',
     )
+  })
+
+  test('records why an upstream call failed without changing wire fields', () => {
+    const result = { content: [], isError: true }
+    const error = new UpstreamHttpError(502, 'raw upstream body')
+    expect(markUpstreamHttpOutcome(result, error)).toBe(result)
+    expect(classifyToolOutcome(result)).toBe('failure')
+    expect(classifyToolFailure(result)).toEqual({
+      cause: 'upstream_5xx',
+      error,
+      status: 502,
+    })
+    expect(JSON.stringify(result)).toBe('{"content":[],"isError":true}')
+    expect(classifyToolFailure({ content: [], isError: true })).toBeUndefined()
+  })
+})
+
+describe('upstream failure causes', () => {
+  test('splits HTTP statuses into denied, client and server answers', () => {
+    expect(classifyUpstreamFailure(new UpstreamHttpError(401, 'x'))).toBe(
+      'upstream_denied',
+    )
+    expect(classifyUpstreamFailure(new UpstreamHttpError(403, 'x'))).toBe(
+      'upstream_denied',
+    )
+    expect(classifyUpstreamFailure(new UpstreamHttpError(404, 'x'))).toBe(
+      'upstream_4xx',
+    )
+    expect(classifyUpstreamFailure(new UpstreamHttpError(429, 'x'))).toBe(
+      'upstream_4xx',
+    )
+    expect(classifyUpstreamFailure(new UpstreamHttpError(500, 'x'))).toBe(
+      'upstream_5xx',
+    )
+    expect(classifyUpstreamFailure(new UpstreamHttpError(503, 'x'))).toBe(
+      'upstream_5xx',
+    )
+  })
+
+  test('reads network and timeout codes through wrapped causes', () => {
+    const refused = Object.assign(new Error('connect refused'), {
+      code: 'ECONNREFUSED',
+    })
+    const wrapped = new Error('file-list request failed', {
+      cause: new Error('GET failed', { cause: refused }),
+    })
+    expect(classifyUpstreamFailure(refused)).toBe('network')
+    expect(classifyUpstreamFailure(wrapped)).toBe('network')
+    expect(errorCode(wrapped)).toBe('ECONNREFUSED')
+    expect(
+      classifyUpstreamFailure(
+        Object.assign(new Error('connect'), { code: 'ETIMEDOUT' }),
+      ),
+    ).toBe('timeout')
+    // The shared HTTP client's own timeout carries no code.
+    expect(
+      classifyUpstreamFailure(
+        new Error('GET request timed out after 30000ms: https://example.test/'),
+      ),
+    ).toBe('timeout')
+  })
+
+  test('calls anything else an exception', () => {
+    expect(classifyUpstreamFailure(new SyntaxError('Unexpected token'))).toBe(
+      'exception',
+    )
+    expect(classifyUpstreamFailure('not an error')).toBe('exception')
+    expect(errorCode(new Error('no code'))).toBeUndefined()
   })
 })

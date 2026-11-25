@@ -11,7 +11,11 @@ import { getSocketApiUrl } from './env.mts'
 import { buildSocketHeaders } from './http.mts'
 import { logger } from './logger.mts'
 import { buildPurl } from './purl.mts'
-import { markToolOutcome } from './tool-outcome.mts'
+import {
+  markToolOutcome,
+  markUpstreamHttpOutcome,
+  UpstreamHttpError,
+} from './tool-outcome.mts'
 import { AUTH_REQUIRED_MSG, errorResult, resolveAuthToken } from './server.mts'
 import type { ToolErrorResult, ToolOkResult } from './server.mts'
 import { buildSocketReportUrl } from './socket-url.mts'
@@ -343,9 +347,12 @@ export async function handleDepscoreRequest(
       headers: buildSocketHeaders(accessToken, userAgent),
       body: JSON.stringify({ components }),
     })
-  } catch {
+  } catch (e) {
     logger.error({ tool: 'depscore' }, 'upstream request failed')
-    return errorResult('Error connecting to Socket API')
+    return markUpstreamHttpOutcome(
+      errorResult('Error connecting to Socket API'),
+      e,
+    )
   }
 
   const responseText = response.text()
@@ -353,13 +360,19 @@ export async function handleDepscoreRequest(
   if (response.status === 401) {
     const errorMsg = `Socket authentication failed [401]. Re-authenticate and retry. ${responseText}`
     logger.error({ tool: 'depscore', status: 401 }, 'upstream request denied')
-    return markToolOutcome(errorResult(errorMsg), 'denied')
+    return markUpstreamHttpOutcome(
+      errorResult(errorMsg),
+      new UpstreamHttpError(401, 'depscore endpoint 401'),
+    )
   }
 
   if (response.status === 403) {
     const errorMsg = `Socket denied access [403]. Re-authenticate with the correct organization or repository permissions and retry. ${responseText}`
     logger.error({ tool: 'depscore', status: 403 }, 'upstream request denied')
-    return markToolOutcome(errorResult(errorMsg), 'denied')
+    return markUpstreamHttpOutcome(
+      errorResult(errorMsg),
+      new UpstreamHttpError(403, 'depscore endpoint 403'),
+    )
   }
 
   if (response.status !== 200) {
@@ -368,7 +381,13 @@ export async function handleDepscoreRequest(
       { tool: 'depscore', status: response.status },
       'upstream request failed',
     )
-    return errorResult(errorMsg)
+    return markUpstreamHttpOutcome(
+      errorResult(errorMsg),
+      new UpstreamHttpError(
+        response.status,
+        `depscore endpoint ${response.status}`,
+      ),
+    )
   }
 
   if (!responseText.trim()) {
@@ -392,7 +411,14 @@ export async function handleDepscoreRequest(
       : parseSinglePackageBody(responseText, alertMetadata)
 
     if (!Array.isArray(parseResult)) {
-      return errorResult(parseResult.error)
+      // Only control frames (every purl unresolved) is the caller's outcome;
+      // unparseable lines are a response this server could not handle.
+      return parseResult.malformed
+        ? markUpstreamHttpOutcome(
+            errorResult(parseResult.error),
+            new Error('depscore response had no parseable documents'),
+          )
+        : errorResult(parseResult.error)
     }
 
     // Both parsers yield at least one line for a body that reached here:
@@ -406,9 +432,12 @@ export async function handleDepscoreRequest(
         },
       ],
     }
-  } catch {
+  } catch (e) {
     logger.error({ tool: 'depscore' }, 'response parse failed')
-    return errorResult('Error parsing response from Socket API')
+    return markUpstreamHttpOutcome(
+      errorResult('Error parsing response from Socket API'),
+      e,
+    )
   }
 }
 
@@ -419,11 +448,12 @@ export function parseNdjsonPackageBody(
   responseText: string,
   platform: string | undefined,
   alertMetadata?: ReadonlyMap<string, DepscoreAlertTypeMetadata>,
-): string[] | { error: string } {
+): string[] | { error: string; malformed: boolean } {
   // Parse line-by-line so one malformed line doesn't discard the whole
   // batch — NDJSON is line-oriented, and a truncated/garbage line is skipped
   // (logged) rather than thrown.
   const jsonLines: Array<Record<string, unknown>> = []
+  let malformed = false
   const lines = responseText.split(/\r?\n/)
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const line = lines[i]!.trim()
@@ -436,6 +466,7 @@ export function parseNdjsonPackageBody(
       obj = JSON.parse(line) as Record<string, unknown>
     } catch {
       logger.error({ tool: 'depscore' }, 'skipping malformed NDJSON line')
+      malformed = true
       continue
     }
     if (!obj['_type']) {
@@ -444,7 +475,10 @@ export function parseNdjsonPackageBody(
   }
 
   if (!jsonLines.length) {
-    return { error: 'No valid JSON objects found in NDJSON response' }
+    return {
+      error: 'No valid JSON objects found in NDJSON response',
+      malformed,
+    }
   }
 
   const deduplicated = deduplicateArtifacts(jsonLines, platform)

@@ -15,6 +15,7 @@ import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { httpRequest } from '@socketsecurity/lib/http-request/request'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { reportServerError } from './error-reporting.mts'
 import {
   assertSafeHttpUrl,
   getRequestHeaderValue,
@@ -126,6 +127,7 @@ export async function authenticateRequest(
     authInfo = await verifyAccessToken(token, resourceIdentifier, options)
   } catch (e) {
     logger.error(`Token verification failed: ${errorMessage(e)}`)
+    reportServerError(e, { source: 'oauth_verify' })
     writeJson(res, 500, {
       error: 'server_error',
       error_description: 'Token verification failed',

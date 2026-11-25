@@ -12,6 +12,7 @@ import {
   parseNdjsonPackageBody,
   parseSinglePackageBody,
 } from '../../../lib/tool-depscore.mts'
+import { classifyToolFailure } from '../../../lib/tool-outcome.mts'
 
 const API = 'https://api.socket.dev'
 
@@ -531,6 +532,26 @@ describe('handleDepscore', () => {
     )
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toMatch(/No valid JSON objects/)
+    expect(classifyToolFailure(result)?.cause).toBe('exception')
+  })
+
+  test('leaves a body of only control frames unmarked', async () => {
+    nock(API)
+      .post('/v0/purl')
+      .query(true)
+      .reply(
+        200,
+        '{"_type":"purlError","inputPurl":"pkg:npm/a@2.0.0"}\n{"_type":"summary"}\n',
+        { 'content-type': 'application/x-ndjson' },
+      )
+    const result = await handleDepscore(
+      [{ depname: 'a', version: '2.0.0' }],
+      undefined,
+      'tok',
+    )
+    expect(result.isError).toBe(true)
+    // Unresolved purls are the caller's outcome, not a failure to report.
+    expect(classifyToolFailure(result)).toBeUndefined()
   })
 
   test('treats a body with no content-type as a single JSON document', async () => {

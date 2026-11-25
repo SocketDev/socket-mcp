@@ -74,6 +74,7 @@
     "@modelcontextprotocol/core": "catalog:",
     "@modelcontextprotocol/node": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@sentry/core": "catalog:",
     "@sinclair/typebox": "catalog:",
     "@socketregistry/packageurl-js": "catalog:",
     "@socketregistry/packageurl-js-stable": "catalog:",

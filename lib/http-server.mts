@@ -5,10 +5,16 @@
 // live in http-public-routes.mts.
 import { toNodeHandler } from '@modelcontextprotocol/node'
 import type { NodeMcpRequestHandler } from '@modelcontextprotocol/node'
-import { createMcpHandler } from '@modelcontextprotocol/server'
+import {
+  createMcpHandler,
+  MissingRequiredClientCapabilityError,
+  UnsupportedProtocolVersionError,
+} from '@modelcontextprotocol/server'
 import { errorMessage } from '@socketsecurity/lib/errors/message'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { reportServerError } from './error-reporting.mts'
+import type { ServerErrorReport } from './error-reporting.mts'
 import { createConfiguredServer } from './server.mts'
 import { getRequestBaseUrl, getRequestHeaderValue, writeJson } from './http.mts'
 import {
@@ -67,9 +73,14 @@ export function applyClientApiKey(req: AuthenticatedRequest): void {
 // the only move left is closing the response.
 export function createRouteFailureHandler(
   res: ServerResponse,
+  req?: AuthenticatedRequest | undefined,
 ): (error: unknown) => void {
   return error => {
     logger.error(`Unhandled request failure: ${errorMessage(error)}`)
+    reportServerError(error, {
+      source: 'http_route',
+      ...requestReportContext(req),
+    })
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -87,12 +98,18 @@ export function createRouteFailureHandler(
 // error — rather than inside a tool.
 export function handleMcpAdapterError(error: unknown): void {
   logger.error(`MCP adapter failed: ${errorMessage(error)}`)
+  reportServerError(error, { source: 'mcp_adapter' })
 }
 
 // The MCP handler's `onerror` sink. Reached when serving one exchange throws
-// past the per-request handling in `handleMcpRequest`.
+// past the per-request handling in `handleMcpRequest`, and also when the
+// handler turns a request away for the client's own mistake, which is logged
+// but not reported.
 export function handleMcpHandlerError(error: unknown): void {
   logger.error(`MCP request failed: ${errorMessage(error)}`)
+  if (!isMcpClientRejection(error)) {
+    reportServerError(error, { source: 'mcp_handler' })
+  }
 }
 
 // Hand one request to the MCP handler. The adapter reads the request stream
@@ -135,6 +152,10 @@ export async function handleMcpRequest(
         return
       }
       logger.error(`Error reading request body: ${errorMessage(error)}`)
+      reportServerError(error, {
+        source: 'http_body',
+        ...requestReportContext(req),
+      })
       if (!res.headersSent) {
         writeJson(res, 500, {
           jsonrpc: '2.0',
@@ -172,6 +193,10 @@ export async function handleMcpRequest(
     logger.error(
       `Error processing ${req.method} request: ${errorMessage(error)}`,
     )
+    reportServerError(error, {
+      source: 'mcp_request',
+      ...requestReportContext(req),
+    })
     if (!res.headersSent) {
       writeJson(res, 500, {
         jsonrpc: '2.0',
@@ -180,6 +205,19 @@ export async function handleMcpRequest(
       })
     }
   }
+}
+
+// The MCP handler hands its `onerror` the requests it rejects for the
+// client's own mistake — an unsupported protocol revision, missing client
+// capabilities, a wrong Content-Type, headers that contradict the body —
+// alongside real serving failures. Only the latter are worth an event.
+export function isMcpClientRejection(error: unknown): boolean {
+  return (
+    error instanceof UnsupportedProtocolVersionError ||
+    error instanceof MissingRequiredClientCapabilityError ||
+    (error instanceof Error &&
+      /^(?:Rejected |Unsupported Media Type\b)/u.test(error.message))
+  )
 }
 
 // Read and buffer the POST body to a string, capped at MAX_POST_BODY_BYTES.
@@ -210,6 +248,22 @@ export async function readPostBody(req: IncomingMessage): Promise<string> {
     throw new PayloadTooLargeError(MAX_POST_BODY_BYTES)
   }
   return body
+}
+
+// What an error report may say about the request it came from: whether a
+// caller token was attached and the client's User-Agent, which the reporter
+// reduces to a product name.
+function requestReportContext(
+  req: AuthenticatedRequest | undefined,
+): Omit<ServerErrorReport, 'source'> {
+  if (!req) {
+    return {}
+  }
+  const userAgent = getRequestHeaderValue(req.headers['user-agent'])
+  return {
+    hasBearer: Boolean(req.auth?.token),
+    ...(userAgent ? { userAgent } : {}),
+  }
 }
 
 // Routes a single request: health endpoint, origin validation, OAuth
@@ -331,7 +385,7 @@ export function startHttpServer(port: number): void {
   let listeningPort = port
   const httpServer = createServer((req, res) => {
     routeRequest(mcpHandler, req, res, listeningPort).catch(
-      createRouteFailureHandler(res),
+      createRouteFailureHandler(res, req),
     )
   })
 

@@ -137,6 +137,18 @@ export function getSocketMcpAuditSink(): 'jsonl' | 'stderr' | 'unknown' {
   return sink === 'stderr' ? 'stderr' : 'unknown'
 }
 
+// The Sentry DSN for HTTP-mode error reporting. Unset by default, which keeps
+// reporting off: the Sentry SDK is never loaded and nothing leaves the
+// process. stdio mode ignores it.
+export function getSocketMcpSentryDsn(): string | undefined {
+  return envString('SOCKET_MCP_SENTRY_DSN')
+}
+
+// The Sentry `environment` reported events carry, e.g. `production`.
+export function getSocketMcpSentryEnvironment(): string | undefined {
+  return envString('SOCKET_MCP_SENTRY_ENVIRONMENT')
+}
+
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with

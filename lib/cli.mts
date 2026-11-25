@@ -11,7 +11,14 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio'
 
 import { errorMessage } from '@socketsecurity/lib/errors/message'
 
-import { getMcpHttpMode, getMcpPort, getSocketApiToken } from './env.mts'
+import {
+  getMcpHttpMode,
+  getMcpPort,
+  getSocketApiToken,
+  getSocketMcpSentryDsn,
+  getSocketMcpSentryEnvironment,
+} from './env.mts'
+import { startErrorReporting } from './error-reporting.mts'
 import { getApiKeyInteractively } from './http.mts'
 import { startHttpServer } from './http-server.mts'
 import { logger } from './logger.mts'
@@ -45,9 +52,14 @@ export interface SocketMcpCliDeps {
   readonly resolveLocalOAuthSession?: () => Promise<
     LocalOAuthSession | undefined
   >
+  // SOCKET_MCP_SENTRY_DSN and SOCKET_MCP_SENTRY_ENVIRONMENT. HTTP mode turns
+  // error reporting on only when the DSN is set; stdio mode ignores both.
+  readonly sentryDsn: string | undefined
+  readonly sentryEnvironment: string | undefined
   readonly serveStdio: typeof serveStdio
   readonly setOauthEnabled: () => { issuer: string } | undefined
   readonly setStaticApiKey: typeof setStaticApiKey
+  readonly startErrorReporting: typeof startErrorReporting
   readonly startHttpServer: typeof startHttpServer
 }
 
@@ -68,9 +80,12 @@ export function createSocketMcpCliDeps(): SocketMcpCliDeps {
     promptForApiKey: getApiKeyInteractively,
     refreshLocalOAuthSession,
     resolveLocalOAuthSession,
+    sentryDsn: getSocketMcpSentryDsn(),
+    sentryEnvironment: getSocketMcpSentryEnvironment(),
     serveStdio,
     setOauthEnabled,
     setStaticApiKey,
+    startErrorReporting,
     startHttpServer,
   }
 }
@@ -186,6 +201,15 @@ export async function runSocketMcpCli(deps: SocketMcpCliDeps): Promise<number> {
   }
 
   if (useHttp) {
+    // Opt-in and HTTP-only: without a DSN nothing is loaded. A DSN that fails
+    // to start reporting is logged and the server starts anyway.
+    if (deps.sentryDsn) {
+      await deps.startErrorReporting({
+        dsn: deps.sentryDsn,
+        environment: deps.sentryEnvironment,
+        mode: 'http',
+      })
+    }
     deps.startHttpServer(deps.port)
     return 0
   }
