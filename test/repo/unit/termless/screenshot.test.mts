@@ -2,7 +2,11 @@ import { createTerminal } from '@termless/core'
 import { createXtermBackend } from '@termless/xtermjs'
 import { expect, onTestFinished, test } from 'vitest'
 
-import { renderScreenshot } from '../../../lib/termless/screenshot.mts'
+import manifest from '../../../../package.json' with { type: 'json' }
+import {
+  normalizeOutput,
+  renderScreenshot,
+} from '../../../lib/termless/screenshot.mts'
 
 test('trims unused rows but keeps styled blanks and the visible cursor', () => {
   const terminal = createTerminal({
@@ -21,4 +25,17 @@ test('trims unused rows but keeps styled blanks and the visible cursor', () => {
   expect(highlighted).toBeGreaterThan(initial)
   terminal.feed('\x1b[12;1H\x1b[?25h')
   expect(height()).toBeGreaterThan(highlighted)
+})
+
+test('replaces the package version and the given values', () => {
+  expect(
+    normalizeOutput(
+      `HTTP server version ${manifest.version} started on port 4321\r\n` +
+        `server version ${manifest.version} started`,
+      [['4321', '<port>']],
+    ),
+  ).toBe(
+    'HTTP server version <version> started on port <port>\r\n' +
+      'server version <version> started',
+  )
 })

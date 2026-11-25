@@ -15,7 +15,10 @@ import { expect, onTestFinished, test } from 'vitest'
 
 import { SERVER_BIN } from '../../scripts/paths.mts'
 import { createTestIssuer } from '../lib/oauth-issuer.mts'
-import { renderScreenshot } from '../lib/termless/screenshot.mts'
+import {
+  normalizeOutput,
+  renderScreenshot,
+} from '../lib/termless/screenshot.mts'
 
 function createSession() {
   const terminal = createTerminal({
@@ -96,13 +99,11 @@ async function snapshotOutput(
   replacements: readonly (readonly [string, string])[] = [],
 ) {
   let frame = terminal
-  if (replacements.length > 0) {
-    let output = terminal.output.getText()
-    for (const [value, label] of replacements) {
-      output = output.replaceAll(value, label)
-    }
+  const output = terminal.output.getText()
+  const normalized = normalizeOutput(output, replacements)
+  if (normalized !== output) {
     frame = createSession()
-    frame.feed(output)
+    frame.feed(normalized)
   }
   const filename = `termless.${name}.svg`
   const baseline = join(process.cwd(), 'test/snapshots/termless', filename)

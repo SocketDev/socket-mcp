@@ -1,5 +1,7 @@
 import { screenshotSvg, type Cell, type TestTerminal } from '@termless/core'
 
+import manifest from '../../../package.json' with { type: 'json' }
+
 const svgOptions = {
   fontFamily: "'JetBrains Mono', 'Noto Sans Symbols 2', monospace",
   fontSize: 14,
@@ -40,6 +42,20 @@ function emptyCell(): Cell {
     continuation: false,
     hyperlink: null,
   }
+}
+
+// The version is always replaced so release bumps never break the snapshots.
+export function normalizeOutput(
+  output: string,
+  replacements: readonly (readonly [string, string])[] = [],
+): string {
+  for (const [value, label] of [
+    ...replacements,
+    [manifest.version, '<version>'] as const,
+  ]) {
+    output = output.replaceAll(value, label)
+  }
+  return output
 }
 
 export function renderScreenshot(terminal: TestTerminal): string {
