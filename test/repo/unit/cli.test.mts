@@ -57,6 +57,7 @@ function recordingDeps(overrides?: Partial<SocketMcpCliDeps> | undefined): {
     },
     sentryDsn: undefined,
     sentryEnvironment: undefined,
+    sentryTracesSampleRate: 0,
     setOauthEnabled: () => undefined,
     setStaticApiKey: (value, options) => {
       recorded.staticKeys.push({ key: value, shared: options?.shared })

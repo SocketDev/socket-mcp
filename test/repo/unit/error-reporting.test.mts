@@ -6,7 +6,7 @@
  *   test/repo/integration/error-reporting.test.mts.
  */
 
-import type { ErrorEvent } from '@sentry/core'
+import type { ErrorEvent, TransactionEvent } from '@sentry/core'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
@@ -120,7 +120,7 @@ describe('resolveMcpClient', () => {
     ).toEqual({ name: 'claude-code', version: '2.1.4' })
   })
 
-  test('falls back to the User-Agent product token', () => {
+  test('falls back to the User-Agent client family, with no prefix', () => {
     expect(
       resolveMcpClient(undefined, 'Cursor/1.7.2 (darwin arm64) node/24'),
     ).toEqual({ name: 'cursor', version: '1.7.2' })
@@ -131,6 +131,19 @@ describe('resolveMcpClient', () => {
     expect(resolveMcpClient(undefined, 'node')).toEqual({
       name: 'node',
       version: undefined,
+    })
+    expect(resolveMcpClient(undefined, 'undici/7.1.0')).toEqual({
+      name: 'node',
+      version: '7.1.0',
+    })
+    expect(resolveMcpClient(undefined, 'claude-code/2.1.4')).toEqual(
+      resolveMcpClient({ name: 'claude-code', version: '2.1.4' }, undefined),
+    )
+  })
+
+  test('names an unlisted User-Agent product other, without a version', () => {
+    expect(resolveMcpClient(undefined, 'Some-Private-Agent/4.5.6')).toEqual({
+      name: 'other',
     })
   })
 
@@ -336,5 +349,115 @@ describe('sanitizeEvent', () => {
       expect(safe[key]).toBeUndefined()
     }
     expect(Object.keys(safe.contexts ?? {})).toEqual(['runtime'])
+  })
+})
+
+describe('sanitizeTransaction', () => {
+  test('rebuilds the transaction from the allowlist', async () => {
+    const { sanitizeTransaction } =
+      await import('../../../lib/error-reporting-sentry.mts')
+    const secret = 'synthetic_secret_value'
+    const event: TransactionEvent = {
+      type: 'transaction',
+      event_id: 'a'.repeat(32),
+      timestamp: 2,
+      start_timestamp: 1,
+      platform: 'node',
+      release: '1.2.3',
+      environment: 'staging',
+      server_name: secret,
+      transaction: 'tools/call alerts',
+      transaction_info: { source: 'custom' },
+      sdk: { name: 'sentry.javascript.core', version: '11.13.0' },
+      tags: { secret },
+      extra: { secret },
+      user: { id: secret, ip_address: '203.0.113.9' },
+      request: { url: `https://example.invalid/?q=${secret}`, headers: {} },
+      breadcrumbs: [{ category: 'mcp', message: secret }],
+      measurements: { secret: { value: 1, unit: 'none' } },
+      spans: [
+        {
+          span_id: 'c'.repeat(16),
+          trace_id: 'b'.repeat(32),
+          start_timestamp: 1,
+          data: { 'mcp.request.argument.org_slug': secret },
+          description: secret,
+          status: 'ok',
+        },
+      ],
+      contexts: {
+        trace: {
+          trace_id: 'b'.repeat(32),
+          span_id: 'd'.repeat(16),
+          op: 'mcp.server',
+          origin: 'auto.function.mcp_server',
+          status: 'ok',
+          tags: { secret },
+          data: {
+            'mcp.client.name': 'claude-code',
+            'mcp.client.version': '2.1.4',
+            'mcp.method.name': 'tools/call',
+            'mcp.tool.name': 'alerts',
+            'mcp.tool.result.is_error': false,
+            'mcp.transport': 'http',
+            'network.transport': 'tcp',
+            'sentry.sample_rate': 1,
+            'mcp.request.argument.org_slug': secret,
+            'mcp.tool.result.content': secret,
+            'http.request.header.authorization': secret,
+            'user.id': secret,
+          },
+        },
+        os: { name: secret },
+      },
+    }
+
+    const safe = sanitizeTransaction(event)
+    expect(JSON.stringify(safe)).not.toContain(secret)
+    expect(safe).toEqual({
+      type: 'transaction',
+      event_id: 'a'.repeat(32),
+      timestamp: 2,
+      start_timestamp: 1,
+      platform: 'node',
+      release: '1.2.3',
+      environment: 'staging',
+      transaction: 'tools/call alerts',
+      transaction_info: { source: 'custom' },
+      sdk: { name: 'sentry.javascript.core', version: '11.13.0' },
+      spans: [],
+      contexts: {
+        runtime: { name: 'node', version: process.version },
+        trace: {
+          trace_id: 'b'.repeat(32),
+          span_id: 'd'.repeat(16),
+          op: 'mcp.server',
+          origin: 'auto.function.mcp_server',
+          status: 'ok',
+          data: {
+            'mcp.client.name': 'claude-code',
+            'mcp.client.version': '2.1.4',
+            'mcp.method.name': 'tools/call',
+            'mcp.tool.name': 'alerts',
+            'mcp.tool.result.is_error': false,
+            'mcp.transport': 'http',
+            'network.transport': 'tcp',
+            'sentry.sample_rate': 1,
+          },
+        },
+      },
+    })
+  })
+
+  test('redacts an unbounded name and drops a malformed trace context', async () => {
+    const { sanitizeTransaction } =
+      await import('../../../lib/error-reporting-sentry.mts')
+    const safe = sanitizeTransaction({
+      type: 'transaction',
+      transaction: 'tools/call <script>alert(1)</script>',
+      contexts: { trace: { trace_id: 'not-hex', span_id: 'd'.repeat(16) } },
+    })
+    expect(safe.transaction).toBe('[redacted]')
+    expect(safe.contexts?.trace).toBeUndefined()
   })
 })

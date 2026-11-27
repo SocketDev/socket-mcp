@@ -149,6 +149,13 @@ export function getSocketMcpSentryEnvironment(): string | undefined {
   return envString('SOCKET_MCP_SENTRY_ENVIRONMENT')
 }
 
+// The share of `tools/call` requests traced to Sentry, from 0 to 1. Unset or
+// out of range is 0, which sends no transactions.
+export function getSocketMcpSentryTracesSampleRate(): number {
+  const rate = Number(envString('SOCKET_MCP_SENTRY_TRACES_SAMPLE_RATE'))
+  return rate >= 0 && rate <= 1 ? rate : 0
+}
+
 // OAuth getters — not yet in the canonical lib surface. These read
 // the same env vars that the future lib getters will read. Once
 // lib ships them, this file's OAuth section can be replaced with

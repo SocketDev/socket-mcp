@@ -2,10 +2,13 @@
  * @file The Sentry client behind error reporting. `error-reporting.mts` loads
  *   this module with a dynamic import, and only when SOCKET_MCP_SENTRY_DSN is
  *   set in HTTP mode. The client comes from `@sentry/core` alone: no
- *   OpenTelemetry, no module patching, no default integrations and no
- *   tracing. Envelopes go out through the shared `httpRequest` helper (Node's
- *   own HTTP and HTTPS modules), to an HTTPS DSN.
- *   Every event is rebuilt from an allowlist in `beforeSend`, so nothing the
+ *   OpenTelemetry, no module patching and no default integrations. Tracing
+ *   is one manual transaction per `tools/call`, sampled at
+ *   SOCKET_MCP_SENTRY_TRACES_SAMPLE_RATE (0, off, by default). Envelopes go
+ *   out through the shared `httpRequest` helper (Node's own HTTP and HTTPS
+ *   modules), to an HTTPS DSN.
+ *   Every event and transaction is rebuilt from an allowlist in `beforeSend`
+ *   and `beforeSendTransaction`, so nothing the
  *   SDK or an error happens to carry leaves the process unless it is named
  *   here. Exception messages are replaced with a summary built from the
  *   bounded tags, because upstream errors embed request URLs (org slugs,
@@ -19,8 +22,13 @@ import process from 'node:process'
 import {
   createStackParser,
   createTransport,
+  getClient,
+  getCurrentScope,
   linkedErrorsIntegration,
   Scope,
+  setCurrentClient,
+  startNewTrace,
+  startSpan,
 } from '@sentry/core'
 import type {
   BaseTransportOptions,
@@ -28,6 +36,8 @@ import type {
   ErrorEvent,
   Exception,
   StackFrame,
+  TraceContext,
+  TransactionEvent,
   Transport,
 } from '@sentry/core'
 import { nodeStackLineParser, ServerRuntimeClient } from '@sentry/core/server'
@@ -43,6 +53,7 @@ export interface SentryReporterOptions {
     | ((options: BaseTransportOptions) => Transport)
     | undefined
   readonly release: string
+  readonly tracesSampleRate?: number | undefined
 }
 
 // Tags an event may carry. Values are re-checked against TAG_VALUE_PATTERN.
@@ -59,8 +70,25 @@ export const ALLOWED_TAG_KEYS: ReadonlySet<string> = new Set([
   'upstream.status',
 ])
 
+// Attributes a `tools/call` transaction may carry. The SDK adds the
+// `sentry.*` ones itself.
+export const ALLOWED_SPAN_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
+  'mcp.client.name',
+  'mcp.client.version',
+  'mcp.method.name',
+  'mcp.tool.name',
+  'mcp.tool.result.is_error',
+  'mcp.transport',
+  'network.transport',
+  'sentry.op',
+  'sentry.origin',
+  'sentry.sample_rate',
+])
+
 const MAX_BREADCRUMBS = 20
 const REDACTED = '[redacted]'
+const SPAN_ID_PATTERN = /^[0-9a-f]{16,32}$/u
+const SPAN_TEXT_PATTERN = /^[\w .:/+-]{1,96}$/u
 const TAG_VALUE_PATTERN = /^[\w.:+-]{1,64}$/u
 const TRANSPORT_TIMEOUT_MS = 5000
 
@@ -85,8 +113,10 @@ export function createSentryReporter(
     stackParser: createStackParser(nodeStackLineParser()),
     integrations: [linkedErrorsIntegration({ limit: 3 })],
     beforeSend: event => sanitizeEvent(event),
-    // Errors only: no span streaming, no request, header, cookie, body or
-    // variable capture.
+    beforeSendTransaction: event => sanitizeTransaction(event),
+    tracesSampleRate: options.tracesSampleRate ?? 0,
+    // Transactions rather than span streaming, so `beforeSendTransaction`
+    // sees every one. No request, header, cookie, body or variable capture.
     traceLifecycle: 'static',
     dataCollection: {
       cookies: false,
@@ -112,6 +142,8 @@ export function createSentryReporter(
   }
   const scope = new Scope()
   scope.setClient(client)
+  // `startSpan` reads the current client; errors keep the private scope.
+  setCurrentClient(client)
   client.init()
   return {
     addBreadcrumb(breadcrumb) {
@@ -134,8 +166,46 @@ export function createSentryReporter(
         mechanism: { type: 'socket-mcp', handled: true },
       })
     },
-    close: timeoutMs => client.close(timeoutMs),
+    close: timeoutMs => {
+      if (getClient() === client) {
+        getCurrentScope().setClient(undefined)
+      }
+      return client.close(timeoutMs)
+    },
     flush: timeoutMs => client.flush(timeoutMs),
+    traceToolCall: (span, run, isError) =>
+      // Each call is its own trace and root transaction: core's default scope
+      // stack is not async-aware, so concurrent calls must not parent each
+      // other.
+      startNewTrace(() =>
+        startSpan(
+          {
+            name: `tools/call ${span.tool}`,
+            op: 'mcp.server',
+            // oxlint-disable-next-line typescript/no-deprecated -- the cookbook's manual MCP span; without it the span is not a transaction under `traceLifecycle: 'static'`.
+            forceTransaction: true,
+            parentSpan: null,
+            attributes: {
+              'sentry.origin': 'auto.function.mcp_server',
+              'mcp.method.name': 'tools/call',
+              'mcp.tool.name': span.tool,
+              'mcp.transport': span.transport,
+              'network.transport': span.transport === 'stdio' ? 'pipe' : 'tcp',
+              'mcp.client.name': span.client.name,
+              ...(span.client.version
+                ? { 'mcp.client.version': span.client.version }
+                : {}),
+            },
+          },
+          async active => {
+            try {
+              return await run()
+            } finally {
+              active.setAttribute('mcp.tool.result.is_error', isError())
+            }
+          },
+        ),
+      ),
   }
 }
 
@@ -229,6 +299,53 @@ export function sanitizeEvent(event: ErrorEvent): ErrorEvent {
   return safe
 }
 
+/**
+ * Rebuild a transaction from the fields tracing means to send: ids, times,
+ * the bounded name, release and environment, the SDK name, the Node version
+ * and the trace context with allowlisted attributes. Child spans, request
+ * data, users, tags, breadcrumbs and measurements are dropped.
+ */
+export function sanitizeTransaction(event: TransactionEvent): TransactionEvent {
+  const safe: TransactionEvent = {
+    type: 'transaction',
+    contexts: { runtime: { name: 'node', version: process.version } },
+    spans: [],
+    transaction: boundedSpanText(event.transaction) ?? REDACTED,
+  }
+  const trace = sanitizeTraceContext(event.contexts?.trace)
+  if (trace) {
+    safe.contexts = { ...safe.contexts, trace }
+  }
+  if (event.event_id) {
+    safe.event_id = event.event_id
+  }
+  if (event.timestamp !== undefined) {
+    safe.timestamp = event.timestamp
+  }
+  if (event.start_timestamp !== undefined) {
+    safe.start_timestamp = event.start_timestamp
+  }
+  if (event.platform) {
+    safe.platform = event.platform
+  }
+  const source = event.transaction_info?.source
+  if (source && TAG_VALUE_PATTERN.test(source)) {
+    safe.transaction_info = { source }
+  }
+  const release = boundedTagValue(event.release)
+  if (release) {
+    safe.release = release
+  }
+  const environment = boundedTagValue(event.environment)
+  if (environment) {
+    safe.environment = environment
+  }
+  if (event.sdk?.name && event.sdk.version) {
+    safe.sdk = { name: event.sdk.name, version: event.sdk.version }
+  }
+  return safe
+}
+
 // An HTTPS URL with a public key and a numeric project id, the shape the SDK
 // accepts. Cleartext HTTP is accepted only for a recorder on this machine.
 export function isPlausibleDsn(dsn: string): boolean {
@@ -242,6 +359,61 @@ export function isPlausibleDsn(dsn: string): boolean {
   } catch {
     return false
   }
+}
+
+function boundedSpanText(value: unknown): string | undefined {
+  return typeof value === 'string' && SPAN_TEXT_PATTERN.test(value)
+    ? value
+    : undefined
+}
+
+function sanitizeTraceContext(
+  trace: TraceContext | undefined,
+): TraceContext | undefined {
+  if (
+    !trace ||
+    !SPAN_ID_PATTERN.test(trace.trace_id) ||
+    !SPAN_ID_PATTERN.test(trace.span_id)
+  ) {
+    return undefined
+  }
+  const data: Record<string, string | number | boolean> = {}
+  for (const [key, value] of Object.entries(trace.data ?? {})) {
+    if (!ALLOWED_SPAN_ATTRIBUTE_KEYS.has(key)) {
+      continue
+    }
+    if (
+      typeof value === 'boolean' ||
+      (typeof value === 'number' && Number.isFinite(value))
+    ) {
+      data[key] = value
+    } else {
+      const text = boundedSpanText(value)
+      if (text) {
+        data[key] = text
+      }
+    }
+  }
+  const safe: TraceContext = {
+    trace_id: trace.trace_id,
+    span_id: trace.span_id,
+    data,
+  }
+  if (trace.parent_span_id && SPAN_ID_PATTERN.test(trace.parent_span_id)) {
+    safe.parent_span_id = trace.parent_span_id
+  }
+  const op = boundedSpanText(trace.op)
+  if (op) {
+    safe.op = op
+  }
+  const status = boundedTagValue(trace.status)
+  if (status) {
+    safe.status = status
+  }
+  if (trace.origin && TAG_VALUE_PATTERN.test(trace.origin)) {
+    safe.origin = trace.origin
+  }
+  return safe
 }
 
 function boundedTagValue(value: unknown): string | undefined {
