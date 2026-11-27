@@ -18,6 +18,12 @@ export interface AlertsFilters {
   alertType?: string | undefined
   // Comma-separated repo slugs
   repoSlug?: string | undefined
+  // Comma-separated subset of: patch_unavailable,patch_available,patch_applied
+  patchStatus?: string | undefined
+  // Only alerts created or updated at or after this time, as
+  // "YYYY-MM-DD HH:MM:SS" in UTC.
+  createdAtGte?: string | undefined
+  updatedAtGte?: string | undefined
   // 1..5000. The API caps at 5000 and defaults to 1000.
   perPage?: number | undefined
   // Pagination cursor from a previous response's endCursor
@@ -64,6 +70,15 @@ export function buildAlertsQuery(
   }
   if (f.repoSlug) {
     params.set('filters.repoSlug', f.repoSlug)
+  }
+  if (f.patchStatus) {
+    params.set('filters.cvePatchStatus', f.patchStatus)
+  }
+  if (f.createdAtGte) {
+    params.set('filters.alertCreatedAt.gte', f.createdAtGte)
+  }
+  if (f.updatedAtGte) {
+    params.set('filters.alertUpdatedAt.gte', f.updatedAtGte)
   }
   const perPage = f.perPage ?? perPageFallback
   if (typeof perPage === 'number') {

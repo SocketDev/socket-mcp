@@ -232,6 +232,70 @@ See the [authentication reference](docs/service.md#authentication-for-organizati
 
 See the [organization and alerts example](docs/service.md#worked-example-organization-details-and-alerts).
 
+### MCP Events and Skills: new-alert notifications (Beta)
+
+The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer two events. Both take `org_slug`, plus optional `repo_slug` (comma-separated Socket repo slugs; without it the watch covers every repo in the org), `package`, and comma-separated `severity` filters.
+
+| Event                    | Fires when                                                                                                                          | `data`                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `socket.alert.created`   | A new alert appears in the org                                                                                                      | `org_slug`, `alert`                                                  |
+| `socket.patch.available` | A new CVE alert has a [Socket Certified Patch](https://docs.socket.dev/docs/sca-patches) (`filters.cvePatchStatus=patch_available`) | `org_slug`, `alert`, `patches[]` with each patch's `uuid` and `purl` |
+
+With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token. Each poll asks only for alerts created since the previous one (for `socket.patch.available`, patchable alerts updated since then), follows every page, and emits each alert once. Alerts that existed before the watch started don't fire; for the patch event, an existing alert that gains a patch does.
+
+The servers also implement the [MCP Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`) with two skills, served at `skill://socket/<name>/SKILL.md`:
+
+- `watch-socket-alerts` teaches an agent to turn these events into an automation. A user can say "watch my Socket alerts for patches" instead of spelling out the automation.
+- `apply-socket-patch` teaches an agent to find, preview, apply, verify, and roll back a Socket Certified Patch with `socket-patch`, with or without an event.
+
+| Variable                             | Default | Purpose                                                                                                                                                                                                                                |
+| ------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SOCKET_MCP_EVENTS_POLL_MS`          | `60000` | Poll interval                                                                                                                                                                                                                          |
+| `SOCKET_MCP_EVENTS_HEARTBEAT_MS`     | `10000` | Heartbeat interval, capped at the poll interval. Clients drop a quiet stream (OpenCode 2.4 after 30 seconds)                                                                                                                           |
+| `SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE` | unset   | Demo mode: read alerts from this local NDJSON file (one alert object with an `id` per line) instead of the Socket API, with no token or network. Lines present when a stream opens are the baseline, and each appended line fires once |
+
+Recipe for OpenCode 2.4 (demo mode, checked against 2.4.2):
+
+1. Build this checkout with `pnpm install && pnpm run build`, then register it in your project. Use absolute paths, because the desktop app doesn't inherit your shell's `PATH`:
+
+   ```sh
+   cd your-project
+   opencode mcp add \
+     --env SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE="$PWD/.socket/fake-alerts.ndjson" --env SOCKET_MCP_EVENTS_POLL_MS=3000 \
+     socket -- "$(command -v node)" /path/to/socket-mcp/dist/index.cjs
+   opencode service restart
+   ```
+
+   This writes `mcp.servers.socket` to the project's `opencode.json`. Drop `SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE` to watch real alerts. The server then uses your `socket-mcp login` session or `SOCKET_API_TOKEN`.
+
+2. In an OpenCode session, ask it to run `list_mcp_events` for server `socket`. It shows `socket.alert.created`, with its `args` and `data` schemas.
+3. Ask it to create the automation. An event watch can only be created from a session, not over the HTTP API:
+
+   ```js
+   automation_create({
+     name: 'socket-alerts',
+     trigger: {
+       type: 'event',
+       server: 'socket',
+       event: 'socket.alert.created',
+       args: { org_slug: 'my-org', severity: 'high,critical' },
+     },
+     action: {
+       type: 'prompt',
+       prompt: 'A new Socket alert arrived. Summarize it and suggest a fix.',
+       to: { session: '<this session id>' },
+     },
+   })
+   ```
+
+4. In demo mode, append an alert to fire it on cue:
+
+   ```sh
+   echo '{"id":"demo-1","type":"cve","severity":"high","artifact":{"type":"npm","name":"lodash","version":"4.17.20"},"createdAt":"2026-11-27T00:00:00Z"}' >> .socket/fake-alerts.ndjson
+   ```
+
+   The automation fires within one poll interval.
+
 ### Adjusting tool usage via client rules
 
 See [client rule examples](docs/service.md#adjusting-tool-usage-via-client-rules).
