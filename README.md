@@ -232,6 +232,52 @@ See the [authentication reference](docs/service.md#authentication-for-organizati
 
 See the [organization and alerts example](docs/service.md#worked-example-organization-details-and-alerts).
 
+### MCP Events: new-alert notifications (Beta)
+
+The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer one event, `socket.alert.created`, which takes `org_slug` and an optional comma-separated `severity` filter. With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token and emits each alert it hasn't seen before. The first poll is the baseline, so alerts that already exist don't fire.
+
+| Variable                         | Default | Purpose                                                                                                                                |
+| -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `SOCKET_MCP_EVENTS_POLL_MS`      | `60000` | Poll interval, also the granted heartbeat interval                                                                                     |
+| `SOCKET_MCP_EVENTS_FAKE_ALERT=1` | off     | Demo mode: no Socket API calls and no token needed. Each poll after the baseline emits one synthetic `demo-evil-package` malware alert |
+
+Recipe for OpenCode 2.4.0 (demo mode):
+
+1. Build this checkout with `pnpm install && pnpm run build`, then add the server to `opencode.json`:
+
+   ```json
+   {
+     "mcp": {
+       "socket": {
+         "type": "local",
+         "command": ["node", "/path/to/socket-mcp/dist/index.cjs"],
+         "environment": {
+           "SOCKET_MCP_EVENTS_FAKE_ALERT": "1",
+           "SOCKET_MCP_EVENTS_POLL_MS": "15000"
+         }
+       }
+     }
+   }
+   ```
+
+   Drop `SOCKET_MCP_EVENTS_FAKE_ALERT` to watch real alerts. The server then uses your `socket-mcp login` session or `SOCKET_API_TOKEN`.
+
+2. In OpenCode, run `list_mcp_events`. It shows `socket.alert.created` from the `socket` server.
+3. Create the automation:
+
+   ```js
+   automation_create({
+     trigger: {
+       type: 'event',
+       server: 'socket',
+       event: 'socket.alert.created',
+       args: { org_slug: 'my-org', severity: 'high,critical' },
+     },
+   })
+   ```
+
+4. About one poll interval later, the automation fires with the alert in `data.alert`. In demo mode, one more fake alert arrives on each later poll.
+
 ### Adjusting tool usage via client rules
 
 See [client rule examples](docs/service.md#adjusting-tool-usage-via-client-rules).
