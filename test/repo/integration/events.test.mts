@@ -1,3 +1,7 @@
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import type { StandardSchemaV1 } from '@modelcontextprotocol/client'
 import nock from 'nock'
@@ -80,7 +84,7 @@ afterEach(() => {
   nock.cleanAll()
   nock.enableNetConnect()
   delete process.env['SOCKET_MCP_EVENTS_POLL_MS']
-  delete process.env['SOCKET_MCP_EVENTS_FAKE_ALERT']
+  delete process.env['SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE']
   delete process.env['SOCKET_MCP_EVENTS_HEARTBEAT_MS']
   setStaticApiKey('')
 })
@@ -152,26 +156,32 @@ test('events/stream rejects an unknown event name', async () => {
   await client.close()
 })
 
-test('fake-alert mode emits a synthetic alert without calling the API', async () => {
-  process.env['SOCKET_MCP_EVENTS_FAKE_ALERT'] = '1'
+test('fake-alerts file fires each appended alert once, with no API call', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'mcp-events-'))
+  const file = path.join(dir, 'alerts.ndjson')
+  const line = (id: string, severity = 'critical') =>
+    `${JSON.stringify({ id, severity, createdAt: new Date().toISOString() })}\n`
+  writeFileSync(file, line('old'))
+  process.env['SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE'] = file
   setStaticApiKey('')
   const { client, notes } = await connect()
-  const { controller, done } = openStream(client, { org_slug: 'demo' })
-  await vi.waitFor(
-    () =>
-      expect(
-        notes.filter(n => n.method === 'notifications/events/event').length,
-      ).toBeGreaterThanOrEqual(2),
-    { timeout: 5000 },
-  )
+  const events = () =>
+    notes.filter(n => n.method === 'notifications/events/event')
+  const { controller, done } = openStream(client, {
+    org_slug: 'demo',
+    severity: 'critical,high',
+  })
+  await vi.waitFor(() => expect(notes.length).toBeGreaterThan(1))
+  appendFileSync(file, line('low-one', 'low') + 'not json\n' + line('new'))
+  await vi.waitFor(() => expect(events()).toHaveLength(1), { timeout: 5000 })
+  appendFileSync(file, line('new'))
+  const heartbeats = notes.length
+  await vi.waitFor(() => expect(notes.length).toBeGreaterThan(heartbeats + 2))
   controller.abort()
   await done
-  const ids = notes
-    .filter(n => n.method === 'notifications/events/event')
-    .map(n => n.params['eventId'])
-  expect(new Set(ids).size).toBe(ids.length)
-  expect(ids[0]).toBe('demo:fake-alert-1')
+  expect(events().map(n => n.params['eventId'])).toEqual(['demo:new'])
   await client.close()
+  rmSync(dir, { recursive: true, force: true })
 })
 
 test('events/stream heartbeats between slow polls', async () => {

@@ -236,24 +236,25 @@ See the [organization and alerts example](docs/service.md#worked-example-organiz
 
 The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer one event, `socket.alert.created`, which takes `org_slug` and an optional comma-separated `severity` filter. With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token and emits each alert it hasn't seen before. The first poll is the baseline, so alerts that already exist don't fire.
 
-| Variable                         | Default | Purpose                                                                                                                                |
-| -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `SOCKET_MCP_EVENTS_POLL_MS`      | `60000` | Poll interval                                                                                                                          |
-| `SOCKET_MCP_EVENTS_HEARTBEAT_MS` | `10000` | Heartbeat interval, capped at the poll interval. Clients drop a quiet stream (OpenCode 2.4 after 30 seconds)                           |
-| `SOCKET_MCP_EVENTS_FAKE_ALERT=1` | off     | Demo mode: no Socket API calls and no token needed. Each poll after the baseline emits one synthetic `demo-evil-package` malware alert |
+| Variable                             | Default | Purpose                                                                                                                                                                                                                                |
+| ------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SOCKET_MCP_EVENTS_POLL_MS`          | `60000` | Poll interval                                                                                                                                                                                                                          |
+| `SOCKET_MCP_EVENTS_HEARTBEAT_MS`     | `10000` | Heartbeat interval, capped at the poll interval. Clients drop a quiet stream (OpenCode 2.4 after 30 seconds)                                                                                                                           |
+| `SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE` | unset   | Demo mode: read alerts from this local NDJSON file (one alert object with an `id` per line) instead of the Socket API, with no token or network. Lines present when a stream opens are the baseline, and each appended line fires once |
 
 Recipe for OpenCode 2.4 (demo mode, checked against 2.4.2):
 
-1. Build this checkout with `pnpm install && pnpm run build`, then register it globally. Use absolute paths, because the desktop app doesn't inherit your shell's `PATH`:
+1. Build this checkout with `pnpm install && pnpm run build`, then register it in your project. Use absolute paths, because the desktop app doesn't inherit your shell's `PATH`:
 
    ```sh
-   opencode mcp add --global \
-     --env SOCKET_MCP_EVENTS_FAKE_ALERT=1 --env SOCKET_MCP_EVENTS_POLL_MS=15000 \
+   cd your-project
+   opencode mcp add \
+     --env SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE="$PWD/.socket/fake-alerts.ndjson" --env SOCKET_MCP_EVENTS_POLL_MS=3000 \
      socket -- "$(command -v node)" /path/to/socket-mcp/dist/index.cjs
    opencode service restart
    ```
 
-   This writes `mcp.servers.socket` to `~/.config/opencode/opencode.json`. Drop `SOCKET_MCP_EVENTS_FAKE_ALERT` to watch real alerts. The server then uses your `socket-mcp login` session or `SOCKET_API_TOKEN`.
+   This writes `mcp.servers.socket` to the project's `opencode.json`. Drop `SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE` to watch real alerts. The server then uses your `socket-mcp login` session or `SOCKET_API_TOKEN`.
 
 2. In an OpenCode session, ask it to run `list_mcp_events` for server `socket`. It shows `socket.alert.created`, with its `args` and `data` schemas.
 3. Ask it to create the automation. An event watch can only be created from a session, not over the HTTP API:
@@ -275,7 +276,13 @@ Recipe for OpenCode 2.4 (demo mode, checked against 2.4.2):
    })
    ```
 
-4. About one poll interval later, the automation fires. In demo mode, one more fake alert arrives on each later poll, so delete the automation when the demo is over.
+4. In demo mode, append an alert to fire it on cue:
+
+   ```sh
+   echo '{"id":"demo-1","type":"cve","severity":"high","artifact":{"type":"npm","name":"lodash","version":"4.17.20"},"createdAt":"2026-11-27T00:00:00Z"}' >> .socket/fake-alerts.ndjson
+   ```
+
+   The automation fires within one poll interval.
 
 ### Adjusting tool usage via client rules
 

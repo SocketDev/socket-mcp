@@ -7,6 +7,7 @@
  *   (modelcontextprotocol/typescript-sdk#3209), so the two methods are plain
  *   custom request handlers. Swap them for the SDK's API once it lands.
  */
+import { readFile } from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 import {
@@ -21,7 +22,7 @@ import type {
 import { isPlainObject } from '@socketsecurity/lib-stable/objects/predicates'
 
 import { fetchAlerts } from './alerts.mts'
-import { envBool, envInt } from './env.mts'
+import { envInt, envString } from './env.mts'
 import { logger } from './logger.mts'
 import {
   AUTH_REQUIRED_MSG,
@@ -177,7 +178,12 @@ export const socketAlertSource: AlertSource = async (
   })
   const record = isPlainObject(body) ? body : {}
   const items = record['items'] ?? record['results'] ?? []
-  return (Array.isArray(items) ? items : []).flatMap(item => {
+  return toAlerts(Array.isArray(items) ? items : [])
+}
+
+// Keep objects that carry an `id` (or `key`), with the id as a string.
+function toAlerts(items: unknown[]): Alert[] {
+  return items.flatMap(item => {
     if (!isPlainObject(item)) {
       return []
     }
@@ -188,27 +194,33 @@ export const socketAlertSource: AlertSource = async (
   })
 }
 
-// Demo source (SOCKET_MCP_EVENTS_FAKE_ALERT=1): no network. The first poll is
-// empty (the baseline); every later poll returns one more synthetic alert, so
-// a new event fires once per poll interval.
-export function fakeAlertSource(): AlertSource {
-  const alerts: Alert[] = []
-  let polls = 0
+/**
+ * Demo source (SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE): no network and no token.
+ * Each poll reads alerts from a local NDJSON file, one alert object per line.
+ * Lines already in the file when a stream opens are its baseline, so
+ * appending a line fires exactly one event on cue.
+ */
+export function fileAlertSource(file: string): AlertSource {
   return async args => {
-    if (polls++ > 0) {
-      const severity = args.severity?.split(',')[0]?.trim() || 'critical'
-      alerts.unshift({
-        id: `fake-alert-${polls - 1}`,
-        type: 'malware',
-        severity,
-        category: 'supplyChainRisk',
-        status: 'open',
-        createdAt: new Date().toISOString(),
-        artifact: { type: 'npm', name: 'demo-evil-package', version: '6.6.6' },
-        description: 'Synthetic alert from SOCKET_MCP_EVENTS_FAKE_ALERT',
-      })
+    let text = ''
+    try {
+      text = await readFile(file, 'utf8')
+    } catch {
+      // No file yet means no alerts yet.
     }
-    return alerts
+    const parsed = text.split('\n').flatMap(line => {
+      try {
+        return line.trim() ? [JSON.parse(line) as unknown] : []
+      } catch {
+        return []
+      }
+    })
+    const wanted = args.severity?.split(',').map(s => s.trim())
+    return toAlerts(parsed)
+      .filter(
+        alert => !wanted || wanted.includes(String(alert['severity'] ?? '')),
+      )
+      .reverse()
   }
 }
 
@@ -228,9 +240,10 @@ export function registerEventHandlers(
     pollMs,
     options.heartbeatMs ?? envInt('SOCKET_MCP_EVENTS_HEARTBEAT_MS') ?? 10_000,
   )
-  const fake = envBool('SOCKET_MCP_EVENTS_FAKE_ALERT')
+  const fakeFile = envString('SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE')
+  const fake = fakeFile !== undefined
   const source =
-    options.source ?? (fake ? fakeAlertSource() : socketAlertSource)
+    options.source ?? (fake ? fileAlertSource(fakeFile) : socketAlertSource)
   const userAgent = options.userAgent ?? ''
 
   server.registerCapabilities({ extensions: { [EVENTS_EXTENSION]: {} } })
