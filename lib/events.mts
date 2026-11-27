@@ -2,8 +2,9 @@
  * @file MCP Events (SEP-3415, `io.modelcontextprotocol/events`, Beta) for the
  *   local stdio and `--http` server. Two event types, `socket.alert.created`
  *   and `socket.patch.available`, delivered by push only: `events/stream`
- *   polls the org alerts API with the caller's own token and emits each alert
- *   it has not seen before.
+ *   polls the org alerts API with the caller's own token, asking only for
+ *   alerts created (or, for patches, updated) since the previous poll, and
+ *   emits each alert it has not emitted before.
  *   The TypeScript SDK has no events support yet
  *   (modelcontextprotocol/typescript-sdk#3209), so the two methods are plain
  *   custom request handlers. Swap them for the SDK's API once it lands.
@@ -40,6 +41,19 @@ export const PATCH_AVAILABLE_EVENT = 'socket.patch.available'
 const NOT_FOUND = -32_023
 const FORBIDDEN = -32_024
 
+// Each poll looks back this far past the previous one, so an alert that is
+// indexed a little after its timestamp is still found. Re-found alerts are
+// deduped by id within a stream, and by eventId in the client after a resume.
+export const POLL_OVERLAP_MS = 5 * 60 * 1000
+// The API allows up to 5000 per page; a time-filtered poll rarely needs more
+// than one page.
+const PAGE_SIZE = 1000
+// shortcut: stops after 20 pages (20,000 alerts) per poll and logs it; raise
+// it if a single org can create more than that between two polls.
+const MAX_PAGES = 20
+
+const ARG_NAMES = ['org_slug', 'severity', 'repo_slug', 'package'] as const
+
 const ALERT_INPUT_SCHEMA = {
   type: 'object',
   properties: {
@@ -51,6 +65,15 @@ const ALERT_INPUT_SCHEMA = {
       type: 'string',
       description:
         'Comma-separated severities to include: subset of low,medium,high,critical',
+    },
+    repo_slug: {
+      type: 'string',
+      description:
+        'Comma-separated Socket repo slugs to watch, usually the repository name. Omit to watch every repo in the org',
+    },
+    package: {
+      type: 'string',
+      description: 'Only alerts for this package name, e.g. "minimist"',
     },
   },
   required: ['org_slug'],
@@ -68,7 +91,7 @@ const ALERT_PAYLOAD_PROPERTIES = {
 const ALERT_CREATED_DEFINITION = {
   name: ALERT_CREATED_EVENT,
   description:
-    'A new Socket alert appeared for an organization you can access. Polls the org alerts API with your own token and fires once per new alert.',
+    'A new Socket alert appeared in an organization you can access, optionally limited to some repos, a package, or severities. Polls the org alerts API with your own token and fires once per new alert.',
   delivery: ['push'],
   inputSchema: ALERT_INPUT_SCHEMA,
   payloadSchema: {
@@ -81,7 +104,7 @@ const ALERT_CREATED_DEFINITION = {
 const PATCH_AVAILABLE_DEFINITION = {
   name: PATCH_AVAILABLE_EVENT,
   description:
-    'A CVE alert that a Socket Certified Patch fixes appeared for an organization you can access. A certified patch backports the fix into the exact version in use, so nothing is upgraded. Apply one with `socket-patch get <uuid>` from the project root. Fires once per alert.',
+    'A Socket Certified Patch became available for a CVE alert in an organization you can access: a new alert that has one, or an existing alert that just gained one. A certified patch backports the fix into the exact version in use, so nothing is upgraded. Apply one with `socket-patch get <uuid>` from the project root. Fires once per alert.',
   delivery: ['push'],
   inputSchema: ALERT_INPUT_SCHEMA,
   payloadSchema: {
@@ -113,11 +136,17 @@ const EVENT_DEFINITIONS = [ALERT_CREATED_DEFINITION, PATCH_AVAILABLE_DEFINITION]
 export interface AlertCreatedArgs {
   org_slug: string
   severity?: string | undefined
+  repo_slug?: string | undefined
+  package?: string | undefined
 }
 
-// What a source fetches: the event's arguments, plus whether only alerts
-// with an available certified patch count.
-export type AlertQuery = AlertCreatedArgs & { patchOnly?: boolean | undefined }
+// What a source fetches: the event's arguments, whether only alerts with an
+// available certified patch count, and an optional time window (ISO 8601).
+export type AlertQuery = AlertCreatedArgs & {
+  patchOnly?: boolean | undefined
+  createdSince?: string | undefined
+  updatedSince?: string | undefined
+}
 
 interface StreamParams {
   name: string
@@ -168,60 +197,98 @@ export function parseStreamParams(value: unknown): StreamParams {
   if (typeof name !== 'string') {
     throw new Error('name must be a string')
   }
-  const args = isPlainObject(params['arguments']) ? params['arguments'] : {}
-  const orgSlug = args['org_slug']
-  const severity = args['severity']
-  if (typeof orgSlug !== 'string' || orgSlug === '') {
-    throw new Error('arguments.org_slug must be a non-empty string')
-  }
-  if (severity !== undefined && typeof severity !== 'string') {
-    throw new Error('arguments.severity must be a string')
-  }
-  const extra = Object.keys(args).filter(
-    key => key !== 'org_slug' && key !== 'severity',
+  const raw = isPlainObject(params['arguments']) ? params['arguments'] : {}
+  const extra = Object.keys(raw).filter(
+    key => !(ARG_NAMES as readonly string[]).includes(key),
   )
   if (extra.length > 0) {
     throw new Error(`unknown arguments: ${extra.join(', ')}`)
   }
+  const args: Partial<Record<(typeof ARG_NAMES)[number], string>> = {}
+  for (const key of ARG_NAMES) {
+    const arg = raw[key]
+    if (arg !== undefined && typeof arg !== 'string') {
+      throw new Error(`arguments.${key} must be a string`)
+    }
+    if (arg) {
+      args[key] = arg
+    }
+  }
+  const orgSlug = args.org_slug
+  if (!orgSlug) {
+    throw new Error('arguments.org_slug must be a non-empty string')
+  }
   const cursor = params['cursor']
-  if (cursor !== undefined && cursor !== null && typeof cursor !== 'string') {
-    throw new Error('cursor must be a string or null')
+  if (cursor !== undefined && cursor !== null) {
+    if (typeof cursor !== 'string' || Number.isNaN(Date.parse(cursor))) {
+      throw new Error('cursor must be a timestamp from this server, or null')
+    }
   }
   return {
     name,
-    arguments: { org_slug: orgSlug, ...(severity ? { severity } : {}) },
+    arguments: { ...args, org_slug: orgSlug },
     cursor: cursor ?? null,
   }
 }
 
-function alertTime(alert: Alert): string | undefined {
-  const value = alert['createdAt'] ?? alert['created_at']
-  return typeof value === 'string' ? value : undefined
+function timeOf(alert: Alert, field: 'createdAt' | 'updatedAt'): string {
+  const value = alert[field] ?? alert['createdAt']
+  return typeof value === 'string' ? value : ''
 }
 
-// Live source: open alerts for the org, newest page only.
-// shortcut: reads one page of 100, so a burst of >100 alerts between polls
-// drops the overflow; page through `endCursor` if that matters.
+// The API filters on "YYYY-MM-DD HH:MM:SS" in UTC.
+function apiTime(iso: string): string {
+  return new Date(iso).toISOString().replace('T', ' ').slice(0, 19)
+}
+
+/**
+ * Live source: open alerts for the org, matching the query, every page. A
+ * time window keeps each poll small, because the endpoint's order is not by
+ * time, so a single page could miss new alerts.
+ */
 export const socketAlertSource: AlertSource = async (
-  args,
+  query,
   token,
   userAgent,
 ) => {
-  const body = await fetchAlerts({
-    baseUrl: SOCKET_API_BASE_URL,
-    orgSlug: args.org_slug,
-    authToken: token,
-    userAgent,
-    filters: {
-      status: 'open',
-      perPage: 100,
-      ...(args.severity ? { severity: args.severity } : {}),
-      ...(args.patchOnly ? { patchStatus: 'patch_available' } : {}),
-    },
-  })
-  const record = isPlainObject(body) ? body : {}
-  const items = record['items'] ?? record['results'] ?? []
-  return toAlerts(Array.isArray(items) ? items : [])
+  const alerts: Alert[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const body = await fetchAlerts({
+      baseUrl: SOCKET_API_BASE_URL,
+      orgSlug: query.org_slug,
+      authToken: token,
+      userAgent,
+      filters: {
+        status: 'open',
+        perPage: PAGE_SIZE,
+        ...(query.severity ? { severity: query.severity } : {}),
+        ...(query.repo_slug ? { repoSlug: query.repo_slug } : {}),
+        ...(query.package ? { artifactName: query.package } : {}),
+        ...(query.patchOnly ? { patchStatus: 'patch_available' } : {}),
+        ...(query.createdSince
+          ? { createdAtGte: apiTime(query.createdSince) }
+          : {}),
+        ...(query.updatedSince
+          ? { updatedAtGte: apiTime(query.updatedSince) }
+          : {}),
+        ...(cursor ? { cursor } : {}),
+      },
+    })
+    const record = isPlainObject(body) ? body : {}
+    const items = record['items'] ?? record['results'] ?? []
+    alerts.push(...toAlerts(Array.isArray(items) ? items : []))
+    const next = record['endCursor']
+    if (typeof next !== 'string' || !next) {
+      return alerts
+    }
+    cursor = next
+  }
+  logger.warn(
+    { org: query.org_slug, pages: MAX_PAGES },
+    'alerts poll stopped at the page limit',
+  )
+  return alerts
 }
 
 // Keep objects that carry an `id` (or `key`), with the id as a string.
@@ -237,6 +304,11 @@ function toAlerts(items: unknown[]): Alert[] {
   })
 }
 
+function alertLocations(alert: Alert): Array<Record<string, unknown>> {
+  const locations = Array.isArray(alert['locations']) ? alert['locations'] : []
+  return locations.filter(isPlainObject)
+}
+
 /**
  * The certified patches an alert can use: its locations whose patch status is
  * `patch_available`, one entry per patch uuid.
@@ -244,10 +316,9 @@ function toAlerts(items: unknown[]): Alert[] {
 export function availablePatches(
   alert: Alert,
 ): Array<{ uuid: string; purl?: string }> {
-  const locations = Array.isArray(alert['locations']) ? alert['locations'] : []
   const patches = new Map<string, { uuid: string; purl?: string }>()
-  for (const location of locations) {
-    if (!isPlainObject(location) || !isPlainObject(location['patch'])) {
+  for (const location of alertLocations(alert)) {
+    if (!isPlainObject(location['patch'])) {
       continue
     }
     const { uuid, status } = location['patch']
@@ -267,14 +338,57 @@ export function availablePatches(
   return [...patches.values()]
 }
 
+// The same filters the API applies, for alerts from the demo file.
+function matchesQuery(alert: Alert, query: AlertQuery): boolean {
+  const list = (value: string | undefined) =>
+    value?.split(',').map(item => item.trim())
+  const severities = list(query.severity)
+  if (severities && !severities.includes(String(alert['severity'] ?? ''))) {
+    return false
+  }
+  const locations = alertLocations(alert)
+  const repos = list(query.repo_slug)
+  if (
+    repos &&
+    !locations.some(location => {
+      const repo = isPlainObject(location['repository'])
+        ? location['repository']['slug']
+        : undefined
+      return typeof repo === 'string' && repos.includes(repo)
+    })
+  ) {
+    return false
+  }
+  if (
+    query.package &&
+    !locations.some(
+      location =>
+        isPlainObject(location['artifact']) &&
+        location['artifact']['name'] === query.package,
+    )
+  ) {
+    return false
+  }
+  if (query.patchOnly && availablePatches(alert).length === 0) {
+    return false
+  }
+  if (query.createdSince && timeOf(alert, 'createdAt') < query.createdSince) {
+    return false
+  }
+  if (query.updatedSince && timeOf(alert, 'updatedAt') < query.updatedSince) {
+    return false
+  }
+  return true
+}
+
 /**
  * Demo source (SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE): no network and no token.
- * Each poll reads alerts from a local NDJSON file, one alert object per line.
- * Lines already in the file when a stream opens are its baseline, so
- * appending a line fires exactly one event on cue.
+ * Each poll reads alerts from a local NDJSON file, one alert object per line,
+ * and applies the same filters as the API. Give each line a current
+ * `createdAt` so it counts as new.
  */
 export function fileAlertSource(file: string): AlertSource {
-  return async args => {
+  return async query => {
     let text = ''
     try {
       text = await readFile(file, 'utf8')
@@ -288,13 +402,7 @@ export function fileAlertSource(file: string): AlertSource {
         return []
       }
     })
-    const wanted = args.severity?.split(',').map(s => s.trim())
-    return toAlerts(parsed)
-      .filter(
-        alert => !wanted || wanted.includes(String(alert['severity'] ?? '')),
-      )
-      .filter(alert => !args.patchOnly || availablePatches(alert).length > 0)
-      .reverse()
+    return toAlerts(parsed).filter(alert => matchesQuery(alert, query))
   }
 }
 
@@ -344,29 +452,34 @@ export function registerEventHandlers(
       return streamAlerts(params, ctx, {
         pollMs,
         heartbeatMs,
-        poll: () =>
-          source(
-            {
-              ...params.arguments,
-              patchOnly: params.name === PATCH_AVAILABLE_EVENT,
-            },
-            token ?? '',
-            userAgent,
-          ),
+        poll: query => source(query, token ?? '', userAgent),
       })
     },
   )
 }
 
 /**
- * Run one push subscription until the client cancels it. Dedup is by alert
- * id within the stream; the cursor is the newest `createdAt` emitted, so a
- * reconnect with it skips everything at or before that time.
+ * Run one push subscription until the client cancels it.
+ *
+ * - `socket.alert.created` asks for alerts created since the previous poll (minus
+ *   the overlap) and never emits one created before the stream started, unless
+ *   the client resumed from a cursor.
+ * - `socket.patch.available` first fetches every currently patchable alert as the
+ *   baseline, then asks for patchable alerts updated since the previous poll,
+ *   which also catches an existing alert that just gained a patch.
+ *
+ * The cursor is the start time of the last completed poll. A resume replays
+ * from the cursor minus the overlap, so delivery is at least once, and the
+ * client dedupes on `eventId`.
  */
 export async function streamAlerts(
   params: StreamParams,
   ctx: ServerContext,
-  opts: { pollMs: number; heartbeatMs: number; poll: () => Promise<Alert[]> },
+  opts: {
+    pollMs: number
+    heartbeatMs: number
+    poll: (query: AlertQuery) => Promise<Alert[]>
+  },
 ): Promise<{ _meta: Record<string, unknown> }> {
   const { signal } = ctx.mcpReq
   const meta = { [SUBSCRIPTION_ID_META_KEY]: ctx.mcpReq.id }
@@ -375,16 +488,29 @@ export async function streamAlerts(
       method: `notifications/events/${method}`,
       params: { ...body, _meta: meta },
     })
-  const seen = new Set<string>()
-  // With no client cursor, whatever the first poll returns is the baseline.
+  const patchEvent = params.name === PATCH_AVAILABLE_EVENT
+  const timeField = patchEvent ? 'updatedAt' : 'createdAt'
+  const startedAt = new Date().toISOString()
   const resumed = params.cursor !== null
-  let cursor = params.cursor ?? new Date().toISOString()
-  let baseline = true
+  let cursor = params.cursor ?? startedAt
+  let needsBaseline = patchEvent && !resumed
+  const seen = new Set<string>()
 
   const tick = async (): Promise<boolean> => {
+    const pollStart = new Date().toISOString()
+    const since = new Date(Date.parse(cursor) - POLL_OVERLAP_MS).toISOString()
+    const window = needsBaseline
+      ? {}
+      : patchEvent
+        ? { updatedSince: since }
+        : { createdSince: since }
     let alerts: Alert[]
     try {
-      alerts = await opts.poll()
+      alerts = await opts.poll({
+        ...params.arguments,
+        patchOnly: patchEvent,
+        ...window,
+      })
     } catch (error) {
       const status = error instanceof UpstreamHttpError ? error.status : 0
       const payload = {
@@ -401,37 +527,39 @@ export async function streamAlerts(
       await notify('error', payload)
       return true
     }
-    // Oldest first, so the cursor only moves forward.
-    const fresh = alerts.filter(alert => !seen.has(alert.id)).reverse()
-    for (const alert of fresh) {
-      seen.add(alert.id)
-      const time = alertTime(alert)
-      // On the first poll emit only what is newer than the client's cursor.
-      if (baseline && (!resumed || !time || time <= cursor)) {
+    const ordered = alerts.toSorted((a, b) =>
+      timeOf(a, timeField).localeCompare(timeOf(b, timeField)),
+    )
+    for (const alert of ordered) {
+      // Checked per alert: one poll can return the same id twice, for
+      // example when results shift between pages.
+      if (seen.has(alert.id)) {
         continue
       }
-      if (time && time > cursor) {
-        cursor = time
+      seen.add(alert.id)
+      if (needsBaseline) {
+        continue
+      }
+      // The overlap window reaches back before the stream started; those
+      // alerts already existed when the user subscribed.
+      if (!resumed && !patchEvent && timeOf(alert, 'createdAt') <= startedAt) {
+        continue
       }
       await notify('event', {
         eventId: `${params.arguments.org_slug}:${alert.id}`,
         name: params.name,
-        timestamp: time ?? new Date().toISOString(),
+        timestamp: timeOf(alert, timeField) || pollStart,
         data: {
           org_slug: params.arguments.org_slug,
           alert,
-          ...(params.name === PATCH_AVAILABLE_EVENT
-            ? { patches: availablePatches(alert) }
-            : {}),
+          ...(patchEvent ? { patches: availablePatches(alert) } : {}),
         },
         cursor,
       })
     }
-    if (baseline) {
-      baseline = false
-    } else if (fresh.length === 0) {
-      await notify('heartbeat', { cursor })
-    }
+    needsBaseline = false
+    cursor = pollStart
+    await notify('heartbeat', { cursor })
     return true
   }
 

@@ -116,21 +116,24 @@ test('advertises the events extension and lists socket.alert.created', async () 
 })
 
 test('events/stream emits a new alert exactly once', async () => {
-  const old = alert('a1', '2026-11-01T00:00:00.000Z')
-  const fresh = alert('a2', '2026-11-02T00:00:00.000Z')
+  const before = alert('a1', new Date(Date.now() - 60_000).toISOString())
+  const fresh = alert('a2', new Date(Date.now() + 60_000).toISOString())
+  const queries: Array<Record<string, string>> = []
   const scope = nock(API)
     .matchHeader('authorization', 'Bearer tok')
     .get('/v0/orgs/my-org/alerts')
-    .query({
-      'filters.alertStatus': 'open',
-      'filters.alertSeverity': 'critical',
-      per_page: '100',
+    .query(q => {
+      queries.push(q as Record<string, string>)
+      return true
     })
-    .reply(200, { items: [old] })
+    .reply(200, { items: [before] })
     .get('/v0/orgs/my-org/alerts')
-    .query(true)
+    .query(q => {
+      queries.push(q as Record<string, string>)
+      return true
+    })
     .times(3)
-    .reply(200, { items: [fresh, old] })
+    .reply(200, { items: [fresh, before] })
 
   const { client, notes } = await connect()
   const { controller, done } = openStream(client, {
@@ -141,8 +144,20 @@ test('events/stream emits a new alert exactly once', async () => {
   controller.abort()
   await done
 
+  // Every poll is time-filtered, so it never pages through old alerts.
+  for (const q of queries) {
+    expect(q).toMatchObject({
+      'filters.alertStatus': 'open',
+      'filters.alertSeverity': 'critical',
+      per_page: '1000',
+    })
+    expect(q['filters.alertCreatedAt.gte']).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/u,
+    )
+  }
   const events = notes.filter(n => n.method === 'notifications/events/event')
   expect(notes[0]?.method).toBe('notifications/events/active')
+  // a1 was created before the stream started, so only a2 fires, once.
   expect(events).toHaveLength(1)
   expect(events[0]?.params).toMatchObject({
     eventId: 'my-org:a2',
@@ -153,6 +168,49 @@ test('events/stream emits a new alert exactly once', async () => {
   expect(notes.some(n => n.method === 'notifications/events/heartbeat')).toBe(
     true,
   )
+  await client.close()
+})
+
+test('events/stream scopes polls to a repo and package, and follows pages', async () => {
+  const fresh = (id: string) =>
+    alert(id, new Date(Date.now() + 60_000).toISOString())
+  const scoped = {
+    'filters.alertStatus': 'open',
+    'filters.repoSlug': 'socket-events-demo',
+    'filters.artifactName': 'minimist',
+    per_page: '1000',
+  }
+  const scope = nock(API)
+    .get('/v0/orgs/my-org/alerts')
+    .query(
+      q =>
+        q['startAfterCursor'] === undefined &&
+        Object.entries(scoped).every(([k, v]) => q[k] === v),
+    )
+    .reply(200, { items: [fresh('p1')], endCursor: 'page-2' })
+    .get('/v0/orgs/my-org/alerts')
+    .query(
+      q =>
+        q['startAfterCursor'] === 'page-2' &&
+        Object.entries(scoped).every(([k, v]) => q[k] === v),
+    )
+    .reply(200, { items: [fresh('p2')], endCursor: null })
+  const { client, notes } = await connect()
+  const { controller, done } = openStream(client, {
+    org_slug: 'my-org',
+    repo_slug: 'socket-events-demo',
+    package: 'minimist',
+  })
+  await vi.waitFor(
+    () =>
+      expect(
+        notes.filter(n => n.method === 'notifications/events/event'),
+      ).toHaveLength(2),
+    { timeout: 5000 },
+  )
+  controller.abort()
+  await done
+  expect(scope.isDone()).toBe(true)
   await client.close()
 })
 
@@ -268,17 +326,27 @@ test('socket.patch.available fires only for alerts with a certified patch', asyn
   rmSync(dir, { recursive: true, force: true })
 })
 
-test('socket.patch.available asks the API for patchable alerts only', async () => {
+test('socket.patch.available baselines, then fires when an alert gains a patch', async () => {
+  const queries: Array<Record<string, string>> = []
+  const record = (q: object) => {
+    queries.push(q as Record<string, string>)
+    return true
+  }
   const scope = nock(API)
     .matchHeader('authorization', 'Bearer tok')
     .get('/v0/orgs/my-org/alerts')
-    .query({
-      'filters.alertStatus': 'open',
-      'filters.cvePatchStatus': 'patch_available',
-      per_page: '100',
+    .query(record)
+    .reply(200, { items: [patchable('already-patchable', 'patch-0')] })
+    .get('/v0/orgs/my-org/alerts')
+    .query(record)
+    .times(2)
+    .reply(200, {
+      items: [
+        patchable('already-patchable', 'patch-0'),
+        patchable('gained-patch', 'patch-1'),
+      ],
     })
-    .reply(200, { items: [] })
-  const { client } = await connect()
+  const { client, notes } = await connect()
   const { controller, done } = openStream(
     client,
     { org_slug: 'my-org' },
@@ -287,5 +355,64 @@ test('socket.patch.available asks the API for patchable alerts only', async () =
   await vi.waitFor(() => expect(scope.isDone()).toBe(true), { timeout: 5000 })
   controller.abort()
   await done
+
+  // The baseline fetches every patchable alert; later polls only recent ones.
+  expect(queries[0]).toMatchObject({
+    'filters.alertStatus': 'open',
+    'filters.cvePatchStatus': 'patch_available',
+    per_page: '1000',
+  })
+  expect(queries[0]?.['filters.alertUpdatedAt.gte']).toBeUndefined()
+  for (const q of queries.slice(1)) {
+    expect(q['filters.cvePatchStatus']).toBe('patch_available')
+    expect(q['filters.alertUpdatedAt.gte']).toMatch(/^\d{4}-\d{2}-\d{2} /u)
+  }
+  const events = notes.filter(n => n.method === 'notifications/events/event')
+  expect(events.map(n => n.params['eventId'])).toEqual(['my-org:gained-patch'])
+  expect(events[0]?.params).toMatchObject({
+    data: { patches: [{ uuid: 'patch-1', purl: 'pkg:npm/minimist@1.2.2' }] },
+  })
   await client.close()
+})
+
+test('fake-alerts file applies the repo filter', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'mcp-events-'))
+  const file = path.join(dir, 'alerts.ndjson')
+  writeFileSync(file, '')
+  process.env['SOCKET_MCP_EVENTS_FAKE_ALERTS_FILE'] = file
+  setStaticApiKey('')
+  const { client, notes } = await connect()
+  const { controller, done } = openStream(client, {
+    org_slug: 'demo',
+    repo_slug: 'this-repo',
+  })
+  await vi.waitFor(() => expect(notes.length).toBeGreaterThan(1))
+  const inRepo = (id: string, slug: string) =>
+    JSON.stringify({
+      id,
+      createdAt: new Date().toISOString(),
+      locations: [{ repository: { slug } }],
+    })
+  appendFileSync(
+    file,
+    `${inRepo('other', 'other-repo')}\n${inRepo('mine', 'this-repo')}\n`,
+  )
+  await vi.waitFor(
+    () =>
+      expect(
+        notes.filter(n => n.method === 'notifications/events/event'),
+      ).toHaveLength(1),
+    { timeout: 5000 },
+  )
+  const heartbeats = notes.length
+  await vi.waitFor(() => expect(notes.length).toBeGreaterThan(heartbeats + 2))
+  controller.abort()
+  await done
+  expect(
+    notes
+      .filter(n => n.method === 'notifications/events/event')
+      .map(n => n.params['eventId']),
+  ).toEqual(['demo:mine'])
+  await client.close()
+  rmSync(dir, { recursive: true, force: true })
 })

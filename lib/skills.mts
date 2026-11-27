@@ -36,18 +36,32 @@ nobody is looking at the session.
 | \`socket.alert.created\` | A new alert appears in the org | \`org_slug\`, \`alert\` |
 | \`socket.patch.available\` | A new CVE alert has a Socket Certified Patch | \`org_slug\`, \`alert\`, \`patches[]\` (\`uuid\`, \`purl\`) |
 
-Both take \`org_slug\` (required) and \`severity\` (optional, comma-separated
-subset of \`low,medium,high,critical\`). Existing alerts never fire: only alerts
-that appear after the automation starts do.
+Arguments for both:
+
+| Argument | Required | Meaning |
+| --- | --- | --- |
+| \`org_slug\` | yes | The Socket organization |
+| \`repo_slug\` | no | Comma-separated Socket repo slugs. Without it, the watch covers every repo in the org |
+| \`package\` | no | Only alerts for this package name |
+| \`severity\` | no | Comma-separated subset of \`low,medium,high,critical\` |
+
+Existing alerts never fire: only alerts that appear after the automation
+starts do. \`socket.patch.available\` also fires when an existing alert gains a
+patch.
 
 ## Steps
 
 1. Get the organization slug. Call this server's \`organizations\` tool, or ask
    the user if they belong to several.
-2. Pick the event. Use \`socket.patch.available\` when the user wants fixes
+2. Scope the watch to the current project. Pass \`repo_slug\`: the Socket repo
+   slug is usually the repository name, from the git remote or, without one,
+   the project directory's name. Watch the whole org only if the user asks
+   for it, and say so when you confirm.
+3. Pick the event. Use \`socket.patch.available\` when the user wants fixes
    they can apply now, and \`socket.alert.created\` for everything else. Pass
-   \`severity\` when the user names one.
-3. Create the automation with the client's automation tool. In OpenCode:
+   \`severity\` or \`package\` only when the user names one, with exactly the
+   values they named: "high" is \`high\`, not \`high,critical\`.
+4. Create the automation with the client's automation tool. In OpenCode:
 
    \`\`\`js
    automation_create({
@@ -56,7 +70,7 @@ that appear after the automation starts do.
        type: 'event',
        server: '<this server's configured name>',
        event: 'socket.patch.available',
-       args: { org_slug: '<org>', severity: 'high,critical' },
+       args: { org_slug: '<org>', repo_slug: '<repo>' },
      },
      action: {
        type: 'prompt',
@@ -67,8 +81,8 @@ that appear after the automation starts do.
    \`\`\`
 
    OpenCode exposes the current session id as \`$OPENCODE_SESSION_ID\`.
-4. Tell the user what you set up, and that deleting this session pauses the
-   automation.
+5. Tell the user what you set up, including the repo it watches, and that
+   deleting this session pauses the automation.
 
 ## Prompt for the action
 

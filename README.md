@@ -234,14 +234,14 @@ See the [organization and alerts example](docs/service.md#worked-example-organiz
 
 ### MCP Events and Skills: new-alert notifications (Beta)
 
-The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer two events. Both take `org_slug` and an optional comma-separated `severity` filter.
+The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer two events. Both take `org_slug`, plus optional `repo_slug` (comma-separated Socket repo slugs; without it the watch covers every repo in the org), `package`, and comma-separated `severity` filters.
 
 | Event                    | Fires when                                                                                                                          | `data`                                                               |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `socket.alert.created`   | A new alert appears in the org                                                                                                      | `org_slug`, `alert`                                                  |
 | `socket.patch.available` | A new CVE alert has a [Socket Certified Patch](https://docs.socket.dev/docs/sca-patches) (`filters.cvePatchStatus=patch_available`) | `org_slug`, `alert`, `patches[]` with each patch's `uuid` and `purl` |
 
-With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token and emits each alert it hasn't seen before. The first poll is the baseline, so alerts that already exist don't fire.
+With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token. Each poll asks only for alerts created since the previous one (for `socket.patch.available`, patchable alerts updated since then), follows every page, and emits each alert once. Alerts that existed before the watch started don't fire; for the patch event, an existing alert that gains a patch does.
 
 The servers also implement the [MCP Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`) with two skills, served at `skill://socket/<name>/SKILL.md`:
 
