@@ -243,7 +243,10 @@ The local stdio and `--http` servers implement the [MCP Events extension](https:
 
 With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token and emits each alert it hasn't seen before. The first poll is the baseline, so alerts that already exist don't fire.
 
-The servers also implement the [MCP Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`) with one skill, `watch-socket-alerts`, at `skill://socket/watch-socket-alerts/SKILL.md`. It teaches an agent how to turn these events into an automation, and how to preview and apply a certified patch with `socket-patch`. A user can then say "watch my Socket alerts for patches" instead of spelling out the automation.
+The servers also implement the [MCP Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`) with two skills, served at `skill://socket/<name>/SKILL.md`:
+
+- `watch-socket-alerts` teaches an agent to turn these events into an automation. A user can say "watch my Socket alerts for patches" instead of spelling out the automation.
+- `apply-socket-patch` teaches an agent to find, preview, apply, verify, and roll back a Socket Certified Patch with `socket-patch`, with or without an event.
 
 | Variable                             | Default | Purpose                                                                                                                                                                                                                                |
 | ------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
