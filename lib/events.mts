@@ -1,8 +1,9 @@
 /**
  * @file MCP Events (SEP-3415, `io.modelcontextprotocol/events`, Beta) for the
- *   local stdio and `--http` server. One event type, `socket.alert.created`,
- *   delivered by push only: `events/stream` polls the org alerts API with the
- *   caller's own token and emits each alert it has not seen before.
+ *   local stdio and `--http` server. Two event types, `socket.alert.created`
+ *   and `socket.patch.available`, delivered by push only: `events/stream`
+ *   polls the org alerts API with the caller's own token and emits each alert
+ *   it has not seen before.
  *   The TypeScript SDK has no events support yet
  *   (modelcontextprotocol/typescript-sdk#3209), so the two methods are plain
  *   custom request handlers. Swap them for the SDK's API once it lands.
@@ -33,49 +34,90 @@ import { UpstreamHttpError } from './tool-outcome.mts'
 
 export const EVENTS_EXTENSION = 'io.modelcontextprotocol/events'
 export const ALERT_CREATED_EVENT = 'socket.alert.created'
+export const PATCH_AVAILABLE_EVENT = 'socket.patch.available'
 
 // Spec error codes (SEP-3415).
 const NOT_FOUND = -32_023
 const FORBIDDEN = -32_024
+
+const ALERT_INPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    org_slug: {
+      type: 'string',
+      description: 'Organization slug, e.g. "my-org"',
+    },
+    severity: {
+      type: 'string',
+      description:
+        'Comma-separated severities to include: subset of low,medium,high,critical',
+    },
+  },
+  required: ['org_slug'],
+  additionalProperties: false,
+}
+
+const ALERT_PAYLOAD_PROPERTIES = {
+  org_slug: { type: 'string' },
+  alert: {
+    type: 'object',
+    description: 'The alert as returned by GET /v0/orgs/{org}/alerts',
+  },
+}
 
 const ALERT_CREATED_DEFINITION = {
   name: ALERT_CREATED_EVENT,
   description:
     'A new Socket alert appeared for an organization you can access. Polls the org alerts API with your own token and fires once per new alert.',
   delivery: ['push'],
-  inputSchema: {
-    type: 'object',
-    properties: {
-      org_slug: {
-        type: 'string',
-        description: 'Organization slug, e.g. "my-org"',
-      },
-      severity: {
-        type: 'string',
-        description:
-          'Comma-separated severities to include: subset of low,medium,high,critical',
-      },
-    },
-    required: ['org_slug'],
-    additionalProperties: false,
-  },
+  inputSchema: ALERT_INPUT_SCHEMA,
   payloadSchema: {
     type: 'object',
-    properties: {
-      org_slug: { type: 'string' },
-      alert: {
-        type: 'object',
-        description: 'The alert as returned by GET /v0/orgs/{org}/alerts',
-      },
-    },
+    properties: ALERT_PAYLOAD_PROPERTIES,
     required: ['org_slug', 'alert'],
   },
 }
+
+const PATCH_AVAILABLE_DEFINITION = {
+  name: PATCH_AVAILABLE_EVENT,
+  description:
+    'A CVE alert that a Socket Certified Patch fixes appeared for an organization you can access. A certified patch backports the fix into the exact version in use, so nothing is upgraded. Apply one with `socket-patch get <uuid>` from the project root. Fires once per alert.',
+  delivery: ['push'],
+  inputSchema: ALERT_INPUT_SCHEMA,
+  payloadSchema: {
+    type: 'object',
+    properties: {
+      ...ALERT_PAYLOAD_PROPERTIES,
+      patches: {
+        type: 'array',
+        description: 'The certified patches available for this alert',
+        items: {
+          type: 'object',
+          properties: {
+            uuid: {
+              type: 'string',
+              description: 'Patch id, for `socket-patch get <uuid>`',
+            },
+            purl: { type: 'string', description: 'The patched package' },
+          },
+          required: ['uuid'],
+        },
+      },
+    },
+    required: ['org_slug', 'alert', 'patches'],
+  },
+}
+
+const EVENT_DEFINITIONS = [ALERT_CREATED_DEFINITION, PATCH_AVAILABLE_DEFINITION]
 
 export interface AlertCreatedArgs {
   org_slug: string
   severity?: string | undefined
 }
+
+// What a source fetches: the event's arguments, plus whether only alerts
+// with an available certified patch count.
+export type AlertQuery = AlertCreatedArgs & { patchOnly?: boolean | undefined }
 
 interface StreamParams {
   name: string
@@ -86,7 +128,7 @@ interface StreamParams {
 export type Alert = Record<string, unknown> & { id: string }
 
 export type AlertSource = (
-  args: AlertCreatedArgs,
+  query: AlertQuery,
   token: string,
   userAgent: string,
 ) => Promise<Alert[]>
@@ -174,6 +216,7 @@ export const socketAlertSource: AlertSource = async (
       status: 'open',
       perPage: 100,
       ...(args.severity ? { severity: args.severity } : {}),
+      ...(args.patchOnly ? { patchStatus: 'patch_available' } : {}),
     },
   })
   const record = isPlainObject(body) ? body : {}
@@ -192,6 +235,36 @@ function toAlerts(items: unknown[]): Alert[] {
       ? [{ ...item, id: String(id) }]
       : []
   })
+}
+
+/**
+ * The certified patches an alert can use: its locations whose patch status is
+ * `patch_available`, one entry per patch uuid.
+ */
+export function availablePatches(
+  alert: Alert,
+): Array<{ uuid: string; purl?: string }> {
+  const locations = Array.isArray(alert['locations']) ? alert['locations'] : []
+  const patches = new Map<string, { uuid: string; purl?: string }>()
+  for (const location of locations) {
+    if (!isPlainObject(location) || !isPlainObject(location['patch'])) {
+      continue
+    }
+    const { uuid, status } = location['patch']
+    if (typeof uuid !== 'string' || status !== 'patch_available') {
+      continue
+    }
+    const artifact = isPlainObject(location['artifact'])
+      ? location['artifact']
+      : {}
+    const { type, namespace, name, version } = artifact
+    const purl =
+      typeof type === 'string' && typeof name === 'string'
+        ? `pkg:${type}/${typeof namespace === 'string' && namespace ? `${namespace}/` : ''}${name}${typeof version === 'string' ? `@${version}` : ''}`
+        : undefined
+    patches.set(uuid, { uuid, ...(purl ? { purl } : {}) })
+  }
+  return [...patches.values()]
 }
 
 /**
@@ -220,6 +293,7 @@ export function fileAlertSource(file: string): AlertSource {
       .filter(
         alert => !wanted || wanted.includes(String(alert['severity'] ?? '')),
       )
+      .filter(alert => !args.patchOnly || availablePatches(alert).length > 0)
       .reverse()
   }
 }
@@ -251,14 +325,14 @@ export function registerEventHandlers(
   server.setRequestHandler(
     'events/list',
     { params: passthrough(value => value) },
-    () => ({ events: [ALERT_CREATED_DEFINITION] }),
+    () => ({ events: EVENT_DEFINITIONS }),
   )
 
   server.setRequestHandler(
     'events/stream',
     { params: passthrough(parseStreamParams) },
     async (params, ctx) => {
-      if (params.name !== ALERT_CREATED_EVENT) {
+      if (!EVENT_DEFINITIONS.some(event => event.name === params.name)) {
         throw new ProtocolError(NOT_FOUND, `Unknown event: ${params.name}`, {
           kind: 'event',
         })
@@ -270,7 +344,15 @@ export function registerEventHandlers(
       return streamAlerts(params, ctx, {
         pollMs,
         heartbeatMs,
-        poll: () => source(params.arguments, token ?? '', userAgent),
+        poll: () =>
+          source(
+            {
+              ...params.arguments,
+              patchOnly: params.name === PATCH_AVAILABLE_EVENT,
+            },
+            token ?? '',
+            userAgent,
+          ),
       })
     },
   )
@@ -333,9 +415,15 @@ export async function streamAlerts(
       }
       await notify('event', {
         eventId: `${params.arguments.org_slug}:${alert.id}`,
-        name: ALERT_CREATED_EVENT,
+        name: params.name,
         timestamp: time ?? new Date().toISOString(),
-        data: { org_slug: params.arguments.org_slug, alert },
+        data: {
+          org_slug: params.arguments.org_slug,
+          alert,
+          ...(params.name === PATCH_AVAILABLE_EVENT
+            ? { patches: availablePatches(alert) }
+            : {}),
+        },
         cursor,
       })
     }
@@ -347,7 +435,7 @@ export async function streamAlerts(
     return true
   }
 
-  logger.info({ event: ALERT_CREATED_EVENT }, 'events stream opened')
+  logger.info({ event: params.name }, 'events stream opened')
   await notify('active', {
     cursor,
     truncated: false,
@@ -369,6 +457,6 @@ export async function streamAlerts(
       await notify('heartbeat', { cursor })
     }
   }
-  logger.info({ event: ALERT_CREATED_EVENT }, 'events stream closed')
+  logger.info({ event: params.name }, 'events stream closed')
   return { _meta: meta }
 }

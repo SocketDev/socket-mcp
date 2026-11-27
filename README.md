@@ -232,9 +232,18 @@ See the [authentication reference](docs/service.md#authentication-for-organizati
 
 See the [organization and alerts example](docs/service.md#worked-example-organization-details-and-alerts).
 
-### MCP Events: new-alert notifications (Beta)
+### MCP Events and Skills: new-alert notifications (Beta)
 
-The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer one event, `socket.alert.created`, which takes `org_slug` and an optional comma-separated `severity` filter. With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token and emits each alert it hasn't seen before. The first poll is the baseline, so alerts that already exist don't fire.
+The local stdio and `--http` servers implement the [MCP Events extension](https://modelcontextprotocol.io/extensions/events/overview) (`io.modelcontextprotocol/events`, SEP-3415). They offer two events. Both take `org_slug` and an optional comma-separated `severity` filter.
+
+| Event                    | Fires when                                                                                                                          | `data`                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `socket.alert.created`   | A new alert appears in the org                                                                                                      | `org_slug`, `alert`                                                  |
+| `socket.patch.available` | A new CVE alert has a [Socket Certified Patch](https://docs.socket.dev/docs/sca-patches) (`filters.cvePatchStatus=patch_available`) | `org_slug`, `alert`, `patches[]` with each patch's `uuid` and `purl` |
+
+With push delivery (`events/stream`), the server polls `GET /v0/orgs/{org_slug}/alerts` with your own token and emits each alert it hasn't seen before. The first poll is the baseline, so alerts that already exist don't fire.
+
+The servers also implement the [MCP Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`) with one skill, `watch-socket-alerts`, at `skill://socket/watch-socket-alerts/SKILL.md`. It teaches an agent how to turn these events into an automation, and how to preview and apply a certified patch with `socket-patch`. A user can then say "watch my Socket alerts for patches" instead of spelling out the automation.
 
 | Variable                             | Default | Purpose                                                                                                                                                                                                                                |
 | ------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

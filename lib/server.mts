@@ -11,6 +11,7 @@ import { isPlainObject } from '@socketsecurity/lib-stable/objects/predicates'
 import { getSocketApiUrl } from './env.mts'
 import { reportToolCall } from './error-reporting.mts'
 import { registerEventHandlers } from './events.mts'
+import { registerSkillHandlers } from './skills.mts'
 import { buildToolAuditEvent } from './tool-audit-event.mts'
 import type {
   ToolAuditEventV1,
@@ -182,6 +183,7 @@ export function createConfiguredServer(
   )
 
   registerEventHandlers(server, { userAgent })
+  registerSkillHandlers(server)
 
   server.setRequestHandler('tools/list', () => ({
     __proto__: null,
