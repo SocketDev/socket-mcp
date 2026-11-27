@@ -91,8 +91,10 @@ export type AlertSource = (
 ) => Promise<Alert[]>
 
 export interface EventsOptions {
-  // Poll interval for `events/stream`; also the granted heartbeat interval.
+  // Poll interval for `events/stream`.
   pollMs?: number | undefined
+  // Heartbeat interval, capped at the poll interval.
+  heartbeatMs?: number | undefined
   source?: AlertSource | undefined
   userAgent?: string | undefined
 }
@@ -220,6 +222,12 @@ export function registerEventHandlers(
   options: EventsOptions = {},
 ): void {
   const pollMs = options.pollMs ?? envInt('SOCKET_MCP_EVENTS_POLL_MS') ?? 60_000
+  // Clients drop a quiet stream fast (OpenCode 2.4 after 30s, whatever we
+  // grant), so heartbeats run on their own short clock, not the poll's.
+  const heartbeatMs = Math.min(
+    pollMs,
+    options.heartbeatMs ?? envInt('SOCKET_MCP_EVENTS_HEARTBEAT_MS') ?? 10_000,
+  )
   const fake = envBool('SOCKET_MCP_EVENTS_FAKE_ALERT')
   const source =
     options.source ?? (fake ? fakeAlertSource() : socketAlertSource)
@@ -248,6 +256,7 @@ export function registerEventHandlers(
       }
       return streamAlerts(params, ctx, {
         pollMs,
+        heartbeatMs,
         poll: () => source(params.arguments, token ?? '', userAgent),
       })
     },
@@ -262,7 +271,7 @@ export function registerEventHandlers(
 export async function streamAlerts(
   params: StreamParams,
   ctx: ServerContext,
-  opts: { pollMs: number; poll: () => Promise<Alert[]> },
+  opts: { pollMs: number; heartbeatMs: number; poll: () => Promise<Alert[]> },
 ): Promise<{ _meta: Record<string, unknown> }> {
   const { signal } = ctx.mcpReq
   const meta = { [SUBSCRIPTION_ID_META_KEY]: ctx.mcpReq.id }
@@ -329,16 +338,23 @@ export async function streamAlerts(
   await notify('active', {
     cursor,
     truncated: false,
-    heartbeatMs: opts.pollMs,
+    heartbeatMs: opts.heartbeatMs,
   })
   let open = await tick()
+  let lastPoll = Date.now()
   while (open && !signal.aborted) {
+    const untilPoll = Math.max(0, lastPoll + opts.pollMs - Date.now())
     try {
-      await sleep(opts.pollMs, undefined, { signal })
+      await sleep(Math.min(opts.heartbeatMs, untilPoll), undefined, { signal })
     } catch {
       break
     }
-    open = await tick()
+    if (Date.now() >= lastPoll + opts.pollMs) {
+      lastPoll = Date.now()
+      open = await tick()
+    } else {
+      await notify('heartbeat', { cursor })
+    }
   }
   logger.info({ event: ALERT_CREATED_EVENT }, 'events stream closed')
   return { _meta: meta }

@@ -81,6 +81,7 @@ afterEach(() => {
   nock.enableNetConnect()
   delete process.env['SOCKET_MCP_EVENTS_POLL_MS']
   delete process.env['SOCKET_MCP_EVENTS_FAKE_ALERT']
+  delete process.env['SOCKET_MCP_EVENTS_HEARTBEAT_MS']
   setStaticApiKey('')
 })
 
@@ -170,5 +171,23 @@ test('fake-alert mode emits a synthetic alert without calling the API', async ()
     .map(n => n.params['eventId'])
   expect(new Set(ids).size).toBe(ids.length)
   expect(ids[0]).toBe('demo:fake-alert-1')
+  await client.close()
+})
+
+test('events/stream heartbeats between slow polls', async () => {
+  process.env['SOCKET_MCP_EVENTS_POLL_MS'] = '60000'
+  process.env['SOCKET_MCP_EVENTS_HEARTBEAT_MS'] = '20'
+  nock(API).get('/v0/orgs/my-org/alerts').query(true).reply(200, { items: [] })
+  const { client, notes } = await connect()
+  const { controller, done } = openStream(client, { org_slug: 'my-org' })
+  const heartbeats = () =>
+    notes.filter(n => n.method === 'notifications/events/heartbeat')
+  await vi.waitFor(() => expect(heartbeats().length).toBeGreaterThan(2), {
+    timeout: 5000,
+  })
+  controller.abort()
+  await done
+  expect(notes[0]?.params).toMatchObject({ heartbeatMs: 20 })
+  expect(nock.isDone()).toBe(true)
   await client.close()
 })

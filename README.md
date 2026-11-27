@@ -238,45 +238,44 @@ The local stdio and `--http` servers implement the [MCP Events extension](https:
 
 | Variable                         | Default | Purpose                                                                                                                                |
 | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `SOCKET_MCP_EVENTS_POLL_MS`      | `60000` | Poll interval, also the granted heartbeat interval                                                                                     |
+| `SOCKET_MCP_EVENTS_POLL_MS`      | `60000` | Poll interval                                                                                                                          |
+| `SOCKET_MCP_EVENTS_HEARTBEAT_MS` | `10000` | Heartbeat interval, capped at the poll interval. Clients drop a quiet stream (OpenCode 2.4 after 30 seconds)                           |
 | `SOCKET_MCP_EVENTS_FAKE_ALERT=1` | off     | Demo mode: no Socket API calls and no token needed. Each poll after the baseline emits one synthetic `demo-evil-package` malware alert |
 
-Recipe for OpenCode 2.4.0 (demo mode):
+Recipe for OpenCode 2.4 (demo mode, checked against 2.4.2):
 
-1. Build this checkout with `pnpm install && pnpm run build`, then add the server to `opencode.json`:
+1. Build this checkout with `pnpm install && pnpm run build`, then register it globally. Use absolute paths, because the desktop app doesn't inherit your shell's `PATH`:
 
-   ```json
-   {
-     "mcp": {
-       "socket": {
-         "type": "local",
-         "command": ["node", "/path/to/socket-mcp/dist/index.cjs"],
-         "environment": {
-           "SOCKET_MCP_EVENTS_FAKE_ALERT": "1",
-           "SOCKET_MCP_EVENTS_POLL_MS": "15000"
-         }
-       }
-     }
-   }
+   ```sh
+   opencode mcp add --global \
+     --env SOCKET_MCP_EVENTS_FAKE_ALERT=1 --env SOCKET_MCP_EVENTS_POLL_MS=15000 \
+     socket -- "$(command -v node)" /path/to/socket-mcp/dist/index.cjs
+   opencode service restart
    ```
 
-   Drop `SOCKET_MCP_EVENTS_FAKE_ALERT` to watch real alerts. The server then uses your `socket-mcp login` session or `SOCKET_API_TOKEN`.
+   This writes `mcp.servers.socket` to `~/.config/opencode/opencode.json`. Drop `SOCKET_MCP_EVENTS_FAKE_ALERT` to watch real alerts. The server then uses your `socket-mcp login` session or `SOCKET_API_TOKEN`.
 
-2. In OpenCode, run `list_mcp_events`. It shows `socket.alert.created` from the `socket` server.
-3. Create the automation:
+2. In an OpenCode session, ask it to run `list_mcp_events` for server `socket`. It shows `socket.alert.created`, with its `args` and `data` schemas.
+3. Ask it to create the automation. An event watch can only be created from a session, not over the HTTP API:
 
    ```js
    automation_create({
+     name: 'socket-alerts',
      trigger: {
        type: 'event',
        server: 'socket',
        event: 'socket.alert.created',
        args: { org_slug: 'my-org', severity: 'high,critical' },
      },
+     action: {
+       type: 'prompt',
+       prompt: 'A new Socket alert arrived. Summarize it and suggest a fix.',
+       to: { session: '<this session id>' },
+     },
    })
    ```
 
-4. About one poll interval later, the automation fires with the alert in `data.alert`. In demo mode, one more fake alert arrives on each later poll.
+4. About one poll interval later, the automation fires. In demo mode, one more fake alert arrives on each later poll, so delete the automation when the demo is over.
 
 ### Adjusting tool usage via client rules
 
