@@ -60,6 +60,8 @@ export interface ErrorReportingConfig {
     | ((options: BaseTransportOptions) => Transport)
     | undefined
   readonly mode: 'http' | 'stdio'
+  // SOCKET_MCP_SENTRY_TRACES_SAMPLE_RATE; 0 (no transactions) when unset.
+  readonly tracesSampleRate?: number | undefined
 }
 
 export interface ErrorReportContext {
@@ -78,6 +80,18 @@ export interface ErrorReporter {
   capture(error: unknown, context: ErrorReportContext): void
   close(timeoutMs: number): PromiseLike<boolean>
   flush(timeoutMs: number): PromiseLike<boolean>
+  traceToolCall<T>(
+    span: ToolCallSpan,
+    run: () => Promise<T>,
+    isError: () => boolean,
+  ): Promise<T>
+}
+
+export interface ToolCallSpan {
+  readonly client: { name: string; version?: string | undefined }
+  // A registered tool name, or `unknown`.
+  readonly tool: string
+  readonly transport: string
 }
 
 export interface ToolCallReport {
@@ -104,6 +118,30 @@ export interface ServerErrorReport {
 export const SHUTDOWN_FLUSH_TIMEOUT_MS = 2000
 
 const CLIENT_NAME_MAX_LENGTH = 64
+
+// User-Agent products named as a client family; any other product is
+// `other`. Kept in step with the hosted proxy's map so both layers tag the
+// same client the same way.
+const USER_AGENT_CLIENT_FAMILIES: ReadonlyMap<string, string> = new Map([
+  ['aiohttp', 'aiohttp'],
+  ['axios', 'axios'],
+  ['bun', 'bun'],
+  ['claude-code', 'claude-code'],
+  ['claude-user', 'claude-user'],
+  ['codex', 'codex'],
+  ['curl', 'curl'],
+  ['cursor', 'cursor'],
+  ['go-http-client', 'go-http-client'],
+  ['mozilla', 'browser'],
+  ['node', 'node'],
+  ['node-fetch', 'node'],
+  ['okhttp', 'okhttp'],
+  ['openai-mcp', 'openai-mcp'],
+  ['python-httpx', 'python-httpx'],
+  ['python-requests', 'python-requests'],
+  ['undici', 'node'],
+  ['vscode', 'vscode'],
+])
 
 // Failure causes that point at the server side of an upstream call rather than
 // at the caller's request.
@@ -192,6 +230,7 @@ export async function initErrorReporting(
       environment: config.environment,
       makeTransport: config.makeTransport,
       release: VERSION,
+      tracesSampleRate: config.tracesSampleRate,
     })
     if (!created) {
       logger.warn(
@@ -247,9 +286,10 @@ export function isReportableToolCall(
 }
 
 // Name the MCP client: `clientInfo.name` when the request carried one,
-// otherwise the first product token of the User-Agent, otherwise `unknown`.
-// Names are lowercased, reduced to [a-z0-9._-] and capped at 64 characters; a
-// version is kept only when it looks like one and fits in 32.
+// otherwise the client family of the User-Agent's first product token
+// (`other` when the family is not known), otherwise `unknown`. Names are
+// lowercased, reduced to [a-z0-9._-] and capped at 64 characters; a version is
+// kept only when it looks like one and fits in 32, and never for `other`.
 export function resolveMcpClient(
   clientInfo: unknown,
   userAgent: string | undefined,
@@ -266,17 +306,20 @@ export function resolveMcpClient(
   const product = userAgent?.trim().split(/\s+/u)[0]
   if (product) {
     const slash = product.indexOf('/')
-    const name = normalizeClientName(
+    const productName = normalizeClientName(
       slash === -1 ? product : product.slice(0, slash),
     )
-    if (name) {
-      return {
-        name,
-        version:
-          slash === -1
-            ? undefined
-            : normalizeClientVersion(product.slice(slash + 1)),
-      }
+    if (productName) {
+      const name = USER_AGENT_CLIENT_FAMILIES.get(productName)
+      return name
+        ? {
+            name,
+            version:
+              slash === -1
+                ? undefined
+                : normalizeClientVersion(product.slice(slash + 1)),
+          }
+        : { name: 'other' }
     }
   }
   return { name: 'unknown' }
@@ -401,6 +444,17 @@ export function reportToolCall(report: ToolCallReport): void {
   } catch {
     // Reporting never affects the tool call it describes.
   }
+}
+
+// Run one `tools/call` inside a Sentry transaction. Without reporting on, it
+// just runs the call.
+export function traceToolCall<T>(
+  span: ToolCallSpan,
+  run: () => Promise<T>,
+  isError: () => boolean,
+): Promise<T> {
+  const active = reporter
+  return active ? active.traceToolCall(span, run, isError) : run()
 }
 
 function isClientDisconnect(error: unknown): boolean {

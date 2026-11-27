@@ -17,6 +17,7 @@ import {
   getSocketApiToken,
   getSocketMcpSentryDsn,
   getSocketMcpSentryEnvironment,
+  getSocketMcpSentryTracesSampleRate,
 } from './env.mts'
 import { startErrorReporting } from './error-reporting.mts'
 import { getApiKeyInteractively } from './http.mts'
@@ -52,10 +53,12 @@ export interface SocketMcpCliDeps {
   readonly resolveLocalOAuthSession?: () => Promise<
     LocalOAuthSession | undefined
   >
-  // SOCKET_MCP_SENTRY_DSN and SOCKET_MCP_SENTRY_ENVIRONMENT. HTTP mode turns
-  // error reporting on only when the DSN is set; stdio mode ignores both.
+  // SOCKET_MCP_SENTRY_DSN, SOCKET_MCP_SENTRY_ENVIRONMENT and
+  // SOCKET_MCP_SENTRY_TRACES_SAMPLE_RATE. HTTP mode turns error reporting on
+  // only when the DSN is set; stdio mode ignores all three.
   readonly sentryDsn: string | undefined
   readonly sentryEnvironment: string | undefined
+  readonly sentryTracesSampleRate: number
   readonly serveStdio: typeof serveStdio
   readonly setOauthEnabled: () => { issuer: string } | undefined
   readonly setStaticApiKey: typeof setStaticApiKey
@@ -82,6 +85,7 @@ export function createSocketMcpCliDeps(): SocketMcpCliDeps {
     resolveLocalOAuthSession,
     sentryDsn: getSocketMcpSentryDsn(),
     sentryEnvironment: getSocketMcpSentryEnvironment(),
+    sentryTracesSampleRate: getSocketMcpSentryTracesSampleRate(),
     serveStdio,
     setOauthEnabled,
     setStaticApiKey,
@@ -208,6 +212,7 @@ export async function runSocketMcpCli(deps: SocketMcpCliDeps): Promise<number> {
         dsn: deps.sentryDsn,
         environment: deps.sentryEnvironment,
         mode: 'http',
+        tracesSampleRate: deps.sentryTracesSampleRate,
       })
     }
     deps.startHttpServer(deps.port)

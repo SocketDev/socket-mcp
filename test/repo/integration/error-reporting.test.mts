@@ -69,6 +69,21 @@ interface SentryEvent {
   tags?: Record<string, string>
 }
 
+interface SentryTransaction {
+  contexts?: {
+    trace?: {
+      data?: Record<string, unknown>
+      op?: string
+      origin?: string
+      parent_span_id?: string
+      status?: string
+      trace_id?: string
+    }
+  }
+  spans?: unknown[]
+  transaction?: string
+}
+
 let envelopes: string[] = []
 let httpServer: Server
 let endpoint = ''
@@ -85,10 +100,11 @@ function recordingTransport(options: BaseTransportOptions): Transport {
   })
 }
 
-// Every event payload recorded so far, after the queue drains.
-async function recordedEvents(): Promise<SentryEvent[]> {
+// Every payload of one envelope item type recorded so far, after the queue
+// drains.
+async function recordedItems(type: string): Promise<unknown[]> {
   await flushErrorReporting(2000)
-  const events: SentryEvent[] = []
+  const items: unknown[] = []
   for (const envelope of envelopes) {
     const lines = envelope.split('\n').filter(Boolean)
     for (let i = 1; i + 1 < lines.length; i += 2) {
@@ -96,14 +112,23 @@ async function recordedEvents(): Promise<SentryEvent[]> {
       if (
         typeof header === 'object' &&
         header !== null &&
-        Reflect.get(header, 'type') === 'event'
+        Reflect.get(header, 'type') === type
       ) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- envelope payloads are untyped JSON; the cases assert on the fields they read.
-        events.push(JSON.parse(lines[i + 1]!) as SentryEvent)
+        items.push(JSON.parse(lines[i + 1]!))
       }
     }
   }
-  return events
+  return items
+}
+
+async function recordedEvents(): Promise<SentryEvent[]> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- envelope payloads are untyped JSON; the cases assert on the fields they read.
+  return (await recordedItems('event')) as SentryEvent[]
+}
+
+async function recordedTransactions(): Promise<SentryTransaction[]> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- envelope payloads are untyped JSON; the cases assert on the fields they read.
+  return (await recordedItems('transaction')) as SentryTransaction[]
 }
 
 async function postToolCall(
@@ -375,9 +400,9 @@ describe('tool calls that fail on the server side', () => {
     expect(events).toHaveLength(1)
     expect(events[0]!.tags).toMatchObject({
       'failure.cause': 'upstream_5xx',
-      'mcp.client': 'synthetic-legacy-agent',
-      'mcp.client_version': '4.5.6',
+      'mcp.client': 'other',
     })
+    expect(events[0]!.tags?.['mcp.client_version']).toBeUndefined()
   })
 })
 
@@ -495,7 +520,7 @@ describe('server errors outside tool handlers', () => {
     const { res } = makeRes()
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the handler reads only the headers and auth members.
     const req = {
-      headers: { 'user-agent': 'Synthetic-Router-Client/1.0.0' },
+      headers: { 'user-agent': 'curl/8.7.1' },
       auth: { token: CALLER_TOKEN, clientId: 'socket-api-key', scopes: [] },
     } as unknown as AuthenticatedRequest & IncomingMessage
     createRouteFailureHandler(res, req)(new TypeError('synthetic routing bug'))
@@ -505,8 +530,8 @@ describe('server errors outside tool handlers', () => {
     expect(events[0]!.tags).toMatchObject({
       'auth.outcome': 'bearer_ok',
       'error.source': 'http_route',
-      'mcp.client': 'synthetic-router-client',
-      'mcp.client_version': '1.0.0',
+      'mcp.client': 'curl',
+      'mcp.client_version': '8.7.1',
     })
     expect(envelopes.join('\n')).not.toContain(CALLER_TOKEN)
   })
@@ -522,6 +547,110 @@ describe('server errors outside tool handlers', () => {
       'error.code': 'ECONNRESET',
       'error.source': 'oauth_verify',
     })
+  })
+})
+
+describe('tool call tracing', () => {
+  async function enableTracing(): Promise<void> {
+    await closeErrorReporting()
+    await expect(
+      initErrorReporting({
+        dsn: TEST_DSN,
+        mode: 'http',
+        makeTransport: recordingTransport,
+        tracesSampleRate: 1,
+      }),
+    ).resolves.toBe(true)
+  }
+
+  test('sends no transactions when the sample rate is unset', async () => {
+    nock(SOCKET_API).get('/v0/organizations').reply(200, { organizations: {} })
+    await (await postToolCall('organizations', {}, bearer)).text()
+    expect(await recordedTransactions()).toEqual([])
+  })
+
+  test('a successful call is one root transaction with the MCP attributes', async () => {
+    await enableTracing()
+    nock(SOCKET_API).get('/v0/organizations').reply(200, { organizations: {} })
+    const res = await postToolCall('organizations', {}, bearer)
+    expect(await res.text()).not.toContain('"isError":true')
+
+    const transactions = await recordedTransactions()
+    expect(transactions).toHaveLength(1)
+    const [transaction] = transactions
+    expect(transaction!.transaction).toBe('tools/call organizations')
+    expect(transaction!.spans).toEqual([])
+    expect(transaction!.contexts?.trace).toMatchObject({
+      op: 'mcp.server',
+      origin: 'auto.function.mcp_server',
+      status: 'ok',
+    })
+    expect(transaction!.contexts?.trace?.parent_span_id).toBeUndefined()
+    expect(transaction!.contexts?.trace?.data).toEqual({
+      'mcp.client.name': 'synthetic-client',
+      'mcp.client.version': '3.2.1',
+      'mcp.method.name': 'tools/call',
+      'mcp.tool.name': 'organizations',
+      'mcp.tool.result.is_error': false,
+      'mcp.transport': 'http',
+      'network.transport': 'tcp',
+      'sentry.op': 'mcp.server',
+      'sentry.origin': 'auto.function.mcp_server',
+      'sentry.sample_rate': 1,
+    })
+    expect(await recordedEvents()).toEqual([])
+  })
+
+  test('a failed call is marked as an error and leaks nothing from the call', async () => {
+    await enableTracing()
+    nock(SOCKET_API)
+      .get(`/v0/orgs/${ORG_SLUG}/alerts`)
+      .query(true)
+      .reply(502, `${BODY_CANARY} for ${ORG_SLUG}`)
+    await (
+      await postToolCall(
+        'alerts',
+        { org_slug: ORG_SLUG, cursor: 'synthetic-cursor-canary' },
+        { ...bearer, cookie: 'session=synthetic-cookie-canary' },
+      )
+    ).text()
+    nock(SOCKET_API).get('/v0/organizations').reply(200, { organizations: {} })
+    await (await postToolCall('organizations', {}, bearer)).text()
+
+    const transactions = await recordedTransactions()
+    expect(transactions.map(t => t.transaction)).toEqual([
+      'tools/call alerts',
+      'tools/call organizations',
+    ])
+    expect(
+      transactions[0]!.contexts?.trace?.data?.['mcp.tool.result.is_error'],
+    ).toBe(true)
+    // Concurrent or back-to-back calls never share a trace.
+    expect(transactions[0]!.contexts?.trace?.trace_id).not.toBe(
+      transactions[1]!.contexts?.trace?.trace_id,
+    )
+    const serialized = envelopes.join('\n')
+    for (const leak of [
+      CALLER_TOKEN,
+      tokenIdentity(CALLER_TOKEN),
+      DEPLOY_TOKEN,
+      ORG_SLUG,
+      BODY_CANARY,
+      'synthetic-cursor-canary',
+      'synthetic-cookie-canary',
+      'authorization',
+      homedir(),
+    ]) {
+      expect(serialized).not.toContain(leak)
+    }
+  })
+
+  test('an unknown tool is traced as unknown', async () => {
+    await enableTracing()
+    await (await postToolCall('synthetic_unknown_tool_name', {}, bearer)).text()
+    const transactions = await recordedTransactions()
+    expect(transactions.map(t => t.transaction)).toEqual(['tools/call unknown'])
+    expect(envelopes.join('\n')).not.toContain('synthetic_unknown_tool_name')
   })
 })
 

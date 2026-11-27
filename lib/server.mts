@@ -9,7 +9,11 @@ import type {
 import { isPlainObject } from '@socketsecurity/lib-stable/objects/predicates'
 
 import { getSocketApiUrl } from './env.mts'
-import { reportToolCall } from './error-reporting.mts'
+import {
+  reportToolCall,
+  resolveMcpClient,
+  traceToolCall,
+} from './error-reporting.mts'
 import { buildToolAuditEvent } from './tool-audit-event.mts'
 import type {
   ToolAuditEventV1,
@@ -185,116 +189,131 @@ export function createConfiguredServer(
     tools: specs.map(toToolListEntry),
   }))
 
-  server.setRequestHandler('tools/call', async (request, ctx) => {
+  server.setRequestHandler('tools/call', (request, ctx) => {
     const { name } = request.params
-    const eventId = crypto.randomUUID()
-    const requestId = ctx.mcpReq.id
-    const identity = resolveToolAuditIdentity(
-      transport,
-      ctx.http?.authInfo?.token,
-    )
+    const tool = specsByName.has(name) ? name : 'unknown'
+    const clientInfo = readEnvelopeClientInfo(ctx)
+    const clientUserAgent =
+      requestContext?.requestInfo?.headers.get('user-agent') ?? undefined
     let outcome: ToolAuditOutcome = 'failure'
-    let inputValidated = false
-    let auditSnapshot: ToolAuditEventV1 | undefined
-    let handlerResult: object | undefined
-    let threw = false
-    let thrownError: unknown
-    try {
-      const spec = specsByName.get(name)
-      const handler = handlers.get(name)
-      const args = request.params.arguments ?? {}
-      if (!spec || !handler) {
-        outcome = 'unknown'
-        auditSnapshot = buildAuditSnapshot(
-          eventId,
-          identity,
-          name,
-          outcome,
-          args,
-          { requestId },
-        )
-        return errorResult(`Unknown tool: ${name}`)
-      }
-      const validation = spec.validateInput(args)
-      if (!validation.valid) {
-        outcome = 'invalid'
-        auditSnapshot = buildAuditSnapshot(
-          eventId,
-          identity,
-          name,
-          outcome,
-          args,
-          { requestId },
-        )
-        return errorResult(formatToolValidationFailure(validation))
-      }
-      inputValidated = true
-      auditSnapshot = buildAuditSnapshot(
-        eventId,
-        identity,
-        name,
-        'failure',
-        args,
-        { inputValidated, requestId },
+    return traceToolCall(
+      {
+        client: resolveMcpClient(clientInfo, clientUserAgent),
+        tool,
+        transport,
+      },
+      handle,
+      () => outcome !== 'success',
+    )
+
+    async function handle() {
+      const eventId = crypto.randomUUID()
+      const requestId = ctx.mcpReq.id
+      const identity = resolveToolAuditIdentity(
+        transport,
+        ctx.http?.authInfo?.token,
       )
-      const result = await handler(args, toToolHandlerExtra(ctx, userAgent))
-      handlerResult = result
-      outcome = classifyToolOutcome(result)
-      return result
-    } catch (error) {
-      threw = true
-      thrownError = error
-      throw error
-    } finally {
+      let inputValidated = false
+      let auditSnapshot: ToolAuditEventV1 | undefined
+      let handlerResult: object | undefined
+      let threw = false
+      let thrownError: unknown
       try {
-        const snapshot =
-          auditSnapshot ??
-          buildAuditSnapshot(
+        const spec = specsByName.get(name)
+        const handler = handlers.get(name)
+        const args = request.params.arguments ?? {}
+        if (!spec || !handler) {
+          outcome = 'unknown'
+          auditSnapshot = buildAuditSnapshot(
             eventId,
             identity,
             name,
             outcome,
-            {},
+            args,
             { requestId },
           )
-        if (snapshot === undefined) {
-          reportToolAuditFailure('mcp audit event construction failed\n')
-        } else {
-          const timestamp = new Date().toISOString()
-          const completedEvent: ToolAuditEventV1 =
-            outcome === 'invalid' || outcome === 'unknown'
-              ? {
-                  ...snapshot,
-                  outcome,
-                  timestamp,
-                  resources: [],
-                  truncated: {
-                    ...snapshot.truncated,
-                    resources:
-                      snapshot.truncated.resources ||
-                      snapshot.resources.length > 0,
-                  },
-                }
-              : { ...snapshot, outcome, timestamp }
-          emitToolAuditEvent(completedEvent)
+          return errorResult(`Unknown tool: ${name}`)
         }
-      } catch {
-        reportToolAuditFailure('mcp audit event construction failed\n')
+        const validation = spec.validateInput(args)
+        if (!validation.valid) {
+          outcome = 'invalid'
+          auditSnapshot = buildAuditSnapshot(
+            eventId,
+            identity,
+            name,
+            outcome,
+            args,
+            { requestId },
+          )
+          return errorResult(formatToolValidationFailure(validation))
+        }
+        inputValidated = true
+        auditSnapshot = buildAuditSnapshot(
+          eventId,
+          identity,
+          name,
+          'failure',
+          args,
+          { inputValidated, requestId },
+        )
+        const result = await handler(args, toToolHandlerExtra(ctx, userAgent))
+        handlerResult = result
+        outcome = classifyToolOutcome(result)
+        return result
+      } catch (error) {
+        threw = true
+        thrownError = error
+        throw error
+      } finally {
+        try {
+          const snapshot =
+            auditSnapshot ??
+            buildAuditSnapshot(
+              eventId,
+              identity,
+              name,
+              outcome,
+              {},
+              { requestId },
+            )
+          if (snapshot === undefined) {
+            reportToolAuditFailure('mcp audit event construction failed\n')
+          } else {
+            const timestamp = new Date().toISOString()
+            const completedEvent: ToolAuditEventV1 =
+              outcome === 'invalid' || outcome === 'unknown'
+                ? {
+                    ...snapshot,
+                    outcome,
+                    timestamp,
+                    resources: [],
+                    truncated: {
+                      ...snapshot.truncated,
+                      resources:
+                        snapshot.truncated.resources ||
+                        snapshot.resources.length > 0,
+                    },
+                  }
+                : { ...snapshot, outcome, timestamp }
+            emitToolAuditEvent(completedEvent)
+          }
+        } catch {
+          reportToolAuditFailure('mcp audit event construction failed\n')
+        }
+        // A no-op unless HTTP-mode error reporting is on. It reads the outcome
+        // and identity computed above rather than deriving its own.
+        reportToolCall({
+          clientInfo,
+          error: thrownError,
+          identity,
+          outcome,
+          result: handlerResult,
+          threw,
+          tool,
+          transport,
+          userAgent: clientUserAgent,
+        })
       }
-      // A no-op unless HTTP-mode error reporting is on. It reads the outcome
-      // and identity computed above rather than deriving its own.
-      reportToolCall({
-        clientInfo: readEnvelopeClientInfo(ctx),
-        error: thrownError,
-        identity,
-        outcome,
-        result: handlerResult,
-        threw,
-        tool: specsByName.has(name) ? name : 'unknown',
-        transport,
-        userAgent:
-          requestContext?.requestInfo?.headers.get('user-agent') ?? undefined,
-      })
     }
   })
 
